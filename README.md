@@ -4,7 +4,7 @@ Trabajo de Fin de Máster del Máster en Desarrollo con IA (BIG School, 3ª edic
 
 **Soulbound** es un party game de terror social: cuatro jugadores atrapados en una cripta viviente compiten en un juego de mesa mortal dirigido por un anfitrión sádico, el Warden, que cambia las reglas a su antojo. Para escapar hay que reunir seis runas y sobrevivir a sus caprichos antes de que el tiempo se agote.
 
-**Soulbound Core** es la primera fase del juego: el tablero multijugador en pantalla plana, el motor de reglas y una versión mínima de la IA directora del Warden. Construido en Unreal Engine 5 con C++ aplicando la metodología del máster: especificaciones antes que código, motor de reglas testeable, agentes de IA que implementan user stories, revisión automática de código e integración continua.
+**Soulbound Core** es la primera fase del juego: el tablero multijugador en pantalla plana, el motor de reglas y una versión mínima de la IA directora del Warden. Construido en Unreal Engine 5 con C++ aplicando la metodología del máster.
 
 ## Estado
 
