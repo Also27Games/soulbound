@@ -7,7 +7,7 @@ description: Conocimiento del proyecto Soulbound (party game de terror social co
 
 ## Qué es este proyecto
 
-Soulbound es un party game de terror social para PC y VR, de uno a cuatro jugadores. Atrapados en una cripta viviente, compiten en un juego de mesa mortal dirigido por un anfitrión sádico controlado por IA, el Warden, que cambia las reglas a su antojo. Para escapar hay que vincularse a uno de los seis [CLASE], reunir seis runas y sobrevivir a sus caprichos antes de que el tiempo se agote.
+Soulbound es un party game de terror social para PC y VR, de uno a cuatro jugadores. Atrapados en una cripta viviente, compiten en un juego de mesa mortal dirigido por un anfitrión sádico controlado por IA, el Warden, que cambia las reglas a su antojo. Para escapar hay que vincularse a uno de los seis Elegidos, reunir seis runas y sobrevivir a sus caprichos antes de que el tiempo se agote.
 
 Este repositorio contiene **Soulbound Core**, la primera fase: tablero multijugador en pantalla plana, motor de reglas y una versión mínima de la IA directora del Warden. Es un Trabajo de Fin de Máster de un máster sobre desarrollo con IA, así que el **proceso importa tanto como el producto**: especificaciones antes que código, motor de reglas testeable sin editor, agentes que implementan user stories, revisión automática, integración continua. Cada decisión de diseño se registra con su motivo.
 
@@ -38,7 +38,7 @@ Estas no se discuten en cada tarea; si una propuesta las rompe, se descarta o se
 
 - **Plataforma de la Fase 1: PC, pantalla plana, ratón y teclado o mando.** Ninguna mecánica de Fase 1 depende de gestos. La VR es Fase 3 y solo condiciona la arquitectura: el motor de reglas no sabe cómo se introdujo una acción.
 - **Duración única de 40 minutos** con tres actos de 5, 22 y 13 minutos aproximados. Sin guardado.
-- **Seis Dominios, seis [CLASE], seis runas, siempre.** Con N jugadores, el Warden corrompe 6 menos N Dominios al azar (Dominios Olvidados). El tablero es un Altar central, donde todos empiezan y donde se gana, con seis Dominios conectados a él y entre vecinos.
+- **Seis Dominios, seis Elegidos, seis runas, siempre.** Con N jugadores, el Warden corrompe 6 menos N Dominios al azar (Dominios Olvidados). El tablero es un Altar central, donde todos empiezan y donde se gana, con seis Dominios conectados a él y entre vecinos.
 - **De 1 a 4 jugadores.** Los huecos los ocupan bots. En Fase 1, un bot básico con una heurística simple, diseñado para que añadir bots nuevos sea añadir una implementación de la misma interfaz de decisión. Los dummies sin criterio existen solo como herramienta de pruebas y simulación.
 - **Todo el material es propio.** Ni nombres, ni textos, ni arte, ni tablas de ningún juego existente. Las inspiraciones se citan como género, no como título. Los assets de terceros con licencia (Synty, Fab) no se versionan en este repositorio.
 - **Lógica de reglas sin mundo.** El estado de partida son structs; las reglas y el cerebro del Warden son funciones o objetos que no necesitan un nivel cargado ni `GetWorld()`. Los actores son adaptadores: entrada, replicación y presentación. Así los tests corren sin abrir el editor y el Warden se puede simular miles de veces.
@@ -71,13 +71,13 @@ Para cada sección de la plantilla:
 
 Escribe cada sección al archivo en cuanto se aprueba, no al final: si la sesión se corta, lo aprobado sobrevive. Al retomar, lee el archivo del disco y continúa por la primera sección con `[Pendiente]`.
 
-Orden de los GDD de sistema, que es el orden de implementación: tablero y movimiento; turnos y dados; carrera por el vínculo y [CLASE]; runas y poderes; castigos, Nicho y Vacío; Warden; interfaz en plano; multijugador y dummies.
+Orden de los GDD de sistema, que es el orden de implementación: tablero y movimiento; turnos y dados; carrera por el vínculo y Elegidos; runas y poderes; castigos, Nicho y Vacío; Warden; interfaz en plano; multijugador y dummies.
 
 ## Criterios de aceptación y user stories
 
 Cada regla del GDD acaba en un criterio de aceptación en formato Dado / Cuando / Entonces, y cada criterio acaba en un test de automatización sobre el módulo de reglas. Un criterio que no se puede comprobar con un test o con un playtest concreto no es un criterio; reescríbelo.
 
-Las user stories siguen el formato "Como [rol], quiero [acción], para [beneficio]" con criterios de aceptación en lista, como las SOU-xx heredadas del planning original. Los roles son: Jugador, [CLASE] concreto, Eco Perdido, Sistema, IA Directora, Desarrollador.
+Las user stories siguen el formato "Como [rol], quiero [acción], para [beneficio]" con criterios de aceptación en lista, como las SOU-xx heredadas del planning original. Los roles son: Jugador, un Elegido concreto, Eco Perdido, Sistema, IA Directora, Desarrollador.
 
 ## Métricas de diversión
 
@@ -100,7 +100,6 @@ El motor de reglas emite un registro de eventos con marca de tiempo y destinatar
 
 ## Lo que no está decidido todavía
 
-- El nombre de la clase de personajes. Hasta que se decida se escribe `[CLASE]`. El nombre antiguo no se usa.
 - El rediseño del cuarto personaje (antes "El Barón").
 - Si el Warden habla solo por texto en Fase 1 o también con voz sintética de placeholder.
 

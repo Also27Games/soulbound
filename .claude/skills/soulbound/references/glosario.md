@@ -8,8 +8,8 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 |---|---|---|
 | El Warden | `Warden` | Anfitrión y director de la partida. Entidad ancestral que se alimenta de la desesperación. Interviene, castiga, ofrece dilemas. Es la IA directora. |
 | Eco Perdido | `LostEcho` | Estado inicial de todo jugador: un espectro sin poder. Quien no reclama un Nicho en la carrera se queda así toda la partida. |
-| [CLASE] | `[PENDIENTE]` | Los seis seres oscuros a los que un Eco puede vincularse. Cada uno da un poder pasivo y un mapa de runa a poder. Nombre pendiente de decisión del autor. |
-| Jugador | `Player` | Persona o bot que controla un Eco o un [CLASE]. |
+| Elegido (plural: Elegidos) | `Elect` | Los seis seres oscuros a los que un Eco puede vincularse. Cada uno gobierna un Dominio, da un poder pasivo y un mapa de runa a poder. |
+| Jugador | `Player` | Persona o bot que controla un Eco o un Elegido. |
 | Dummy | `DummyPlayer` | Jugador automático sin criterio (tira y mueve al azar). Solo para pruebas automáticas y simulación. |
 | Bot | `BotPlayer` | Jugador automático con criterio, que implementa la interfaz de decisión del jugador. En Fase 1, el bot básico: va a por el objetivo más cercano y elige en los dilemas lo que le beneficia. Otros bots y niveles de dificultad se añaden como nuevas implementaciones. Rellena los huecos hasta cuatro y permite jugar solo. |
 
@@ -23,29 +23,29 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Conexión | `Edge` | Enlace entre dos casillas. Puede llevar un Sello. |
 | El Altar | `Altar` | Casilla central grande. Todos los jugadores empiezan en ella. De ella parten los caminos a los seis Dominios. Con seis runas distintas, el jugador vuelve al Altar, las engarza y arranca el desafío final. Es casilla normal a efectos de tránsito y castigos. Si se exige tirada exacta para volver lo decide el GDD de tablero. |
 | Trono | `Throne` | Asiento de cada jugador en la Cripta, alrededor de la mesa. No es una casilla del tablero. |
-| Dominio | `Domain` | Una de las seis zonas del tablero, gobernada por un [CLASE]. Conectada con el Altar y con sus dos Dominios vecinos. Cada Dominio tiene un Nicho y una Fuente de Poder. |
+| Dominio | `Domain` | Una de las seis zonas del tablero, gobernada por un Elegido. Conectada con el Altar y con sus dos Dominios vecinos. Cada Dominio tiene un Nicho y una Fuente de Poder. |
 | Dominio Olvidado | `ForgottenDomain` | Dominio corrompido por el Warden al inicio (6 menos N). Nicho cerrado; runa solo con tirada de 4 o más; territorio de los Ecos. |
-| Nicho | `Niche` | Casilla fija de cada Dominio donde se reclama al [CLASE]. Punto de reaparición y de castigo medio. |
+| Nicho | `Niche` | Casilla fija de cada Dominio donde se reclama al Elegido. Punto de reaparición y de castigo medio. |
 | Fuente de Poder | `PowerSource` | Casilla fija de cada Dominio donde se obtiene su runa. |
 | Nodo de Poder | `PowerNode` | Casilla especial cuyo efecto se asigna al azar al inicio: Duelo, Vacío o Nodo Planar. |
 | Nodo Planar | `PlanarNode` | Casilla que permite teletransportarse a otro Nodo Planar. |
 | Sello | `Seal` | Barrera del Warden en una conexión. No se cruza sin Paso Libre. |
-| Despertar del tablero | `BoardAwakening` | Momento en que el primer jugador se convierte en [CLASE] y se activan los Nodos de Poder. |
+| Despertar del tablero | `BoardAwakening` | Momento en que el primer jugador se convierte en Elegido y se activan los Nodos de Poder. |
 
 ## Objetivo y poderes
 
 | Español | Código | Definición |
 |---|---|---|
-| Runa de Poder | `Rune` | Uno de los seis objetos de colección. Cada [CLASE] tiene su propio mapa de runa a poder. |
+| Runa de Poder | `Rune` | Uno de los seis objetos de colección. Cada Elegido tiene su propio mapa de runa a poder. |
 | Brazal Arcano | `Bracer` | Inventario de runas del jugador. Estado oculto o revelado. En PC, un panel de interfaz. |
-| Poder | `Power` | Capacidad que otorga una runa según el [CLASE]: Duelo, Celeridad, Paso Libre, Yugo, Vuelo Planar, Desvío. |
+| Poder | `Power` | Capacidad que otorga una runa según el Elegido: Duelo, Celeridad, Paso Libre, Yugo, Vuelo Planar, Desvío. |
 | Duelo (poder) | `PowerDuel` | Permite iniciar duelos en su casilla. |
 | Celeridad | `PowerHaste` | Elegir tirar uno o dos dados. |
 | Paso Libre | `PowerFreePassage` | Cruzar y mover Sellos. |
 | Yugo | `PowerYoke` | Someter a quien comparte casilla: imponerle un castigo. Nombre provisional. |
 | Vuelo Planar | `PowerPlanarFlight` | Usar los Nodos Planares. |
 | Desvío | `PowerDeflection` | Sacrificar la runa para salir del Vacío. |
-| Afinidad | `Affinity` | Poder pasivo único de cada [CLASE]. |
+| Afinidad | `Affinity` | Poder pasivo único de cada Elegido. |
 | Runa de Liberación | `LiberationRune` | Runa de un Dominio Olvidado que da poderes a los Ecos. |
 | Amuleto de Desvío | `DeflectionAmulet` | Objeto de un solo uso que anula un castigo y pasa al jugador de la izquierda. |
 | Grimorio | `Grimoire` | Consulta de reglas y estado del jugador. En PC, un panel. |
@@ -104,6 +104,5 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 
 ## Pendiente de decisión
 
-- Nombre de la clase de personajes: se escribe [CLASE] hasta que haya decisión.
 - Cuarto personaje: en rediseño.
 - Yugo es provisional.
