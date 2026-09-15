@@ -39,7 +39,7 @@ Estas no se discuten en cada tarea; si una propuesta las rompe, se descarta o se
 - **Plataforma de la Fase 1: PC, pantalla plana, ratón y teclado o mando.** Ninguna mecánica de Fase 1 depende de gestos. La VR es Fase 3 y solo condiciona la arquitectura: el motor de reglas no sabe cómo se introdujo una acción.
 - **Duración única de 40 minutos** con tres actos de 5, 22 y 13 minutos aproximados. Sin guardado.
 - **Seis reinos, seis [CLASE], seis runas, siempre.** Con N jugadores, el Warden corrompe 6 menos N reinos al azar (Reinos Olvidados).
-- **De 1 a 4 jugadores.** Los huecos los ocupan bots. En Fase 1 son dummies sin criterio.
+- **De 1 a 4 jugadores.** Los huecos los ocupan bots. En Fase 1, un bot básico con una heurística simple, diseñado para que añadir bots nuevos sea añadir una implementación de la misma interfaz de decisión. Los dummies sin criterio existen solo como herramienta de pruebas y simulación.
 - **Todo el material es propio.** Ni nombres, ni textos, ni arte, ni tablas de ningún juego existente. Las inspiraciones se citan como género, no como título. Los assets de terceros con licencia (Synty, Fab) no se versionan en este repositorio.
 - **Lógica de reglas sin mundo.** El estado de partida son structs; las reglas y el cerebro del Warden son funciones o objetos que no necesitan un nivel cargado ni `GetWorld()`. Los actores son adaptadores: entrada, replicación y presentación. Así los tests corren sin abrir el editor y el Warden se puede simular miles de veces.
 - **Los commits los firma solo el autor.** No añadir líneas de coautoría de agentes.
@@ -47,9 +47,11 @@ Estas no se discuten en cada tarea; si una propuesta las rompe, se descarta o se
 
 ## Alcance del TFM (Soulbound Core)
 
-Incluye: sprints de Nodos del Poder, carrera por el vínculo y carrera hacia la victoria; Warden con tres actos, cinco o seis eventos y dos disparadores contextuales; dummies; puertas; duelos y robos resueltos por dado; build de Windows, documentación, slides y vídeo.
+Incluye: sprints de Nodos del Poder, carrera por el vínculo y carrera hacia la victoria; Warden con tres actos, cinco o seis eventos y dos disparadores contextuales; sistema de insolencia completo, con tabla escalonada y Furia del Warden; bot básico con una heurística simple, construido sobre una interfaz de decisión que permita añadir otros bots sin tocar el motor; puertas; un minijuego de habilidad corto (timing o reacción) con tres presentaciones, duelo, escape del Vacío y desafío final; el robo de runas como interacción de elegir una esfera entre varias mezcladas; arte de placeholder con assets con licencia (Synty); build de Windows, documentación, slides y vídeo.
 
-Excluye: VR, minijuegos, sistema de insolencia, voz espacial, bots con criterio, arte final.
+Excluye: VR, voz espacial, niveles de dificultad de los bots, arte propio final.
+
+El alcance es amplio para el tiempo disponible: la meta es la ronda de diciembre de 2026 y la red es la de enero. La lista de recortes está en la decisión de TFM; si hay que recortar, se recorta en ese orden y se documenta, nunca en silencio.
 
 Si una tarea propone algo fuera del alcance, márcalo como "Fase 2" o "Fase 3" en el documento y no lo implementes.
 

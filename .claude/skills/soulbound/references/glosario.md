@@ -10,8 +10,8 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Eco Perdido | `LostEcho` | Estado inicial de todo jugador: un espectro sin poder. Quien no reclama un Sepulcro en la carrera se queda así toda la partida. |
 | [CLASE] | `[PENDIENTE]` | Los seis seres oscuros a los que un Eco puede vincularse. Cada uno da un poder pasivo y un mapa de runa a poder. Nombre pendiente de decisión del autor. |
 | Jugador | `Player` | Persona o bot que controla un Eco o un [CLASE]. |
-| Dummy | `DummyPlayer` | Jugador automático sin criterio, para pruebas y para rellenar huecos en Fase 1. |
-| Bot | `BotPlayer` | Jugador automático con criterio y dificultad. Fase 2. |
+| Dummy | `DummyPlayer` | Jugador automático sin criterio (tira y mueve al azar). Solo para pruebas automáticas y simulación. |
+| Bot | `BotPlayer` | Jugador automático con criterio, que implementa la interfaz de decisión del jugador. En Fase 1, el bot básico: va a por el objetivo más cercano y elige en los dilemas lo que le beneficia. Otros bots y niveles de dificultad se añaden como nuevas implementaciones. Rellena los huecos hasta cuatro y permite jugar solo. |
 
 ## Tablero
 
@@ -61,7 +61,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Acto I, II, III | `ActOne`, `ActTwo`, `ActThree` | Tramos de la partida que cambian el comportamiento del Warden: 0-5, 5-27, 27-40 minutos. |
 | Turno | `Turn` | Tirar, mover, resolver casilla. Reloj de turno de 30 segundos. |
 | Tirada | `Roll` | Resultado de uno o dos dados de seis caras. |
-| Desafío final | `FinalChallenge` | Prueba para ganar al llegar a Casa con seis runas. En Fase 1, una tirada. |
+| Desafío final | `FinalChallenge` | Prueba para ganar al llegar a Casa con seis runas. Presentación del minijuego de habilidad en su dificultad máxima. |
 | Victoria del Warden | `WardenVictory` | Derrota colectiva al agotarse el tiempo. |
 
 ## Castigos
@@ -70,10 +70,13 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 |---|---|---|
 | Castigo | `Punishment` | Cualquier consecuencia impuesta por el Warden. Siempre con nombre, causa y víctima. |
 | El Vacío | `TheVoid` | Castigo máximo: destierro. Se sale con un 6 o tras tres fallos, más el desafío de escape. |
-| Escape del Vacío | `VoidEscape` | Prueba para volver. En Fase 1, una tirada. |
+| Escape del Vacío | `VoidEscape` | Prueba para volver: tirada de 6 (o tras tres fallos) y después el minijuego de habilidad. |
 | Toque de queda | `Curfew` | Decreto que devuelve a los Ecos a los Reinos Olvidados. |
 | Marcado | `Marked` | Estado del jugador perseguido: quien le perjudique gana un turno extra. |
-| Insolencia | `Insolence` | Contador oculto de desobediencias al Warden. Fase 2. |
+| Insolencia | `Insolence` | Contador oculto de desobediencias al Warden por jugador. Castigos de probabilidad creciente por nivel; al quinto, la Furia del Warden con castigo máximo fijo y reinicio. Fase 1. |
+| Furia del Warden | `WardenFury` | Evento cinemático al alcanzar el nivel máximo de insolencia. Castigo predefinido, sin azar. |
+| Minijuego de habilidad | `SkillMinigame` | Una única mecánica corta de timing o reacción con tres presentaciones: duelo, escape del Vacío y desafío final. |
+| Trilero | `ShellGame` | Interacción de robo: las runas de la víctima se ocultan en esferas que se mezclan; el ladrón elige una. |
 | Foco de evento | `EventFocus` | Escenificación de un evento: luces fuera, foco sobre los implicados, el resto mira. |
 
 ## Warden
