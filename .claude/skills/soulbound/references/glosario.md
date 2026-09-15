@@ -20,7 +20,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | La Cripta | `Crypt` | La sala donde se juega. En VR rodea al jugador; en PC es el escenario alrededor del tablero. |
 | Tablero | `Board` | Grafo de casillas: el Altar en el centro y seis Dominios conectados con él y entre vecinos. |
 | Casilla | `Tile` | Nodo del grafo. Tiene un tipo y conexiones. |
-| Conexión | `Edge` | Enlace entre dos casillas. Puede llevar un Sello. |
+| Conexión | `Edge` | Enlace entre dos casillas. |
 | El Altar | `Altar` | Casilla central grande. Todos los jugadores empiezan en ella. De ella parten los caminos a los seis Dominios. Con seis runas distintas, el jugador vuelve al Altar, las engarza y arranca el desafío final. Es casilla normal a efectos de tránsito y castigos. Si se exige tirada exacta para volver lo decide el GDD de tablero. |
 | Trono | `Throne` | Asiento de cada jugador en la Cripta, alrededor de la mesa. No es una casilla del tablero. |
 | Dominio | `Domain` | Una de las seis zonas del tablero, gobernada por un Elegido. Conectada con el Altar y con sus dos Dominios vecinos. Cada Dominio tiene un Nicho y una Fuente de Poder. |
@@ -30,7 +30,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Nodo de Poder | `PowerNode` | Casilla especial cuyo efecto se asigna al azar al inicio: Duelo, Oráculo o Planar. Todos de elección voluntaria: solo actúan si el jugador acaba su movimiento en ellos. |
 | Nodo del Oráculo | `OracleNode` | Casilla en la que acabar obliga a consultar el Oráculo del Caos, con sus siete segundos. Riesgo que se elige: el Oráculo también da regalos. |
 | Nodo Planar | `PlanarNode` | Casilla que permite teletransportarse a otro Nodo Planar. |
-| Sello | `Seal` | Barrera del Warden en una conexión. No se cruza sin Paso Libre. |
+| Sello | `Seal` | Estado de casilla impuesto por el Warden: una casilla sellada no se pisa ni se atraviesa salvo con Paso Libre. Solo el Warden pone y quita Sellos. No se sellan el Altar, los Nichos, las Fuentes ni casillas ocupadas. |
 | Despertar del tablero | `BoardAwakening` | Momento en que el primer jugador se convierte en Elegido y se activan los Nodos de Poder. |
 
 ## Objetivo y poderes
@@ -42,7 +42,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Poder | `Power` | Capacidad que otorga una runa según el Elegido: Duelo, Celeridad, Paso Libre, Yugo, Vuelo Planar, Desvío. |
 | Duelo (poder) | `PowerDuel` | Permite iniciar duelos en su casilla. |
 | Celeridad | `PowerHaste` | Elegir tirar uno o dos dados. |
-| Paso Libre | `PowerFreePassage` | Cruzar y mover Sellos. |
+| Paso Libre | `PowerFreePassage` | Atravesar y pisar casillas selladas. |
 | Yugo | `PowerYoke` | Someter a quien comparte casilla: imponerle un castigo. Nombre provisional. |
 | Vuelo Planar | `PowerPlanarFlight` | Usar los Nodos Planares. |
 | Desvío | `PowerDeflection` | Sacrificar la runa para salir del Vacío. |
