@@ -1,0 +1,45 @@
+# --- Unreal Engine ---
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+.vs/
+.vscode/
+*.VC.db
+*.opensdf
+*.opendb
+*.sdf
+*.sln
+*.suo
+*.xcodeproj
+*.xcworkspace
+*.uatbuildrecord
+*.autosave
+
+# Plugins compilados (los fuentes de plugins sí se versionan)
+Plugins/**/Binaries/
+Plugins/**/Intermediate/
+
+# Assets pesados y de pago: fuera del repositorio público.
+# Los placeholders propios se versionan; todo lo que sea de terceros (Synty, Fab, Marketplace) no.
+Content/ThirdParty/
+Content/Synty*/
+Content/Fab*/
+Content/Marketplace/
+
+# --- Material que no debe entrar nunca (propiedad intelectual de terceros) ---
+Biblia_Del_Guardian*
+*Atmosfear*
+
+# --- Local / herramientas ---
+.claude/settings.local.json
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+node_modules/
+__pycache__/
+
+# --- Documentación privada (contenido del campus, análisis legal, datos de terceros) ---
+docs-privado/
