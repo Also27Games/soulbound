@@ -27,7 +27,8 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Dominio Olvidado | `ForgottenDomain` | Dominio sin dueño: corrompido por el Warden al inicio (6 menos N) o no reclamado al acabar la carrera. Nicho cerrado; runa solo con tirada de 4 o más; territorio de los Ecos. Al acabar la carrera, cada Eco recibe uno propio, nunca compartido, que es su hogar. |
 | Nicho | `Niche` | Casilla fija de cada Dominio donde se reclama al Elegido. Punto de reaparición y de castigo medio. |
 | Fuente de Poder | `PowerSource` | Casilla fija de cada Dominio donde se obtiene su runa. |
-| Nodo de Poder | `PowerNode` | Casilla especial cuyo efecto se asigna al azar al inicio: Duelo, Vacío o Nodo Planar. |
+| Nodo de Poder | `PowerNode` | Casilla especial cuyo efecto se asigna al azar al inicio: Duelo, Oráculo o Planar. Todos de elección voluntaria: solo actúan si el jugador acaba su movimiento en ellos. |
+| Nodo del Oráculo | `OracleNode` | Casilla en la que acabar obliga a consultar el Oráculo del Caos, con sus siete segundos. Riesgo que se elige: el Oráculo también da regalos. |
 | Nodo Planar | `PlanarNode` | Casilla que permite teletransportarse a otro Nodo Planar. |
 | Sello | `Seal` | Barrera del Warden en una conexión. No se cruza sin Paso Libre. |
 | Despertar del tablero | `BoardAwakening` | Momento en que el primer jugador se convierte en Elegido y se activan los Nodos de Poder. |
@@ -69,7 +70,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Español | Código | Definición |
 |---|---|---|
 | Castigo | `Punishment` | Cualquier consecuencia impuesta por el Warden. Siempre con nombre, causa y víctima. |
-| El Vacío | `TheVoid` | Castigo máximo: destierro. Se sale con un 6 o tras tres fallos, más el escape. |
+| El Vacío | `TheVoid` | Castigo máximo: destierro. Solo se llega por el Warden (decreto, Oráculo o Furia); no hay casilla del Vacío en el tablero. Se sale con un 6 o tras tres fallos, más el escape, y se reaparece en el hogar. |
 | Escape del Vacío | `VoidEscape` | Prueba para volver: tirada de 6 (o tras tres fallos) y después el minijuego de habilidad. |
 | Ley de Sombras | `ShadowLaw` | Decreto del Warden que manda a cada Eco al Nicho cerrado de su Dominio asignado. |
 | Hogar | `HomeTile` | Casilla a la que un jugador vuelve tras el Vacío o un castigo de "vuelta al principio": el Nicho reclamado para un Elegido, el Nicho cerrado de su Dominio asignado para un Eco, el Altar para todos durante la carrera. |
