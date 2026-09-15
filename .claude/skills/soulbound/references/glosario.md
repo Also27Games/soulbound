@@ -24,7 +24,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | El Altar | `Altar` | Casilla central grande. Todos los jugadores empiezan en ella. De ella parten los caminos a los seis Dominios. Con seis runas distintas, el jugador vuelve al Altar, las engarza y arranca el desafío final. Es casilla normal a efectos de tránsito y castigos. Si se exige tirada exacta para volver lo decide el GDD de tablero. |
 | Trono | `Throne` | Asiento de cada jugador en la Cripta, alrededor de la mesa. No es una casilla del tablero. |
 | Dominio | `Domain` | Una de las seis zonas del tablero, gobernada por un Elegido. Conectada con el Altar y con sus dos Dominios vecinos. Cada Dominio tiene un Nicho y una Fuente de Poder. |
-| Dominio Olvidado | `ForgottenDomain` | Dominio corrompido por el Warden al inicio (6 menos N). Nicho cerrado; runa solo con tirada de 4 o más; territorio de los Ecos. |
+| Dominio Olvidado | `ForgottenDomain` | Dominio sin dueño: corrompido por el Warden al inicio (6 menos N) o no reclamado al acabar la carrera. Nicho cerrado; runa solo con tirada de 4 o más; territorio de los Ecos. Al acabar la carrera, cada Eco recibe uno propio, nunca compartido, que es su hogar. |
 | Nicho | `Niche` | Casilla fija de cada Dominio donde se reclama al Elegido. Punto de reaparición y de castigo medio. |
 | Fuente de Poder | `PowerSource` | Casilla fija de cada Dominio donde se obtiene su runa. |
 | Nodo de Poder | `PowerNode` | Casilla especial cuyo efecto se asigna al azar al inicio: Duelo, Vacío o Nodo Planar. |
@@ -71,7 +71,8 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Castigo | `Punishment` | Cualquier consecuencia impuesta por el Warden. Siempre con nombre, causa y víctima. |
 | El Vacío | `TheVoid` | Castigo máximo: destierro. Se sale con un 6 o tras tres fallos, más el escape. |
 | Escape del Vacío | `VoidEscape` | Prueba para volver: tirada de 6 (o tras tres fallos) y después el minijuego de habilidad. |
-| Toque de queda | `Curfew` | Decreto que devuelve a los Ecos a los Dominios Olvidados. |
+| Ley de Sombras | `ShadowLaw` | Decreto del Warden que manda a cada Eco al Nicho cerrado de su Dominio asignado. |
+| Hogar | `HomeTile` | Casilla a la que un jugador vuelve tras el Vacío o un castigo de "vuelta al principio": el Nicho reclamado para un Elegido, el Nicho cerrado de su Dominio asignado para un Eco, el Altar para todos durante la carrera. |
 | Marcado | `Marked` | Estado del jugador perseguido: quien le perjudique gana un turno extra. |
 | Insolencia | `Insolence` | Contador oculto de desobediencias al Warden por jugador. Castigos de probabilidad creciente por nivel; al quinto, la Furia del Warden con castigo máximo fijo y reinicio. Fase 1. |
 | Furia del Warden | `WardenFury` | Evento cinemático al alcanzar el nivel máximo de insolencia. Castigo predefinido, sin azar. |
