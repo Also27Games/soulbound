@@ -8,7 +8,8 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 |---|---|---|
 | El Warden | `Warden` | Anfitrión y director de la partida. Entidad ancestral que se alimenta de la desesperación. Interviene, castiga, ofrece dilemas. Es la IA directora. |
 | Eco Perdido | `LostEcho` | Estado inicial de todo jugador: un espectro sin poder. Quien no reclama un Nicho en la carrera se queda así toda la partida. |
-| Elegido (plural: Elegidos) | `Elect` | Los seis seres oscuros a los que un Eco puede vincularse. Cada uno gobierna un Dominio, da un poder pasivo y un mapa de runa a poder. |
+| Elegido (plural: Elegidos) | `Elect` | Los seis seres oscuros a los que un Eco puede vincularse. Cada uno gobierna un Dominio, da un poder pasivo y un mapa de runa a poder. Tema: los seis terrores de seis mundos, ecos encadenados de figuras mitológicas coleccionados por el Warden. |
+| Los seis Elegidos | `ElectId` | Shuten-dōji (oni, Japón), Fenrir (lobo encadenado, nórdico), Apep (serpiente del caos, Egipto), Mictlantecuhtli (señor de los muertos, azteca), Tifón (tormenta, Grecia), Koschei (el inmortal, eslavo). Nombres en el juego, afinidades y Dominios: GDD de carrera y Elegidos. |
 | Jugador | `Player` | Persona o bot que controla un Eco o un Elegido. |
 | Dummy | `DummyPlayer` | Jugador automático sin criterio (tira y mueve al azar). Solo para pruebas automáticas y simulación. |
 | Bot | `BotPlayer` | Jugador automático con criterio, que implementa la interfaz de decisión del jugador. En Fase 1, el bot básico: va a por el objetivo más cercano y elige en los dilemas lo que le beneficia. Otros bots y niveles de dificultad se añaden como nuevas implementaciones. Rellena los huecos hasta cuatro y permite jugar solo. |
