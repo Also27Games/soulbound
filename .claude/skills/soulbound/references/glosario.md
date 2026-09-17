@@ -25,14 +25,15 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | El Altar | `Altar` | Casilla central grande. Todos los jugadores empiezan en ella. De ella parten los caminos a los seis Dominios. Con seis runas distintas, el jugador vuelve al Altar, las engarza y arranca el desafío final. Es casilla normal a efectos de tránsito y castigos. Si se exige tirada exacta para volver lo decide el GDD de tablero. |
 | Trono | `Throne` | Asiento de cada jugador en la Cripta, alrededor de la mesa. No es una casilla del tablero. |
 | Dominio | `Domain` | Una de las seis zonas del tablero, gobernada por un Elegido. Conectada con el Altar y con sus dos Dominios vecinos. Cada Dominio tiene un Nicho y una Fuente de Poder. |
-| Dominio Olvidado | `ForgottenDomain` | Dominio sin dueño: corrompido por el Warden al inicio (6 menos N) o no reclamado al acabar la carrera. Nicho cerrado; runa solo con tirada de 4 o más; territorio de los Ecos. Al acabar la carrera, cada Eco recibe uno propio, nunca compartido, que es su hogar. |
+| Dominio Olvidado | `ForgottenDomain` | Dominio sin dueño: corrompido por el Warden al inicio (6 menos N) o no reclamado al acabar la carrera. Nicho cerrado; en su Fuente, un Elegido debe superar el minijuego de habilidad para obtener runa y un Eco la obtiene sin él; territorio de los Ecos. Al acabar la carrera, cada Eco recibe uno propio, nunca compartido, que es su hogar. |
 | Nicho | `Niche` | Casilla fija de cada Dominio donde se reclama al Elegido. Punto de reaparición y de castigo medio. |
 | Fuente de Poder | `PowerSource` | Casilla fija de cada Dominio donde se obtiene su runa. |
 | Nodo de Poder | `PowerNode` | Casilla especial cuyo efecto se asigna al azar al inicio: Duelo, Oráculo o Planar. Todos de elección voluntaria: solo actúan si el jugador acaba su movimiento en ellos. |
+| Nodo de Duelo | `DuelNode` | Casilla desde la que quien acaba en ella puede retar a duelo a cualquier jugador del tablero, esté donde esté, sin necesitar el poder Duelo. |
 | Nodo del Oráculo | `OracleNode` | Casilla en la que acabar obliga a consultar el Oráculo del Caos, con sus siete segundos. Riesgo que se elige: el Oráculo también da regalos. |
-| Nodo Planar | `PlanarNode` | Casilla que permite teletransportarse a otro Nodo Planar. |
+| Nodo Planar | `PlanarNode` | Casilla desde la que quien tiene Vuelo Planar puede saltar a otro Nodo Planar; la llegada se resuelve como un final de movimiento normal. Sin el poder, casilla normal. |
 | Sello | `Seal` | Estado de casilla impuesto por el Warden: una casilla sellada no se pisa ni se atraviesa salvo con Paso Libre. Solo el Warden pone y quita Sellos. No se sellan el Altar, los Nichos, las Fuentes ni casillas ocupadas. |
-| Despertar del tablero | `BoardAwakening` | Momento en que el primer jugador se convierte en Elegido y se activan los Nodos de Poder. |
+| Despertar del tablero | `BoardAwakening` | Momento en que el primer jugador se convierte en Elegido y se activan los Nodos de Poder y las Fuentes. |
 
 ## Objetivo y poderes
 
@@ -40,13 +41,13 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 |---|---|---|
 | Runa de Poder | `Rune` | Uno de los seis objetos de colección. Cada Elegido tiene su propio mapa de runa a poder. |
 | Brazal Arcano | `Bracer` | Inventario de runas del jugador. Estado oculto o revelado. En PC, un panel de interfaz. |
-| Poder | `Power` | Capacidad que otorga una runa según el Elegido: Duelo, Celeridad, Paso Libre, Yugo, Vuelo Planar, Desvío. |
-| Duelo (poder) | `PowerDuel` | Permite iniciar duelos en su casilla. |
+| Poder | `Power` | Capacidad que otorga una runa según el Elegido: Duelo, Celeridad, Paso Libre, Expulsión, Vuelo Planar, Desvío. |
+| Duelo (poder) | `PowerDuel` | Duelo portátil: retar a un jugador con quien se comparte casilla al acabar el movimiento. El ganador del minijuego roba una runa al perdedor con el trilero. |
 | Celeridad | `PowerHaste` | Elegir tirar uno o dos dados; sin él, todo jugador tira uno. Lo da la runa del propio Dominio. |
 | Paso Libre | `PowerFreePassage` | Atravesar y pisar casillas selladas. |
-| Yugo | `PowerYoke` | Someter a quien comparte casilla: imponerle un castigo. Nombre provisional. |
+| Expulsión | `PowerExpel` | Mandar a su hogar a un jugador con quien se comparte casilla al acabar el movimiento. Sin minijuego. |
 | Vuelo Planar | `PowerPlanarFlight` | Usar los Nodos Planares. |
-| Desvío | `PowerDeflection` | Sacrificar la runa para salir del Vacío. |
+| Desvío | `PowerDeflection` | Al inicio del turno en el Vacío, sacrificar la runa (vuelve a su Fuente) para salir sin tirada ni minijuego, reaparecer en el hogar y jugar el turno. |
 | Afinidad | `Affinity` | Poder pasivo único de cada Elegido. |
 | Runa de Liberación | `LiberationRune` | Para un Eco, la runa de su Dominio Olvidado asignado: mientras la tiene le da Celeridad. Misma regla que para los Elegidos: la runa de tu Dominio te da Celeridad. |
 | Amuleto de Desvío | `DeflectionAmulet` | Objeto de un solo uso que anula un castigo y pasa al jugador de la izquierda. |
@@ -79,7 +80,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Insolencia | `Insolence` | Contador oculto de desobediencias al Warden por jugador. Castigos de probabilidad creciente por nivel; al quinto, la Furia del Warden con castigo máximo fijo y reinicio. Fase 1. |
 | Furia del Warden | `WardenFury` | Evento cinemático al alcanzar el nivel máximo de insolencia. Castigo predefinido, sin azar. |
 | Minijuego de habilidad | `SkillMinigame` | Una única mecánica corta de timing o reacción con tres presentaciones: duelo, escape del Vacío y desafío final. |
-| Trilero | `ShellGame` | Interacción de robo: las runas de la víctima se ocultan en esferas que se mezclan; el ladrón elige una. |
+| Trilero | `ShellGame` | Interacción de robo: las runas de la víctima se ocultan en esferas que se mezclan; el ladrón elige una. La mezcla es continua y se puede seguir con la vista; velocidad y duración salen de datos. |
 | Foco de evento | `EventFocus` | Escenificación de un evento: luces fuera, foco sobre los implicados, el resto mira. |
 
 ## Warden
@@ -108,4 +109,3 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 ## Pendiente de decisión
 
 - Cuarto personaje: en rediseño.
-- Yugo es provisional.
