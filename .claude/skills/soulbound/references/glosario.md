@@ -42,13 +42,13 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Brazal Arcano | `Bracer` | Inventario de runas del jugador. Estado oculto o revelado. En PC, un panel de interfaz. |
 | Poder | `Power` | Capacidad que otorga una runa según el Elegido: Duelo, Celeridad, Paso Libre, Yugo, Vuelo Planar, Desvío. |
 | Duelo (poder) | `PowerDuel` | Permite iniciar duelos en su casilla. |
-| Celeridad | `PowerHaste` | Elegir tirar uno o dos dados. |
+| Celeridad | `PowerHaste` | Elegir tirar uno o dos dados; sin él, todo jugador tira uno. Lo da la runa del propio Dominio. |
 | Paso Libre | `PowerFreePassage` | Atravesar y pisar casillas selladas. |
 | Yugo | `PowerYoke` | Someter a quien comparte casilla: imponerle un castigo. Nombre provisional. |
 | Vuelo Planar | `PowerPlanarFlight` | Usar los Nodos Planares. |
 | Desvío | `PowerDeflection` | Sacrificar la runa para salir del Vacío. |
 | Afinidad | `Affinity` | Poder pasivo único de cada Elegido. |
-| Runa de Liberación | `LiberationRune` | Runa de un Dominio Olvidado que da poderes a los Ecos. |
+| Runa de Liberación | `LiberationRune` | Para un Eco, la runa de su Dominio Olvidado asignado: mientras la tiene le da Celeridad. Misma regla que para los Elegidos: la runa de tu Dominio te da Celeridad. |
 | Amuleto de Desvío | `DeflectionAmulet` | Objeto de un solo uso que anula un castigo y pasa al jugador de la izquierda. |
 | Grimorio | `Grimoire` | Consulta de reglas y estado del jugador. En PC, un panel. |
 
