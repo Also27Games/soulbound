@@ -72,7 +72,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Español | Código | Definición |
 |---|---|---|
 | Castigo | `Punishment` | Cualquier consecuencia impuesta por el Warden. Siempre con nombre, causa y víctima. |
-| El Vacío | `TheVoid` | Castigo máximo: destierro. Solo se llega por el Warden (decreto, Oráculo o Furia); no hay casilla del Vacío en el tablero. Se sale superando el escape, sin dados; nunca más de cuatro turnos. El desterrado sigue en su Trono como un espectro, ve la mesa apagada y puede apostar. Se reaparece en el hogar. |
+| El Vacío | `TheVoid` | Castigo máximo: destierro. Solo se llega por el Warden (decreto, Oráculo o Furia); no hay casilla del Vacío en el tablero. Se sale superando el escape, sin dados; nunca más de cuatro turnos. Para el desterrado la Cripta se desvanece y flota en el negro con la mesa como una isla lejana y atenuada que sigue viendo; puede hablar y apostar. Para la mesa, su avatar se vuelve espectral. Se reaparece en el hogar. |
 | Escape del Vacío | `VoidEscape` | Prueba para volver: el minijuego de habilidad en cada turno, en difícil el primero, normal el segundo y fácil el tercero; al cuarto turno se sale sin jugar. Mictlantecuhtli empieza en fácil y sale como máximo al segundo. |
 | Ley de Sombras | `ShadowLaw` | Decreto del Warden que manda a cada Eco al Nicho cerrado de su Dominio asignado. |
 | Hogar | `HomeTile` | Casilla a la que un jugador vuelve tras el Vacío o un castigo de "vuelta al principio": el Nicho reclamado para un Elegido, el Nicho cerrado de su Dominio asignado para un Eco, el Altar para todos durante la carrera. |
