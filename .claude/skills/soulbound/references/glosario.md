@@ -47,7 +47,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Paso Libre | `PowerFreePassage` | Atravesar y pisar casillas selladas. |
 | Expulsión | `PowerExpel` | Mandar a su hogar a un jugador con quien se comparte casilla al acabar el movimiento. Sin minijuego. |
 | Vuelo Planar | `PowerPlanarFlight` | Usar los Nodos Planares. |
-| Desvío | `PowerDeflection` | Al inicio del turno en el Vacío, sacrificar la runa (vuelve a su Fuente) para salir sin tirada ni minijuego, reaparecer en el hogar y jugar el turno. |
+| Desvío | `PowerDeflection` | Al inicio del turno en el Vacío, sacrificar la runa (vuelve a su Fuente) para salir sin minijuego, reaparecer en el hogar y jugar el turno. |
 | Afinidad | `Affinity` | Poder pasivo único de cada Elegido. |
 | Runa de Liberación | `LiberationRune` | Para un Eco, la runa de su Dominio Olvidado asignado: mientras la tiene le da Celeridad. Misma regla que para los Elegidos: la runa de tu Dominio te da Celeridad. |
 | Amuleto de Desvío | `DeflectionAmulet` | Objeto de un solo uso que anula un castigo y pasa al jugador de la izquierda. |
@@ -72,8 +72,8 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Español | Código | Definición |
 |---|---|---|
 | Castigo | `Punishment` | Cualquier consecuencia impuesta por el Warden. Siempre con nombre, causa y víctima. |
-| El Vacío | `TheVoid` | Castigo máximo: destierro. Solo se llega por el Warden (decreto, Oráculo o Furia); no hay casilla del Vacío en el tablero. Se sale con un 6 o tras tres fallos, más el escape, y se reaparece en el hogar. |
-| Escape del Vacío | `VoidEscape` | Prueba para volver: tirada de 6 (o tras tres fallos) y después el minijuego de habilidad. |
+| El Vacío | `TheVoid` | Castigo máximo: destierro. Solo se llega por el Warden (decreto, Oráculo o Furia); no hay casilla del Vacío en el tablero. Se sale superando el escape, sin dados; nunca más de tres turnos. Se reaparece en el hogar. |
+| Escape del Vacío | `VoidEscape` | Prueba para volver: el minijuego de habilidad en cada turno, en dificultad normal el primero y baja el segundo; al tercer turno se sale sin jugar. Mictlantecuhtli empieza en baja y sale como máximo al segundo. |
 | Ley de Sombras | `ShadowLaw` | Decreto del Warden que manda a cada Eco al Nicho cerrado de su Dominio asignado. |
 | Hogar | `HomeTile` | Casilla a la que un jugador vuelve tras el Vacío o un castigo de "vuelta al principio": el Nicho reclamado para un Elegido, el Nicho cerrado de su Dominio asignado para un Eco, el Altar para todos durante la carrera. |
 | Marcado | `Marked` | Estado del jugador perseguido: quien le perjudique gana un turno extra. |
