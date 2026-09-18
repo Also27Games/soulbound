@@ -23,7 +23,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Casilla | `Tile` | Nodo del grafo. Tiene un tipo y conexiones. |
 | Conexión | `Edge` | Enlace entre dos casillas. |
 | El Altar | `Altar` | Casilla central grande. Todos los jugadores empiezan en ella. De ella parten los caminos a los seis Dominios. Con seis runas distintas, el jugador vuelve al Altar, las engarza y arranca el desafío final. Es casilla normal a efectos de tránsito y castigos. Si se exige tirada exacta para volver lo decide el GDD de tablero. |
-| Trono | `Throne` | Asiento de cada jugador en la Cripta, alrededor de la mesa. No es una casilla del tablero. |
+| Trono | `Throne` | Asiento de cada jugador en la Cripta, alrededor de la mesa. No es una casilla del tablero. En el Vacío, el avatar del desterrado sigue en él, espectral. |
 | Dominio | `Domain` | Una de las seis zonas del tablero, gobernada por un Elegido. Conectada con el Altar y con sus dos Dominios vecinos. Cada Dominio tiene un Nicho y una Fuente de Poder. |
 | Dominio Olvidado | `ForgottenDomain` | Dominio sin dueño: corrompido por el Warden al inicio (6 menos N) o no reclamado al acabar la carrera. Nicho cerrado; en su Fuente, un Elegido debe superar el minijuego de habilidad para obtener runa y un Eco la obtiene sin él; territorio de los Ecos. Al acabar la carrera, cada Eco recibe uno propio, nunca compartido, que es su hogar. |
 | Nicho | `Niche` | Casilla fija de cada Dominio donde se reclama al Elegido. Punto de reaparición y de castigo medio. |
@@ -50,7 +50,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Desvío | `PowerDeflection` | Al inicio del turno en el Vacío, sacrificar la runa (vuelve a su Fuente) para salir sin minijuego, reaparecer en el hogar y jugar el turno. |
 | Afinidad | `Affinity` | Poder pasivo único de cada Elegido. |
 | Runa de Liberación | `LiberationRune` | Para un Eco, la runa de su Dominio Olvidado asignado: mientras la tiene le da Celeridad. Misma regla que para los Elegidos: la runa de tu Dominio te da Celeridad. |
-| Amuleto de Desvío | `DeflectionAmulet` | Objeto de un solo uso que anula un castigo y pasa al jugador de la izquierda. |
+| Amuleto de Desvío | `DeflectionAmulet` | Fase 2, con otro nombre (choca con el poder Desvío). Objeto de un solo uso que anula un castigo y pasa al jugador de la izquierda. |
 | Grimorio | `Grimoire` | Consulta de reglas y estado del jugador. En PC, un panel. |
 
 ## Partida
@@ -72,11 +72,23 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Español | Código | Definición |
 |---|---|---|
 | Castigo | `Punishment` | Cualquier consecuencia impuesta por el Warden. Siempre con nombre, causa y víctima. |
+| Efecto | `Effect` | Consecuencia atómica que el Warden puede imponer o regalar. Lista cerrada de dieciocho, con gravedad leve, media, grave o regalo. GDD de castigos. |
+| Dirección | `EffectTarget` | A quién le pasa un efecto: activo, rival señalado, dos rivales señalados, líder, siguiente, todos, al azar, Ecos. Desatender al Warden nunca beneficia: un regalo ignorado se pierde, un ataque ignorado recae en quien lo ignora. |
+| Líder | `Leader` | Quien tiene más tipos de runa distintos; con empate, más runas; con empate total, todos los empatados. |
+| Vuelta al hogar | `SendHome` | Castigo medio: la ficha va a su hogar. El hogar no encierra: el siguiente turno se juega con normalidad. |
+| Sello dirigido | `PlayerSeal` | El Warden entrega un Sello y el jugador activo elige la casilla válida. Sigue siendo un Sello del Warden. |
+| Prueba del Warden | `WardenTrial` | En tu siguiente turno debes superar el minijuego para poder tirar; si fallas, ese turno termina. Máximo un turno. |
+| Consulta forzada | `ForcedOracle` | El Warden te obliga a consultar el Oráculo. |
+| Robo decretado | `DecreedTheft` | El Warden concede a un jugador robar a otro, o a todos, con el trilero. |
+| Duelo forzado | `ForcedDuel` | El Warden obliga a dos jugadores a batirse; en juego una runa o todas. |
+| Runa regalada | `GiftRune` | El jugador elige un tipo entre las Fuentes con reserva y la recibe. |
+| Liberación | `ReleaseVoid` | Todos los del Vacío salen a la vez a su hogar. |
+| Noche de los Ecos | `EchoNight` | Decreto por el que los Ecos transitan por cualquier Dominio hasta que el Warden la termina con la Ley de Sombras. Siguen sin coger runas en Fuentes de Dominios con dueño. |
 | El Vacío | `TheVoid` | Castigo máximo: destierro. Solo se llega por el Warden (decreto, Oráculo o Furia); no hay casilla del Vacío en el tablero. Se sale superando el escape, sin dados; nunca más de cuatro turnos. Para el desterrado la Cripta se desvanece y flota en el negro con la mesa como una isla lejana y atenuada que sigue viendo; puede hablar y apostar. Para la mesa, su avatar se vuelve espectral. Se reaparece en el hogar. |
 | Escape del Vacío | `VoidEscape` | Prueba para volver: el minijuego de habilidad en cada turno, en difícil el primero, normal el segundo y fácil el tercero; al cuarto turno se sale sin jugar. Mictlantecuhtli empieza en fácil y sale como máximo al segundo. |
-| Ley de Sombras | `ShadowLaw` | Decreto del Warden que manda a cada Eco al Nicho cerrado de su Dominio asignado. |
+| Ley de Sombras | `ShadowLaw` | Decreto del Warden que manda a cada Eco al Nicho cerrado de su Dominio asignado. Termina la Noche de los Ecos. |
 | Hogar | `HomeTile` | Casilla a la que un jugador vuelve tras el Vacío o un castigo de "vuelta al principio": el Nicho reclamado para un Elegido, el Nicho cerrado de su Dominio asignado para un Eco, el Altar para todos durante la carrera. |
-| Marcado | `Marked` | Estado del jugador perseguido: quien le perjudique gana un turno extra. |
+| Marcado | `Marked` | Estado del jugador perseguido: quien le robe, le expulse, le gane un duelo o le mande a casa o al Vacío gana un turno extra. Dura unas rondas o hasta que alguien lo cobra. Puede haber varios Marcados. |
 | Insolencia | `Insolence` | Contador oculto de desobediencias al Warden por jugador. Castigos de probabilidad creciente por nivel; al quinto, la Furia del Warden con castigo máximo fijo y reinicio. Fase 1. |
 | Furia del Warden | `WardenFury` | Evento cinemático al alcanzar el nivel máximo de insolencia. Castigo predefinido, sin azar. |
 | Minijuego de habilidad | `SkillMinigame` | Una única mecánica corta de timing o reacción con tres presentaciones: duelo, escape del Vacío y desafío final. |
@@ -92,7 +104,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Saco de eventos | `EventBag` | Lista de eventos disponibles por acto. Acumulativa. |
 | Disparador contextual | `ContextTrigger` | Condición que altera las probabilidades: líder claro, partida estancada, jugador ignorado, victoria inminente. |
 | Oráculo del Caos | `Oracle` | Objeto central que revela un destino cuando el Warden lo ordena. Siete segundos para actuar. |
-| Dilema | `Dilemma` | Evento con dos opciones que elige el jugador. |
+| Dilema | `Dilemma` | Evento con dos a cuatro opciones que elige el jugador activo. Cada opción es una lista de efectos con su dirección. Un evento con una sola opción es un decreto. |
 | Decreto global | `GlobalDecree` | Evento que cambia una regla para todos. |
 | Humor del Warden | `WardenMood` | Estado legible: normal, furia, regalo, análisis. |
 
