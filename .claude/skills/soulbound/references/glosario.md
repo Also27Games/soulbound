@@ -123,7 +123,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 |---|---|
 | Fase 1 / Soulbound Core | Tablero en plano, motor de reglas, Warden. Es el TFM. |
 | Fase 2 | Voz, bots con dificultad, más contenido. |
-| Fase 3 | VR. |
+| Fase 3 | VR, con la VR autónoma (Quest) como objetivo principal y PC VR como paso intermedio. Las tres plataformas comparten diseño y contenido. |
 | GDD v0.1 | Documento original de julio de 2025. Fuente de cada sistema, no referencia normativa. |
 | GDD v0.2 | Conjunto de documentos en `docs/gdd/`. Referencia normativa. |
 
