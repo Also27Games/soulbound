@@ -37,6 +37,7 @@ Cada propuesta de diseño se contrasta con estos cuatro, en este orden de priori
 Estas no se discuten en cada tarea; si una propuesta las rompe, se descarta o se escala al autor.
 
 - **Plataforma de la Fase 1: PC, pantalla plana, ratón y teclado o mando.** Ninguna mecánica de Fase 1 depende de gestos. La VR es Fase 3 y solo condiciona la arquitectura: el motor de reglas no sabe cómo se introdujo una acción.
+- **Rendimiento: 60 FPS estables en Steam Deck** (build de Windows bajo Proton, 1280x800) en todo momento de la partida, incluidos el foco de evento, el trilero y el Vacío. Es un requisito no funcional del TFM y el punto de partida de la optimización para VR. Consecuencias: sin Lumen ni Nanite, iluminación precalculada con emisivos para la magia, presupuesto de dibujado y de posproceso definido en la arquitectura, y medición en Deck en cada hito.
 - **Duración única de 40 minutos** con tres actos de 5, 22 y 13 minutos aproximados. Sin guardado.
 - **Seis Dominios, seis Elegidos, seis runas, siempre.** Con N jugadores, el Warden corrompe 6 menos N Dominios al azar (Dominios Olvidados). El tablero es un Altar central, donde todos empiezan y donde se gana, con seis Dominios conectados a él y entre vecinos.
 - **De 1 a 4 jugadores.** Los huecos los ocupan bots. En Fase 1, un bot básico con una heurística simple, diseñado para que añadir bots nuevos sea añadir una implementación de la misma interfaz de decisión. Los dummies sin criterio existen solo como herramienta de pruebas y simulación.
