@@ -76,7 +76,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Dirección | `EffectTarget` | A quién le pasa un efecto: activo, rival señalado, dos rivales señalados, líder, siguiente, todos, al azar, Ecos. Desatender al Warden nunca beneficia: un regalo ignorado se pierde, un ataque ignorado recae en quien lo ignora. |
 | Líder | `Leader` | Quien tiene más tipos de runa distintos; con empate, más runas; con empate total, todos los empatados. |
 | Vuelta al hogar | `SendHome` | Castigo medio: la ficha va a su hogar. El hogar no encierra: el siguiente turno se juega con normalidad. |
-| Sello dirigido | `PlayerSeal` | El Warden entrega un Sello y el jugador activo elige la casilla válida. Sigue siendo un Sello del Warden. |
+| Sello contra rival | `SealAgainstRival` | El jugador activo señala a un rival y el Warden sella la casilla válida que más le estorba en su camino. El jugador nunca elige casillas. |
 | Prueba del Warden | `WardenTrial` | En tu siguiente turno debes superar el minijuego para poder tirar; si fallas, ese turno termina. Máximo un turno. |
 | Consulta forzada | `ForcedOracle` | El Warden te obliga a consultar el Oráculo. |
 | Robo decretado | `DecreedTheft` | El Warden concede a un jugador robar a otro, o a todos, con el trilero. |
