@@ -89,8 +89,9 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Ley de Sombras | `ShadowLaw` | Decreto del Warden que manda a cada Eco al Nicho cerrado de su Dominio asignado. Termina la Noche de los Ecos. |
 | Hogar | `HomeTile` | Casilla a la que un jugador vuelve tras el Vacío o un castigo de "vuelta al principio": el Nicho reclamado para un Elegido, el Nicho cerrado de su Dominio asignado para un Eco, el Altar para todos durante la carrera. |
 | Marcado | `Marked` | Estado del jugador perseguido: quien le robe, le expulse, le gane un duelo o le mande a casa o al Vacío gana un turno extra. Dura unas rondas o hasta que alguien lo cobra. Puede haber varios Marcados. |
-| Insolencia | `Insolence` | Contador oculto de desobediencias al Warden por jugador. Castigos de probabilidad creciente por nivel; al quinto, la Furia del Warden con castigo máximo fijo y reinicio. Fase 1. |
-| Furia del Warden | `WardenFury` | Evento cinemático al alcanzar el nivel máximo de insolencia. Castigo predefinido, sin azar. |
+| Insolencia | `Insolence` | Contador oculto de 0 a 5 por jugador. Sube uno cada vez que no hace algo que le tocaba: agotar el reloj de turno, no atender al Oráculo, no señalar, no elegir en un dilema, desaprovechar un regalo, no votar. Cada subida trae un castigo inmediato sorteado por gravedad según el nivel; al quinto, la Furia. Los bots nunca son insolentes. Fase 1. |
+| Furia del Warden | `WardenFury` | Cinemática al llegar a insolencia 5. Castigo fijo: el Vacío de la Furia. Después el contador vuelve a 0. |
+| Vacío de la Furia | `FuryVoid` | El Vacío normal, pero dentro no funcionan ni Desvío ni Liberación: el jugador puede intentarlos y el Warden se niega con frase (la runa no se consume). |
 | Minijuego de habilidad | `SkillMinigame` | Una única mecánica corta de timing o reacción con tres presentaciones: duelo, escape del Vacío y desafío final. |
 | Trilero | `ShellGame` | Interacción de robo: las runas de la víctima se ocultan en esferas que se mezclan; el ladrón elige una. La mezcla es continua y se puede seguir con la vista; velocidad y duración salen de datos. |
 | Foco de evento | `EventFocus` | Escenificación de un evento: luces fuera, foco sobre los implicados, el resto mira. |
@@ -99,14 +100,22 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 
 | Español | Código | Definición |
 |---|---|---|
-| IA directora | `WardenBrain` | Función de estado de partida a decisión. Sin mundo, simulable. |
-| Evento | `WardenEvent` | Acción del Warden: tipo, víctima, causa, texto, consecuencias. |
-| Saco de eventos | `EventBag` | Lista de eventos disponibles por acto. Acumulativa. |
-| Disparador contextual | `ContextTrigger` | Condición que altera las probabilidades: líder claro, partida estancada, jugador ignorado, victoria inminente. |
-| Oráculo del Caos | `Oracle` | Objeto central que revela un destino cuando el Warden lo ordena. Siete segundos para actuar. |
-| Dilema | `Dilemma` | Evento con dos a cuatro opciones que elige el jugador activo. Cada opción es una lista de efectos con su dirección. Un evento con una sola opción es un decreto. |
-| Decreto global | `GlobalDecree` | Evento que cambia una regla para todos. |
-| Humor del Warden | `WardenMood` | Estado legible: normal, furia, regalo, análisis. |
+| IA directora, el cerebro | `WardenBrain` | Clase de C++ sin `UWorld`, actores ni temporizadores: de estado de partida, reloj y semilla a una decisión. Se prueba sin editor y se simula miles de veces. |
+| Anfitrión del Warden | `WardenHost` | `UWorldSubsystem` solo en el servidor: dueño del intervalo de evaluación, llama al cerebro, aplica la decisión y la replica. No decide. |
+| Golpe | `Strike` | Canal del Warden: evento con efecto dirigido al jugador activo, en cualquier instante del turno; lo corta. |
+| Escena | `Scene` | Canal del Warden: evento sin protagonista, entre turno y turno; no corta salvo que en datos se marque como cortante. |
+| Comentario | `Remark` | Canal del Warden: solo voz y subtítulo, sin efecto, sin cortar; el Warden no se materializa. Doce tipos con tres variantes cada uno. |
+| Garantía | `InterventionGuarantee` | Si pasan 120 s sin golpe ni escena, la siguiente evaluación interviene seguro. |
+| Corte | `CutsTurn` | Campo en datos de cada evento: si corta el turno en curso. Golpes sí, escenas no por defecto, programados siempre. |
+| Evento | `WardenEvent` | Entrada de datos: nombre, saco (acto), canal, entrega, usos máximos, ventana de tiempo, corte, y una a cuatro opciones compuestas de efectos con dirección (GDD de castigos). 38 en el TFM. |
+| Ventana de evento | `EventWindow` | Tramo de la partida en el que un evento está disponible (por ejemplo, Al Altar solo hasta el minuto 2,5). |
+| Usos máximos | `MaxUses` | Veces que un evento puede salir por partida. |
+| Saco de eventos | `EventBag` | Lista de eventos por acto, con peso por acto. Acumulativa: en el Acto III están los tres sacos. |
+| Disparador contextual | `ContextTrigger` | Condición con umbrales en datos que multiplica pesos de eventos y direcciones. Cinco en el TFM: líder claro (`ClearLeader`), victoria inminente (`ImminentVictory`), jugador ignorado (`IgnoredPlayer`), partida estancada (`StalledMatch`), acaparador (`Hoarder`). |
+| Oráculo del Caos | `Oracle` | Forma de entrega de decretos, nunca de dilemas ni votaciones: orbe central que muestra una sentencia. Siete segundos para consultarlo (en PC, mantener pulsado hasta llenar una barra); si no, la sentencia se aplica igual y sube la insolencia. Su sorteo lleva un sesgo en datos (`OracleBias`, 0,5) entre azar puro y el criterio del Warden. |
+| Dilema | `Dilemma` | Evento con dos a cuatro opciones que elige el jugador activo, siempre por Warden directo. Cada opción es una lista de efectos con su dirección. Un evento con una sola opción es un decreto. |
+| Votación | `Vote` | Escena en la que todos señalan a otro jugador a la vez; el más votado recibe el efecto; votos públicos; no votar es insolencia. Tres en el TFM: El chivo, Juicio, Favor. |
+| Decreto global | `GlobalDecree` | Evento de una sola opción con dirección todos o Ecos. |
 
 ## Producción
 
