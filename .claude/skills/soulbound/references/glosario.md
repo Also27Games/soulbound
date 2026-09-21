@@ -23,7 +23,12 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Casilla | `Tile` | Nodo del grafo. Tiene un tipo y conexiones. |
 | Conexión | `Edge` | Enlace entre dos casillas. |
 | El Altar | `Altar` | Casilla central grande. Todos los jugadores empiezan en ella. De ella parten los caminos a los seis Dominios. Con seis runas distintas, el jugador vuelve al Altar, las engarza y arranca el desafío final. Es casilla normal a efectos de tránsito y castigos. Si se exige tirada exacta para volver lo decide el GDD de tablero. |
-| Trono | `Throne` | Asiento de cada jugador en la Cripta, alrededor de la mesa. No es una casilla del tablero. En el Vacío, el avatar del desterrado sigue en él, espectral. |
+| Trono | `Throne` | Asiento de cada jugador en la Cripta, alrededor de la mesa. No es una casilla del tablero. La cámara nunca lo abandona: gira la cabeza, se inclina y se pone de pie. En el Vacío, el avatar del desterrado sigue en él, espectral. |
+| El Umbral | `Threshold` | Menú principal como escena 3D: muelle en la niebla y mesa de cartógrafo con objetos (campana para crear partida, brújula para unirse, engranaje para opciones, tintero para salir). |
+| La barca | `FerryLobby` | Sala de espera: barca funeraria en movimiento con el Barquero (`Ferryman`); se carga sin conexión y publica la sala sola si hay internet. |
+| El farol | `FerryLantern` | Objeto de la barca que se enciende cuando la sala está publicada y muestra el código; interruptor para cerrarla o reintentar. |
+| Las puertas | `DoorChoice` | Rito de asignación de asientos: cuatro puertas, cada humano elige una, los bots después; cada puerta lleva un asiento en secreto. |
+| Postpartida | `Aftermatch` | Resultados, crónica completa y revancha, sin cambiar de nivel; métricas y registro exportados a archivo. |
 | Dominio | `Domain` | Una de las seis zonas del tablero, gobernada por un Elegido. Conectada con el Altar y con sus dos Dominios vecinos. Cada Dominio tiene un Nicho y una Fuente de Poder. |
 | Dominio Olvidado | `ForgottenDomain` | Dominio sin dueño: corrompido por el Warden al inicio (6 menos N) o no reclamado al acabar la carrera. Nicho cerrado; en su Fuente, un Elegido debe superar el minijuego de habilidad para obtener runa y un Eco la obtiene sin él; territorio de los Ecos. Al acabar la carrera, cada Eco recibe uno propio, nunca compartido, que es su hogar. |
 | Nicho | `Niche` | Casilla fija de cada Dominio donde se reclama al Elegido. Punto de reaparición y de castigo medio. |
@@ -40,7 +45,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Español | Código | Definición |
 |---|---|---|
 | Runa de Poder | `Rune` | Uno de los seis objetos de colección. Cada Elegido tiene su propio mapa de runa a poder. |
-| Brazal Arcano | `Bracer` | Inventario de runas del jugador. Estado oculto o revelado. En PC, un panel de interfaz. |
+| Brazal Arcano | `Bracer` | Inventario de runas del jugador. Estado oculto o revelado. En PC, el bloque propio del HUD: runas por tipo con duplicados, poderes activos y estados propios. |
 | Poder | `Power` | Capacidad que otorga una runa según el Elegido: Duelo, Celeridad, Paso Libre, Expulsión, Vuelo Planar, Desvío. |
 | Duelo (poder) | `PowerDuel` | Duelo portátil: retar a un jugador con quien se comparte casilla al acabar el movimiento. El ganador del minijuego roba una runa al perdedor con el trilero. |
 | Celeridad | `PowerHaste` | Elegir tirar uno o dos dados; sin él, todo jugador tira uno. Lo da la runa del propio Dominio. |
@@ -51,7 +56,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Afinidad | `Affinity` | Poder pasivo único de cada Elegido. |
 | Runa de Liberación | `LiberationRune` | Para un Eco, la runa de su Dominio Olvidado asignado: mientras la tiene le da Celeridad. Misma regla que para los Elegidos: la runa de tu Dominio te da Celeridad. |
 | Amuleto de Desvío | `DeflectionAmulet` | Fase 2, con otro nombre (choca con el poder Desvío). Objeto de un solo uso que anula un castigo y pasa al jugador de la izquierda. |
-| Grimorio | `Grimoire` | Consulta de reglas y estado del jugador. En PC, un panel. |
+| Grimorio | `Grimoire` | Consulta de reglas y estado del jugador. En PC, un panel bajo demanda con contenido en datos, que no pausa nada. |
 
 ## Partida
 
@@ -94,7 +99,14 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Vacío de la Furia | `FuryVoid` | El Vacío normal, pero dentro no funcionan ni Desvío ni Liberación: el jugador puede intentarlos y el Warden se niega con frase (la runa no se consume). |
 | Minijuego de habilidad | `SkillMinigame` | Una única mecánica corta de timing o reacción con tres presentaciones: duelo, escape del Vacío y desafío final. |
 | Trilero | `ShellGame` | Interacción de robo: las runas de la víctima se ocultan en esferas que se mezclan; el ladrón elige una. La mezcla es continua y se puede seguir con la vista; velocidad y duración salen de datos. |
-| Foco de evento | `EventFocus` | Escenificación de un evento: luces fuera, foco sobre los implicados, el resto mira. |
+| Foco de evento | `EventFocus` | Escenificación de duelo, trilero, desafío y Furia: la Cripta se oscurece, los implicados quedan iluminados, la cámara de todos se inclina hacia ellos sin salir del Trono, y los espectadores ven el minijuego en grande y apuestan. |
+| Componente de selección | `SelectionPrompt` | Único mecanismo de toda elección con reloj: opciones en el mundo (casillas, esferas, fichas, avatares, cartas de piedra, runas), la primera resaltada, stick o ratón para pasar, confirmar. Las opciones nunca pierden legibilidad; el tiempo se ve aparte. |
+| Crónica | `Chronicle` | Panel bajo demanda con los últimos sucesos de la partida, a partir del registro de eventos. |
+| Reloj de la Cripta | `CryptClock` | Objeto colgado del techo sobre la mesa que marca el tiempo restante de forma aproximada. No hay contador en el HUD por defecto. |
+| Bandeja de dados | `DiceTray` | Bandeja en el borde de la mesa delante de cada Trono donde ruedan los dados. El resultado lo decide el motor. |
+| Silueta | `OcclusionOutline` | Contorno con el color del jugador que se dibuja cuando su ficha queda tapada. |
+| Giro del tablero | `BoardSpin` | Rotación y acercamiento del diorama en la vista propia; local a cada cliente, nunca sincronizado. |
+| De pie | `StandUp` | Vista elevada sobre el propio Trono, sin abandonarlo. |
 
 ## Warden
 
