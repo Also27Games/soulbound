@@ -10,9 +10,13 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Eco Perdido | `LostEcho` | Estado inicial de todo jugador: un espectro sin poder. Quien no reclama un Nicho en la carrera se queda así toda la partida. |
 | Elegido (plural: Elegidos) | `Elect` | Los seis seres oscuros a los que un Eco puede vincularse. Cada uno gobierna un Dominio, da un poder pasivo y un mapa de runa a poder. Tema: los seis terrores de seis mundos, ecos encadenados de figuras mitológicas coleccionados por el Warden. |
 | Los seis Elegidos | `ElectId` | Shuten-dōji (oni, Japón), Fenrir (lobo encadenado, nórdico), Apep (serpiente del caos, Egipto), Mictlantecuhtli (señor de los muertos, azteca), Tifón (tormenta, Grecia), Koschei (el inmortal, eslavo). Nombres en el juego, afinidades y Dominios: GDD de carrera y Elegidos. |
-| Jugador | `Player` | Persona o bot que controla un Eco o un Elegido. |
-| Dummy | `DummyPlayer` | Jugador automático sin criterio (tira y mueve al azar). Solo para pruebas automáticas y simulación. |
-| Bot | `BotPlayer` | Jugador automático con criterio, que implementa la interfaz de decisión del jugador. En Fase 1, el bot básico: va a por el objetivo más cercano y elige en los dilemas lo que le beneficia. Otros bots y niveles de dificultad se añaden como nuevas implementaciones. Rellena los huecos hasta cuatro y permite jugar solo. |
+| Jugador | `Player` | Persona o bot que controla un Eco o un Elegido. Siempre hay cuatro asientos (`Seat`). |
+| Decisor | `Decider` | Interfaz de decisión enganchada a cada asiento, con una función por tipo de elección más "resolver minijuego". El motor solo habla con el decisor y no distingue humano, bot o dummy. Cambiar el decisor de un asiento no toca el estado de partida. |
+| Decisor humano | `HumanDecider` | Abre el componente de selección en el cliente y devuelve lo confirmado o "agotado". |
+| Bot básico | `BasicBotDecider` | Decisor con criterio por prioridades (Altar si seis tipos, Fuente que falta, perjudicar al líder, Fuente más cercana; Ecos, robar), tabla de valor para dilemas, y habilidad de minijuego (`MinigameSkill`) por dificultad en datos. Nunca es insolente. Rellena los huecos hasta cuatro, sustituye a un jugador caído y permite jugar solo. Otros bots y dificultades, Fase 2, como nuevos decisores. |
+| Dummy | `DummyDecider` | Decisor al azar, sin retardo. Solo para pruebas y simulación. Variante insolente (`InsolentDummy`) que a veces no responde, para probar la Furia. |
+| Intención | `Intent` | Lo único que envía un cliente: el resultado de una elección o la acción del minijuego. El servidor la valida y la descarta sin castigo si no es válida. |
+| Simulación | `Simulation` | Partida sin mundo, red ni interfaz, con reloj virtual, determinista por semilla, con decisores bot o dummy. Ejecuta los criterios "en simulación" como tests por línea de comandos. |
 
 ## Tablero
 
