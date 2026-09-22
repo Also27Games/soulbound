@@ -73,7 +73,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Acto I, II, III | `ActOne`, `ActTwo`, `ActThree` | Tramos de la partida que cambian el comportamiento del Warden: 0-5, 5-27, 27-40 minutos. |
 | Turno | `Turn` | Tirar, mover, resolver casilla. Reloj de turno de 30 segundos. |
 | Tirada | `Roll` | Resultado de uno o dos dados de seis caras. |
-| Desafío final | `FinalChallenge` | Prueba para ganar tras engarzar las seis runas en el Altar. Presentación del minijuego de habilidad en su dificultad máxima. |
+| Desafío final | `FinalChallenge` | Prueba para ganar tras engarzar las seis runas en el Altar: seis pulsos del minijuego en dificultad normal, sin un solo fallo, con una o dos trampas del Warden. |
 | Victoria del Warden | `WardenVictory` | Derrota colectiva al agotarse el tiempo. |
 
 ## Castigos
