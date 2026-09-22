@@ -6,6 +6,7 @@ Saved/
 Build/
 .vs/
 .vscode/
+.idea/
 *.VC.db
 *.opensdf
 *.opendb
