@@ -131,7 +131,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Usos máximos | `MaxUses` | Veces que un evento puede salir por partida. |
 | Saco de eventos | `EventBag` | Lista de eventos por acto, con peso por acto. Acumulativa: en el Acto III están los tres sacos. |
 | Disparador contextual | `ContextTrigger` | Condición con umbrales en datos que multiplica pesos de eventos y direcciones. Cinco en el TFM: líder claro (`ClearLeader`), victoria inminente (`ImminentVictory`), jugador ignorado (`IgnoredPlayer`), partida estancada (`StalledMatch`), acaparador (`Hoarder`). |
-| Oráculo del Caos | `Oracle` | Forma de entrega de decretos, nunca de dilemas ni votaciones: orbe central que muestra una sentencia. Siete segundos para consultarlo (en PC, mantener pulsado hasta llenar una barra); si no, la sentencia se aplica igual y sube la insolencia. Su sorteo lleva un sesgo en datos (`OracleBias`, 0,5) entre azar puro y el criterio del Warden. |
+| Oráculo del Caos | `Oracle` | Forma de entrega de decretos, nunca de dilemas ni votaciones: un orbe que emerge de la mesa delante de quien consulta y muestra una sentencia. Siete segundos para consultarlo (en PC, mantener pulsado hasta llenar una barra); si no, la sentencia se aplica igual y sube la insolencia. Su sorteo lleva un sesgo en datos (`OracleBias`, 0,5) entre azar puro y el criterio del Warden. |
 | Dilema | `Dilemma` | Evento con dos a cuatro opciones que elige el jugador activo, siempre por Warden directo. Cada opción es una lista de efectos con su dirección. Un evento con una sola opción es un decreto. |
 | Votación | `Vote` | Escena en la que todos señalan a otro jugador a la vez; el más votado recibe el efecto; votos públicos; no votar es insolencia. Tres en el TFM: El chivo, Juicio, Favor. |
 | Decreto global | `GlobalDecree` | Evento de una sola opción con dirección todos o Ecos. |
@@ -141,7 +141,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Español | Definición |
 |---|---|
 | Fase 1 / Soulbound Core | Tablero en plano, motor de reglas, Warden. Es el TFM. |
-| Fase 2 | Voz, bots con dificultad, más contenido. |
+| Fase 2 | Voz real y chat de voz, bots con dificultad, reconexión y migración de anfitrión, más contenido, Biblioteca de reglas. |
 | Fase 3 | VR, con la VR autónoma (Quest) como objetivo principal y PC VR como paso intermedio. Las tres plataformas comparten diseño y contenido. |
 | GDD v0.1 | Documento original de julio de 2025. Fuente de cada sistema, no referencia normativa. |
 | GDD v0.2 | Conjunto de documentos en `docs/gdd/`. Referencia normativa. |

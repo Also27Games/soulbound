@@ -48,7 +48,7 @@ Estas no se discuten en cada tarea; si una propuesta las rompe, se descarta o se
 
 ## Alcance del TFM (Soulbound Core)
 
-Incluye: sprints de Nodos del Poder, carrera por el vínculo y carrera hacia la victoria; Warden completo como motor (tres actos, tres canales, 18 efectos y 8 direcciones, decretos, dilemas y votaciones, Oráculo, cinco disparadores, insolencia con tabla escalonada y Furia, voz sintética pregenerada con subtítulo), con un objetivo de contenido de 38 eventos y un suelo de 6 eventos y 2 disparadores para el punto de control; bot básico con una heurística simple, construido sobre una interfaz de decisión que permita añadir otros bots sin tocar el motor; puertas; un minijuego de habilidad corto (timing o reacción) con tres presentaciones, duelo, escape del Vacío y desafío final; el robo de runas como interacción de elegir una esfera entre varias mezcladas; arte de placeholder con assets con licencia (Synty); build de Windows, documentación, slides y vídeo.
+Incluye: sprints de Nodos del Poder, carrera por el vínculo y carrera hacia la victoria; Warden completo como motor (tres actos, tres canales, 18 efectos y 8 direcciones, decretos, dilemas y votaciones, Oráculo, cinco disparadores, insolencia con tabla escalonada y Furia, voz sintética pregenerada con subtítulo), con un objetivo de contenido de 38 eventos y un suelo de 6 eventos y 2 disparadores para el punto de control; bot básico con una heurística simple, construido sobre una interfaz de decisión que permita añadir otros bots sin tocar el motor; Sellos; un minijuego de habilidad corto (timing o reacción) con tres presentaciones, duelo, escape del Vacío y desafío final; el robo de runas como interacción de elegir una esfera entre varias mezcladas; arte de placeholder (dirección pendiente: vóxel o ilustración generada, declarada como tal); build de Windows, documentación, slides y vídeo.
 
 Excluye: VR, voz espacial, niveles de dificultad de los bots, arte propio final.
 
@@ -101,6 +101,6 @@ El motor de reglas emite un registro de eventos con marca de tiempo y destinatar
 
 ## Lo que no está decidido todavía
 
-- El rediseño del cuarto personaje (antes "El Barón").
+- La dirección de arte: entre vóxel y "todo dibujado" con IA como placeholder; se decide con dos pruebas en el otro PC. Hasta entonces, ningún asset de terceros se da por elegido.
 
 Si una tarea necesita uno de estos, pregunta al autor antes de seguir.
