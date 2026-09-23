@@ -11,11 +11,16 @@ fi
 expr=""
 while IFS= read -r linea || [ -n "$linea" ]; do
   linea="$(printf '%s' "$linea" | tr -d '\r')"
+  # Solo líneas Clave=Valor donde la clave son letras (descarta comentarios, secciones, BOM y líneas vacías).
   case "$linea" in
-    ''|'#'*|';'*|'['*) continue ;;
+    [A-Za-z]*=*) ;;
+    *) continue ;;
   esac
   clave="${linea%%=*}"
   valor="${linea#*=}"
+  case "$clave$valor" in
+    *[!A-Za-z0-9._-]*) echo "eos-secrets: la clave '$clave' tiene caracteres no permitidos (solo letras, cifras, . _ -); se ignora" >&2; continue ;;
+  esac
   expr="$expr -e s|^$clave=.*|$clave=$valor|"
 done < "$local"
 if [ -z "$expr" ]; then
