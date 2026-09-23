@@ -15,9 +15,9 @@ if git diff --cached -U0 -- . | grep -E -q "$patron"; then
   exit 1
 fi
 
-if git diff --cached --name-only | grep -E -i -q '^Config/User[^/]*\.ini$|Biblia|Atmosfear|^Plugins/(OnlineSubsystemRedpointEOS|EOS-SDK|MetaXR)'; then
+if git diff --cached --name-only | grep -E -i -q '^Config/User[^/]*\.ini$|^Build/NoRedist/|Biblia|Atmosfear|^Plugins/(OnlineSubsystemRedpointEOS|EOS-SDK|MetaXR)'; then
   echo "pre-commit: hay un archivo que no puede entrar en el repositorio:" >&2
-  git diff --cached --name-only | grep -E -i '^Config/User[^/]*\.ini$|Biblia|Atmosfear|^Plugins/(OnlineSubsystemRedpointEOS|EOS-SDK|MetaXR)' >&2
+  git diff --cached --name-only | grep -E -i '^Config/User[^/]*\.ini$|^Build/NoRedist/|Biblia|Atmosfear|^Plugins/(OnlineSubsystemRedpointEOS|EOS-SDK|MetaXR)' >&2
   exit 1
 fi
 

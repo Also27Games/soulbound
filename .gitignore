@@ -32,6 +32,9 @@ Plugins/MetaXR/
 Config/User*.ini
 Config/Local/
 
+# Redpoint: ganchos de empaquetado y clave privada del cliente de confianza. Nunca al repositorio.
+Build/NoRedist/
+
 # Assets pesados y de pago: fuera del repositorio público.
 # Los placeholders propios se versionan; todo lo que sea de terceros (Synty, Fab, Marketplace) no.
 Content/ThirdParty/
