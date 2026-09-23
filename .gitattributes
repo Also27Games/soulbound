@@ -23,3 +23,7 @@
 *.md text eol=lf
 *.uproject text eol=lf
 *.uplugin text eol=lf
+
+# Scripts de shell: siempre LF
+Scripts/git-hooks/** text eol=lf
+*.sh text eol=lf

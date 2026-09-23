@@ -1,0 +1,22 @@
+#!/bin/sh
+# Hook de pre-commit de Soulbound.
+# Rechaza commits que lleven claves de EOS o de Redpoint con valor, o archivos que nunca deben entrar.
+# Activar una vez por clon:  git config core.hooksPath Scripts/git-hooks
+
+claves='ProductId|SandboxId|DeploymentId|ClientId|ClientSecret|FreeEditionLicenseKey|PlayerDataEncryptionKey|DedicatedServerClientId|DedicatedServerClientSecret|TitleStorageClientId|TitleStorageClientSecret|TrustedClientPublicKey'
+patron="^\+[[:space:]]*($claves)=[^[:space:]]"
+
+if git diff --cached -U0 -- . | grep -E -q "$patron"; then
+  echo "pre-commit: hay claves de EOS o de Redpoint CON VALOR en los cambios." >&2
+  echo "Van en Config/UserEngine.ini (ignorado por Git), nunca en Config/DefaultEngine.ini." >&2
+  git diff --cached -U0 -- . | grep -E "$patron" | sed -E 's/=.*/=<valor oculto>/' >&2
+  exit 1
+fi
+
+if git diff --cached --name-only | grep -E -i -q '^Config/User[^/]*\.ini$|Biblia|Atmosfear|^Plugins/(OnlineSubsystemRedpointEOS|EOS-SDK|MetaXR)'; then
+  echo "pre-commit: hay un archivo que no puede entrar en el repositorio:" >&2
+  git diff --cached --name-only | grep -E -i '^Config/User[^/]*\.ini$|Biblia|Atmosfear|^Plugins/(OnlineSubsystemRedpointEOS|EOS-SDK|MetaXR)' >&2
+  exit 1
+fi
+
+exit 0
