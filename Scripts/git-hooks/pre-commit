@@ -1,9 +1,11 @@
 #!/bin/sh
 # Hook de pre-commit de Soulbound.
 # Rechaza commits que lleven claves de EOS o de Redpoint con valor, o archivos que nunca deben entrar.
+# PlayerDataEncryptionKey queda fuera a proposito: Redpoint la regenera en DefaultEngine.ini si esta vacia y solo cifra
+# Player Data Storage (no usado en Fase 1); va en cada binario igual que ClientSecret. Decision del 23/09, ver ADR del online.
 # Activar una vez por clon:  git config core.hooksPath Scripts/git-hooks
 
-claves='ProductId|SandboxId|DeploymentId|ClientId|ClientSecret|FreeEditionLicenseKey|PlayerDataEncryptionKey|DedicatedServerClientId|DedicatedServerClientSecret|TitleStorageClientId|TitleStorageClientSecret|TrustedClientPublicKey'
+claves='ProductId|SandboxId|DeploymentId|ClientId|ClientSecret|FreeEditionLicenseKey|DedicatedServerClientId|DedicatedServerClientSecret|TitleStorageClientId|TitleStorageClientSecret|TrustedClientPublicKey'
 patron="^\+[[:space:]]*($claves)=[^[:space:]]"
 
 if git diff --cached -U0 -- . | grep -E -q "$patron"; then
