@@ -10,8 +10,7 @@ public class Soulbound : ModuleRules
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput" });
 
-		// Also27Online: plugin propio de sesiones por código (Plugins/A27Online). Solo lo usa el spike de momento.
-		PrivateDependencyModuleNames.AddRange(new string[] { "Also27Online" });
+		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
