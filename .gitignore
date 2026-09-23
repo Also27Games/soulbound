@@ -18,9 +18,18 @@ Build/
 *.uatbuildrecord
 *.autosave
 
-# Plugins compilados (los fuentes de plugins sí se versionan)
+# Plugins compilados (los fuentes de plugins propios sí se versionan)
 Plugins/**/Binaries/
 Plugins/**/Intermediate/
+
+# Plugins de terceros con licencia que no permite redistribuirlos: se instalan aparte (ver README)
+Plugins/OnlineSubsystemRedpointEOS/
+Plugins/EOS-SDK*/
+Plugins/MetaXR/
+
+# Configuración local con secretos (identificadores de EOS, clave de licencia)
+Config/User*.ini
+Config/Local/
 
 # Assets pesados y de pago: fuera del repositorio público.
 # Los placeholders propios se versionan; todo lo que sea de terceros (Synty, Fab, Marketplace) no.
