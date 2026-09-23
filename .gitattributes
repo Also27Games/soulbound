@@ -28,3 +28,4 @@
 Scripts/git-hooks/** text eol=lf
 *.sh text eol=lf
 Config/DefaultEngine.ini filter=eos-secrets
+*.ps1 text eol=lf
