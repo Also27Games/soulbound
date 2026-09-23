@@ -8,7 +8,7 @@ public class Soulbound : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "SoulboundCore" });
 
 		// Also27Online: plugin propio de sesiones por código (Plugins/A27Online). Solo lo usa el spike de momento.
 		PrivateDependencyModuleNames.AddRange(new string[] { "Also27Online" });
