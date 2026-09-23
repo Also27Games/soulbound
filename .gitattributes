@@ -27,3 +27,4 @@
 # Scripts de shell: siempre LF
 Scripts/git-hooks/** text eol=lf
 *.sh text eol=lf
+Config/DefaultEngine.ini filter=eos-secrets

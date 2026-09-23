@@ -1,0 +1,9 @@
+# Copia este archivo a Config/Local/EOS.ini y rellena los valores. Config/Local/ está ignorado por Git.
+# Una línea por clave, sin espacios alrededor del "=". Las claves se inyectan en Config/DefaultEngine.ini
+# al hacer checkout y se vacían al hacer commit (filtro eos-secrets, ver Scripts/eos-secrets/install.sh).
+ProductId=
+SandboxId=
+DeploymentId=
+ClientId=
+ClientSecret=
+FreeEditionLicenseKey=
