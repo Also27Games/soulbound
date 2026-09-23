@@ -1,6 +1,6 @@
-#include "Spike/SpikeOnlineGameMode.h"
+#include "SpikeOnlineGameMode.h"
 
-#include "Spike/SpikeOnlinePlayerController.h"
+#include "SpikeOnlinePlayerController.h"
 
 ASpikeOnlineGameMode::ASpikeOnlineGameMode()
 {
