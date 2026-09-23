@@ -18,8 +18,12 @@ while IFS= read -r linea || [ -n "$linea" ]; do
   esac
   clave="${linea%%=*}"
   valor="${linea#*=}"
-  case "$clave$valor" in
-    *[!A-Za-z0-9._-]*) echo "eos-secrets: la clave '$clave' tiene caracteres no permitidos (solo letras, cifras, . _ -); se ignora" >&2; continue ;;
+  # La clave: solo letras. El valor: cualquier cosa salvo lo que rompería la sustitución de sed (| & \ y espacios).
+  case "$clave" in
+    *[!A-Za-z]*) echo "eos-secrets: la clave '$clave' no es valida; se ignora" >&2; continue ;;
+  esac
+  case "$valor" in
+    *['|&\\'[:space:]]*) echo "eos-secrets: el valor de '$clave' contiene | & \\ o espacios, que no se admiten; se ignora" >&2; continue ;;
   esac
   expr="$expr -e s|^$clave=.*|$clave=$valor|"
 done < "$local"
