@@ -41,6 +41,9 @@ Content/ThirdParty/
 Content/Synty*/
 Content/Fab*/
 Content/Marketplace/
+# Frameworks comprados en Fab: se instalan desde el Launcher (ver README)
+Content/UltraGameTemplate/
+Plugins/UltraLoadingScreen*/
 
 # --- Material que no debe entrar nunca (propiedad intelectual de terceros) ---
 Biblia_Del_Guardian*
