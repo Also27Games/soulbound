@@ -36,8 +36,9 @@ $Tiempo = Measure-Command {
 }
 
 $Lineas = $script:Salida | Where-Object { $_ -match 'LogAutomationController' -or $_ -match 'LogAutomationCommandLine' }
-$Superados = @($Lineas | Where-Object { $_ -match 'Test Completed\. Result=\{Passed\}' })
-$Fallidos = @($Lineas | Where-Object { $_ -match 'Test Completed\. Result=\{Failed\}' })
+# Unreal 5.8 escribe Result={Success}/{Fail}; versiones anteriores, {Passed}/{Failed}.
+$Superados = @($Lineas | Where-Object { $_ -match 'Test Completed\. Result=\{(Success|Passed)\}' })
+$Fallidos = @($Lineas | Where-Object { $_ -match 'Test Completed\. Result=\{(Fail|Failed)\}' })
 $Errores = @($script:Salida | Where-Object { $_ -match 'LogAutomationController: Error' })
 
 $Superados | ForEach-Object { Write-Host ("  OK   " + ($_ -replace '.*Name=\{', '' -replace '\}.*', '')) -ForegroundColor Green }
@@ -48,7 +49,7 @@ Write-Host ("== {0} superados, {1} fallidos, {2:n0} s (arranque del comandlet in
 
 if ($Fallidos.Count -gt 0 -or $Superados.Count -eq 0) {
     if ($Superados.Count -eq 0 -and $Fallidos.Count -eq 0) {
-        Write-Host "No se ejecutó ningún test. Últimas líneas de la salida:" -ForegroundColor Yellow
+        Write-Host "No se ejecuto ningun test. Ultimas lineas de la salida:" -ForegroundColor Yellow
         $script:Salida | Select-Object -Last 30 | ForEach-Object { Write-Host "  $_" }
     }
     exit 1
