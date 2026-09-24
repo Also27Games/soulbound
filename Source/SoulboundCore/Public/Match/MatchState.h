@@ -45,7 +45,7 @@ struct SOULBOUNDCORE_API FMatchState
 	UPROPERTY()
 	int32 TurnCount = 0;
 
-	/** Tablero de prueba del spike: seis casillas con un ciclo, cuatro asientos en la casilla 0. */
+	/** Tablero de prueba del spike: seis casillas con un ciclo, la 0 es el Altar y los cuatro asientos empiezan en ella. */
 	static FMatchState MakeSpikeMatch();
 
 	bool IsTileOccupied(int32 TileId) const;

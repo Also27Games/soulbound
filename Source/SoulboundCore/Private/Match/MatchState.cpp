@@ -7,6 +7,7 @@ FMatchState FMatchState::MakeSpikeMatch()
 	{
 		State.Board.AddTile();
 	}
+	State.Board.Tiles[0].Type = ETileType::Altar;
 	State.Board.Connect(0, 1);
 	State.Board.Connect(1, 2);
 	State.Board.Connect(2, 3);
