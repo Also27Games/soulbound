@@ -24,6 +24,16 @@ Soulbound es un party game de terror social con un anfitrión IA, el Warden. Unr
 - Nunca escribas valores de `ProductId`, `ClientSecret`, claves de licencia ni tokens en ningún archivo del repositorio. Un hook los rechaza; si te lo encuentras, no lo esquives.
 - No crees ni edites assets de Unreal (`.uasset`, `.umap`) desde un agente. Si una story los necesita, deja escrito en el PR qué asset y qué contenido, y lo hace una persona.
 
-## Al abrir el PR
+## Al cerrar la story
 
-Descripción con: la story y sus criterios, qué tests los cubren, qué quedó fuera y por qué, y cualquier duda sobre el GDD o el glosario. El revisor usa `references/checklist-revision.md` de la skill.
+El autor del proyecto tiene que poder entender cada cambio sin haber estado delante. Por eso, antes de abrir el PR:
+
+1. **Bitácora**: añade una entrada a `docs/bitacora.md` con el formato de las anteriores (qué se pidió, qué se decidió y por qué, cómo funciona, dudas y resolución, tests, pendiente, proceso). Diez líneas, en el mismo PR.
+2. **Descripción del PR** con estas secciones, en este orden:
+   - **Story y criterios**: cuáles se cubren y con qué test cada uno.
+   - **Cómo leer este PR**: archivo por archivo, en el orden en que conviene leerlos, qué cambia y por qué, citando la regla (`R-XXX-n`) que lo motiva. Cinco minutos de lectura antes de abrir el diff.
+   - **Decisiones tomadas** que no estaban en la story, con la alternativa descartada.
+   - **Dudas** sobre el GDD o el glosario, y **pendiente** (qué quedó fuera y por qué).
+3. Compila y pasa los tests por última vez después de escribir la documentación.
+
+El revisor usa `references/checklist-revision.md` de la skill. Una story cada vez: no se abre la siguiente hasta que la anterior está fusionada y leída.
