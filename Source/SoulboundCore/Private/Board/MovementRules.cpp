@@ -6,11 +6,17 @@ namespace Soulbound::Rules
 {
 	namespace
 	{
-		/** Búsqueda en profundidad de caminos simples de longitud exacta. Los tableros son pequeños (decenas de casillas). */
-		void CollectExactPaths(const FBoardState& Board, int32 Current, int32 StepsLeft, const FMoverTraits& Mover,
+		/**
+		 * Búsqueda en profundidad de caminos simples. Un camino acaba en una casilla alcanzable si agota la tirada
+		 * (R-TAB-14), si entra en el Altar (R-TAB-16) o si topa con una casilla sellada (R-TAB-17). El origen nunca
+		 * es alcanzable: ni el Altar de origen detiene nada ni un Sello en el paso 1 lo convierte en destino.
+		 * Los tableros son pequeños (decenas de casillas).
+		 */
+		void CollectPaths(const FBoardState& Board, int32 FromTile, int32 Current, int32 StepsLeft, const FMoverTraits& Mover,
 			TArray<bool>& Visited, TSet<int32>& OutTiles)
 		{
-			if (StepsLeft == 0)
+			const bool bIsOrigin = Current == FromTile;
+			if (StepsLeft == 0 || (!bIsOrigin && Board.IsAltar(Current)))
 			{
 				OutTiles.Add(Current);
 				return;
@@ -18,12 +24,20 @@ namespace Soulbound::Rules
 
 			for (const int32 Next : Board.Tiles[Current].Neighbours)
 			{
-				if (!Board.IsValidTile(Next) || Visited[Next] || !IsPassable(Board, Next, Mover))
+				if (!Board.IsValidTile(Next) || Visited[Next])
 				{
 					continue;
 				}
+				if (!IsPassable(Board, Next, Mover))
+				{
+					if (!bIsOrigin)
+					{
+						OutTiles.Add(Current);
+					}
+					continue;
+				}
 				Visited[Next] = true;
-				CollectExactPaths(Board, Next, StepsLeft - 1, Mover, Visited, OutTiles);
+				CollectPaths(Board, FromTile, Next, StepsLeft - 1, Mover, Visited, OutTiles);
 				Visited[Next] = false;
 			}
 		}
@@ -51,7 +65,7 @@ namespace Soulbound::Rules
 		Visited[FromTile] = true;
 
 		TSet<int32> Found;
-		CollectExactPaths(Board, FromTile, Roll, Mover, Visited, Found);
+		CollectPaths(Board, FromTile, FromTile, Roll, Mover, Visited, Found);
 
 		Result = Found.Array();
 		Result.Sort();
