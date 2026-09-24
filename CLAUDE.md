@@ -22,14 +22,14 @@ Soulbound es un party game de terror social con un anfitrión IA, el Warden. Unr
 - Valores de juego (tiradas, tiempos, topes) nunca fijos en el código: parámetros con valor inicial documentado, pensados para salir de datos.
 - Commits en español, cortos, en presente o infinitivo, diciendo qué cambia. **Sin líneas de coautoría ni de atribución de ninguna herramienta.**
 - Nunca escribas valores de `ProductId`, `ClientSecret`, claves de licencia ni tokens en ningún archivo del repositorio. Un hook los rechaza; si te lo encuentras, no lo esquives.
-- No crees ni edites assets de Unreal (`.uasset`, `.umap`) desde un agente. Si una story los necesita, deja escrito en el PR qué asset y qué contenido, y lo hace una persona.
+- **Assets de Unreal** (`.uasset`, `.umap`): solo si la story lo pide de forma explícita, nunca como efecto lateral de una story de código. Cuando lo pida: siempre a través del MCP de Unreal (nunca editando binarios ni copiando archivos), pidiendo confirmación antes de cada escritura (qué asset, qué cambio), en un commit aparte del código, con una descripción textual de cada asset en el PR; una persona los abre en el editor y los verifica antes de fusionar, porque el diff no los muestra. Preferencia: lo que pueda generarse desde datos, se genera.
 
 ## Unreal MCP (editor abierto)
 
 `.mcp.json` conecta con el servidor MCP del editor de Unreal (`127.0.0.1:8000/mcp`). Solo existe si el editor está abierto y el servidor arrancado (arranca solo, o con `ModelContextProtocol.StartServer` en la consola del editor). Las herramientas se descubren con `list_toolsets` y `describe_toolset`, y se invocan con `call_tool` pasando el **nombre corto** de la herramienta (por ejemplo `find_actors`) junto con `toolset_name`.
 
 - **Sí**: leer el nivel y los actores (`SceneTools`), leer logs, consultar configuración, y **lanzar tests** (`AutomationTestToolset`): con el editor abierto tardan décimas de segundo en vez de los 12 s del comandlet.
-- **Nunca**: crear, modificar o borrar assets a través del MCP (materiales, Blueprints, mapas, Data Assets, texturas…). Es experimental y hay defectos documentados que borran propiedades o sobrescriben archivos. Si una story necesita assets, se deja escrito en el PR y lo hace una persona.
+- **Escribir assets** (materiales, Blueprints, mapas, Data Assets, texturas…): solo con las condiciones del apartado "Cómo se trabaja" (story que lo pide, confirmación antes de cada escritura, commit aparte, verificación en el editor). El plugin es experimental y tiene defectos documentados que borran propiedades o sobrescriben archivos: por eso cada escritura se confirma y se verifica.
 - Condición legal: lo que el editor envía al modelo por este canal es tecnología licenciada bajo la EULA de Unreal (sección 6(e)); el proveedor del modelo no debe usarlo como datos de entrenamiento. La cuenta que use este MCP tiene esa opción desactivada.
 
 ## Al cerrar la story
