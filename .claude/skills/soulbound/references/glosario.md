@@ -24,7 +24,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 |---|---|---|
 | La Cripta | `Crypt` | La sala donde se juega. En VR rodea al jugador; en PC es el escenario alrededor del tablero. |
 | Tablero | `Board` | Grafo de casillas: el Altar en el centro y seis Dominios conectados con él y entre vecinos. |
-| Casilla | `Tile` | Nodo del grafo. Tiene un tipo y conexiones. |
+| Casilla | `Tile` | Nodo del grafo. Tiene un tipo (`ETileType`: normal, Altar; Nicho, Fuente y Nodos llegarán con sus stories), conexiones y estados que cambian (Sello). |
 | Conexión | `Edge` | Enlace entre dos casillas. |
 | El Altar | `Altar` | Casilla central grande. Todos los jugadores empiezan en ella. De ella parten los caminos a los seis Dominios. Con seis runas distintas, el jugador vuelve al Altar, las engarza y arranca el desafío final. **Detiene el movimiento** (R-TAB-16): si un camino entra en él, termina ahí aunque sobre tirada, y no se cruza dentro de un mismo movimiento; es alcanzable a distancia menor o igual que la tirada, sin tirada exacta. A efectos de castigos y de compartir casilla es una casilla normal; no se puede sellar. |
 | Trono | `Throne` | Asiento de cada jugador en la Cripta, alrededor de la mesa. No es una casilla del tablero. La cámara nunca lo abandona: gira la cabeza, se inclina y se pone de pie. En el Vacío, el avatar del desterrado sigue en él, espectral. |
