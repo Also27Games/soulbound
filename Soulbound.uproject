@@ -42,6 +42,14 @@
 				"IOS",
 				"TVOS"
 			]
+		},
+		{
+			"Name": "UltraLoadingScreen",
+			"Enabled": true,
+			"MarketplaceURL": "https://www.fab.com/portal/listings/d363027f-17c8-451d-ad2f-589d18b158ae",
+			"SupportedTargetPlatforms": [
+				"Win64"
+			]
 		}
 	]
 }
