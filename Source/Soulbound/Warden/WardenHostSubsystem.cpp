@@ -1,6 +1,8 @@
 #include "WardenHostSubsystem.h"
 
+#include "../Spike/SpikeOnlineGameMode.h"
 #include "Engine/Engine.h"
+#include "GameFramework/GameModeBase.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 
@@ -25,6 +27,14 @@ void UWardenHostSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	if (InWorld.GetNetMode() == NM_Client)
 	{
 		UE_LOG(LogSoulboundWarden, Log, TEXT("Anfitrion del Warden inactivo: este proceso es un cliente."));
+		return;
+	}
+
+	// Solo en una partida: el anfitrión pertenece a la partida, no al mundo. En el spike, "partida" es el mapa
+	// con nuestro GameMode; en los menús de UGT no hay Warden. En el motor real lo arrancará el GameMode de la Cripta.
+	if (!InWorld.GetAuthGameMode<ASpikeOnlineGameMode>())
+	{
+		UE_LOG(LogSoulboundWarden, Log, TEXT("Anfitrion del Warden inactivo: este mapa no es una partida."));
 		return;
 	}
 
