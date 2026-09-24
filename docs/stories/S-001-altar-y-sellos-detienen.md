@@ -23,6 +23,8 @@ Se mantienen R-TAB-14 (longitud exacta para el resto de casillas) y R-TAB-18 (si
 
 - Hace falta que una casilla pueda ser el Altar. En el glosario, Altar es `Altar` y una casilla es `Tile`; decide la forma (un tipo de casilla o una marca) y justifícala en el PR. El tablero de prueba `FMatchState::MakeSpikeMatch` y el de los tests usan la casilla 0 como Altar.
 - La casilla de origen no cuenta como "entrar en el Altar": un jugador que está en el Altar sale de él con normalidad.
+- **La casilla de origen nunca es alcanzable.** Si la casilla sellada es vecina directa del origen (paso 1), "la casilla anterior" sería el origen y no cuenta: un movimiento siempre lleva a otra casilla. Si con ello no queda ninguna alcanzable, se aplica R-TAB-18 (el jugador no se mueve). Aclarado el 24/09; va al GDD 01 como caso límite.
+- El glosario decía que el Altar era "casilla normal a efectos de tránsito"; era texto desfasado y se ha corregido el 24/09: manda R-TAB-16.
 - Los tests actuales de `Source/SoulboundCore/Private/Tests/MovementRulesTest.cpp` codifican el comportamiento antiguo del Sello; hay que corregirlos según R-TAB-17, no borrarlos.
 - Nada de `Engine`, `UWorld` ni `UObject` en `SoulboundCore`.
 
