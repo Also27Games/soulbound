@@ -24,6 +24,14 @@ Soulbound es un party game de terror social con un anfitrión IA, el Warden. Unr
 - Nunca escribas valores de `ProductId`, `ClientSecret`, claves de licencia ni tokens en ningún archivo del repositorio. Un hook los rechaza; si te lo encuentras, no lo esquives.
 - No crees ni edites assets de Unreal (`.uasset`, `.umap`) desde un agente. Si una story los necesita, deja escrito en el PR qué asset y qué contenido, y lo hace una persona.
 
+## Unreal MCP (editor abierto)
+
+`.mcp.json` conecta con el servidor MCP del editor de Unreal (`127.0.0.1:8000/mcp`). Solo existe si el editor está abierto y el servidor arrancado (arranca solo, o con `ModelContextProtocol.StartServer` en la consola del editor). Las herramientas se descubren con `list_toolsets` y `describe_toolset`, y se invocan con `call_tool` pasando el **nombre corto** de la herramienta (por ejemplo `find_actors`) junto con `toolset_name`.
+
+- **Sí**: leer el nivel y los actores (`SceneTools`), leer logs, consultar configuración, y **lanzar tests** (`AutomationTestToolset`): con el editor abierto tardan décimas de segundo en vez de los 12 s del comandlet.
+- **Nunca**: crear, modificar o borrar assets a través del MCP (materiales, Blueprints, mapas, Data Assets, texturas…). Es experimental y hay defectos documentados que borran propiedades o sobrescriben archivos. Si una story necesita assets, se deja escrito en el PR y lo hace una persona.
+- Condición legal: lo que el editor envía al modelo por este canal es tecnología licenciada bajo la EULA de Unreal (sección 6(e)); el proveedor del modelo no debe usarlo como datos de entrenamiento. La cuenta que use este MCP tiene esa opción desactivada.
+
 ## Al cerrar la story
 
 El autor del proyecto tiene que poder entender cada cambio sin haber estado delante. Por eso, antes de abrir el PR:
