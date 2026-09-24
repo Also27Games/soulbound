@@ -25,7 +25,7 @@ bool FWardenBrainWithoutWorldTest::RunTest(const FString& Parameters)
 	const FWardenDecision First = FWardenBrain(Always).Evaluate(State, Rng);
 	TestTrue(TEXT("Con probabilidad 1 interviene"), First.IsIntervention());
 	TestEqual(TEXT("Sin Sellos previos, la primera intervencion sella"), static_cast<int32>(First.Action), static_cast<int32>(EWardenAction::SealTile));
-	TestTrue(TEXT("Nunca sella la casilla 0 ni una ocupada"), First.TileId != 0 && !State.IsTileOccupied(First.TileId));
+	TestTrue(TEXT("Nunca sella el Altar ni una casilla ocupada"), !State.Board.IsAltar(First.TileId) && !State.IsTileOccupied(First.TileId));
 
 	FWardenBrain::Apply(State, First);
 	TestTrue(TEXT("Aplicar la decision deja la casilla sellada"), State.Board.Tiles[First.TileId].bSealed);
@@ -36,6 +36,33 @@ bool FWardenBrainWithoutWorldTest::RunTest(const FString& Parameters)
 	const FWardenDecision B = FWardenBrain(Always).Evaluate(State, RngB);
 	TestEqual(TEXT("Misma semilla, misma accion"), static_cast<int32>(A.Action), static_cast<int32>(B.Action));
 	TestEqual(TEXT("Misma semilla, misma casilla"), A.TileId, B.TileId);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWardenBrainNeverSealsAltarTest,
+	"Soulbound.Core.Warden.NuncaSellaElAltar",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FWardenBrainNeverSealsAltarTest::RunTest(const FString& Parameters)
+{
+	// Glosario "Sello": no se sella el Altar. El cerebro lo reconoce por el tipo de casilla, no por su número:
+	// la 3 hace de Altar, está libre y, si fuera una casilla normal, alguna semilla la elegiría.
+	FMatchState State = FMatchState::MakeSpikeMatch();
+	State.Board.Tiles[3].Type = ETileType::Altar;
+
+	FWardenBrain::FParams Always;
+	Always.InterveneProbability = 1.0;
+	const FWardenBrain Brain(Always);
+	for (int32 Seed = 0; Seed < 50; ++Seed)
+	{
+		FRandomStream Rng(Seed);
+		const FWardenDecision Decision = Brain.Evaluate(State, Rng);
+		if (Decision.Action == EWardenAction::SealTile && State.Board.IsAltar(Decision.TileId))
+		{
+			AddError(FString::Printf(TEXT("Con la semilla %d el Warden sella el Altar (casilla %d)"), Seed, Decision.TileId));
+			break;
+		}
+	}
 	return true;
 }
 
