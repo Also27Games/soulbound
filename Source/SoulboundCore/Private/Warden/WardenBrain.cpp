@@ -15,7 +15,7 @@ FWardenDecision FWardenBrain::Evaluate(const FMatchState& State, FRandomStream& 
 		return Decision;
 	}
 
-	// Candidatas a Sello: casillas sin sellar, no ocupadas y que no sean la 0 (el "Altar" del tablero de prueba).
+	// Candidatas a Sello: casillas sin sellar, no ocupadas y que no sean el Altar (glosario "Sello").
 	TArray<int32> Sealable;
 	TArray<int32> Sealed;
 	for (const FTileState& Tile : State.Board.Tiles)
@@ -24,7 +24,7 @@ FWardenDecision FWardenBrain::Evaluate(const FMatchState& State, FRandomStream& 
 		{
 			Sealed.Add(Tile.TileId);
 		}
-		else if (Tile.TileId != 0 && !State.IsTileOccupied(Tile.TileId))
+		else if (!State.Board.IsAltar(Tile.TileId) && !State.IsTileOccupied(Tile.TileId))
 		{
 			Sealable.Add(Tile.TileId);
 		}
