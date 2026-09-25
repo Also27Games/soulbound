@@ -54,7 +54,7 @@ Compilar, probar y empaquetar sin abrir el editor:
 - `Source/Soulbound/`: el juego (subsistemas, GameMode, controladores, presentación).
 - `Plugins/A27Online/`: plugin propio de sesiones por código sobre Epic Online Services.
 - `Scripts/`: `build.ps1` (compilar y empaquetar sin editor), `test.ps1` (tests por consola), `eos-secrets/` (secretos fuera del repositorio), `git-hooks/`, `art/` (utilidades de arte).
-- `docs/`: `stories/` (una story por archivo), `bitacora.md` (historia legible del proyecto, una entrada por story), documentación de diseño y arquitectura pública (en construcción).
+- `docs/`: `stories/` (una story por archivo), `bitacora.md` (historia legible del proyecto, una entrada por story), `aplicacion-del-master.md` (qué práctica del máster respalda cada decisión, y qué no aplica y por qué), documentación de diseño y arquitectura pública (en construcción).
 - `CLAUDE.md`: guía para los agentes. La skill del proyecto (glosario, pilares, plantillas, checklist de revisión) está en `.claude/skills/soulbound/`.
 
 Ramas: `main` contiene el proyecto y la infraestructura; `spike` (septiembre de 2026) contiene la prueba técnica, con código desechable, hasta que se decida qué sobrevive.

@@ -70,6 +70,12 @@ Por qué esta estructura: cada sección responde a una pregunta que alguien har�
 | Evento o información | Dónde | Feedback visual | Feedback sonoro | Texto del Warden |
 |---|---|---|---|---|
 
+Si el sistema tiene pantalla, panel o HUD propios, además:
+
+- **Estados**: qué se ve en estado normal, vacío (sin datos aún, con qué puede hacer el jugador), error (qué pasó y qué hacer, sin rutas ni códigos internos) y carga o espera. Con texto y valores de juego reales, nunca texto de relleno.
+- **Legibilidad**: contraste mínimo 4.5:1 entre texto y fondo en HUD y subtítulos, comprobado en Steam Deck a 1280x800; toda opción seleccionable sigue legible mientras corre el tiempo.
+- **Entrada**: la misma pantalla se maneja con ratón y con mando; elegir entre pocas opciones y confirmar, nunca cursor libre.
+
 ## Contribución a los pilares y a las métricas
 
 [Cómo sirve este sistema a los pilares que declara arriba, y qué métrica de diversión mueve. Si no mueve ninguna, justifica por qué existe.]
@@ -80,6 +86,7 @@ Por qué esta estructura: cada sección responde a una pregunta que alguien har�
 
 - [ ] **CA-<sistema>-1** (R-<sistema>-1). Dado [estado], cuando [acción], entonces [resultado].
 - [ ] Sin valores fijos en el código: todos los parámetros de ajuste salen de datos.
+- [ ] Si hay pantalla: un criterio por estado (normal, vacío, error, carga) que diga qué se ve, y uno de legibilidad en Deck.
 
 ## Fuera de alcance de esta fase
 
