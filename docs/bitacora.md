@@ -2,6 +2,18 @@
 
 Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué se decidió y por qué, qué dudas surgieron y cómo se resolvieron, qué quedó pendiente. La escribe quien cierra la story (persona o agente) en el mismo PR, y la revisa el autor del proyecto. Es la historia legible del proyecto y la materia prima de la memoria del TFM.
 
+La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo de la story; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera.
+
+## D-001. Aplicar lo enseñado en el máster a la guía de agentes (25/09/2026, rama `main`)
+
+- **Qué se pidió**: leer el temario completo del máster (las transcripciones de las lecciones, material privado del campus que no está en este repositorio), extraer qué prácticas aplican a Soulbound y recogerlas en la guía de agentes, la skill y el checklist antes de la siguiente story de código.
+- **Qué se decidió**: diez resúmenes por bloque escritos por agentes en paralelo (lectura, no código: la única tarea en la que se permite el paralelismo) y un consolidado escrito a mano. De ahí salen catorce cambios de proceso, sin código, y una tabla pública de trazabilidad (`docs/aplicacion-del-master.md`) que relaciona cada decisión del proyecto con la práctica del máster que la respalda y lista lo que no aplica y por qué.
+- **Cómo funciona**: `CLAUDE.md` gana el stack con versiones, un paso de plan obligatorio antes de tocar código, una tabla siempre/preguntar/nunca con el motivo de cada regla, convenciones de código (rojo primero, sin excepciones, TODO trazable, cabeceras) y una verificación con severidades antes de la bitácora. El checklist gana una parte B para PR de código. La plantilla de GDD exige estados y legibilidad para toda pantalla. La bitácora fija los cuatro datos de proceso.
+- **Dudas y resolución**: (1) si esto es una story: no toca código, así que va como "D-001" (documentación) y no consume número de story. (2) Qué del máster choca con nuestras reglas (permisos amplios al agente, agente que fusiona, varios agentes en paralelo, documentación en inglés): se mantienen las nuestras y el motivo queda escrito en la tabla y en `docs/aplicacion-del-master.md`.
+- **Tests**: no aplica; no cambia código. Build y tests se pasan igualmente antes del PR.
+- **Pendiente**: integración continua con runner propio (story después de S-003); registro de versiones exactas de las cajas negras; las stories que el temario sugiere (log de eventos para M1, voz del Warden, hardening antes de Shipping, validación de la configuración de EOS) quedan listadas en la tabla pública como pendientes.
+- **Proceso**: lectura y resúmenes, una hora con diez agentes (dos relanzados por atasco); consolidado y cambios, una sesión con el autor. Preguntas al autor: tres (las decisiones de qué hacer ahora, qué después y qué publicar). Correcciones tras fusionar: por anotar. Build y tests: sin cambios de código.
+
 ## S-001. El Altar y los Sellos detienen el movimiento (24/09/2026, PR #1, rama `spike`)
 
 - **Qué se pidió**: que la regla de casillas alcanzables cumpliera R-TAB-16 (el Altar detiene el movimiento y no se cruza) y R-TAB-17 (la casilla anterior a un Sello es alcanzable aunque sobre tirada), con tests para CA-TAB-17 y CA-TAB-18, corrigiendo los tests del spike que codificaban el comportamiento antiguo.

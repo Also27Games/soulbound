@@ -18,8 +18,13 @@ El autor y única persona que decide es Lluis Alonso. Los agentes proponen, él 
 1. Lee esta página entera antes de tocar nada de diseño o de reglas.
 2. Para nombres de conceptos, abre `references/glosario.md`. No inventes nombres nuevos ni uses los antiguos.
 3. Para escribir o revisar el GDD de un sistema, usa `references/plantilla-gdd-sistema.md` y sigue el bucle de autoría de abajo.
-4. Para revisar un documento de diseño, aplica `references/checklist-revision.md`.
+4. Para revisar un documento de diseño o un PR de código, aplica `references/checklist-revision.md` (parte A para GDD, parte B para código).
 5. El detalle completo de pilares, anti-pilares y arco emocional está en `docs/gdd/00-concepto-y-pilares.md` del repositorio. Si no existe todavía en este checkout, pide al usuario dónde está.
+6. Qué práctica del máster respalda cada decisión, y qué se descartó y por qué: `docs/aplicacion-del-master.md`.
+
+## Cómo se encarga una story a un agente
+
+Una story, una conversación nueva, un agente. El prompt de arranque es corto y concreto: qué story (ruta del archivo), rama base, y nada más; el resto está en `CLAUDE.md`, en esta skill y en la story. Si al autor le falta algo en la story, lo escribe en la story, no en el prompt: lo que solo está en la conversación se pierde. El agente planifica antes de tocar código y para en cuanto una duda no se resuelve con el GDD o el glosario.
 
 ## Los cuatro pilares, en corto
 
@@ -43,7 +48,7 @@ Estas no se discuten en cada tarea; si una propuesta las rompe, se descarta o se
 - **De 1 a 4 jugadores.** Los huecos los ocupan bots. En Fase 1, un bot básico con una heurística simple, diseñado para que añadir bots nuevos sea añadir una implementación de la misma interfaz de decisión. Los dummies sin criterio existen solo como herramienta de pruebas y simulación.
 - **Todo el material es propio.** Ni nombres, ni textos, ni arte, ni tablas de ningún juego existente. Las inspiraciones se citan como género, no como título. Los assets de terceros con licencia (Synty, Fab) no se versionan en este repositorio.
 - **Lógica de reglas sin mundo.** El estado de partida son structs; las reglas y el cerebro del Warden son funciones o objetos que no necesitan un nivel cargado ni `GetWorld()`. Los actores son adaptadores: entrada, replicación y presentación. Así los tests corren sin abrir el editor y el Warden se puede simular miles de veces.
-- **Los commits los firma solo el autor.** No añadir líneas de coautoría de agentes.
+- **Los commits los firma solo el autor.** No añadir líneas de coautoría de agentes. Ningún agente fusiona a `main`: el autor lee el PR y fusiona.
 - **Idioma**: documentación, user stories y textos del juego en español. Identificadores de código en inglés, con la correspondencia en el glosario.
 
 ## Alcance del TFM (Soulbound Core)
