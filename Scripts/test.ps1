@@ -44,6 +44,7 @@ $Errores = @($script:Salida | Where-Object { $_ -match 'LogAutomationController:
 $Superados | ForEach-Object { Write-Host ("  OK   " + ($_ -replace '.*Name=\{', '' -replace '\}.*', '')) -ForegroundColor Green }
 $Fallidos | ForEach-Object { Write-Host ("  FALLO " + ($_ -replace '.*Name=\{', '' -replace '\}.*', '')) -ForegroundColor Red }
 $Errores | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+$script:Salida | Where-Object { $_ -match 'LogSoulboundTest' } | ForEach-Object { Write-Host ("  info  " + ($_ -replace '.*LogSoulboundTest: (Display: )?', '')) -ForegroundColor Gray }
 
 Write-Host ("== {0} superados, {1} fallidos, {2:n0} s (arranque del comandlet incluido)" -f $Superados.Count, $Fallidos.Count, $Tiempo.TotalSeconds) -ForegroundColor Cyan
 

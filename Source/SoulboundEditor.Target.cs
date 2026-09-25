@@ -10,6 +10,6 @@ public class SoulboundEditorTarget : TargetRules
 		Type = TargetType.Editor;
 		DefaultBuildSettings = BuildSettingsVersion.V7;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_8;
-		ExtraModuleNames.Add("Soulbound");
+		ExtraModuleNames.AddRange(new string[] { "Soulbound", "SoulboundCore" });
 	}
 }
