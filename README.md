@@ -2,24 +2,30 @@
 
 Trabajo de Fin de Máster del Máster en Desarrollo con IA (BIG School, 3ª edición). Autor: Lluis Alonso.
 
+Este README sigue el guion de entrega del TFM: descripción general, stack tecnológico, instalación y ejecución, estructura del proyecto, funcionalidades principales y acceso de prueba. Los enlaces de entrega (despliegue, slides, vídeo) están al final.
+
+## 1. Descripción general
+
 **Soulbound** es un party game de terror social: cuatro jugadores atrapados en una cripta viviente compiten en un juego de mesa mortal dirigido por un anfitrión sádico, el Warden, que cambia las reglas a su antojo. Para escapar hay que reunir seis runas y sobrevivir a sus caprichos antes de que el tiempo se agote.
 
-**Soulbound Core** es la primera fase del juego: el tablero multijugador en pantalla plana, el motor de reglas y la IA directora del Warden. Construido en Unreal Engine 5.8 con C++ aplicando la metodología del máster: diseño por sistemas con reglas y criterios de aceptación, motor de reglas sin mundo probado por consola, y stories implementadas con agentes y revisadas por el autor.
+**Soulbound Core** es la primera fase del juego y el objeto de este TFM: el tablero multijugador en pantalla plana (Windows, Steam Deck), el motor de reglas y la IA directora del Warden. Construido en Unreal Engine 5.8 con C++ aplicando la metodología del máster: diseño por sistemas con reglas y criterios de aceptación, motor de reglas sin mundo probado por consola, y stories implementadas con agentes y revisadas por el autor. El proceso está contado en `docs/bitacora.md`.
 
-## Estado
+## 2. Stack tecnológico
 
-Septiembre de 2026: diseño de la Fase 1 cerrado; semana de prueba técnica (spike) en la rama `spike`. `main` contiene el proyecto y la infraestructura; el código desechable del spike vive en `spike` hasta que se decida qué sobrevive.
+- **Motor**: Unreal Engine 5.8.3, C++ (módulos `SoulboundCore` y `Soulbound`), Blueprints solo como adaptadores de presentación.
+- **Online**: Epic Online Services a través de Redpoint EOS Online Framework (Free Edition) y un plugin propio de sesiones por código (`A27Online`); login por Steam en la build empaquetada.
+- **Menús, opciones y carga**: Ultra Game Template y Ultra Loading Screen (Fab), usados como cajas negras tras un adaptador propio.
+- **Herramientas**: Rider, Visual Studio 2022 (toolchain), Git con LFS, GitHub CLI, PowerShell (`Scripts/`), Python (utilidades de arte).
+- **IA en el desarrollo**: Claude Code con la skill del proyecto (`.claude/skills/soulbound/`), guía para agentes en `CLAUDE.md`, y el plugin Unreal MCP del editor para consulta y tests.
+- **Arte**: placeholders generados con IA (declarados como tales), a sustituir por arte encargado si el juego funciona.
 
-## Estructura
+## 3. Instalación y ejecución
 
-- `Source/SoulboundCore/`: motor de reglas sin mundo (solo `Core` y `CoreUObject`). Estado en `USTRUCT`, reglas como funciones libres, tests de automatización por criterio de aceptación.
-- `Source/Soulbound/`: el juego (subsistemas, GameMode, controladores, presentación).
-- `Plugins/A27Online/`: plugin propio de sesiones por código sobre Epic Online Services.
-- `Scripts/`: `build.ps1` (compilar y empaquetar sin editor), `test.ps1` (tests por consola), `eos-secrets/` (secretos fuera del repositorio), `git-hooks/`.
-- `docs/`: `stories/` (una story por archivo), `bitacora.md` (historia legible del proyecto, una entrada por story), documentación de diseño pública (pendiente de publicar).
-- `CLAUDE.md`: guía para los agentes. La skill del proyecto (glosario, pilares, plantillas, checklist de revisión) está en `.claude/skills/soulbound/`.
+### Jugar la build
 
-## Puesta en marcha en Windows
+Requisitos: Windows 10 u 11 (o Steam Deck con Proton), cliente de Steam abierto con sesión iniciada y la clave de la app (ver "Acceso de prueba"). Descargar la build del enlace de despliegue, descomprimir y ejecutar `Soulbound\Binaries\Win64\Soulbound.exe`. Para jugar en línea: un jugador crea partida y comparte el código de cuatro letras; los demás lo introducen.
+
+### Desarrollo en Windows
 
 Lo que no está en el repositorio y hay que instalar a mano, en este orden.
 
@@ -34,13 +40,51 @@ Lo que no está en el repositorio y hay que instalar a mano, en este orden.
    - Data Asset de configuración: `Disable Game Pause on Enter Pause Menu` activado (la pausa nunca detiene la partida); "nueva partida" apuntando al mapa del juego.
 7. **Steam**: el App Id del producto está en `Config/Windows/WindowsEngine.ini`. La build empaquetada hace login por Steam (cliente abierto y sesión iniciada); en el editor se usa la Developer Authentication Tool de Epic, que Redpoint lanza solo.
 
-Compilar y probar sin abrir el editor:
+Compilar, probar y empaquetar sin abrir el editor:
 
 ```powershell
 .\Scripts\build.ps1 -Que editor
 .\Scripts\test.ps1
 .\Scripts\build.ps1 -Que package
 ```
+
+## 4. Estructura del proyecto
+
+- `Source/SoulboundCore/`: motor de reglas sin mundo (solo `Core` y `CoreUObject`). Estado en `USTRUCT`, reglas como funciones libres, tests de automatización por criterio de aceptación.
+- `Source/Soulbound/`: el juego (subsistemas, GameMode, controladores, presentación).
+- `Plugins/A27Online/`: plugin propio de sesiones por código sobre Epic Online Services.
+- `Scripts/`: `build.ps1` (compilar y empaquetar sin editor), `test.ps1` (tests por consola), `eos-secrets/` (secretos fuera del repositorio), `git-hooks/`, `art/` (utilidades de arte).
+- `docs/`: `stories/` (una story por archivo), `bitacora.md` (historia legible del proyecto, una entrada por story), documentación de diseño y arquitectura pública (en construcción).
+- `CLAUDE.md`: guía para los agentes. La skill del proyecto (glosario, pilares, plantillas, checklist de revisión) está en `.claude/skills/soulbound/`.
+
+Ramas: `main` contiene el proyecto y la infraestructura; `spike` (septiembre de 2026) contiene la prueba técnica, con código desechable, hasta que se decida qué sobrevive.
+
+## 5. Funcionalidades principales
+
+Alcance de la Fase 1 (en construcción; se marca lo que está hecho):
+
+- [x] Motor de reglas sin mundo con tests por consola: casillas alcanzables con Altar y Sellos (GDD 01).
+- [x] Simulación de partidas enteras con reloj virtual, determinista por semilla.
+- [x] Anfitrión del Warden en juego que llama al mismo cerebro que la simulación.
+- [x] Partida en línea por código de cuatro letras (crear, unirse, salir, reconexión), login por Steam.
+- [x] Menús, opciones, pausa sin detener la partida y pantalla de carga entre niveles.
+- [ ] Tablero completo: seis Dominios, Altar, Nichos, Fuentes y Nodos; turnos y dados.
+- [ ] Carrera por el vínculo, Elegidos y Ecos; runas y poderes; duelos y trilero; victoria.
+- [ ] El Warden completo: eventos, decretos, dilemas, votaciones, Oráculo, insolencia y Furia, voz sintética con subtítulos.
+- [ ] Interfaz en plano: cámara sentada, selección en el mundo, HUD, objetos diegéticos, Umbral, barcas y postpartida.
+- [ ] Bots básicos y decisores; grabación y reproducción de partidas.
+- [ ] 60 FPS en Steam Deck.
+
+## 6. Acceso de prueba
+
+El juego no tiene usuario y contraseña propios: la identidad la da Steam. Para probar la build hace falta una **clave de Steam** de la app, que se facilita con la entrega (formulario) o a petición al autor. En el editor no hace falta clave: se usa la Developer Authentication Tool de Epic.
+
+## Entregables del TFM
+
+- Repositorio: este.
+- Despliegue o publicación: pendiente (build descargable y clave de Steam).
+- Slides: pendiente (enlace o archivo en `docs/`).
+- Vídeo con explicación y captura de pantalla: pendiente.
 
 ## Propiedad intelectual
 
