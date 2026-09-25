@@ -15,7 +15,7 @@ FMatchState FMatchState::MakeSpikeMatch()
 	State.Board.Connect(4, 5);
 	State.Board.Connect(5, 3);
 
-	State.Seats.SetNum(4);
+	State.Seats.SetNum(Soulbound::Match::SeatCount);
 	for (FSeatState& Seat : State.Seats)
 	{
 		Seat.TileId = 0;
