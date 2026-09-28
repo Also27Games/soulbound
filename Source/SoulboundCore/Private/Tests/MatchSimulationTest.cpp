@@ -3,6 +3,7 @@
 // Determinismo por semilla, coste por partida y uso de la máquina de turnos. Se lanzan con Scripts/test.ps1.
 
 #include "Decider/Decider.h"
+#include "HAL/PlatformMisc.h"
 #include "Misc/AutomationTest.h"
 #include "MatchTestSetup.h"
 #include "Simulation/MatchSimulation.h"
@@ -165,9 +166,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationChronicleTest,
 
 bool FMatchSimulationChronicleTest::RunTest(const FString& Parameters)
 {
-	// Herramienta de lectura, no un criterio: imprime el registro de una partida entera con dummies (semilla fija 42)
-	// para leer el ritmo turno a turno: quién juega, qué tira, adónde va y qué hace el Warden. Se ve en la consola
-	// de Scripts/test.ps1 (líneas "info"). Solo comprueba que el registro cuenta la partida entera.
+	// Herramienta de lectura, no un criterio: el registro de una partida entera con dummies (semilla fija 42), para
+	// leer el ritmo turno a turno: quién juega, qué tira, adónde va y qué hace el Warden. Siempre comprueba que el
+	// registro cuenta la partida entera; solo lo imprime con la variable de entorno SOULBOUND_CRONICA=1, que pone
+	// Scripts/test.ps1 -Cronica (líneas "info" de la consola). Sin ella, una línea de resumen.
 	FSimulationParams Params;
 	if (!MakeParams(*this, 42, Params))
 	{
@@ -184,9 +186,16 @@ bool FMatchSimulationChronicleTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Cada turno terminado cuenta cómo acabó"), CountLines(TEXT(" va a la casilla ")) + CountLines(TEXT(" no puede moverse")) + CountLines(TEXT(" agota el reloj")), Result.Turns);
 	TestEqual(TEXT("Una línea por intervención del Warden"), CountLines(TEXT("] Warden ")), Result.Interventions);
 
-	for (const FString& Line : Result.Log)
+	if (FPlatformMisc::GetEnvironmentVariable(TEXT("SOULBOUND_CRONICA")) == TEXT("1"))
 	{
-		UE_LOG(LogSoulboundTest, Display, TEXT("%s"), *Line);
+		for (const FString& Line : Result.Log)
+		{
+			UE_LOG(LogSoulboundTest, Display, TEXT("%s"), *Line);
+		}
+	}
+	else
+	{
+		UE_LOG(LogSoulboundTest, Display, TEXT("crónica: %d líneas; ejecuta test.ps1 -Cronica para verla"), Result.Log.Num());
 	}
 	return true;
 }
