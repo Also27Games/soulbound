@@ -106,8 +106,9 @@ bool FBoardLoadsGraphFromFileTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	const TArray<TSharedPtr<FJsonValue>>& JsonTiles = Json->GetArrayField(TEXT("tiles"));
-	const TArray<TSharedPtr<FJsonValue>>& JsonEdges = Json->GetArrayField(TEXT("edges"));
+	// Copias, no referencias: el final del test sustituye estos arrays en Json y una referencia quedaría colgando.
+	const TArray<TSharedPtr<FJsonValue>> JsonTiles = Json->GetArrayField(TEXT("tiles"));
+	const TArray<TSharedPtr<FJsonValue>> JsonEdges = Json->GetArrayField(TEXT("edges"));
 	TestEqual(TEXT("Tantas casillas como en el archivo"), Board.Tiles.Num(), JsonTiles.Num());
 
 	const TMap<FString, ETileType> Types = {
