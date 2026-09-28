@@ -13,6 +13,8 @@ enum class EMatchStartError : uint8
 	InvalidPlayerCount,
 	/** El tablero no pasa ValidateBoard. */
 	InvalidBoard,
+	/** Los parámetros de partida no pasan ValidateMatchParams. */
+	InvalidMatchParams,
 };
 
 /** Resultado de iniciar una partida: o éxito con el estado inicial, o fallo con un motivo legible. */
@@ -36,9 +38,12 @@ namespace Soulbound::Rules
 	 *  - R-TAB-2: los cuatro asientos empiezan en el Altar.
 	 *  - R-TAB-5: cada Nodo de Poder recibe al azar un efecto, respetando las cantidades por efecto de los datos.
 	 *  - R-TAB-6: se eligen al azar 6 menos PlayerCount Dominios y se marcan Olvidados, con su Nicho Cerrado.
-	 * Board: tablero válido (se comprueba con ValidateBoard). PlayerCount: asientos ocupados por humanos o bots,
-	 * de 1 a 4; en Fase 1 los bots rellenan los huecos y siempre es 4. Random: sorteo; misma semilla, mismo resultado.
-	 * Devuelve el estado inicial, o InvalidPlayerCount o InvalidBoard sin tocar Random.
+	 *  - R-TUR-1: se sortea el orden de turno, una permutación de los cuatro asientos; juega primero el primero.
+	 *    Se sortea después de lo anterior, así una misma semilla da los mismos Nodos y Olvidados que antes de S-003.
+	 * Board: tablero válido (se comprueba con ValidateBoard). Params: parámetros de partida válidos (se comprueban con
+	 * ValidateMatchParams). PlayerCount: asientos ocupados por humanos o bots, de 1 a 4; en Fase 1 los bots rellenan
+	 * los huecos y siempre es 4. Random: sorteo; misma semilla, mismo resultado.
+	 * Devuelve el estado inicial, o InvalidPlayerCount, InvalidBoard o InvalidMatchParams sin tocar Random.
 	 */
-	SOULBOUNDCORE_API FMatchStartResult StartMatch(const FBoardState& Board, int32 PlayerCount, FRandomStream& Random);
+	SOULBOUNDCORE_API FMatchStartResult StartMatch(const FBoardState& Board, const FMatchParams& Params, int32 PlayerCount, FRandomStream& Random);
 }

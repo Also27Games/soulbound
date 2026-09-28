@@ -26,7 +26,7 @@ namespace
 
 namespace Soulbound::Rules
 {
-	FMatchStartResult StartMatch(const FBoardState& Board, int32 PlayerCount, FRandomStream& Random)
+	FMatchStartResult StartMatch(const FBoardState& Board, const FMatchParams& Params, int32 PlayerCount, FRandomStream& Random)
 	{
 		using Soulbound::Board::DomainCount;
 
@@ -40,10 +40,16 @@ namespace Soulbound::Rules
 		{
 			return Fail(EMatchStartError::InvalidBoard, TEXT("El tablero no es válido: ") + Validation.Message);
 		}
+		const FMatchParamsLoadResult ParamsValidation = ValidateMatchParams(Params);
+		if (!ParamsValidation.IsSuccess())
+		{
+			return Fail(EMatchStartError::InvalidMatchParams, TEXT("Los parámetros de partida no son válidos: ") + ParamsValidation.Message);
+		}
 
 		FMatchStartResult Result;
 		FMatchState& State = Result.State;
 		State.Board = Board;
+		State.Params = Params;
 
 		// R-TAB-5: una bolsa con tantos efectos de cada tipo como piden los datos, barajada y repartida a los Nodos
 		// en orden de casilla. ValidateBoard garantiza que hay tantos Nodos como efectos en la bolsa.
@@ -91,6 +97,15 @@ namespace Soulbound::Rules
 		{
 			Seat.TileId = Altar;
 		}
+
+		// R-TUR-1: el orden de turno se sortea una vez y no cambia en toda la partida. Va el último, para que el
+		// sorteo de Nodos y Olvidados siga dando lo mismo con la misma semilla que antes de existir.
+		for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
+		{
+			State.TurnOrder.Add(Seat);
+		}
+		Shuffle(State.TurnOrder, Random);
+		State.ActiveSeat = State.TurnOrder[0];
 		return Result;
 	}
 }

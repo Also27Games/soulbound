@@ -1,0 +1,5 @@
+{
+  "turnClockSeconds": 30,
+  "maxExtraTurns": 2,
+  "maxLostTurns": 2
+}

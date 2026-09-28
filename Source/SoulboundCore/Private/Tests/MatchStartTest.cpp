@@ -1,28 +1,28 @@
 // Tests del inicio de partida sobre el tablero de pruebas (S-002): CA-TAB-2 (R-TAB-2), CA-TAB-6 (R-TAB-5)
 // y CA-TAB-7 (R-TAB-6). Se lanzan sin editor con Scripts/test.ps1. Filtro: "Soulbound.Core.Match".
+// El sorteo del orden de turno que StartMatch gana en S-003 se prueba en TurnRulesTest (CA-TUR-1).
 
-#include "Board/BoardLoader.h"
 #include "Match/MatchStart.h"
 #include "Math/RandomStream.h"
 #include "Misc/AutomationTest.h"
-#include "Misc/Paths.h"
+#include "MatchTestSetup.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
 namespace
 {
-	bool LoadTestBoard(FAutomationTestBase& Test, FBoardState& OutBoard)
+	using Soulbound::Tests::LoadTestBoard;
+
+	/** Parámetros de partida del archivo de datos; si no cargan, StartMatch los rechaza y el test falla con el motivo. */
+	FMatchParams TestMatchParams()
 	{
-		const FBoardLoadResult Result = Soulbound::Rules::LoadBoardFromFile(
-			FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data/Boards/tablero_pruebas.json")));
-		OutBoard = Result.Board;
-		return Test.TestTrue(FString::Printf(TEXT("El tablero de pruebas carga (%s)"), *Result.Message), Result.IsSuccess());
+		return Soulbound::Rules::LoadMatchParamsFromFile(Soulbound::Tests::MatchParamsPath()).Params;
 	}
 
 	FMatchStartResult Start(const FBoardState& Board, int32 Players, int32 Seed)
 	{
 		FRandomStream Random(Seed);
-		return Soulbound::Rules::StartMatch(Board, Players, Random);
+		return Soulbound::Rules::StartMatch(Board, TestMatchParams(), Players, Random);
 	}
 
 	/** Efectos de los Nodos en orden de casilla, como texto "casilla:efecto": "5:1,13:3,24:2". */
@@ -218,6 +218,14 @@ bool FMatchStartRejectsInvalidInputTest::RunTest(const FString& Parameters)
 	const FMatchStartResult Result = Start(Invalid, 4, 1);
 	TestEqual(TEXT("Tablero inválido: error de tablero"), static_cast<int32>(Result.Error), static_cast<int32>(EMatchStartError::InvalidBoard));
 	TestFalse(TEXT("Tablero inválido: con un motivo legible"), Result.Message.IsEmpty());
+
+	// S-003: los parámetros de partida también se validan; un reloj de turno a cero no es una partida jugable.
+	FMatchParams Zero = TestMatchParams();
+	Zero.TurnClockSeconds = 0.0;
+	FRandomStream Random(1);
+	const FMatchStartResult NoClock = Soulbound::Rules::StartMatch(Board, Zero, 4, Random);
+	TestEqual(TEXT("Parámetros inválidos: error de parámetros"), static_cast<int32>(NoClock.Error), static_cast<int32>(EMatchStartError::InvalidMatchParams));
+	TestFalse(TEXT("Parámetros inválidos: con un motivo legible"), NoClock.Message.IsEmpty());
 	return true;
 }
 
