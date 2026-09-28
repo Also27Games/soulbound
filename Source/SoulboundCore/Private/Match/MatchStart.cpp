@@ -68,7 +68,7 @@ namespace Soulbound::Rules
 			Tile.PowerNodeEffect = Tile.Type == ETileType::PowerNode ? Effects[NextEffect++] : EPowerNodeEffect::None;
 		}
 
-		// R-TAB-6: 6 menos N Dominios Olvidados al azar, con su Nicho Cerrado; el resto sin dueño y con el Nicho Libre.
+		// R-TAB-6: 6 menos N Dominios Olvidados al azar, con su Nicho Cerrado; el resto con dueño (su Elegido) y con el Nicho Libre.
 		TArray<int32> DomainOrder;
 		for (int32 D = 0; D < DomainCount; ++D)
 		{
@@ -80,7 +80,7 @@ namespace Soulbound::Rules
 		{
 			FDomainState& Domain = State.Board.Domains[DomainOrder[Index]];
 			const bool bForgotten = Index < ForgottenCount;
-			Domain.State = bForgotten ? EDomainState::Forgotten : EDomainState::Unowned;
+			Domain.State = bForgotten ? EDomainState::Forgotten : EDomainState::Owned;
 			Domain.NicheState = bForgotten ? ENicheState::Closed : ENicheState::Free;
 		}
 

@@ -41,12 +41,12 @@ enum class EPowerNodeEffect : uint8
 	Planar,
 };
 
-/** Estado de un Dominio. El dueño (Elegido vinculado) llegará con la carrera por el vínculo (S-004). */
+/** Estado de un Dominio (glosario "Dominio"). Lo que se reclama es el Nicho, no el Dominio: su estado va en ENicheState. */
 UENUM()
 enum class EDomainState : uint8
 {
-	/** Sin dueño todavía: su Nicho se puede reclamar. */
-	Unowned,
+	/** Con dueño: su Elegido, aunque ningún Eco se haya vinculado aún. */
+	Owned,
 	/** Dominio Olvidado: corrompido por el Warden al inicio (R-TAB-6). */
 	Forgotten,
 };
@@ -114,7 +114,7 @@ struct SOULBOUNDCORE_API FDomainState
 	FString Name;
 
 	UPROPERTY()
-	EDomainState State = EDomainState::Unowned;
+	EDomainState State = EDomainState::Owned;
 
 	UPROPERTY()
 	ENicheState NicheState = ENicheState::Free;
@@ -126,11 +126,11 @@ struct SOULBOUNDCORE_API FBoardParams
 {
 	GENERATED_BODY()
 
-	/** Fuentes de Poder por Dominio (R-TAB-4). Valor inicial: 1. */
+	/** Fuentes de Poder por Dominio (R-TAB-4), en datos. */
 	UPROPERTY()
 	int32 PowerSourcesPerDomain = 0;
 
-	/** Cantidad de Nodos de cada efecto (R-TAB-5). Su suma es el número de Nodos del tablero. Valor inicial: 1, 1, 1. */
+	/** Cantidad de Nodos de cada efecto (R-TAB-5). Su suma es el número de Nodos del tablero. En datos. */
 	UPROPERTY()
 	int32 DuelNodeCount = 0;
 
@@ -140,11 +140,11 @@ struct SOULBOUNDCORE_API FBoardParams
 	UPROPERTY()
 	int32 PlanarNodeCount = 0;
 
-	/** Máximo de casillas selladas a la vez. Valor inicial: 3. Solo se carga; lo usa la story de Sellos. */
+	/** Máximo de casillas selladas a la vez, en datos. Solo se carga; lo usa la story de Sellos. */
 	UPROPERTY()
 	int32 MaxSealedTiles = 0;
 
-	/** Runas en reserva por Fuente (R-TAB-4b). Valor inicial: 4. Solo se carga; lo usa el GDD de runas. */
+	/** Runas en reserva por Fuente (R-TAB-4b), en datos. Solo se carga; lo usa el GDD de runas. */
 	UPROPERTY()
 	int32 RuneReservePerSource = 0;
 
