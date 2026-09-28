@@ -22,7 +22,7 @@ FSimulationResult FMatchSimulation::Run()
 	Result.Log.Add(FString::Printf(TEXT("inicio semilla=%d asientos=%d casillas=%d"), Params.Seed, State.Seats.Num(), State.Board.Tiles.Num()));
 
 	double NextEvaluation = Params.EvaluationPeriodSeconds;
-	double NextTurn = Params.TurnPeriodSeconds;
+	double NextTurn = 30.0;
 
 	// Bucle por sucesos: el reloj virtual salta al siguiente suceso, nunca avanza por fotogramas.
 	while (true)
@@ -72,7 +72,7 @@ FSimulationResult FMatchSimulation::Run()
 			++State.TurnCount;
 			++Result.Turns;
 			State.ActiveSeat = (State.ActiveSeat + 1) % State.Seats.Num();
-			NextTurn += Params.TurnPeriodSeconds;
+			NextTurn += 30.0;
 		}
 	}
 

@@ -13,8 +13,15 @@ struct SOULBOUNDCORE_API FSimulationParams
 	double DurationSeconds = 40.0 * 60.0;
 	/** Cada cuántos segundos virtuales evalúa el Warden (R-WAR-3: 15 s). */
 	double EvaluationPeriodSeconds = 15.0;
-	/** Cada cuántos segundos virtuales se juega un turno. */
-	double TurnPeriodSeconds = 30.0;
+	/**
+	 * Segundos virtuales que tarda un decisor en confirmar destino desde que tiene la tirada. Un dummy responde al
+	 * instante; este retardo da a la partida turnos de duración creíble. Valor inicial 5 s (S-003).
+	 */
+	double DummyResponseSeconds = 5.0;
+	/** Tablero ya cargado y validado (LoadBoardFromFile). La simulación no carga archivos. */
+	FBoardState Board;
+	/** Parámetros de partida ya cargados (LoadMatchParamsFromFile). */
+	FMatchParams MatchParams;
 };
 
 struct SOULBOUNDCORE_API FSimulationResult
@@ -31,8 +38,9 @@ struct SOULBOUNDCORE_API FSimulationResult
 
 /**
  * Simulación (glosario "Simulación"): una partida entera sin mundo ni red, con reloj virtual. Los mismos datos,
- * las mismas reglas y el mismo cerebro que en juego; solo cambia quién avanza el reloj. Spike, paso 3:
- * reglas de mentira (mover fichas y sellar casillas); lo que se prueba es el bucle, el determinismo y el coste.
+ * las mismas reglas y el mismo cerebro que en juego; solo cambia quién avanza el reloj. Inicia la partida con
+ * StartMatch y juega los turnos con la máquina de turnos del motor (Match/TurnRules.h): la simulación consulta a
+ * los decisores y avanza el reloj, pero no contiene reglas de turno. El cerebro del Warden sigue siendo el del spike.
  */
 class SOULBOUNDCORE_API FMatchSimulation
 {
