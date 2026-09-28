@@ -84,12 +84,20 @@ FSimulationResult FMatchSimulation::Run()
 	int32 LoggedEvents = 0;
 
 	// Pasa al registro de texto lo que el motor ha dejado en su registro de eventos y la crónica no cuenta ya de otra
-	// forma: agotamientos y turnos saltados. Inicio, tirada y destino los escribe StepTurn, que tiene las opciones.
+	// forma: agotamientos, turnos saltados y Sellos que caen por el tope. Inicio, tirada y destino los escribe StepTurn,
+	// que tiene las opciones; los Sellos que pone o quita el Warden, su propia línea.
 	auto LogNewEvents = [&Result, &State, &LoggedEvents]()
 	{
 		for (; LoggedEvents < State.EventLog.Num(); ++LoggedEvents)
 		{
 			const FMatchEvent& Event = State.EventLog[LoggedEvents];
+			// El liberado por tope va justo antes del SealPlaced que lo provoca (R-TAB-22).
+			const bool bDroppedByCap = Event.Type == EMatchEventType::SealReleased && State.EventLog.IsValidIndex(LoggedEvents + 1)
+				&& State.EventLog[LoggedEvents + 1].Type == EMatchEventType::SealPlaced;
+			if (bDroppedByCap)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    cae el Sello de la %s"), *Stamp(Event.ClockSeconds), *DescribeTile(State.Board, Event.Value)));
+			}
 			if (Event.Type == EMatchEventType::TurnClockExpired)
 			{
 				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d agota el reloj | insolencia %d"), *Stamp(Event.ClockSeconds), Event.Seat, State.Seats[Event.Seat].Insolence));
@@ -176,6 +184,7 @@ FSimulationResult FMatchSimulation::Run()
 				const FString Target = Decision.Action == EWardenAction::Comment ? FString() : DescribeTile(State.Board, Decision.TileId);
 				Result.Log.Add(FString::Printf(TEXT("%s Warden %s%s: \"%s\""), *Stamp(State.ClockSeconds), Verb, *Target, *Decision.Line));
 			}
+			LogNewEvents();
 			NextEvaluation += Params.EvaluationPeriodSeconds;
 		}
 		else

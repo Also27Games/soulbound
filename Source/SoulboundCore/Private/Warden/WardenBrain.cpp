@@ -1,5 +1,6 @@
 #include "Warden/WardenBrain.h"
 
+#include "Board/SealRules.h"
 #include "Match/MatchState.h"
 
 FWardenDecision FWardenBrain::Evaluate(const FMatchState& State, FRandomStream& Rng) const
@@ -15,20 +16,16 @@ FWardenDecision FWardenBrain::Evaluate(const FMatchState& State, FRandomStream& 
 		return Decision;
 	}
 
-	// Candidatas a Sello: casillas sin sellar, no ocupadas y que no sean el Altar (glosario "Sello").
+	// Candidatas a Sello: las que acepta la regla del tablero (R-TAB-22), así ninguna intervención se pierde.
 	TArray<int32> Sealable;
-	TArray<int32> Sealed;
 	for (const FTileState& Tile : State.Board.Tiles)
 	{
-		if (Tile.bSealed)
-		{
-			Sealed.Add(Tile.TileId);
-		}
-		else if (!State.Board.IsAltar(Tile.TileId) && !State.IsTileOccupied(Tile.TileId))
+		if (Soulbound::Rules::CanSealTile(State, Tile.TileId) == ESealResult::Accepted)
 		{
 			Sealable.Add(Tile.TileId);
 		}
 	}
+	const TArray<int32>& Sealed = State.Board.SealedTiles;
 
 	if (Sealable.Num() > 0 && (Sealed.Num() == 0 || Pick % 2 == 0))
 	{
@@ -52,19 +49,14 @@ FWardenDecision FWardenBrain::Evaluate(const FMatchState& State, FRandomStream& 
 
 void FWardenBrain::Apply(FMatchState& State, const FWardenDecision& Decision)
 {
+	// Las reglas de Sello son del tablero: el tope, las prohibiciones y el registro los pone el motor.
 	switch (Decision.Action)
 	{
 	case EWardenAction::SealTile:
-		if (State.Board.IsValidTile(Decision.TileId))
-		{
-			State.Board.Tiles[Decision.TileId].bSealed = true;
-		}
+		Soulbound::Rules::SealTile(State, Decision.TileId, State.ClockSeconds);
 		break;
 	case EWardenAction::ReleaseTile:
-		if (State.Board.IsValidTile(Decision.TileId))
-		{
-			State.Board.Tiles[Decision.TileId].bSealed = false;
-		}
+		Soulbound::Rules::ReleaseSeal(State, Decision.TileId, State.ClockSeconds);
 		break;
 	default:
 		break;

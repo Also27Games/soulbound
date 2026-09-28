@@ -1,5 +1,14 @@
 #include "Match/MatchState.h"
 
+namespace
+{
+	/**
+	 * Máximo de Sellos del montaje del spike: valor inicial del tablero de pruebas; el montaje del spike desaparece
+	 * cuando el anfitrión cargue datos (S-005).
+	 */
+	constexpr int32 SpikeMaxSealedTiles = 3;
+}
+
 FMatchState FMatchState::MakeSpikeMatch()
 {
 	FMatchState State;
@@ -8,6 +17,7 @@ FMatchState FMatchState::MakeSpikeMatch()
 		State.Board.AddTile();
 	}
 	State.Board.Tiles[0].Type = ETileType::Altar;
+	State.Board.Params.MaxSealedTiles = SpikeMaxSealedTiles;
 	State.Board.Connect(0, 1);
 	State.Board.Connect(1, 2);
 	State.Board.Connect(2, 3);

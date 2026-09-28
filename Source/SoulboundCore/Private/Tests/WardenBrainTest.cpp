@@ -77,9 +77,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWardenBrainPicksValidTilesTest,
 bool FWardenBrainPicksValidTilesTest::RunTest(const FString& Parameters)
 {
 	// Criterio "Cerebro del spike" (S-004, R-TAB-22): el cerebro elige entre las casillas que CanSealTile acepta, así
-	// que ninguna intervención de sellar se pierde; y después de cada intervención nunca hay más de M Sellos, ninguno
-	// en casilla prohibida u ocupada, y toda casilla no sellada tiene camino al Altar. Entre evaluaciones se juegan
-	// turnos para que las fichas se muevan y cambien las casillas ocupadas.
+	// que ninguna intervención de sellar se pierde ni cae en una casilla ocupada; y después de cada intervención nunca
+	// hay más de M Sellos, ninguno en casilla prohibida, y toda casilla no sellada tiene camino al Altar. Entre
+	// evaluaciones se juegan turnos para que las fichas se muevan y cambien las casillas ocupadas.
 	FRandomStream Random(21);
 	FMatchState State;
 	if (!Soulbound::Tests::StartTestMatch(*this, Random, State))
