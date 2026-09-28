@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Editor de tablero</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #14121a; --panel: #1e1b26; --line: #2f2b3a; --text: #e6e1f0; --muted: #9b94ad;
+    --ok: #5fcf8a; --warn: #e6b450; --err: #ef6b73; --accent: #8f7bff;
+    --normal: #5b5768; --altar: #d9a441; --niche: #a26bff; --source: #3fc6d6; --node: #f0684a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, Segoe UI, sans-serif; }
+  body { display: grid; grid-template-columns: 300px 1fr 320px; grid-template-rows: 100%; height: 100vh; }
+  aside { background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; padding: 12px; }
+  aside.right { border-right: 0; border-left: 1px solid var(--line); }
+  h1 { font-size: 16px; margin: 0 0 8px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 16px 0 6px; }
+  label { display: grid; grid-template-columns: 1fr 72px; align-items: center; gap: 8px; margin: 4px 0; color: var(--muted); }
+  label span { font-size: 13px; }
+  input[type=number], select, input[type=text] { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; font: inherit; }
+  input[type=range] { width: 100%; }
+  button { background: var(--accent); color: #fff; border: 0; border-radius: 6px; padding: 7px 10px; font: inherit; cursor: pointer; margin: 3px 3px 3px 0; }
+  button.secondary { background: var(--line); }
+  button.danger { background: var(--err); }
+  button:disabled { opacity: .45; cursor: default; }
+  .row { display: flex; flex-wrap: wrap; gap: 2px; }
+  .toolbar { display: flex; gap: 4px; margin: 6px 0; }
+  .toolbar button { flex: 1; margin: 0; }
+  .toolbar button.active { outline: 2px solid #fff; }
+  main { position: relative; overflow: hidden; }
+  svg { width: 100%; height: 100%; display: block; background: radial-gradient(circle at 50% 50%, #1b1824 0, #14121a 70%); }
+  .tile { cursor: pointer; }
+  .tile circle { stroke-width: 3; }
+  .tile text { font-size: 11px; fill: #fff; text-anchor: middle; dominant-baseline: central; pointer-events: none; font-weight: 600; }
+  .tile.selected circle { stroke: #fff !important; stroke-width: 4; }
+  .tile.pending circle { stroke-dasharray: 4 3; }
+  .edge { stroke: #6f6a80; stroke-width: 2.5; }
+  .edge.ring { stroke: #b9a7ff; stroke-dasharray: 6 4; }
+  .edge.altar { stroke: #d9a441; opacity: .7; }
+  .edge.bad { stroke: var(--err); }
+  .sector { fill: none; stroke: #2a2636; stroke-width: 1; }
+  .sectorLabel { fill: #6f6a80; font-size: 12px; text-anchor: middle; }
+  ul.findings { list-style: none; padding: 0; margin: 0; }
+  ul.findings li { padding: 5px 8px; margin: 3px 0; border-radius: 6px; background: var(--bg); border-left: 3px solid var(--line); font-size: 13px; }
+  li.err { border-left-color: var(--err); } li.warn { border-left-color: var(--warn); } li.ok { border-left-color: var(--ok); color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+  .hint { color: var(--muted); font-size: 12px; margin: 4px 0 8px; }
+  .status { position: absolute; left: 12px; bottom: 10px; color: var(--muted); font-size: 12px; background: rgba(20,18,26,.8); padding: 4px 8px; border-radius: 6px; }
+  .badge { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 12px; background: var(--line); }
+  .badge.ok { background: #1f4a31; color: var(--ok); } .badge.err { background: #4a1f24; color: var(--err); }
+  #selPanel { display: none; }
+</style>
+</head>
+<body>
+
+<aside>
+  <h1>Editor de tablero</h1>
+  <p class="hint">Genera, edita y valida un tablero con el esquema de <code>Content/Data/Boards/*.json</code>. Todo en el navegador; nada se guarda hasta que descargas.</p>
+
+  <h2>Parámetros del tablero</h2>
+  <label><span>Fuentes por Dominio</span><input type="number" id="pSources" min="0" max="3" value="1"></label>
+  <label><span>Nodos de Duelo</span><input type="number" id="pDuel" min="0" max="12" value="1"></label>
+  <label><span>Nodos del Oráculo</span><input type="number" id="pOracle" min="0" max="12" value="1"></label>
+  <label><span>Nodos Planares</span><input type="number" id="pPlanar" min="0" max="12" value="1"></label>
+  <label><span>Máximo de Sellos a la vez</span><input type="number" id="pSeals" min="0" max="20" value="3"></label>
+  <label><span>Runas en reserva por Fuente</span><input type="number" id="pReserve" min="0" max="20" value="4"></label>
+
+  <h2>Generador aleatorio</h2>
+  <label><span>Casillas por Dominio</span><input type="number" id="gTiles" min="3" max="30" value="5"></label>
+  <label><span>Diferencia máxima entre Dominios</span><input type="number" id="gDiff" min="0" max="10" value="1"></label>
+  <label><span>Nicho: distancia mínima al Altar</span><input type="number" id="gNicheMin" min="2" max="20" value="2"></label>
+  <label><span>Nicho: distancia máxima al Altar</span><input type="number" id="gNicheMax" min="2" max="20" value="4"></label>
+  <label><span>Conexiones al Altar por Dominio</span><input type="number" id="gAltarLinks" min="1" max="4" value="1"></label>
+  <label><span>Conexiones entre vecinos</span><input type="number" id="gRingLinks" min="1" max="4" value="1"></label>
+  <label><span>Atajos dentro del Dominio (0 a 1)</span><input type="number" id="gExtra" min="0" max="1" step="0.05" value="0.15"></label>
+  <label><span>Semilla</span><input type="number" id="gSeed" min="0" max="999999" value="1"></label>
+  <div class="row">
+    <button id="btnRandom">Aleatorio</button>
+    <button id="btnAnother" class="secondary">Otra forma (semilla +1)</button>
+  </div>
+  <p class="hint">"Aleatorio" crea un tablero nuevo con los parámetros de arriba y la semilla. Misma semilla, mismo tablero.</p>
+
+  <h2>Archivo</h2>
+  <div class="row">
+    <button id="btnLoad" class="secondary">Cargar JSON</button>
+    <input type="file" id="fileInput" accept=".json,application/json" style="display:none">
+    <button id="btnDownload">Descargar JSON</button>
+    <button id="btnEmpty" class="secondary">Vaciar</button>
+  </div>
+  <label><span>Nombre del archivo</span><input type="text" id="fileName" value="tablero_pruebas.json" style="grid-column: span 1"></label>
+
+  <h2>Edición</h2>
+  <div class="toolbar">
+    <button data-mode="select" class="active">Mover</button>
+    <button data-mode="connect">Conectar</button>
+    <button data-mode="add">Añadir</button>
+  </div>
+  <p class="hint">Mover: clic selecciona, arrastrar coloca. Conectar: clic en dos casillas crea o quita la conexión. Añadir: clic en el hueco de un Dominio crea una casilla suya.</p>
+  <div id="selPanel">
+    <div><span class="badge" id="selId"></span></div>
+    <label><span>Tipo</span><select id="selType">
+      <option value="normal">normal</option><option value="altar">altar</option><option value="niche">niche</option>
+      <option value="powerSource">powerSource</option><option value="powerNode">powerNode</option></select></label>
+    <label><span>Dominio</span><select id="selDomain"></select></label>
+    <button id="btnDelete" class="danger">Borrar casilla</button>
+  </div>
+  <div class="legend">
+    <span><i style="background:var(--altar)"></i>Altar</span><span><i style="background:var(--normal)"></i>normal</span>
+    <span><i style="background:var(--niche)"></i>Nicho</span><span><i style="background:var(--source)"></i>Fuente</span><span><i style="background:var(--node)"></i>Nodo</span>
+  </div>
+</aside>
+
+<main>
+  <svg id="svg" viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid meet"></svg>
+  <div class="status" id="status"></div>
+</main>
+
+<aside class="right">
+  <h2>Validación <span class="badge" id="verdict"></span></h2>
+  <ul class="findings" id="findings"></ul>
+  <h2>Dominios</h2>
+  <table><thead><tr><th>Dom.</th><th>Nombre</th><th class="num">Casillas</th><th class="num">Nicho a</th><th class="num">Fuentes</th><th class="num">Nodos</th></tr></thead><tbody id="domTable"></tbody></table>
+  <h2>Totales</h2>
+  <table><tbody id="totals"></tbody></table>
+</aside>
+
+<script>
+(() => {
+  'use strict';
+  const DOMAIN_COUNT = 6;
+  const TYPES = ['normal', 'altar', 'niche', 'powerSource', 'powerNode'];
+  const COLORS = { normal: '#5b5768', altar: '#d9a441', niche: '#a26bff', powerSource: '#3fc6d6', powerNode: '#f0684a' };
+  const DOMAIN_HUES = [0, 60, 120, 180, 240, 300];
+  const CX = 500, CY = 500, R_ALTAR = 26, R_TILE = 18;
+
+  const $ = id => document.getElementById(id);
+  const num = id => Number($(id).value) || 0;
+  const set = (id, v) => { $(id).value = v; };
+
+  // ---------- Estado ----------
+  // board = { parameters, domains:[{id,name}], tiles:[{id,type,domain}], edges:[[a,b]], positions:{id:[x,y]} }
+  let board = emptyBoard();
+  let mode = 'select';
+  let selected = null;      // id de casilla seleccionada
+  let pendingConnect = null; // primera casilla en modo conectar
+  let drag = null;
+
+  function emptyBoard() {
+    return {
+      parameters: readParams(),
+      domains: Array.from({ length: DOMAIN_COUNT }, (_, i) => ({ id: i, name: 'Dominio provisional ' + i })),
+      tiles: [{ id: 0, type: 'altar', domain: null }],
+      edges: [],
+      positions: { 0: [CX, CY] },
+    };
+  }
+
+  function readParams() {
+    return {
+      powerSourcesPerDomain: num('pSources'),
+      powerNodeEffects: { duel: num('pDuel'), oracle: num('pOracle'), planar: num('pPlanar') },
+      maxSealedTiles: num('pSeals'),
+      runeReservePerSource: num('pReserve'),
+    };
+  }
+  function writeParams(p) {
+    set('pSources', p.powerSourcesPerDomain); set('pDuel', p.powerNodeEffects.duel); set('pOracle', p.powerNodeEffects.oracle);
+    set('pPlanar', p.powerNodeEffects.planar); set('pSeals', p.maxSealedTiles); set('pReserve', p.runeReservePerSource);
+  }
+
+  // ---------- Utilidades de grafo ----------
+  function neighbours() {
+    const n = new Map(board.tiles.map(t => [t.id, new Set()]));
+    for (const [a, b] of board.edges) { if (n.has(a) && n.has(b)) { n.get(a).add(b); n.get(b).add(a); } }
+    return n;
+  }
+  function bfs(from, allowed) {
+    const n = neighbours(); const dist = new Map([[from, 0]]); const queue = [from];
+    while (queue.length) {
+      const t = queue.shift();
+      for (const o of n.get(t) || []) {
+        if (!dist.has(o) && (!allowed || allowed(o))) { dist.set(o, dist.get(t) + 1); queue.push(o); }
+      }
+    }
+    return dist;
+  }
+  const tileById = id => board.tiles.find(t => t.id === id);
+  const altar = () => board.tiles.find(t => t.type === 'altar');
+  const domainTiles = d => board.tiles.filter(t => t.domain === d);
+  const hasEdge = (a, b) => board.edges.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+  function toggleEdge(a, b) {
+    if (a === b) return;
+    const i = board.edges.findIndex(([x, y]) => (x === a && y === b) || (x === b && y === a));
+    if (i >= 0) board.edges.splice(i, 1); else board.edges.push([a, b]);
+  }
+  function renumber() {
+    // Los identificadores son el índice: el Altar el 0, luego por Dominio.
+    const order = [...board.tiles].sort((a, b) => (a.type === 'altar' ? -1 : b.type === 'altar' ? 1 : (a.domain - b.domain) || (a.id - b.id)));
+    const map = new Map(order.map((t, i) => [t.id, i]));
+    const positions = {};
+    for (const t of order) { positions[map.get(t.id)] = board.positions[t.id]; t.id = map.get(t.id); }
+    board.tiles = order;
+    board.edges = board.edges.map(([a, b]) => [map.get(a), map.get(b)]).filter(([a, b]) => a !== undefined && b !== undefined);
+    board.positions = positions;
+    if (selected !== null) selected = map.get(selected) ?? null;
+  }
+
+  // ---------- Validación (espejo de ValidateBoard, más avisos de diseño) ----------
+  function validate() {
+    const errs = [], warns = [], oks = [];
+    const p = board.parameters;
+    const n = neighbours();
+    // R-TAB-1: grafo coherente.
+    const ids = board.tiles.map(t => t.id);
+    if (ids.some((id, i) => id !== i)) errs.push('R-TAB-1: los identificadores no van de 0 a n-1 (se renumeran al descargar).');
+    for (const [a, b] of board.edges) {
+      if (a === b || !tileById(a) || !tileById(b)) errs.push(`R-TAB-1: la conexión ${a}-${b} apunta a una casilla inexistente o a sí misma.`);
+    }
+    // R-TAB-2
+    const altars = board.tiles.filter(t => t.type === 'altar');
+    if (altars.length !== 1) errs.push(`R-TAB-2: hay ${altars.length} casillas Altar y debe haber exactamente una.`);
+    const A = altars[0];
+    // Dominios
+    if (board.domains.length !== DOMAIN_COUNT || board.domains.some((d, i) => d.id !== i)) errs.push('R-TAB-3: debe haber seis Dominios con identificadores de 0 a 5.');
+    for (const t of board.tiles) {
+      if (t.type === 'altar' && t.domain !== null) errs.push(`El Altar (casilla ${t.id}) no puede pertenecer a un Dominio.`);
+      if (t.type !== 'altar' && !(t.domain >= 0 && t.domain < DOMAIN_COUNT)) errs.push(`La casilla ${t.id} no pertenece a ningún Dominio.`);
+    }
+    const perDomain = [];
+    for (let d = 0; d < DOMAIN_COUNT; d++) {
+      const tiles = domainTiles(d);
+      const touches = pred => tiles.some(t => [...(n.get(t.id) || [])].some(o => pred(tileById(o))));
+      const info = { d, count: tiles.length, niche: null, nicheDist: null, sources: 0, nodes: 0 };
+      if (tiles.length === 0) { errs.push(`R-TAB-3: el Dominio ${d} no tiene casillas.`); perDomain.push(info); continue; }
+      if (!touches(o => o && o.type === 'altar')) errs.push(`R-TAB-3: el Dominio ${d} no tiene conexión con el Altar.`);
+      const next = (d + 1) % DOMAIN_COUNT;
+      if (!touches(o => o && o.domain === next)) errs.push(`R-TAB-3: anillo roto, el Dominio ${d} no conecta con su vecino ${next}.`);
+      const niches = tiles.filter(t => t.type === 'niche');
+      if (niches.length !== 1) errs.push(`R-TAB-4: el Dominio ${d} tiene ${niches.length} Nichos y debe tener uno.`);
+      else {
+        info.niche = niches[0].id;
+        const deg = (n.get(niches[0].id) || new Set()).size;
+        if (deg !== 1) errs.push(`R-TAB-4c: el Nicho del Dominio ${d} (casilla ${niches[0].id}) tiene ${deg} conexiones y debe tener una.`);
+      }
+      info.sources = tiles.filter(t => t.type === 'powerSource').length;
+      if (info.sources !== p.powerSourcesPerDomain) errs.push(`R-TAB-4: el Dominio ${d} tiene ${info.sources} Fuentes y los datos piden ${p.powerSourcesPerDomain}.`);
+      info.nodes = tiles.filter(t => t.type === 'powerNode').length;
+      // Avisos de diseño (no los valida el motor todavía)
+      const inside = bfs(tiles[0].id, o => tileById(o)?.domain === d);
+      const unreachable = tiles.filter(t => !inside.has(t.id));
+      if (unreachable.length) warns.push(`El Dominio ${d} no está conectado por dentro: casillas ${unreachable.map(t => t.id).join(', ')} solo se alcanzan por fuera.`);
+      for (const t of tiles) for (const o of n.get(t.id) || []) {
+        const ot = tileById(o);
+        if (ot && ot.type !== 'altar' && ot.domain !== d && ot.domain !== next && ot.domain !== (d + DOMAIN_COUNT - 1) % DOMAIN_COUNT)
+          warns.push(`La conexión ${t.id}-${o} une los Dominios ${d} y ${ot.domain}, que no son vecinos.`);
+      }
+      perDomain.push(info);
+    }
+    // R-TAB-5
+    const totalNodes = board.tiles.filter(t => t.type === 'powerNode').length;
+    const wanted = p.powerNodeEffects.duel + p.powerNodeEffects.oracle + p.powerNodeEffects.planar;
+    if (totalNodes !== wanted) errs.push(`R-TAB-5: hay ${totalNodes} Nodos de Poder y las cantidades por efecto suman ${wanted}.`);
+    // Distancias y tamaños
+    if (A) {
+      const dist = bfs(A.id);
+      for (const info of perDomain) {
+        if (info.niche !== null) {
+          info.nicheDist = dist.has(info.niche) ? dist.get(info.niche) : null;
+          const lo = num('gNicheMin'), hi = num('gNicheMax');
+          if (info.nicheDist === null) errs.push(`El Nicho del Dominio ${info.d} no se alcanza desde el Altar.`);
+          else if (info.nicheDist < lo || info.nicheDist > hi) warns.push(`El Nicho del Dominio ${info.d} está a ${info.nicheDist} del Altar; el GDD pide entre ${lo} y ${hi}.`);
+        }
+      }
+      const off = board.tiles.filter(t => !dist.has(t.id));
+      if (off.length) errs.push(`Casillas sin camino desde el Altar: ${off.map(t => t.id).join(', ')}.`);
+    }
+    const counts = perDomain.map(i => i.count);
+    const diff = Math.max(...counts) - Math.min(...counts);
+    if (diff > num('gDiff')) warns.push(`R-TAB-3: los Dominios difieren en ${diff} casillas; el límite de "parecido" es ${num('gDiff')}.`);
+    const dup = new Set();
+    for (const [a, b] of board.edges) { const k = a < b ? a + '-' + b : b + '-' + a; if (dup.has(k)) warns.push(`Conexión repetida ${k}.`); dup.add(k); }
+    if (!errs.length) oks.push('El tablero pasa las reglas R-TAB-1 a 5 que valida el motor.');
+    return { errs, warns, oks, perDomain, totalNodes, wanted };
+  }
+
+  // ---------- Generador aleatorio ----------
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  }
+  function generate(seed) {
+    const rnd = mulberry32(seed);
+    const ri = (lo, hi) => lo + Math.floor(rnd() * (hi - lo + 1));
+    const pick = arr => arr[Math.floor(rnd() * arr.length)];
+    const base = num('gTiles'), diff = num('gDiff'), nMin = num('gNicheMin'), nMax = Math.max(num('gNicheMin'), num('gNicheMax'));
+    const altarLinks = num('gAltarLinks'), ringLinks = num('gRingLinks'), extra = Math.min(1, Math.max(0, Number($('gExtra').value)));
+    const params = readParams();
+    const b = { parameters: params, domains: board.domains.map(d => ({ ...d })), tiles: [{ id: 0, type: 'altar', domain: null }], edges: [], positions: {} };
+    let nextId = 1;
+    const dom = []; // por Dominio: {tiles:[ids], niche, entrance}
+    for (let d = 0; d < DOMAIN_COUNT; d++) {
+      const size = Math.max(3, base + ri(0, diff)); // la diferencia entre Dominios nunca supera "diff"
+      const target = Math.min(ri(nMin, nMax), size); // distancia Altar → Nicho: el ramal ocupa target casillas
+      const ids = [];
+      // Ramal del Nicho: entrance (dist 1) ... niche (dist target)
+      for (let i = 0; i < target; i++) { ids.push(nextId); b.tiles.push({ id: nextId, type: i === target - 1 ? 'niche' : 'normal', domain: d }); nextId++; }
+      b.edges.push([0, ids[0]]);
+      for (let i = 1; i < target; i++) b.edges.push([ids[i - 1], ids[i]]);
+      const niche = ids[target - 1];
+      // Resto de casillas colgando de cualquiera que no sea el Nicho
+      while (ids.length < size) {
+        const parent = pick(ids.filter(i => i !== niche));
+        b.tiles.push({ id: nextId, type: 'normal', domain: d }); b.edges.push([parent, nextId]); ids.push(nextId); nextId++;
+      }
+      dom.push({ ids, niche, inner: ids.filter(i => i !== niche), entrance: ids[0] });
+    }
+    const distOk = () => { // la distancia del Nicho al Altar no baja del mínimo al añadir enlaces
+      const saved = board; board = b; const dist = bfs(0); board = saved;
+      return dom.every(x => dist.get(x.niche) >= nMin);
+    };
+    // Atajos dentro de cada Dominio (nunca al Nicho, nunca acortando su distancia por debajo del mínimo)
+    for (const x of dom) {
+      const inner = x.inner;
+      for (let i = 0; i < inner.length; i++) for (let j = i + 1; j < inner.length; j++) {
+        if (rnd() >= extra || b.edges.some(([p, q]) => (p === inner[i] && q === inner[j]) || (p === inner[j] && q === inner[i]))) continue;
+        b.edges.push([inner[i], inner[j]]); if (!distOk()) b.edges.pop();
+      }
+    }
+    // Conexiones extra al Altar
+    for (const x of dom) for (let k = 1; k < altarLinks; k++) {
+      const cands = x.inner.filter(i => i !== x.entrance && !b.edges.some(([p, q]) => (p === 0 && q === i)));
+      for (let tries = 0; tries < 6 && cands.length; tries++) {
+        const t = pick(cands); b.edges.push([0, t]); if (distOk()) break; b.edges.pop();
+      }
+    }
+    // Anillo: cada Dominio con el siguiente
+    for (let d = 0; d < DOMAIN_COUNT; d++) {
+      const a = dom[d], c = dom[(d + 1) % DOMAIN_COUNT];
+      for (let k = 0; k < ringLinks; k++) {
+        for (let tries = 0; tries < 12; tries++) {
+          const t1 = pick(a.inner), t2 = pick(c.inner);
+          if (b.edges.some(([p, q]) => (p === t1 && q === t2) || (p === t2 && q === t1))) continue;
+          b.edges.push([t1, t2]); if (distOk()) break; b.edges.pop();
+        }
+      }
+    }
+    // Fuentes y Nodos
+    for (const x of dom) {
+      const free = x.inner.filter(i => i !== x.entrance || x.inner.length <= params.powerSourcesPerDomain);
+      shuffle(free, rnd);
+      for (let k = 0; k < params.powerSourcesPerDomain && k < free.length; k++) b.tiles.find(t => t.id === free[k]).type = 'powerSource';
+    }
+    const wanted = params.powerNodeEffects.duel + params.powerNodeEffects.oracle + params.powerNodeEffects.planar;
+    const nodeCands = b.tiles.filter(t => t.type === 'normal' && t.domain !== null && dom[t.domain].entrance !== t.id);
+    shuffle(nodeCands, rnd);
+    // Reparto equilibrado: uno por Dominio antes de repetir
+    const byDomain = Array.from({ length: DOMAIN_COUNT }, () => []);
+    for (const t of nodeCands) byDomain[t.domain].push(t);
+    let placed = 0, round = 0;
+    const startDomain = ri(0, DOMAIN_COUNT - 1);
+    while (placed < wanted && round < 50) {
+      for (let d = 0; d < DOMAIN_COUNT && placed < wanted; d++) {
+        const list = byDomain[(startDomain + d) % DOMAIN_COUNT];
+        if (list[round]) { list[round].type = 'powerNode'; placed++; }
+      }
+      round++;
+    }
+    board = b;
+    layout();
+    renumber();
+  }
+  function shuffle(arr, rnd) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } }
+
+  // ---------- Disposición automática ----------
+  function layout() {
+    const A = altar(); board.positions = {};
+    if (A) board.positions[A.id] = [CX, CY];
+    const dist = A ? bfs(A.id) : new Map();
+    for (let d = 0; d < DOMAIN_COUNT; d++) {
+      const tiles = domainTiles(d);
+      const center = (d * 60 - 90) * Math.PI / 180, half = 26 * Math.PI / 180;
+      const byDepth = new Map();
+      for (const t of tiles) { const k = dist.has(t.id) ? dist.get(t.id) : 1; if (!byDepth.has(k)) byDepth.set(k, []); byDepth.get(k).push(t); }
+      const depths = [...byDepth.keys()].sort((a, b) => a - b);
+      for (const k of depths) {
+        const row = byDepth.get(k).sort((a, b) => a.id - b.id);
+        const r = Math.min(440, 110 + (k - 1) * 78);
+        row.forEach((t, i) => {
+          const f = row.length === 1 ? 0 : (i / (row.length - 1)) * 2 - 1;
+          const ang = center + f * half * Math.min(1, row.length / 3);
+          board.positions[t.id] = [CX + r * Math.cos(ang), CY + r * Math.sin(ang)];
+        });
+      }
+    }
+    for (const t of board.tiles) if (!board.positions[t.id]) board.positions[t.id] = [CX + (Math.random() - .5) * 200, CY + (Math.random() - .5) * 200];
+  }
+
+  // ---------- Dibujo ----------
+  const svg = $('svg');
+  function render() {
+    const v = validate();
+    const badEdges = new Set();
+    for (const w of v.warns) { const m = w.match(/conexión (\d+)-(\d+)/); if (m) badEdges.add(m[1] + '-' + m[2]); }
+    let out = '';
+    for (let d = 0; d < DOMAIN_COUNT; d++) {
+      const a1 = (d * 60 - 120) * Math.PI / 180, R = 470;
+      out += `<path class="sector" d="M ${CX + 60 * Math.cos(a1)} ${CY + 60 * Math.sin(a1)} L ${CX + R * Math.cos(a1)} ${CY + R * Math.sin(a1)}"/>`;
+      const ac = (d * 60 - 90) * Math.PI / 180;
+      out += `<text class="sectorLabel" x="${CX + 455 * Math.cos(ac)}" y="${CY + 455 * Math.sin(ac)}">${escapeHtml(board.domains[d]?.name || 'Dominio ' + d)}</text>`;
+    }
+    for (const [a, b] of board.edges) {
+      const pa = board.positions[a], pb = board.positions[b]; if (!pa || !pb) continue;
+      const ta = tileById(a), tb = tileById(b);
+      let cls = 'edge';
+      if (ta?.type === 'altar' || tb?.type === 'altar') cls += ' altar';
+      else if (ta && tb && ta.domain !== tb.domain) cls += ' ring';
+      if (badEdges.has(a + '-' + b) || badEdges.has(b + '-' + a)) cls += ' bad';
+      out += `<line class="${cls}" x1="${pa[0]}" y1="${pa[1]}" x2="${pb[0]}" y2="${pb[1]}"/>`;
+    }
+    for (const t of board.tiles) {
+      const p = board.positions[t.id]; if (!p) continue;
+      const r = t.type === 'altar' ? R_ALTAR : R_TILE;
+      const stroke = t.type === 'altar' ? '#fff3c4' : `hsl(${DOMAIN_HUES[t.domain] ?? 0} 60% 65%)`;
+      const cls = 'tile' + (t.id === selected ? ' selected' : '') + (t.id === pendingConnect ? ' pending' : '');
+      out += `<g class="${cls}" data-id="${t.id}" transform="translate(${p[0]},${p[1]})"><circle r="${r}" fill="${COLORS[t.type]}" stroke="${stroke}"/><text>${t.id}</text></g>`;
+    }
+    svg.innerHTML = out;
+    renderPanels(v);
+  }
+  function renderPanels(v) {
+    const ul = $('findings'); ul.innerHTML = '';
+    for (const e of v.errs) ul.appendChild(li('err', e));
+    for (const w of v.warns) ul.appendChild(li('warn', w));
+    for (const o of v.oks) ul.appendChild(li('ok', o));
+    const vd = $('verdict'); vd.textContent = v.errs.length ? `${v.errs.length} errores` : (v.warns.length ? `válido, ${v.warns.length} avisos` : 'válido');
+    vd.className = 'badge ' + (v.errs.length ? 'err' : 'ok');
+    $('domTable').innerHTML = v.perDomain.map(i => `<tr><td>${i.d}</td><td><input type="text" data-domain="${i.d}" value="${escapeHtml(board.domains[i.d]?.name || '')}" style="width:110px"></td><td class="num">${i.count}</td><td class="num">${i.nicheDist ?? '—'}</td><td class="num">${i.sources}</td><td class="num">${i.nodes}</td></tr>`).join('');
+    const total = board.tiles.length;
+    $('totals').innerHTML = [['Casillas (con el Altar)', total], ['Conexiones', board.edges.length], ['Nodos de Poder', `${v.totalNodes} (datos: ${v.wanted})`],
+      ['Casillas por vuelta al tablero', v.perDomain.reduce((s, i) => s + i.count, 0)]].map(([k, val]) => `<tr><th>${k}</th><td class="num">${val}</td></tr>`).join('');
+    const sp = $('selPanel'); const t = selected !== null ? tileById(selected) : null;
+    sp.style.display = t ? 'block' : 'none';
+    if (t) {
+      $('selId').textContent = 'Casilla ' + t.id;
+      $('selType').value = t.type;
+      $('selDomain').innerHTML = '<option value="">ninguno (Altar)</option>' + board.domains.map(d => `<option value="${d.id}">${d.id}: ${escapeHtml(d.name)}</option>`).join('');
+      $('selDomain').value = t.domain === null ? '' : String(t.domain);
+    }
+    $('status').textContent = mode === 'connect' && pendingConnect !== null ? `Conectar: elige la segunda casilla para la ${pendingConnect}` : `Modo: ${{ select: 'mover', connect: 'conectar', add: 'añadir' }[mode]}. Semilla ${num('gSeed')}.`;
+  }
+  const li = (cls, text) => { const e = document.createElement('li'); e.className = cls; e.textContent = text; return e; };
+  const escapeHtml = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // ---------- Interacción ----------
+  function svgPoint(evt) {
+    const pt = svg.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY;
+    const p = pt.matrixTransform(svg.getScreenCTM().inverse()); return [p.x, p.y];
+  }
+  function domainAt(x, y) {
+    let ang = Math.atan2(y - CY, x - CX) * 180 / Math.PI + 90; ang = ((ang % 360) + 360) % 360;
+    return Math.floor((ang + 30) / 60) % DOMAIN_COUNT;
+  }
+  svg.addEventListener('pointerdown', evt => {
+    const g = evt.target.closest('.tile');
+    const [x, y] = svgPoint(evt);
+    if (mode === 'add') {
+      if (g) return;
+      const id = Math.max(...board.tiles.map(t => t.id)) + 1;
+      board.tiles.push({ id, type: 'normal', domain: domainAt(x, y) }); board.positions[id] = [x, y]; selected = id; render(); return;
+    }
+    if (!g) { if (mode === 'select') { selected = null; render(); } return; }
+    const id = Number(g.dataset.id);
+    if (mode === 'connect') {
+      if (pendingConnect === null) pendingConnect = id;
+      else { toggleEdge(pendingConnect, id); pendingConnect = null; }
+      render(); return;
+    }
+    selected = id; drag = { id, dx: board.positions[id][0] - x, dy: board.positions[id][1] - y }; svg.setPointerCapture(evt.pointerId); render();
+  });
+  svg.addEventListener('pointermove', evt => {
+    if (!drag) return; const [x, y] = svgPoint(evt); board.positions[drag.id] = [x + drag.dx, y + drag.dy]; render();
+  });
+  svg.addEventListener('pointerup', () => { drag = null; });
+  document.querySelectorAll('.toolbar button').forEach(b => b.addEventListener('click', () => {
+    mode = b.dataset.mode; pendingConnect = null;
+    document.querySelectorAll('.toolbar button').forEach(x => x.classList.toggle('active', x === b)); render();
+  }));
+  $('selType').addEventListener('change', () => { const t = tileById(selected); if (!t) return; t.type = $('selType').value; if (t.type === 'altar') t.domain = null; render(); });
+  $('selDomain').addEventListener('change', () => { const t = tileById(selected); if (!t) return; const v = $('selDomain').value; t.domain = v === '' ? null : Number(v); render(); });
+  $('btnDelete').addEventListener('click', () => {
+    if (selected === null) return; board.tiles = board.tiles.filter(t => t.id !== selected);
+    board.edges = board.edges.filter(([a, b]) => a !== selected && b !== selected); delete board.positions[selected]; selected = null; renumber(); render();
+  });
+  $('domTable').addEventListener('input', evt => { const d = evt.target.dataset.domain; if (d !== undefined) board.domains[Number(d)].name = evt.target.value; });
+  document.querySelectorAll('aside input[type=number]').forEach(i => i.addEventListener('change', () => { board.parameters = readParams(); render(); }));
+  $('btnRandom').addEventListener('click', () => { generate(num('gSeed')); selected = null; render(); });
+  $('btnAnother').addEventListener('click', () => { set('gSeed', num('gSeed') + 1); generate(num('gSeed')); selected = null; render(); });
+  $('btnEmpty').addEventListener('click', () => { board = emptyBoard(); selected = null; render(); });
+  $('btnLoad').addEventListener('click', () => $('fileInput').click());
+  $('fileInput').addEventListener('change', async evt => {
+    const f = evt.target.files[0]; if (!f) return;
+    try {
+      const j = JSON.parse(await f.text());
+      board = {
+        parameters: j.parameters, domains: j.domains, edges: j.edges,
+        tiles: j.tiles.map(t => ({ id: t.id, type: t.type, domain: t.domain === undefined ? null : t.domain })),
+        positions: {},
+      };
+      if (j.editor?.positions) for (const [k, v] of Object.entries(j.editor.positions)) board.positions[Number(k)] = v;
+      else layout();
+      writeParams(board.parameters); $('fileName').value = f.name; selected = null; render();
+    } catch (e) { alert('No se pudo leer el archivo: ' + e.message); }
+    evt.target.value = '';
+  });
+  $('btnDownload').addEventListener('click', () => {
+    renumber(); board.parameters = readParams();
+    const out = {
+      parameters: board.parameters,
+      domains: board.domains.map(d => ({ id: d.id, name: d.name })),
+      tiles: board.tiles.map(t => t.type === 'altar' ? { id: t.id, type: t.type } : { id: t.id, type: t.type, domain: t.domain }),
+      edges: board.edges.map(([a, b]) => [a, b]),
+      editor: { positions: Object.fromEntries(board.tiles.map(t => [t.id, board.positions[t.id].map(Math.round)])) },
+    };
+    const text = JSON.stringify(out, null, 2).replace(/\[\s+(\d+),\s+(\d+)\s+\]/g, '[$1, $2]');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = $('fileName').value || 'tablero.json'; a.click(); URL.revokeObjectURL(a.href); render();
+  });
+
+  generate(num('gSeed'));
+  render();
+})();
+</script>
+</body>
+</html>

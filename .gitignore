@@ -51,6 +51,7 @@ Biblia_Del_Guardian*
 
 # --- Local / herramientas ---
 .claude/settings.local.json
+.claude/launch.json
 .DS_Store
 Thumbs.db
 *.log

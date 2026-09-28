@@ -53,7 +53,7 @@ Compilar, probar y empaquetar sin abrir el editor:
 - `Source/SoulboundCore/`: motor de reglas sin mundo (solo `Core` y `CoreUObject`). Estado en `USTRUCT`, reglas como funciones libres, tests de automatización por criterio de aceptación.
 - `Source/Soulbound/`: el juego (subsistemas, GameMode, controladores, presentación).
 - `Plugins/A27Online/`: plugin propio de sesiones por código sobre Epic Online Services.
-- `Scripts/`: `build.ps1` (compilar y empaquetar sin editor), `test.ps1` (tests por consola), `eos-secrets/` (secretos fuera del repositorio), `git-hooks/`, `art/` (utilidades de arte).
+- `Scripts/`: `build.ps1` (compilar y empaquetar sin editor), `test.ps1` (tests por consola), `eos-secrets/` (secretos fuera del repositorio), `git-hooks/`, `art/` (utilidades de arte), `board-editor/` (editor de tableros: una página HTML que genera tableros aleatorios a partir de parámetros, permite editarlos a mano, valida las mismas reglas que el motor y descarga el JSON de `Content/Data/Boards/`).
 - `docs/`: `stories/` (una story por archivo), `bitacora.md` (historia legible del proyecto, una entrada por story), `aplicacion-del-master.md` (qué práctica del máster respalda cada decisión, y qué no aplica y por qué), documentación de diseño y arquitectura pública (en construcción).
 - `CLAUDE.md`: guía para los agentes. La skill del proyecto (glosario, pilares, plantillas, checklist de revisión) está en `.claude/skills/soulbound/`.
 
