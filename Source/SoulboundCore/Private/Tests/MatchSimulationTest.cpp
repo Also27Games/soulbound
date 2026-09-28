@@ -24,6 +24,37 @@ namespace
 		return Deciders;
 	}
 
+	/**
+	 * Decisor de prueba que no se parece al dummy: gasta tres valores del generador que recibe y elige la última
+	 * casilla alcanzable. Si la simulación le diera el sorteo de la partida, las tiradas de los demás cambiarían.
+	 */
+	class FLastOptionDecider : public IDecider
+	{
+	public:
+		virtual int32 ChooseDestination(const FMatchState& State, int32 Seat, const TArray<int32>& Options, FRandomStream& Rng) override
+		{
+			for (int32 Draw = 0; Draw < 3; ++Draw)
+			{
+				Rng.GetFraction();
+			}
+			return Options.IsEmpty() ? INDEX_NONE : Options.Last();
+		}
+	};
+
+	/** Tiradas de la partida en orden, tal como las registró el motor. */
+	TArray<int32> RollSequence(const FSimulationResult& Result)
+	{
+		TArray<int32> Rolls;
+		for (const FMatchEvent& Event : Result.FinalState.EventLog)
+		{
+			if (Event.Type == EMatchEventType::Rolled)
+			{
+				Rolls.Add(Event.Value);
+			}
+		}
+		return Rolls;
+	}
+
 	/** Parámetros de simulación con el tablero de pruebas y los parámetros de partida de sus archivos de datos. */
 	bool MakeParams(FAutomationTestBase& Test, int32 Seed, FSimulationParams& OutParams)
 	{
@@ -59,6 +90,25 @@ bool FMatchSimulationDeterminismTest::RunTest(const FString& Parameters)
 		}
 	}
 	TestTrue(TEXT("Misma semilla, mismo estado final"), Soulbound::Tests::SameState(A.FinalState, B.FinalState));
+
+	// Misma semilla, mismos dados, ocupe quien ocupe cada asiento (grabación y reproducción, GDD 08): los decisores
+	// no tocan el sorteo de la partida. Se cambia el decisor del asiento 2 por uno que gasta y elige distinto.
+	TArray<TSharedPtr<IDecider>> Mixed = FourDummies();
+	Mixed[2] = MakeShared<FLastOptionDecider>();
+	const FSimulationResult Other = FMatchSimulation(Params, MoveTemp(Mixed)).Run();
+	const TArray<int32> RollsA = RollSequence(A);
+	const TArray<int32> RollsOther = RollSequence(Other);
+	TestTrue(TEXT("Hay tiradas"), RollsA.Num() > 0);
+	TestEqual(TEXT("Con otro decisor en un asiento, el mismo número de tiradas"), RollsOther.Num(), RollsA.Num());
+	for (int32 i = 0; i < FMath::Min(RollsA.Num(), RollsOther.Num()); ++i)
+	{
+		if (RollsA[i] != RollsOther[i])
+		{
+			AddError(FString::Printf(TEXT("Con otro decisor en el asiento 2, la tirada %d cambia: %d frente a %d"), i, RollsA[i], RollsOther[i]));
+			break;
+		}
+	}
+	TestFalse(TEXT("Y la partida es otra: el decisor distinto sí cambia los destinos"), Soulbound::Tests::SameState(A.FinalState, Other.FinalState));
 
 	// Los turnos no son una constante: salen de los parámetros. El dummy confirma a los DummyResponseSeconds de
 	// empezar su turno, antes del reloj de turno, así que caben duración entre respuesta (margen de uno por redondeo).

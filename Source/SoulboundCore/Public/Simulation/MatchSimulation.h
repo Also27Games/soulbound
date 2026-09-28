@@ -8,6 +8,10 @@ class IDecider;
 
 struct SOULBOUNDCORE_API FSimulationParams
 {
+	/**
+	 * Semilla de la partida: inicio, dados y cerebro del Warden. Los decisores reciben otro generador con semilla
+	 * Seed + 1 y nunca el de la partida: la misma semilla da los mismos dados ocupe quien ocupe cada asiento.
+	 */
 	int32 Seed = 1;
 	/** Duración de la partida en segundos virtuales (40 minutos). */
 	double DurationSeconds = 40.0 * 60.0;

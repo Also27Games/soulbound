@@ -58,7 +58,10 @@ FSimulationResult FMatchSimulation::Run()
 	const double WallStart = FPlatformTime::Seconds();
 
 	FSimulationResult Result;
+	// Sorteo de la partida: inicio, dados y cerebro del Warden. Los decisores tienen el suyo, con semilla Seed + 1,
+	// para que la misma semilla dé los mismos dados ocupe quien ocupe cada asiento (grabación y reproducción, GDD 08).
 	FRandomStream Rng(Params.Seed);
+	FRandomStream DeciderRng(Params.Seed + 1);
 	// En Fase 1 los bots rellenan los huecos: siempre juegan cuatro (R-TAB-6, decisión del autor del 25/09/2026).
 	FMatchStartResult Start = Soulbound::Rules::StartMatch(Params.Board, Params.MatchParams, Soulbound::Match::MaxPlayers, Rng);
 	if (!Start.IsSuccess())
@@ -116,7 +119,7 @@ FSimulationResult FMatchSimulation::Run()
 					Pending.bPending = true;
 					Pending.AtSeconds = Now + Params.DummyResponseSeconds;
 					Pending.TileId = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid()
-						? Deciders[Seat]->ChooseDestination(State, Seat, State.ReachableOptions, Rng)
+						? Deciders[Seat]->ChooseDestination(State, Seat, State.ReachableOptions, DeciderRng)
 						: INDEX_NONE;
 				}
 				// El siguiente suceso de turno es la respuesta del decisor o el límite del reloj, lo que llegue antes.
