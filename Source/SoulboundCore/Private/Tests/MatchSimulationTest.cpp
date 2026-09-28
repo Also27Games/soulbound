@@ -159,4 +159,36 @@ bool FMatchSimulationTurnMachineTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationChronicleTest,
+	"Soulbound.Core.Simulation.CronicaDeUnaPartida",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationChronicleTest::RunTest(const FString& Parameters)
+{
+	// Herramienta de lectura, no un criterio: imprime el registro de una partida entera con dummies (semilla fija 42)
+	// para leer el ritmo turno a turno: quién juega, qué tira, adónde va y qué hace el Warden. Se ve en la consola
+	// de Scripts/test.ps1 (líneas "info"). Solo comprueba que el registro cuenta la partida entera.
+	FSimulationParams Params;
+	if (!MakeParams(*this, 42, Params))
+	{
+		return false;
+	}
+	const FSimulationResult Result = FMatchSimulation(Params, FourDummies()).Run();
+
+	auto CountLines = [&Result](const TCHAR* Fragment)
+	{
+		return Result.Log.FilterByPredicate([Fragment](const FString& Line) { return Line.Contains(Fragment, ESearchCase::CaseSensitive); }).Num();
+	};
+	const int32 Started = Result.FinalState.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::TurnStarted; }).Num();
+	TestEqual(TEXT("Una línea de turno por cada turno empezado"), CountLines(TEXT("] Turno ")), Started);
+	TestEqual(TEXT("Cada turno terminado cuenta cómo acabó"), CountLines(TEXT(" va a la casilla ")) + CountLines(TEXT(" no puede moverse")) + CountLines(TEXT(" agota el reloj")), Result.Turns);
+	TestEqual(TEXT("Una línea por intervención del Warden"), CountLines(TEXT("] Warden ")), Result.Interventions);
+
+	for (const FString& Line : Result.Log)
+	{
+		UE_LOG(LogSoulboundTest, Display, TEXT("%s"), *Line);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

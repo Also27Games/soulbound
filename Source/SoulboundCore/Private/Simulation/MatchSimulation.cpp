@@ -15,17 +15,35 @@ namespace
 		int32 TileId = INDEX_NONE;
 	};
 
-	const TCHAR* EventName(EMatchEventType Type)
+	/** Marca de tiempo del registro: minutos y segundos del reloj de partida, "[mm:ss]". */
+	FString Stamp(double ClockSeconds)
 	{
-		switch (Type)
+		const int32 Seconds = FMath::FloorToInt32(ClockSeconds);
+		return FString::Printf(TEXT("[%02d:%02d]"), Seconds / 60, Seconds % 60);
+	}
+
+	/** "casilla 17 (Fuente de Poder, Dominio 3)": lo que hace falta para leer adónde va alguien. */
+	FString DescribeTile(const FBoardState& Board, int32 TileId)
+	{
+		if (!Board.IsValidTile(TileId))
 		{
-		case EMatchEventType::TurnStarted: return TEXT("inicio");
-		case EMatchEventType::Rolled: return TEXT("tirada");
-		case EMatchEventType::TurnClockExpired: return TEXT("agotado");
-		case EMatchEventType::TurnSkipped: return TEXT("saltado");
-		case EMatchEventType::TurnEnded: return TEXT("fin");
+			return FString::Printf(TEXT("casilla %d"), TileId);
 		}
-		return TEXT("?");
+		const FTileState& Tile = Board.Tiles[TileId];
+		FString Kind;
+		switch (Tile.Type)
+		{
+		case ETileType::Altar: return FString::Printf(TEXT("casilla %d (Altar)"), TileId);
+		case ETileType::Niche: Kind = TEXT("Nicho, "); break;
+		case ETileType::PowerSource: Kind = TEXT("Fuente de Poder, "); break;
+		case ETileType::PowerNode:
+			Kind = Tile.PowerNodeEffect == EPowerNodeEffect::Duel ? TEXT("Nodo de Duelo, ")
+				: Tile.PowerNodeEffect == EPowerNodeEffect::Oracle ? TEXT("Nodo del Oráculo, ")
+				: TEXT("Nodo Planar, ");
+			break;
+		default: break;
+		}
+		return FString::Printf(TEXT("casilla %d (%sDominio %d)"), TileId, *Kind, Tile.DomainId);
 	}
 }
 
@@ -52,21 +70,31 @@ FSimulationResult FMatchSimulation::Run()
 	FMatchState State = MoveTemp(Start.State);
 	const FWardenBrain Brain;
 
-	Result.Log.Add(FString::Printf(TEXT("inicio semilla=%d asientos=%d casillas=%d orden=%s"), Params.Seed, State.Seats.Num(), State.Board.Tiles.Num(),
-		*FString::JoinBy(State.TurnOrder, TEXT(","), [](int32 Seat) { return FString::FromInt(Seat); })));
+	// El registro se lee como una crónica: una línea por turno, por destino y por intervención del Warden.
+	Result.Log.Add(FString::Printf(TEXT("Partida | semilla %d | orden de turno %s | %d casillas | reloj de turno %.0f s | respuesta del decisor %.0f s"),
+		Params.Seed, *FString::JoinBy(State.TurnOrder, TEXT(", "), [](int32 Seat) { return FString::FromInt(Seat); }),
+		State.Board.Tiles.Num(), State.Params.TurnClockSeconds, Params.DummyResponseSeconds));
 
 	double NextEvaluation = Params.EvaluationPeriodSeconds;
 	double NextTurnEvent = 0.0;
 	FPendingAnswer Pending;
 	int32 LoggedEvents = 0;
 
-	// Traduce al registro de texto los eventos que el motor ha añadido desde la última vez.
+	// Pasa al registro de texto lo que el motor ha dejado en su registro de eventos y la crónica no cuenta ya de otra
+	// forma: agotamientos y turnos saltados. Inicio, tirada y destino los escribe StepTurn, que tiene las opciones.
 	auto LogNewEvents = [&Result, &State, &LoggedEvents]()
 	{
 		for (; LoggedEvents < State.EventLog.Num(); ++LoggedEvents)
 		{
 			const FMatchEvent& Event = State.EventLog[LoggedEvents];
-			Result.Log.Add(FString::Printf(TEXT("t=%.0f %s asiento=%d valor=%d"), Event.ClockSeconds, EventName(Event.Type), Event.Seat, Event.Value));
+			if (Event.Type == EMatchEventType::TurnClockExpired)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d agota el reloj | insolencia %d"), *Stamp(Event.ClockSeconds), Event.Seat, State.Seats[Event.Seat].Insolence));
+			}
+			else if (Event.Type == EMatchEventType::TurnSkipped)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s asiento %d pierde el turno | le quedan %d"), *Stamp(Event.ClockSeconds), Event.Seat, State.Seats[Event.Seat].LostTurns));
+			}
 		}
 	};
 
@@ -82,6 +110,9 @@ FSimulationResult FMatchSimulation::Run()
 				if (!Pending.bPending)
 				{
 					const int32 Seat = State.ActiveSeat;
+					LogNewEvents();
+					Result.Log.Add(FString::Printf(TEXT("%s Turno %d | asiento %d | tira %d | %d opciones"),
+						*Stamp(Now), State.TurnCount + 1, Seat, State.Roll, State.ReachableOptions.Num()));
 					Pending.bPending = true;
 					Pending.AtSeconds = Now + Params.DummyResponseSeconds;
 					Pending.TileId = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid()
@@ -99,8 +130,13 @@ FSimulationResult FMatchSimulation::Run()
 					const EIntentResult Intent = Soulbound::Rules::SubmitDestinationIntent(State, State.ActiveSeat, Pending.TileId, Now);
 					if (Intent == EIntentResult::Accepted)
 					{
-						Result.Log.Add(FString::Printf(TEXT("t=%.0f destino asiento=%d casilla=%d"), Now, State.ActiveSeat, Pending.TileId));
+						Result.Log.Add(FString::Printf(TEXT("%s    asiento %d va a la %s"), *Stamp(Now), State.ActiveSeat, *DescribeTile(State.Board, Pending.TileId)));
 					}
+				}
+				else if (Now >= Pending.AtSeconds && State.ReachableOptions.IsEmpty())
+				{
+					Result.Log.Add(FString::Printf(TEXT("%s    asiento %d no puede moverse desde la %s"), *Stamp(Now), State.ActiveSeat,
+						*DescribeTile(State.Board, State.Seats[State.ActiveSeat].TileId)));
 				}
 				Pending.bPending = false;
 			}
@@ -131,8 +167,11 @@ FSimulationResult FMatchSimulation::Run()
 			if (Decision.IsIntervention())
 			{
 				++Result.Interventions;
-				Result.Log.Add(FString::Printf(TEXT("t=%.0f warden accion=%d casilla=%d \"%s\""),
-					State.ClockSeconds, static_cast<int32>(Decision.Action), Decision.TileId, *Decision.Line));
+				const TCHAR* Verb = Decision.Action == EWardenAction::SealTile ? TEXT("sella la ")
+					: Decision.Action == EWardenAction::ReleaseTile ? TEXT("libera la ")
+					: TEXT("comenta");
+				const FString Target = Decision.Action == EWardenAction::Comment ? FString() : DescribeTile(State.Board, Decision.TileId);
+				Result.Log.Add(FString::Printf(TEXT("%s Warden %s%s: \"%s\""), *Stamp(State.ClockSeconds), Verb, *Target, *Decision.Line));
 			}
 			NextEvaluation += Params.EvaluationPeriodSeconds;
 		}
@@ -144,7 +183,11 @@ FSimulationResult FMatchSimulation::Run()
 	}
 
 	Result.Turns = State.TurnCount;
-	Result.Log.Add(FString::Printf(TEXT("fin turnos=%d evaluaciones=%d intervenciones=%d"), Result.Turns, Result.Evaluations, Result.Interventions));
+	Result.Log.Add(FString::Printf(TEXT("Fin | %d turnos | %d evaluaciones del Warden | %d intervenciones"), Result.Turns, Result.Evaluations, Result.Interventions));
+	for (const int32 Seat : State.TurnOrder)
+	{
+		Result.Log.Add(FString::Printf(TEXT("    asiento %d en la %s | insolencia %d"), Seat, *DescribeTile(State.Board, State.Seats[Seat].TileId), State.Seats[Seat].Insolence));
+	}
 	Result.FinalState = State;
 	Result.WallSeconds = FPlatformTime::Seconds() - WallStart;
 	return Result;
