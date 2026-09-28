@@ -596,6 +596,18 @@ bool FTurnDummyTest::RunTest(const FString& Parameters)
 	Trace(false, ByHand);
 	TestEqual(TEXT("Una ronda completa"), WithDummy.Num(), Soulbound::Match::SeatCount);
 	TestEqual(TEXT("Mismas fases y mismos eventos con dummy y a mano"), FString::Join(WithDummy, TEXT(" | ")), FString::Join(ByHand, TEXT(" | ")));
+
+	// Y esas fases y eventos son los de un turno completo, no dos trazas vacías iguales.
+	const FString FullTurn = FString::Printf(TEXT("fases %s eventos %s"),
+		*Describe({
+			static_cast<int32>(ETurnPhase::Start), static_cast<int32>(ETurnPhase::PreRoll), static_cast<int32>(ETurnPhase::RollAndChoose),
+			static_cast<int32>(ETurnPhase::MoveAndResolve), static_cast<int32>(ETurnPhase::End), static_cast<int32>(ETurnPhase::BetweenTurns)}),
+		*Describe({
+			static_cast<int32>(EMatchEventType::TurnStarted), static_cast<int32>(EMatchEventType::Rolled), static_cast<int32>(EMatchEventType::TurnEnded)}));
+	for (int32 Turn = 0; Turn < WithDummy.Num(); ++Turn)
+	{
+		TestEqual(FString::Printf(TEXT("Turno %d del dummy: un turno completo"), Turn), WithDummy[Turn], FullTurn);
+	}
 	return true;
 }
 
