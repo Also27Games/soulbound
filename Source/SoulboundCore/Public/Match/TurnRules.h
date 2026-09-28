@@ -55,7 +55,8 @@ namespace Soulbound::Rules
 	 *  - MoveAndResolve → End: registra TurnEnded.
 	 *  - End → BetweenTurns: si el asiento tiene turnos extra, consume uno y vuelve a jugar (R-TUR-9); si no, pasa al
 	 *    siguiente del orden de turno.
-	 * Antes de Start y de End, los turnos perdidos se descuentan contra los extra uno a uno (caso límite del GDD 02).
+	 * Al empezar un turno y al terminarlo, los turnos perdidos se descuentan contra los extra uno a uno (caso límite
+	 * del GDD 02), así un turno extra concedido durante el turno también se compensa.
 	 * NowSeconds: instante actual del reloj de partida; es la marca de tiempo de los eventos.
 	 * Random: el sorteo de la partida (solo lo usa la tirada).
 	 * Devuelve true si cambió de fase; false si espera la intención de destino o si la partida no tiene orden de turno.

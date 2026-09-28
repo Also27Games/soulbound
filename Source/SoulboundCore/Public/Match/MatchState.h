@@ -112,7 +112,7 @@ struct SOULBOUNDCORE_API FSeatState
 /**
  * Estado de partida: datos puros, sin mundo. Lo mismo que replica el servidor, lo que simula el bucle
  * con reloj virtual y lo que reciben el cerebro del Warden y los decisores.
- * Los campos de turno solo los escriben las reglas de Match/TurnRules.h.
+ * Los campos de turno los prepara StartMatch y después solo los escriben las reglas de Match/TurnRules.h.
  */
 USTRUCT()
 struct SOULBOUNDCORE_API FMatchState
