@@ -15,7 +15,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Decisor humano | `HumanDecider` | Abre el componente de selección en el cliente y devuelve lo confirmado o "agotado". |
 | Bot básico | `BasicBotDecider` | Decisor con criterio por prioridades (Altar si seis tipos, Fuente que falta, perjudicar al líder, Fuente más cercana; Ecos, robar), tabla de valor para dilemas, y habilidad de minijuego (`MinigameSkill`) por dificultad en datos. Nunca es insolente. Rellena los huecos hasta cuatro, sustituye a un jugador caído y permite jugar solo. Otros bots y dificultades, Fase 2, como nuevos decisores. |
 | Dummy | `DummyDecider` | Decisor al azar, sin retardo. Solo para pruebas y simulación. Variante insolente (`InsolentDummy`) que a veces no responde, para probar la Furia. |
-| Intención | `Intent` | Lo único que envía un cliente: el resultado de una elección o la acción del minijuego. El servidor la valida y la descarta sin castigo si no es válida. |
+| Intención | `Intent` | Lo único que envía un cliente: el resultado de una elección o la acción del minijuego. El servidor la valida y la descarta sin castigo si no es válida. Resultado de una intención de destino: `EIntentResult` (`Accepted`, `WrongSeat`, `WrongPhase`, `Unreachable`, `ClockExpired`). |
 | Simulación | `Simulation` | Partida sin mundo, red ni interfaz, con reloj virtual, determinista por semilla, con decisores bot o dummy. Ejecuta los criterios "en simulación" como tests por línea de comandos. |
 
 ## Tablero
@@ -75,8 +75,13 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Caza de runas | `RuneHunt` | Fase central. |
 | Carrera hacia la victoria | `VictoryRun` | Con seis runas distintas, volver al Altar, engarzarlas y superar el desafío final. |
 | Acto I, II, III | `ActOne`, `ActTwo`, `ActThree` | Tramos de la partida que cambian el comportamiento del Warden: 0-5, 5-27, 27-40 minutos. |
-| Turno | `Turn` | Tirar, mover, resolver casilla. Reloj de turno de 30 segundos. |
-| Tirada | `Roll` | Resultado de uno o dos dados de seis caras. |
+| Turno | `Turn` | Tirar, mover, resolver casilla. Reloj de turno de 30 segundos (en datos, `FMatchParams`). Máquina de turnos en `Match/TurnRules.h`: `AdvanceTurn` avanza una fase con el tiempo como dato, `SubmitDestinationIntent` es la única forma de mover una ficha. |
+| Fase del turno | `ETurnPhase` | `BetweenTurns` (nadie juega), `Start`, `PreRoll` (decisiones previas), `RollAndChoose` (tirada y destino, un solo paso), `MoveAndResolve`, `End`. R-TUR-2. |
+| Orden de turno | `TurnOrder` | Permutación de los cuatro asientos sorteada una vez en `StartMatch`; fija toda la partida (R-TUR-1). |
+| Tirada | `Roll` | Resultado de uno o dos dados de seis caras. `RollDice(Random, DiceCount)`; constantes `Soulbound::Dice::Faces` (6) y `DefaultCount` (1), fijas por R-TUR-5. |
+| Parámetros de partida | `FMatchParams` | Valores de ajuste que no dependen del tablero: reloj de turno, topes de turnos extra y perdidos. En `Content/Data/Match/partida.json`; `LoadMatchParamsFromFile`, `ValidateMatchParams` → `FMatchParamsLoadResult` con `EMatchParamsError`. |
+| Turno extra, turno perdido | `ExtraTurns`, `LostTurns` (por asiento); `GrantExtraTurns`, `GrantLostTurns` | Contadores con tope en datos (R-TUR-9, 10). Los perdidos se descuentan contra los extra uno a uno al empezar y al terminar un turno. |
+| Registro de eventos | `EventLog` de `FMatchEvent` (`EMatchEventType`: `TurnStarted`, `Rolled`, `TurnClockExpired`, `TurnSkipped`, `TurnEnded`) | Lo que el motor deja de cada turno, con marca de tiempo del reloj de partida y asiento (R-TUR-15). Base de M1 y de la Crónica. Sin texto. |
 | Desafío final | `FinalChallenge` | Prueba para ganar tras engarzar las seis runas en el Altar: seis pulsos del minijuego en dificultad normal, sin un solo fallo, con una o dos trampas del Warden. |
 | Victoria del Warden | `WardenVictory` | Derrota colectiva al agotarse el tiempo. |
 
@@ -102,7 +107,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Ley de Sombras | `ShadowLaw` | Decreto del Warden que manda a cada Eco al Nicho cerrado de su Dominio asignado. Termina la Noche de los Ecos. |
 | Hogar | `HomeTile` | Casilla a la que un jugador vuelve tras el Vacío o un castigo de "vuelta al principio": el Nicho reclamado para un Elegido, el Nicho cerrado de su Dominio asignado para un Eco, el Altar para todos durante la carrera. |
 | Marcado | `Marked` | Estado del jugador perseguido: quien le robe, le expulse, le gane un duelo o le mande a casa o al Vacío gana un turno extra. Dura unas rondas o hasta que alguien lo cobra. Puede haber varios Marcados. |
-| Insolencia | `Insolence` | Contador oculto de 0 a 5 por jugador. Sube uno cada vez que no hace algo que le tocaba: agotar el reloj de turno, no atender al Oráculo, no señalar, no elegir en un dilema, desaprovechar un regalo, no votar. Cada subida trae un castigo inmediato sorteado por gravedad según el nivel; al quinto, la Furia. Los bots nunca son insolentes. Fase 1. |
+| Insolencia | `Insolence` (por asiento; `RaiseInsolence`; tope `Soulbound::Match::MaxInsolence`) | Contador oculto de 0 a 5 por jugador. Sube uno cada vez que no hace algo que le tocaba: agotar el reloj de turno, no atender al Oráculo, no señalar, no elegir en un dilema, desaprovechar un regalo, no votar. Cada subida trae un castigo inmediato sorteado por gravedad según el nivel; al quinto, la Furia. Los bots nunca son insolentes. Fase 1. |
 | Furia del Warden | `WardenFury` | Cinemática al llegar a insolencia 5. Castigo fijo: el Vacío de la Furia. Después el contador vuelve a 0. |
 | Vacío de la Furia | `FuryVoid` | El Vacío normal, pero dentro no funcionan ni Desvío ni Liberación: el jugador puede intentarlos y el Warden se niega con frase (la runa no se consume). |
 | Minijuego de habilidad | `SkillMinigame` | Una única mecánica, el anillo, con la variante desenfunde, y cinco usos: Fuente de Olvidado (fácil), Prueba del Warden (normal), escape del Vacío (difícil, normal, fácil), duelo (normal, simultáneo, misma secuencia) y desafío final (normal, seis pulsos, sin fallos, con trampas). |
