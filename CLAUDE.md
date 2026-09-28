@@ -20,7 +20,7 @@ Soulbound es un party game de terror social con un anfitrión IA, el Warden. Unr
 
 ## Arquitectura en dos líneas
 
-- `Source/SoulboundCore/`: el motor de reglas **sin mundo**. Solo depende de `Core` y `CoreUObject`. Estado en `USTRUCT`, reglas como funciones libres o clases sin `UWorld`, `UObject` ni `Engine`. Todo lo que sea regla de juego vive aquí y se prueba aquí.
+- `Source/SoulboundCore/`: el motor de reglas **sin mundo**. Solo depende de `Core`, `CoreUObject` y `Json` (este último solo para cargar datos). Estado en `USTRUCT`, reglas como funciones libres o clases sin `UWorld`, `UObject` ni `Engine`. Todo lo que sea regla de juego vive aquí y se prueba aquí.
 - `Source/Soulbound/`: el juego. Subsistemas (`UWorldSubsystem`, `UGameInstanceSubsystem`), GameMode, controladores, presentación. Llama al motor; nunca duplica reglas. Los actores son adaptadores: entrada, replicación y presentación; nunca contienen reglas.
 - `Plugins/A27Online/`: plugin propio de sesiones por código sobre Redpoint EOS. Dependencia externa: no se modifica desde una story de juego.
 - Lo de terceros (`Plugins/OnlineSubsystemRedpointEOS`, `Plugins/EOS-SDK-*`, `Content/UltraGameTemplate`) no está en el repositorio y **no se toca ni se versiona**.

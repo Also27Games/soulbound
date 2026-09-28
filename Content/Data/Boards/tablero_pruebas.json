@@ -1,0 +1,70 @@
+{
+  "parameters": {
+    "powerSourcesPerDomain": 1,
+    "powerNodeEffects": { "duel": 1, "oracle": 1, "planar": 1 },
+    "maxSealedTiles": 3,
+    "runeReservePerSource": 4
+  },
+  "domains": [
+    { "id": 0, "name": "Dominio provisional 0" },
+    { "id": 1, "name": "Dominio provisional 1" },
+    { "id": 2, "name": "Dominio provisional 2" },
+    { "id": 3, "name": "Dominio provisional 3" },
+    { "id": 4, "name": "Dominio provisional 4" },
+    { "id": 5, "name": "Dominio provisional 5" }
+  ],
+  "tiles": [
+    { "id": 0, "type": "altar" },
+
+    { "id": 1, "type": "normal", "domain": 0 },
+    { "id": 2, "type": "normal", "domain": 0 },
+    { "id": 3, "type": "niche", "domain": 0 },
+    { "id": 4, "type": "powerSource", "domain": 0 },
+    { "id": 5, "type": "powerNode", "domain": 0 },
+
+    { "id": 6, "type": "normal", "domain": 1 },
+    { "id": 7, "type": "normal", "domain": 1 },
+    { "id": 8, "type": "normal", "domain": 1 },
+    { "id": 9, "type": "niche", "domain": 1 },
+    { "id": 10, "type": "powerSource", "domain": 1 },
+
+    { "id": 11, "type": "normal", "domain": 2 },
+    { "id": 12, "type": "powerSource", "domain": 2 },
+    { "id": 13, "type": "powerNode", "domain": 2 },
+    { "id": 14, "type": "niche", "domain": 2 },
+    { "id": 15, "type": "normal", "domain": 2 },
+
+    { "id": 16, "type": "normal", "domain": 3 },
+    { "id": 17, "type": "powerSource", "domain": 3 },
+    { "id": 18, "type": "normal", "domain": 3 },
+    { "id": 19, "type": "normal", "domain": 3 },
+    { "id": 20, "type": "niche", "domain": 3 },
+
+    { "id": 21, "type": "normal", "domain": 4 },
+    { "id": 22, "type": "niche", "domain": 4 },
+    { "id": 23, "type": "normal", "domain": 4 },
+    { "id": 24, "type": "powerNode", "domain": 4 },
+    { "id": 25, "type": "powerSource", "domain": 4 },
+
+    { "id": 26, "type": "normal", "domain": 5 },
+    { "id": 27, "type": "powerSource", "domain": 5 },
+    { "id": 28, "type": "normal", "domain": 5 },
+    { "id": 29, "type": "normal", "domain": 5 },
+    { "id": 30, "type": "niche", "domain": 5 }
+  ],
+  "edges": [
+    [0, 1], [1, 2], [2, 3], [1, 4], [4, 5],
+    [0, 6], [6, 7], [7, 8], [8, 9], [7, 10],
+    [0, 11], [0, 12], [11, 13], [12, 13], [13, 14], [11, 15],
+    [0, 16], [16, 17], [16, 18], [16, 19], [19, 20],
+    [0, 21], [21, 22], [21, 23], [23, 24], [24, 25],
+    [0, 26], [26, 27], [27, 28], [28, 26], [28, 29], [29, 30],
+
+    [5, 10],
+    [7, 11],
+    [15, 18],
+    [17, 23],
+    [25, 27],
+    [29, 2]
+  ]
+}

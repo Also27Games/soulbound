@@ -16,3 +16,28 @@ void FBoardState::Connect(int32 TileA, int32 TileB)
 	Tiles[TileA].Neighbours.AddUnique(TileB);
 	Tiles[TileB].Neighbours.AddUnique(TileA);
 }
+
+void FBoardState::Disconnect(int32 TileA, int32 TileB)
+{
+	if (!IsValidTile(TileA) || !IsValidTile(TileB))
+	{
+		return;
+	}
+	Tiles[TileA].Neighbours.Remove(TileB);
+	Tiles[TileB].Neighbours.Remove(TileA);
+}
+
+int32 FBoardState::FindAltar() const
+{
+	const FTileState* Altar = Tiles.FindByPredicate([](const FTileState& Tile) { return Tile.Type == ETileType::Altar; });
+	return Altar ? Altar->TileId : INDEX_NONE;
+}
+
+int32 FBoardState::FindNiche(int32 DomainId) const
+{
+	const FTileState* Niche = Tiles.FindByPredicate([DomainId](const FTileState& Tile)
+	{
+		return Tile.Type == ETileType::Niche && Tile.DomainId == DomainId;
+	});
+	return Niche ? Niche->TileId : INDEX_NONE;
+}

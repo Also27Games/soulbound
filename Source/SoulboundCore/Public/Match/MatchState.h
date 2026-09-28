@@ -4,6 +4,16 @@
 #include "Board/BoardState.h"
 #include "MatchState.generated.h"
 
+namespace Soulbound::Match
+{
+	/** Asientos de toda partida: siempre cuatro, los huecos los ocupan bots (glosario "Jugador"). */
+	inline constexpr int32 SeatCount = 4;
+
+	/** Jugadores admitidos en una partida: de uno a cuatro (R-TAB-6: con N jugadores, 6 menos N Dominios Olvidados). */
+	inline constexpr int32 MinPlayers = 1;
+	inline constexpr int32 MaxPlayers = SeatCount;
+}
+
 /** Estado de un asiento (Seat): quien lo ocupe (humano, bot o dummy) decide; el estado es el mismo. */
 USTRUCT()
 struct SOULBOUNDCORE_API FSeatState

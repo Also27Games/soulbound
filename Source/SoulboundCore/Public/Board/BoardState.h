@@ -3,9 +3,15 @@
 #include "CoreMinimal.h"
 #include "BoardState.generated.h"
 
+namespace Soulbound::Board
+{
+	/** Número de Dominios del tablero: siempre seis, en anillo alrededor del Altar (R-TAB-3). */
+	inline constexpr int32 DomainCount = 6;
+}
+
 /**
  * Tipo de casilla (glosario "Casilla": tiene un tipo y conexiones). Es fijo durante la partida;
- * los estados que cambian, como el Sello, van aparte. Nichos, Fuentes y Nodos llegarán con sus stories.
+ * los estados que cambian, como el Sello o el efecto de un Nodo, van aparte.
  */
 UENUM()
 enum class ETileType : uint8
@@ -14,11 +20,52 @@ enum class ETileType : uint8
 	Normal,
 	/** El Altar: detiene el movimiento de quien entra en él (R-TAB-16). */
 	Altar,
+	/** Nicho: una por Dominio, al final de un ramal, con una sola conexión (R-TAB-4, R-TAB-4c). */
+	Niche,
+	/** Fuente de Poder: tantas por Dominio como diga el archivo del tablero (R-TAB-4). */
+	PowerSource,
+	/** Nodo de Poder: posición fija, efecto sorteado al iniciar la partida (R-TAB-5). */
+	PowerNode,
+};
+
+/** Efecto de un Nodo de Poder, sorteado al iniciar la partida (R-TAB-5). None en cualquier otra casilla. */
+UENUM()
+enum class EPowerNodeEffect : uint8
+{
+	None,
+	/** Nodo de Duelo (glosario `DuelNode`). */
+	Duel,
+	/** Nodo del Oráculo (glosario `OracleNode`). */
+	Oracle,
+	/** Nodo Planar (glosario `PlanarNode`). */
+	Planar,
+};
+
+/** Estado de un Dominio (glosario "Dominio"). Lo que se reclama es el Nicho, no el Dominio: su estado va en ENicheState. */
+UENUM()
+enum class EDomainState : uint8
+{
+	/** Con dueño: su Elegido, aunque ningún Eco se haya vinculado aún. */
+	Owned,
+	/** Dominio Olvidado: corrompido por el Warden al inicio (R-TAB-6). */
+	Forgotten,
+};
+
+/** Estado del Nicho de un Dominio. */
+UENUM()
+enum class ENicheState : uint8
+{
+	/** Libre: se puede reclamar. */
+	Free,
+	/** Reclamado por un Eco que se ha vinculado a su Elegido (S-004). */
+	Claimed,
+	/** Cerrado: el Nicho de un Dominio Olvidado (R-TAB-6, glosario "Dominio Olvidado"). */
+	Closed,
 };
 
 /**
  * Casilla (Tile) del tablero: nodo del grafo con sus conexiones (Edges), su tipo y su estado.
- * El ocupante y los Nodos llegarán con sus stories.
+ * El ocupante llegará con su story.
  */
 USTRUCT()
 struct SOULBOUNDCORE_API FTileState
@@ -36,12 +83,76 @@ struct SOULBOUNDCORE_API FTileState
 	UPROPERTY()
 	ETileType Type = ETileType::Normal;
 
+	/** Dominio al que pertenece la casilla (0 a 5). INDEX_NONE solo en el Altar. */
+	UPROPERTY()
+	int32 DomainId = INDEX_NONE;
+
+	/** Efecto sorteado al iniciar la partida si la casilla es un Nodo de Poder (R-TAB-5); None si no. */
+	UPROPERTY()
+	EPowerNodeEffect PowerNodeEffect = EPowerNodeEffect::None;
+
 	/** Sello del Warden: no se pisa ni se atraviesa salvo con Paso Libre (R-TAB-17, glosario "Sello"). */
 	UPROPERTY()
 	bool bSealed = false;
 };
 
-/** Estado del tablero: el grafo de casillas. Datos puros, sin mundo. */
+/**
+ * Dominio del tablero. Su identificador es también su posición en el anillo: el Dominio i es vecino
+ * de i-1 e i+1 (módulo seis). Los GDD posteriores asignan Elegidos y Ecos por este identificador.
+ */
+USTRUCT()
+struct SOULBOUNDCORE_API FDomainState
+{
+	GENERATED_BODY()
+
+	/** Identificador estable, de 0 a 5, en el orden del anillo. */
+	UPROPERTY()
+	int32 DomainId = INDEX_NONE;
+
+	/** Nombre provisional; solo vive en el archivo del tablero. */
+	UPROPERTY()
+	FString Name;
+
+	UPROPERTY()
+	EDomainState State = EDomainState::Owned;
+
+	UPROPERTY()
+	ENicheState NicheState = ENicheState::Free;
+};
+
+/** Parámetros de juego que dependen del tablero. Se cargan del mismo archivo; ningún valor vive en el código. */
+USTRUCT()
+struct SOULBOUNDCORE_API FBoardParams
+{
+	GENERATED_BODY()
+
+	/** Fuentes de Poder por Dominio (R-TAB-4), en datos. */
+	UPROPERTY()
+	int32 PowerSourcesPerDomain = 0;
+
+	/** Cantidad de Nodos de cada efecto (R-TAB-5). Su suma es el número de Nodos del tablero. En datos. */
+	UPROPERTY()
+	int32 DuelNodeCount = 0;
+
+	UPROPERTY()
+	int32 OracleNodeCount = 0;
+
+	UPROPERTY()
+	int32 PlanarNodeCount = 0;
+
+	/** Máximo de casillas selladas a la vez, en datos. Solo se carga; lo usa la story de Sellos. */
+	UPROPERTY()
+	int32 MaxSealedTiles = 0;
+
+	/** Runas en reserva por Fuente (R-TAB-4b), en datos. Solo se carga; lo usa el GDD de runas. */
+	UPROPERTY()
+	int32 RuneReservePerSource = 0;
+
+	/** Número total de Nodos de Poder que piden los datos. */
+	int32 TotalPowerNodeCount() const { return DuelNodeCount + OracleNodeCount + PlanarNodeCount; }
+};
+
+/** Estado del tablero: el grafo de casillas, sus Dominios y sus parámetros. Datos puros, sin mundo. */
 USTRUCT()
 struct SOULBOUNDCORE_API FBoardState
 {
@@ -50,13 +161,29 @@ struct SOULBOUNDCORE_API FBoardState
 	UPROPERTY()
 	TArray<FTileState> Tiles;
 
+	/** Los seis Dominios, indexados por su identificador. Vacío en los tableros mínimos de los tests de movimiento. */
+	UPROPERTY()
+	TArray<FDomainState> Domains;
+
+	UPROPERTY()
+	FBoardParams Params;
+
 	/** Añade una casilla y devuelve su identificador. */
 	int32 AddTile();
 
 	/** Conecta dos casillas en ambos sentidos. Ignora duplicados e identificadores inválidos. */
 	void Connect(int32 TileA, int32 TileB);
 
+	/** Desconecta dos casillas en ambos sentidos. Ignora identificadores inválidos. */
+	void Disconnect(int32 TileA, int32 TileB);
+
 	bool IsValidTile(int32 TileId) const { return Tiles.IsValidIndex(TileId); }
 
 	bool IsAltar(int32 TileId) const { return IsValidTile(TileId) && Tiles[TileId].Type == ETileType::Altar; }
+
+	/** Identificador de la primera casilla Altar, o INDEX_NONE si no hay. */
+	int32 FindAltar() const;
+
+	/** Identificador del Nicho del Dominio indicado, o INDEX_NONE si no tiene. */
+	int32 FindNiche(int32 DomainId) const;
 };
