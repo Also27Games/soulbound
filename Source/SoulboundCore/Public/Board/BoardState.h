@@ -91,7 +91,10 @@ struct SOULBOUNDCORE_API FTileState
 	UPROPERTY()
 	EPowerNodeEffect PowerNodeEffect = EPowerNodeEffect::None;
 
-	/** Sello del Warden: no se pisa ni se atraviesa salvo con Paso Libre (R-TAB-17, glosario "Sello"). */
+	/**
+	 * Sello del Warden: no se pisa ni se atraviesa salvo con Paso Libre (R-TAB-17, glosario "Sello"). En partida lo
+	 * escriben solo las reglas de Board/SealRules.h, a la vez que FBoardState::SealedTiles.
+	 */
 	UPROPERTY()
 	bool bSealed = false;
 };
@@ -140,7 +143,7 @@ struct SOULBOUNDCORE_API FBoardParams
 	UPROPERTY()
 	int32 PlanarNodeCount = 0;
 
-	/** Máximo de casillas selladas a la vez, en datos. Solo se carga; lo usa la story de Sellos. */
+	/** Máximo de casillas selladas a la vez (R-TAB-22), en datos. Con 0 no se sella ninguna. */
 	UPROPERTY()
 	int32 MaxSealedTiles = 0;
 
@@ -167,6 +170,13 @@ struct SOULBOUNDCORE_API FBoardState
 
 	UPROPERTY()
 	FBoardParams Params;
+
+	/**
+	 * Casillas selladas, de la más antigua a la más nueva (R-TAB-22: al pasarse del máximo cae la primera).
+	 * Coherente con FTileState::bSealed; solo la escriben las reglas de Board/SealRules.h. Nombre propuesto en S-004.
+	 */
+	UPROPERTY()
+	TArray<int32> SealedTiles;
 
 	/** Añade una casilla y devuelve su identificador. */
 	int32 AddTile();
