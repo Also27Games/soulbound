@@ -514,7 +514,14 @@ bool FBoardLoadsLayoutPositionsTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	const TSharedPtr<FJsonObject> Positions = Root->GetObjectField(TEXT("editor"))->GetObjectField(TEXT("positions"));
+	// El test comprueba que el bloque existe antes de leerlo: si el archivo lo pierde, falla con un motivo claro.
+	const TSharedPtr<FJsonObject>* Editor = nullptr;
+	const TSharedPtr<FJsonObject>* Positions = nullptr;
+	if (!TestTrue(TEXT("tablero_15.json tiene el bloque editor"), Root->TryGetObjectField(TEXT("editor"), Editor))
+		|| !TestTrue(TEXT("tablero_15.json tiene editor.positions"), (*Editor)->TryGetObjectField(TEXT("positions"), Positions)))
+	{
+		return false;
+	}
 
 	const FBoardLoadResult Result = Soulbound::Rules::LoadBoardFromJsonString(Text);
 	if (!TestTrue(FString::Printf(TEXT("tablero_15.json carga (%s)"), *Result.Message), Result.IsSuccess()))
@@ -524,7 +531,7 @@ bool FBoardLoadsLayoutPositionsTest::RunTest(const FString& Parameters)
 	for (const FTileState& Tile : Result.Board.Tiles)
 	{
 		const TArray<TSharedPtr<FJsonValue>>* Pair = nullptr;
-		if (!Positions->TryGetArrayField(FString::FromInt(Tile.TileId), Pair) || Pair->Num() != 2)
+		if (!(*Positions)->TryGetArrayField(FString::FromInt(Tile.TileId), Pair) || Pair->Num() != 2)
 		{
 			AddError(FString::Printf(TEXT("El archivo no tiene posición para la casilla %d"), Tile.TileId));
 			continue;
@@ -547,10 +554,29 @@ bool FBoardLoadsLayoutPositionsTest::RunTest(const FString& Parameters)
 
 	// Bloque malformado: se rechaza entero, no se ignora en silencio.
 	const TSharedPtr<FJsonObject> Bad = ReadTestBoardJson();
-	TSharedPtr<FJsonObject> Editor = MakeShared<FJsonObject>();
-	Editor->SetStringField(TEXT("positions"), TEXT("no es un objeto"));
-	Bad->SetObjectField(TEXT("editor"), Editor);
+	const TSharedPtr<FJsonObject> BadEditor = MakeShared<FJsonObject>();
+	BadEditor->SetStringField(TEXT("positions"), TEXT("no es un objeto"));
+	Bad->SetObjectField(TEXT("editor"), BadEditor);
 	ExpectRejected(*this, TEXT("Bloque editor.positions malformado"), Soulbound::Rules::LoadBoardFromJsonString(ToJsonString(Bad)), EBoardError::MalformedData);
+
+	// Entrada con un identificador de casilla que no existe, y par con un solo número: los dos son MalformedData.
+	auto WithPositions = [](const FString& Id, const TArray<double>& Pair)
+	{
+		const TSharedPtr<FJsonObject> Json = ReadTestBoardJson();
+		TArray<TSharedPtr<FJsonValue>> Values;
+		for (const double Number : Pair)
+		{
+			Values.Add(MakeShared<FJsonValueNumber>(Number));
+		}
+		const TSharedPtr<FJsonObject> PositionsObject = MakeShared<FJsonObject>();
+		PositionsObject->SetArrayField(Id, Values);
+		const TSharedPtr<FJsonObject> EditorObject = MakeShared<FJsonObject>();
+		EditorObject->SetObjectField(TEXT("positions"), PositionsObject);
+		Json->SetObjectField(TEXT("editor"), EditorObject);
+		return ToJsonString(Json);
+	};
+	ExpectRejected(*this, TEXT("editor.positions con una casilla inexistente"), Soulbound::Rules::LoadBoardFromJsonString(WithPositions(TEXT("999"), {10.0, 20.0})), EBoardError::MalformedData);
+	ExpectRejected(*this, TEXT("editor.positions con un par de un solo número"), Soulbound::Rules::LoadBoardFromJsonString(WithPositions(TEXT("1"), {10.0})), EBoardError::MalformedData);
 	return true;
 }
 
