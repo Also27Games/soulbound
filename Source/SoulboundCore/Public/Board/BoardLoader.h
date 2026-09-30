@@ -61,6 +61,8 @@ namespace Soulbound::Rules
 	/**
 	 * Lee un tablero de un texto JSON y lo valida con ValidateBoard. Se lee entero o se rechaza entero.
 	 * Json: el contenido del archivo (esquema en Content/Data/Boards/tablero_pruebas.json).
+	 * El bloque opcional `editor.positions` ("id": [x, y]) rellena FTileState::LayoutPosition; sin él, las casillas
+	 * quedan sin posición y el tablero carga igual. Un bloque mal formado es MalformedData.
 	 * Devuelve el tablero, o la regla incumplida con su motivo.
 	 */
 	SOULBOUNDCORE_API FBoardLoadResult LoadBoardFromJsonString(const FString& Json);

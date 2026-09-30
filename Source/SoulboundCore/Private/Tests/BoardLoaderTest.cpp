@@ -493,4 +493,65 @@ bool FBoardRejectsMalformedFileTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLoadsLayoutPositionsTest,
+	"Soulbound.Core.Board.Loader.PosicionesDesdeElArchivo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FBoardLoadsLayoutPositionsTest::RunTest(const FString& Parameters)
+{
+	// CA de S-005 "Posiciones desde el archivo" (R-TAB-1). Con posiciones: tablero_15.json trae el bloque
+	// `editor.positions` (el tablero de pruebas no lo tiene; decisión del autor el 30/09/2026). Se compara con
+	// lo que dice el JSON leído por el propio test, sin pasar por el lector.
+	const FString Path15 = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data/Boards/tablero_15.json"));
+	FString Text;
+	if (!TestTrue(TEXT("El test lee tablero_15.json"), FFileHelper::LoadFileToString(Text, *Path15)))
+	{
+		return false;
+	}
+	TSharedPtr<FJsonObject> Root;
+	FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Root);
+	if (!TestTrue(TEXT("tablero_15.json es JSON"), Root.IsValid()))
+	{
+		return false;
+	}
+	const TSharedPtr<FJsonObject> Positions = Root->GetObjectField(TEXT("editor"))->GetObjectField(TEXT("positions"));
+
+	const FBoardLoadResult Result = Soulbound::Rules::LoadBoardFromJsonString(Text);
+	if (!TestTrue(FString::Printf(TEXT("tablero_15.json carga (%s)"), *Result.Message), Result.IsSuccess()))
+	{
+		return false;
+	}
+	for (const FTileState& Tile : Result.Board.Tiles)
+	{
+		const TArray<TSharedPtr<FJsonValue>>* Pair = nullptr;
+		if (!Positions->TryGetArrayField(FString::FromInt(Tile.TileId), Pair) || Pair->Num() != 2)
+		{
+			AddError(FString::Printf(TEXT("El archivo no tiene posición para la casilla %d"), Tile.TileId));
+			continue;
+		}
+		TestTrue(FString::Printf(TEXT("La casilla %d tiene posición"), Tile.TileId), Tile.bHasLayoutPosition);
+		TestEqual(FString::Printf(TEXT("X de la casilla %d"), Tile.TileId), Tile.LayoutPosition.X, (*Pair)[0]->AsNumber());
+		TestEqual(FString::Printf(TEXT("Y de la casilla %d"), Tile.TileId), Tile.LayoutPosition.Y, (*Pair)[1]->AsNumber());
+	}
+
+	// Sin bloque: el tablero de pruebas no lo tiene, carga igual y las posiciones quedan sin definir.
+	FBoardState Plain;
+	if (!LoadTestBoard(*this, Plain))
+	{
+		return false;
+	}
+	for (const FTileState& Tile : Plain.Tiles)
+	{
+		TestFalse(FString::Printf(TEXT("La casilla %d del tablero de pruebas no tiene posición"), Tile.TileId), Tile.bHasLayoutPosition);
+	}
+
+	// Bloque malformado: se rechaza entero, no se ignora en silencio.
+	const TSharedPtr<FJsonObject> Bad = ReadTestBoardJson();
+	TSharedPtr<FJsonObject> Editor = MakeShared<FJsonObject>();
+	Editor->SetStringField(TEXT("positions"), TEXT("no es un objeto"));
+	Bad->SetObjectField(TEXT("editor"), Editor);
+	ExpectRejected(*this, TEXT("Bloque editor.positions malformado"), Soulbound::Rules::LoadBoardFromJsonString(ToJsonString(Bad)), EBoardError::MalformedData);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
