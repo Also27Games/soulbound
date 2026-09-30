@@ -135,9 +135,16 @@ void UMatchHostSubsystem::Advance()
 		const int32 Seat = State.ActiveSeat;
 		if (State.TurnPhase == ETurnPhase::RollAndChoose && Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid())
 		{
+			// Una decisión pendiente de otro turno (otro asiento u otro TurnCount) ya no vale: se descarta.
+			if (Pending.bPending && (Pending.Seat != Seat || Pending.TurnCount != State.TurnCount))
+			{
+				Pending.bPending = false;
+			}
 			if (!Pending.bPending)
 			{
 				Pending.bPending = true;
+				Pending.Seat = Seat;
+				Pending.TurnCount = State.TurnCount;
 				Pending.ReadyAtSeconds = Now + DummyResponseSeconds;
 				Pending.TileId = Deciders[Seat]->ChooseDestination(State, Seat, State.ReachableOptions, DeciderRng);
 			}
@@ -190,9 +197,10 @@ void UMatchHostSubsystem::ApplyWardenDecision(const FWardenDecision& Decision)
 	}
 	State.ClockSeconds = MatchSeconds();
 	FWardenBrain::Apply(State, Decision);
+	// Sin intervención el estado no cambia: no se avisa a la presentación.
 	if (Decision.IsIntervention())
 	{
 		LastWardenLine = Decision.Line;
+		OnMatchStateChanged.Broadcast();
 	}
-	OnMatchStateChanged.Broadcast();
 }

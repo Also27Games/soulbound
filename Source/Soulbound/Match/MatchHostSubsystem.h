@@ -96,9 +96,15 @@ private:
 	/** Carga los archivos de datos e inicia la partida. Devuelve false, con el motivo en el log, si no puede. */
 	bool StartFromData(UWorld& World);
 
+	/**
+	 * Respuesta ya decidida de un dummy, a la espera de su hora. Va atada al turno que la originó (asiento y
+	 * TurnCount): si el turno cambia por cualquier otra vía (reloj agotado, turno extra del mismo asiento), se descarta.
+	 */
 	struct FPendingDecision
 	{
 		bool bPending = false;
+		int32 Seat = INDEX_NONE;
+		int32 TurnCount = INDEX_NONE;
 		double ReadyAtSeconds = 0.0;
 		int32 TileId = INDEX_NONE;
 	};
