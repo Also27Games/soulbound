@@ -1,8 +1,12 @@
 #include "SpikeOnlinePlayerController.h"
 
+#include "../Match/MatchHostSubsystem.h"
+#include "../Presentation/BoardTileActor.h"
+#include "Components/InputComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "InputCoreTypes.h"
 #include "Subsystem/A27OnlineSubsystem.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogSoulboundSpike, Log, All);
@@ -16,6 +20,14 @@ void ASpikeOnlinePlayerController::BeginPlay()
 		return;
 	}
 
+	// Vista de depuración (S-005): cursor visible para hacer clic en las casillas. Juego y UI a la vez, sin capturar
+	// ni ocultar el ratón, así el teclado y el mando siguen llegando a UGT (la pausa del Blueprint hijo incluida).
+	bShowMouseCursor = true;
+	FInputModeGameAndUI InputMode;
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	InputMode.SetHideCursorDuringCapture(false);
+	SetInputMode(InputMode);
+
 	if (UA27OnlineSubsystem* Online = GetOnline())
 	{
 		Online->OnLoginStatusChanged.AddDynamic(this, &ASpikeOnlinePlayerController::HandleLogin);
@@ -25,6 +37,34 @@ void ASpikeOnlinePlayerController::BeginPlay()
 	}
 
 	Say(TEXT("Spike online. Comandos: SbStatus, SbLogin, SbCreate, SbJoin <codigo>, SbLeave"));
+}
+
+void ASpikeOnlinePlayerController::SetupInputComponent()
+{
+	Super::SetupInputComponent();
+	if (InputComponent)
+	{
+		// Enlace directo a la tecla: no crea ningún asset de entrada (S-005 no toca assets).
+		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &ASpikeOnlinePlayerController::OnPrimaryClick);
+	}
+}
+
+void ASpikeOnlinePlayerController::OnPrimaryClick()
+{
+	UWorld* World = GetWorld();
+	UMatchHostSubsystem* Match = World ? World->GetSubsystem<UMatchHostSubsystem>() : nullptr;
+	if (!Match || !Match->HasMatch())
+	{
+		return;
+	}
+	FHitResult Hit;
+	if (GetHitResultUnderCursor(ECC_Visibility, false, Hit))
+	{
+		if (const ABoardTileActor* Tile = Cast<ABoardTileActor>(Hit.GetActor()))
+		{
+			Match->SubmitHumanIntent(Tile->GetTileId());
+		}
+	}
 }
 
 UA27OnlineSubsystem* ASpikeOnlinePlayerController::GetOnline() const

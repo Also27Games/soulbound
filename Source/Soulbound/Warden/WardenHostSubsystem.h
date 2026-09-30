@@ -1,7 +1,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Match/MatchState.h"
 #include "Math/RandomStream.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Warden/WardenBrain.h"
@@ -9,8 +8,9 @@
 
 /**
  * Anfitrión del Warden (glosario "WardenHost"): UWorldSubsystem que existe solo en mundos de juego y solo actúa
- * con autoridad (nunca en un cliente). Es dueño del reloj de evaluación, llama al cerebro sin mundo y aplica
- * lo que este decide (R-WAR-1). No decide nada por sí mismo. Spike, paso 4: estado de prueba y mensajes en pantalla.
+ * con autoridad (nunca en un cliente). Es dueño del reloj de evaluación, llama al cerebro sin mundo y pide al
+ * anfitrión de partida que aplique lo que este decide (R-WAR-1). No decide nada por sí mismo ni tiene partida
+ * propia: evalúa sobre el estado del anfitrión de partida, que es el único que lo escribe (S-005).
  */
 UCLASS()
 class SOULBOUND_API UWardenHostSubsystem : public UWorldSubsystem
@@ -19,6 +19,7 @@ class SOULBOUND_API UWardenHostSubsystem : public UWorldSubsystem
 
 public:
 	virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
 	virtual void Deinitialize() override;
 
@@ -29,8 +30,8 @@ private:
 	void Evaluate();
 
 	FTimerHandle EvaluationTimer;
-	FMatchState State;
 	FRandomStream Rng;
 	FWardenBrain Brain;
 	int32 EvaluationCount = 0;
+	bool bSeeded = false;
 };
