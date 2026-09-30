@@ -42,7 +42,10 @@ public:
 	/** Evalúa el estado y decide. Determinista para un mismo estado y un mismo generador. */
 	FWardenDecision Evaluate(const FMatchState& State, FRandomStream& Rng) const;
 
-	/** Aplica una decisión sobre el estado. Lo usa quien tenga la autoridad: el anfitrión en juego, el bucle en simulación. */
+	/**
+	 * Aplica una decisión sobre el estado con las reglas de Sello del motor (Board/SealRules.h); la marca de tiempo
+	 * de sus eventos es State.ClockSeconds. Lo usa quien tenga la autoridad: el anfitrión en juego, el bucle en simulación.
+	 */
 	static void Apply(FMatchState& State, const FWardenDecision& Decision);
 
 private:

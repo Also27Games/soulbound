@@ -1,6 +1,7 @@
 // Tests de la simulación con reloj virtual (R-SIM-1 a 5 del GDD 08). Desde S-003 la simulación inicia la partida
 // con StartMatch sobre el tablero de pruebas y juega los turnos con la máquina de turnos del motor.
-// Determinismo por semilla, coste por partida y uso de la máquina de turnos. Se lanzan con Scripts/test.ps1.
+// Determinismo por semilla, coste por partida y uso de la máquina de turnos. Desde S-004, los Sellos de partidas
+// enteras cumplen R-TAB-22 y la crónica cuenta los que caen por el tope. Se lanzan con Scripts/test.ps1.
 
 #include "Decider/Decider.h"
 #include "HAL/PlatformMisc.h"
@@ -236,6 +237,10 @@ bool FMatchSimulationChronicleTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Cada turno terminado cuenta cómo acabó"), CountLines(TEXT(" va a la casilla ")) + CountLines(TEXT(" no puede moverse")) + CountLines(TEXT(" agota el reloj")), Result.Turns);
 	TestEqual(TEXT("Una línea por intervención del Warden"), CountLines(TEXT("] Warden ")), Result.Interventions);
 
+	TestEqual(TEXT("Cada Sello que cae por el tope tiene su línea"), CountLines(TEXT(" cae el Sello de la ")),
+		Result.FinalState.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::SealReleased; }).Num()
+		- CountLines(TEXT(" Warden libera la ")));
+
 	if (FPlatformMisc::GetEnvironmentVariable(TEXT("SOULBOUND_CRONICA")) == TEXT("1"))
 	{
 		for (const FString& Line : Result.Log)
@@ -247,6 +252,85 @@ bool FMatchSimulationChronicleTest::RunTest(const FString& Parameters)
 	{
 		UE_LOG(LogSoulboundTest, Display, TEXT("crónica: %d líneas; ejecuta test.ps1 -Cronica para verla"), Result.Log.Num());
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationSealsTest,
+	"Soulbound.Core.Simulation.SellosDentroDeLasReglas",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationSealsTest::RunTest(const FString& Parameters)
+{
+	// Criterio "Cerebro del spike" (S-004, R-TAB-22) en partidas enteras: se rehace el tablero evento a evento desde
+	// el registro y, después de cada Sello, nunca hay más de M, ninguno en casilla prohibida y toda casilla no sellada
+	// tiene camino al Altar (nadie queda encerrado por Sellos). Ninguna intervención de sellar se pierde: cada línea
+	// "Warden sella" de la crónica tiene su SealPlaced. Diez semillas, empezando por la de la crónica.
+	int32 CapReleases = 0;
+	for (int32 Seed = 42; Seed < 52; ++Seed)
+	{
+		FSimulationParams Params;
+		if (!MakeParams(*this, Seed, Params))
+		{
+			return false;
+		}
+		const FSimulationResult Result = FMatchSimulation(Params, FourDummies()).Run();
+
+		FBoardState Board = Result.FinalState.Board;
+		Board.SealedTiles.Reset();
+		for (FTileState& Tile : Board.Tiles)
+		{
+			Tile.bSealed = false;
+		}
+		int32 Placed = 0, Released = 0;
+		bool bBroken = false;
+		for (const FMatchEvent& Event : Result.FinalState.EventLog)
+		{
+			const bool bSealEvent = Event.Type == EMatchEventType::SealPlaced || Event.Type == EMatchEventType::SealReleased;
+			if (bSealEvent && !Board.IsValidTile(Event.Value))
+			{
+				AddError(FString::Printf(TEXT("Semilla %d: evento de Sello con una casilla inexistente, la %d"), Seed, Event.Value));
+				bBroken = true;
+				break;
+			}
+			if (Event.Type == EMatchEventType::SealReleased)
+			{
+				++Released;
+				Board.Tiles[Event.Value].bSealed = false;
+				Board.SealedTiles.Remove(Event.Value);
+				continue;
+			}
+			if (Event.Type != EMatchEventType::SealPlaced)
+			{
+				continue;
+			}
+			++Placed;
+			const FTileState& Tile = Board.Tiles[Event.Value];
+			Board.Tiles[Event.Value].bSealed = true;
+			Board.SealedTiles.Add(Event.Value);
+			const TArray<int32> CutOff = Soulbound::Tests::TilesCutOffFromAltar(Board);
+			if (Board.SealedTiles.Num() > Board.Params.MaxSealedTiles || Tile.Type == ETileType::Altar || Tile.Type == ETileType::Niche
+				|| Tile.Type == ETileType::PowerSource || !CutOff.IsEmpty())
+			{
+				AddError(FString::Printf(TEXT("Semilla %d, [%.0f s]: tras sellar la %d hay %d Sellos y %d casillas sin camino al Altar"),
+					Seed, Event.ClockSeconds, Event.Value, Board.SealedTiles.Num(), CutOff.Num()));
+				bBroken = true;
+				break;
+			}
+		}
+		if (bBroken)
+		{
+			break;
+		}
+		TestTrue(FString::Printf(TEXT("Semilla %d: los Sellos rehechos desde el registro son los del estado final"), Seed), Board.SealedTiles == Result.FinalState.Board.SealedTiles);
+
+		auto CountLines = [&Result](const TCHAR* Fragment)
+		{
+			return Result.Log.FilterByPredicate([Fragment](const FString& Line) { return Line.Contains(Fragment, ESearchCase::CaseSensitive); }).Num();
+		};
+		TestEqual(FString::Printf(TEXT("Semilla %d: cada intervención de sellar sella"), Seed), Placed, CountLines(TEXT("] Warden sella la ")));
+		CapReleases += Released - CountLines(TEXT("] Warden libera la "));
+	}
+	TestTrue(TEXT("En alguna partida el tope entra en juego"), CapReleases > 0);
 	return true;
 }
 

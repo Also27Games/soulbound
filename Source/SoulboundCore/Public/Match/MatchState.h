@@ -56,6 +56,13 @@ enum class EMatchEventType : uint8
 	TurnSkipped,
 	/** Termina el turno de un asiento. */
 	TurnEnded,
+	/** El Warden sella una casilla (R-TAB-22); Value es la casilla, sin asiento. Nombre propuesto en S-004. */
+	SealPlaced,
+	/**
+	 * Se libera un Sello, por el tope (R-TAB-22) o por el Warden (R-TAB-23); Value es la casilla, sin asiento.
+	 * El liberado por tope va justo antes del SealPlaced que lo provoca. Nombre propuesto en S-004.
+	 */
+	SealReleased,
 };
 
 /**
@@ -74,11 +81,11 @@ struct SOULBOUNDCORE_API FMatchEvent
 	UPROPERTY()
 	double ClockSeconds = 0.0;
 
-	/** Asiento afectado. */
+	/** Asiento afectado; INDEX_NONE en los eventos de Sello. */
 	UPROPERTY()
 	int32 Seat = INDEX_NONE;
 
-	/** Dato del evento: la tirada en Rolled; INDEX_NONE en el resto. */
+	/** Dato del evento: la tirada en Rolled, la casilla en SealPlaced y SealReleased; INDEX_NONE en el resto. */
 	UPROPERTY()
 	int32 Value = INDEX_NONE;
 };
