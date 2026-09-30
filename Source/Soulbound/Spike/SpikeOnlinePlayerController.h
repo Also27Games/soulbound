@@ -40,7 +40,9 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
-
+	UFUNCTION(BlueprintCallable)
+	virtual void ShowMouseCursorAndInputGame();
+	
 private:
 	/**
 	 * Clic izquierdo (S-005): si hay una casilla bajo el cursor, envía al anfitrión de partida la intención de
@@ -62,4 +64,5 @@ private:
 
 	UFUNCTION()
 	void HandleLeft(bool bWasSuccessful);
+	
 };

@@ -20,13 +20,7 @@ void ASpikeOnlinePlayerController::BeginPlay()
 		return;
 	}
 
-	// Vista de depuración (S-005): cursor visible para hacer clic en las casillas. Juego y UI a la vez, sin capturar
-	// ni ocultar el ratón, así el teclado y el mando siguen llegando a UGT (la pausa del Blueprint hijo incluida).
-	bShowMouseCursor = true;
-	FInputModeGameAndUI InputMode;
-	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-	InputMode.SetHideCursorDuringCapture(false);
-	SetInputMode(InputMode);
+	ShowMouseCursorAndInputGame();
 
 	if (UA27OnlineSubsystem* Online = GetOnline())
 	{
@@ -47,6 +41,17 @@ void ASpikeOnlinePlayerController::SetupInputComponent()
 		// Enlace directo a la tecla: no crea ningún asset de entrada (S-005 no toca assets).
 		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &ASpikeOnlinePlayerController::OnPrimaryClick);
 	}
+}
+
+void ASpikeOnlinePlayerController::ShowMouseCursorAndInputGame()
+{
+	// Vista de depuración (S-005): cursor visible para hacer clic en las casillas. Juego y UI a la vez, sin capturar
+	// ni ocultar el ratón, así el teclado y el mando siguen llegando a UGT (la pausa del Blueprint hijo incluida).
+	bShowMouseCursor = true;
+	FInputModeGameAndUI InputMode;
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
+	InputMode.SetHideCursorDuringCapture(false);
+	SetInputMode(InputMode);
 }
 
 void ASpikeOnlinePlayerController::OnPrimaryClick()
