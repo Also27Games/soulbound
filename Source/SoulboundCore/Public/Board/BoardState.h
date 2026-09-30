@@ -97,6 +97,19 @@ struct SOULBOUNDCORE_API FTileState
 	 */
 	UPROPERTY()
 	bool bSealed = false;
+
+	/**
+	 * Posición 2D de la casilla en el tablero, en las unidades del archivo (bloque opcional `editor.positions`,
+	 * S-005). Solo vale si bHasLayoutPosition; la presentación la escala. Nombre propuesto en S-005.
+	 */
+	// TODO(R-RED-1): LayoutPosition es un dato de presentación dentro del estado de partida; al replicar el estado,
+	// decidir si viaja al cliente o se recarga del archivo del tablero.
+	UPROPERTY()
+	FVector2D LayoutPosition = FVector2D::ZeroVector;
+
+	/** Si el archivo del tablero traía posición para esta casilla. Sin ella, la presentación reparte las casillas en anillo. */
+	UPROPERTY()
+	bool bHasLayoutPosition = false;
 };
 
 /**

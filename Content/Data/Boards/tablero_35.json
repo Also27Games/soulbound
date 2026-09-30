@@ -1,0 +1,297 @@
+{
+  "parameters": {
+    "powerSourcesPerDomain": 1,
+    "powerNodeEffects": {
+      "duel": 1,
+      "oracle": 1,
+      "planar": 1
+    },
+    "maxSealedTiles": 3,
+    "runeReservePerSource": 4
+  },
+  "domains": [
+    {
+      "id": 0,
+      "name": "Dominio provisional 0"
+    },
+    {
+      "id": 1,
+      "name": "Dominio provisional 1"
+    },
+    {
+      "id": 2,
+      "name": "Dominio provisional 2"
+    },
+    {
+      "id": 3,
+      "name": "Dominio provisional 3"
+    },
+    {
+      "id": 4,
+      "name": "Dominio provisional 4"
+    },
+    {
+      "id": 5,
+      "name": "Dominio provisional 5"
+    }
+  ],
+  "tiles": [
+    {
+      "id": 0,
+      "type": "altar"
+    },
+    {
+      "id": 1,
+      "type": "normal",
+      "domain": 0
+    },
+    {
+      "id": 2,
+      "type": "niche",
+      "domain": 0
+    },
+    {
+      "id": 3,
+      "type": "normal",
+      "domain": 0
+    },
+    {
+      "id": 4,
+      "type": "powerSource",
+      "domain": 0
+    },
+    {
+      "id": 5,
+      "type": "normal",
+      "domain": 0
+    },
+    {
+      "id": 6,
+      "type": "normal",
+      "domain": 0
+    },
+    {
+      "id": 7,
+      "type": "normal",
+      "domain": 1
+    },
+    {
+      "id": 8,
+      "type": "powerSource",
+      "domain": 1
+    },
+    {
+      "id": 9,
+      "type": "normal",
+      "domain": 1
+    },
+    {
+      "id": 10,
+      "type": "niche",
+      "domain": 1
+    },
+    {
+      "id": 11,
+      "type": "normal",
+      "domain": 1
+    },
+    {
+      "id": 12,
+      "type": "normal",
+      "domain": 1
+    },
+    {
+      "id": 13,
+      "type": "normal",
+      "domain": 2
+    },
+    {
+      "id": 14,
+      "type": "normal",
+      "domain": 2
+    },
+    {
+      "id": 15,
+      "type": "niche",
+      "domain": 2
+    },
+    {
+      "id": 16,
+      "type": "normal",
+      "domain": 2
+    },
+    {
+      "id": 17,
+      "type": "powerSource",
+      "domain": 2
+    },
+    {
+      "id": 18,
+      "type": "normal",
+      "domain": 3
+    },
+    {
+      "id": 19,
+      "type": "niche",
+      "domain": 3
+    },
+    {
+      "id": 20,
+      "type": "normal",
+      "domain": 3
+    },
+    {
+      "id": 21,
+      "type": "powerNode",
+      "domain": 3
+    },
+    {
+      "id": 22,
+      "type": "powerSource",
+      "domain": 3
+    },
+    {
+      "id": 23,
+      "type": "normal",
+      "domain": 4
+    },
+    {
+      "id": 24,
+      "type": "niche",
+      "domain": 4
+    },
+    {
+      "id": 25,
+      "type": "normal",
+      "domain": 4
+    },
+    {
+      "id": 26,
+      "type": "powerNode",
+      "domain": 4
+    },
+    {
+      "id": 27,
+      "type": "powerSource",
+      "domain": 4
+    },
+    {
+      "id": 28,
+      "type": "normal",
+      "domain": 4
+    },
+    {
+      "id": 29,
+      "type": "normal",
+      "domain": 5
+    },
+    {
+      "id": 30,
+      "type": "niche",
+      "domain": 5
+    },
+    {
+      "id": 31,
+      "type": "normal",
+      "domain": 5
+    },
+    {
+      "id": 32,
+      "type": "powerSource",
+      "domain": 5
+    },
+    {
+      "id": 33,
+      "type": "normal",
+      "domain": 5
+    },
+    {
+      "id": 34,
+      "type": "powerNode",
+      "domain": 5
+    }
+  ],
+  "edges": [
+    [0, 1],
+    [1, 2],
+    [1, 3],
+    [3, 4],
+    [4, 5],
+    [3, 6],
+    [0, 7],
+    [7, 8],
+    [8, 9],
+    [9, 10],
+    [8, 11],
+    [11, 12],
+    [0, 13],
+    [13, 14],
+    [14, 15],
+    [13, 16],
+    [14, 17],
+    [0, 18],
+    [18, 20],
+    [18, 21],
+    [20, 22],
+    [0, 23],
+    [23, 24],
+    [23, 25],
+    [23, 26],
+    [25, 27],
+    [26, 28],
+    [0, 29],
+    [29, 30],
+    [29, 31],
+    [31, 32],
+    [31, 33],
+    [33, 34],
+    [8, 12],
+    [21, 22],
+    [12, 14],
+    [13, 20],
+    [23, 29],
+    [32, 5],
+    [6, 9],
+    [20, 19],
+    [23, 21]
+  ],
+  "editor": {
+    "positions": {
+      "0": [500, 500],
+      "1": [500, 390],
+      "2": [403, 251],
+      "3": [556, 321],
+      "4": [499, 218],
+      "5": [450, 113],
+      "6": [612, 200],
+      "7": [595, 445],
+      "8": [627, 362],
+      "9": [680, 304],
+      "10": [798, 328],
+      "11": [760, 442],
+      "12": [683, 459],
+      "13": [595, 555],
+      "14": [683, 541],
+      "15": [824, 575],
+      "16": [627, 638],
+      "17": [742, 674],
+      "18": [500, 610],
+      "19": [584, 767],
+      "20": [568, 669],
+      "21": [438, 671],
+      "22": [500, 766],
+      "23": [405, 555],
+      "24": [372, 617],
+      "25": [266, 597],
+      "26": [312, 513],
+      "27": [194, 720],
+      "28": [141, 559],
+      "29": [405, 445],
+      "30": [257, 462],
+      "31": [149, 409],
+      "32": [125, 203],
+      "33": [319, 347],
+      "34": [272, 277]
+    }
+  }
+}

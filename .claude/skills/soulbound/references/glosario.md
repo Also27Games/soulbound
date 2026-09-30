@@ -24,7 +24,9 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 |---|---|---|
 | La Cripta | `Crypt` | La sala donde se juega. En VR rodea al jugador; en PC es el escenario alrededor del tablero. |
 | Tablero | `Board` | Grafo de casillas: el Altar en el centro y seis Dominios conectados con él y entre vecinos. |
-| Casilla | `Tile` | Nodo del grafo. Tiene un tipo (`ETileType`: `Normal`, `Altar`, `Niche`, `PowerSource`, `PowerNode`), el Dominio al que pertenece (ninguno solo en el Altar), conexiones y estados que cambian (Sello, efecto del Nodo). |
+| Casilla | `Tile` | Nodo del grafo. Tiene un tipo (`ETileType`: `Normal`, `Altar`, `Niche`, `PowerSource`, `PowerNode`), el Dominio al que pertenece (ninguno solo en el Altar), conexiones y estados que cambian (Sello, efecto del Nodo) y, si el archivo la trae, su posición 2D en el tablero (`LayoutPosition`, con `bHasLayoutPosition`; viene del bloque `editor.positions` del JSON). |
+| Ficha | `Token` | Representación en pantalla de un asiento sobre su casilla (`ASeatTokenActor`). Presentación pura: la posición del asiento vive en el estado (`FSeatState::TileId`). |
+| Vista del tablero | `BoardView` | Presentación generada desde los datos al iniciar la partida (`ABoardViewActor`): conexiones, una casilla en pantalla por casilla (`ABoardTileActor`), fichas, cámara cenital y texto de depuración. Lee el estado en solo lectura, sin reglas. Vista de depuración de S-005, no la interfaz del GDD 07. |
 | Conexión | `Edge` | Enlace entre dos casillas. |
 | El Altar | `Altar` | Casilla central grande. Todos los jugadores empiezan en ella. De ella parten los caminos a los seis Dominios. Con seis runas distintas, el jugador vuelve al Altar, las engarza y arranca el desafío final. **Detiene el movimiento** (R-TAB-16): si un camino entra en él, termina ahí aunque sobre tirada, y no se cruza dentro de un mismo movimiento; es alcanzable a distancia menor o igual que la tirada, sin tirada exacta. A efectos de castigos y de compartir casilla es una casilla normal; no se puede sellar. |
 | Trono | `Throne` | Asiento de cada jugador en la Cripta, alrededor de la mesa. No es una casilla del tablero. La cámara nunca lo abandona: gira la cabeza, se inclina y se pone de pie. En el Vacío, el avatar del desterrado sigue en él, espectral. |
@@ -130,7 +132,8 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Español | Código | Definición |
 |---|---|---|
 | IA directora, el cerebro | `WardenBrain` | Clase de C++ sin `UWorld`, actores ni temporizadores: de estado de partida, reloj y semilla a una decisión. Se prueba sin editor y se simula miles de veces. |
-| Anfitrión del Warden | `WardenHost` | `UWorldSubsystem` solo en el servidor: dueño del intervalo de evaluación, llama al cerebro, aplica la decisión y la replica. No decide. |
+| Anfitrión del Warden | `WardenHost` | `UWorldSubsystem` solo en el servidor: dueño del intervalo de evaluación, llama al cerebro y pide al anfitrión de partida que aplique la decisión. No decide ni tiene partida propia. |
+| Anfitrión de partida | `MatchHost` | `UWorldSubsystem` (`UMatchHostSubsystem`) solo en el servidor y solo en mapas de partida: dueño de la partida. Carga el tablero y los parámetros de sus archivos, llama a `StartMatch`, avanza la máquina de turnos con el reloj real, consulta a los dummies y recibe la intención del humano. Único que escribe el estado y lanza `OnMatchStateChanged`; el anfitrión del Warden actúa sobre él. |
 | Golpe | `Strike` | Canal del Warden: evento con efecto dirigido al jugador activo, en cualquier instante del turno; lo corta. |
 | Escena | `Scene` | Canal del Warden: evento sin protagonista, entre turno y turno; no corta salvo que en datos se marque como cortante. |
 | Comentario | `Remark` | Canal del Warden: solo voz y subtítulo, sin efecto, sin cortar; el Warden no se materializa. Doce tipos con tres variantes cada uno. |

@@ -53,6 +53,44 @@ namespace
 		return false;
 	}
 
+	/**
+	 * Lee el bloque opcional `editor.positions` ("id": [x, y]) a la posición de cada casilla (R-TAB-1). Sin bloque,
+	 * o sin entrada para una casilla, esa casilla queda sin posición. Un bloque mal formado se rechaza entero.
+	 * Debe llamarse con las casillas ya leídas.
+	 */
+	FBoardLoadResult ParseLayoutPositions(const FJsonObject& Root, FBoardState& Board)
+	{
+		const TSharedPtr<FJsonObject>* Editor = nullptr;
+		if (!Root.TryGetObjectField(TEXT("editor"), Editor))
+		{
+			return FBoardLoadResult();
+		}
+		const TSharedPtr<FJsonObject>* Positions = nullptr;
+		if (!(*Editor)->HasField(TEXT("positions")))
+		{
+			return FBoardLoadResult();
+		}
+		if (!(*Editor)->TryGetObjectField(TEXT("positions"), Positions))
+		{
+			return Reject(EBoardError::MalformedData, TEXT("\"editor.positions\" debe ser un objeto de identificador de casilla a [x, y]."));
+		}
+		for (const TPair<FString, TSharedPtr<FJsonValue>>& Entry : (*Positions)->Values)
+		{
+			int32 TileId = INDEX_NONE;
+			const TArray<TSharedPtr<FJsonValue>>* Pair = nullptr;
+			double X = 0.0, Y = 0.0;
+			if (!LexTryParseString(TileId, *Entry.Key) || !Board.IsValidTile(TileId)
+				|| !Entry.Value.IsValid() || !Entry.Value->TryGetArray(Pair) || Pair->Num() != 2
+				|| !(*Pair)[0]->TryGetNumber(X) || !(*Pair)[1]->TryGetNumber(Y))
+			{
+				return Reject(EBoardError::MalformedData, FString::Printf(TEXT("\"editor.positions\": la entrada \"%s\" no es una casilla existente con [x, y]."), *Entry.Key));
+			}
+			Board.Tiles[TileId].LayoutPosition = FVector2D(X, Y);
+			Board.Tiles[TileId].bHasLayoutPosition = true;
+		}
+		return FBoardLoadResult();
+	}
+
 	FBoardLoadResult ParseParams(const FJsonObject& Root, FBoardParams& Out)
 	{
 		const TSharedPtr<FJsonObject>* Params = nullptr;
@@ -331,6 +369,11 @@ namespace Soulbound::Rules
 			return Step;
 		}
 		Step = ParseEdges(*Root, Board);
+		if (!Step.IsSuccess())
+		{
+			return Step;
+		}
+		Step = ParseLayoutPositions(*Root, Board);
 		if (!Step.IsSuccess())
 		{
 			return Step;

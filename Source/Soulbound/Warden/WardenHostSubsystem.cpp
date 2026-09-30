@@ -1,8 +1,7 @@
 #include "WardenHostSubsystem.h"
 
-#include "../Spike/SpikeOnlineGameMode.h"
+#include "../Match/MatchHostSubsystem.h"
 #include "Engine/Engine.h"
-#include "GameFramework/GameModeBase.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 
@@ -19,27 +18,23 @@ bool UWardenHostSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 	return World && (World->WorldType == EWorldType::Game || World->WorldType == EWorldType::PIE);
 }
 
+void UWardenHostSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	// El anfitrión de partida existe antes que este: se evalúa sobre su estado.
+	Collection.InitializeDependency<UMatchHostSubsystem>();
+	Super::Initialize(Collection);
+}
+
 void UWardenHostSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
 	Super::OnWorldBeginPlay(InWorld);
 
-	// Solo con autoridad: el creador de la partida es el servidor (R-RED-1). Un cliente no evalúa nunca.
-	if (InWorld.GetNetMode() == NM_Client)
+	// Mismas condiciones que el anfitrión de partida: solo con autoridad y solo en una partida (no en los menús).
+	if (!UMatchHostSubsystem::IsMatchWorld(InWorld))
 	{
-		UE_LOG(LogSoulboundWarden, Log, TEXT("Anfitrion del Warden inactivo: este proceso es un cliente."));
+		UE_LOG(LogSoulboundWarden, Log, TEXT("Anfitrion del Warden inactivo: este mundo no es una partida con autoridad."));
 		return;
 	}
-
-	// Solo en una partida: el anfitrión pertenece a la partida, no al mundo. En el spike, "partida" es el mapa
-	// con nuestro GameMode; en los menús de UGT no hay Warden. En el motor real lo arrancará el GameMode de la Cripta.
-	if (!InWorld.GetAuthGameMode<ASpikeOnlineGameMode>())
-	{
-		UE_LOG(LogSoulboundWarden, Log, TEXT("Anfitrion del Warden inactivo: este mapa no es una partida."));
-		return;
-	}
-
-	State = FMatchState::MakeSpikeMatch();
-	Rng.Initialize(static_cast<int32>(FDateTime::Now().GetTicks() & 0x7fffffff));
 
 	InWorld.GetTimerManager().SetTimer(EvaluationTimer, this, &UWardenHostSubsystem::Evaluate, EvaluationPeriodSeconds, true);
 	UE_LOG(LogSoulboundWarden, Log, TEXT("Anfitrion del Warden activo: evalua cada %.0f s."), EvaluationPeriodSeconds);
@@ -56,25 +51,27 @@ void UWardenHostSubsystem::Deinitialize()
 
 void UWardenHostSubsystem::Evaluate()
 {
-	if (const UWorld* World = GetWorld())
+	UMatchHostSubsystem* Match = GetWorld() ? GetWorld()->GetSubsystem<UMatchHostSubsystem>() : nullptr;
+	if (!Match || !Match->HasMatch())
 	{
-		State.ClockSeconds = World->GetTimeSeconds();
+		return;
+	}
+	if (!bSeeded)
+	{
+		// Semilla derivada de la de la partida (+2; +1 es la de los decisores): fijarla repite también al Warden.
+		Rng.Initialize(Match->GetSeed() + 2);
+		bSeeded = true;
 	}
 	++EvaluationCount;
 
+	const FMatchState& State = Match->GetState();
 	const FWardenDecision Decision = Brain.Evaluate(State, Rng);
-	FWardenBrain::Apply(State, Decision);
-
-	int32 SealedCount = 0;
-	for (const FTileState& Tile : State.Board.Tiles)
-	{
-		SealedCount += Tile.bSealed ? 1 : 0;
-	}
+	Match->ApplyWardenDecision(Decision);
 
 	const FString Text = Decision.IsIntervention()
 		? FString::Printf(TEXT("Warden (eval %d, t=%.0f s): accion %d en casilla %d, \"%s\". Sellos: %d"),
-			EvaluationCount, State.ClockSeconds, static_cast<int32>(Decision.Action), Decision.TileId, *Decision.Line, SealedCount)
-		: FString::Printf(TEXT("Warden (eval %d, t=%.0f s): observa y calla. Sellos: %d"), EvaluationCount, State.ClockSeconds, SealedCount);
+			EvaluationCount, State.ClockSeconds, static_cast<int32>(Decision.Action), Decision.TileId, *Decision.Line, State.Board.SealedTiles.Num())
+		: FString::Printf(TEXT("Warden (eval %d, t=%.0f s): observa y calla. Sellos: %d"), EvaluationCount, State.ClockSeconds, State.Board.SealedTiles.Num());
 
 	UE_LOG(LogSoulboundWarden, Log, TEXT("%s"), *Text);
 	if (GEngine)
