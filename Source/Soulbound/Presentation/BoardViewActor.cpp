@@ -26,19 +26,39 @@ namespace
 	constexpr uint64 TextKeyBase = 0x53420500;
 
 	/**
-	 * Colores por tipo. Deliberadamente oscuros: la luz y la exposición del nivel del spike los multiplican por más
-	 * de dos, y con valores medios todo sale pastel y la casilla normal se confunde con la alcanzable (blanca).
+	 * Color de fondo de la casilla normal según su Dominio (cambio pedido por el autor en la revisión de S-005):
+	 * seis tintes oscuros y poco saturados, ninguno gris, verde ni morado, y todos más oscuros que los colores de
+	 * tipo (DomainColor es el fondo; el tipo es la señal). Sin Dominio válido, azul muy oscuro.
+	 * Como el resto de colores, van bajos a propósito: la luz y la exposición del nivel del spike los multiplican
+	 * por más de dos.
 	 */
-	FLinearColor TileTypeColor(ETileType Type)
+	FLinearColor DomainColor(int32 DomainId)
+	{
+		static const FLinearColor Colors[] = {
+			FLinearColor(0.06f, 0.10f, 0.28f), // 0 azul marino
+			FLinearColor(0.28f, 0.06f, 0.08f), // 1 burdeos
+			FLinearColor(0.28f, 0.22f, 0.04f), // 2 mostaza oscura
+			FLinearColor(0.04f, 0.20f, 0.22f), // 3 petróleo
+			FLinearColor(0.26f, 0.13f, 0.06f), // 4 marrón rojizo
+			FLinearColor(0.30f, 0.12f, 0.20f), // 5 rosa apagado
+		};
+		return (DomainId >= 0 && DomainId < UE_ARRAY_COUNT(Colors)) ? Colors[DomainId] : Colors[0];
+	}
+
+	/**
+	 * Colores de tipo: saturados y más claros que cualquier Dominio, para que el tipo destaque sobre el fondo. La
+	 * casilla normal usa el de su Dominio (DomainColor).
+	 */
+	FLinearColor TileTypeColor(ETileType Type, int32 DomainId)
 	{
 		switch (Type)
 		{
-		case ETileType::Altar: return FLinearColor(0.45f, 0.18f, 0.02f);
-		case ETileType::Niche: return FLinearColor(0.25f, 0.08f, 0.45f);
-		case ETileType::PowerSource: return FLinearColor(0.03f, 0.30f, 0.40f);
-		case ETileType::PowerNode: return FLinearColor(0.06f, 0.40f, 0.10f);
+		case ETileType::Altar: return FLinearColor(0.70f, 0.30f, 0.03f);
+		case ETileType::Niche: return FLinearColor(0.40f, 0.10f, 0.75f);
+		case ETileType::PowerSource: return FLinearColor(0.04f, 0.45f, 0.65f);
+		case ETileType::PowerNode: return FLinearColor(0.08f, 0.65f, 0.15f);
 		case ETileType::Normal:
-		default: return FLinearColor(0.10f, 0.10f, 0.12f);
+		default: return DomainColor(DomainId);
 		}
 	}
 
@@ -297,7 +317,7 @@ void ABoardViewActor::Refresh()
 			continue;
 		}
 		const bool bForgotten = State.Board.Domains.IsValidIndex(Tile.DomainId) && State.Board.Domains[Tile.DomainId].State == EDomainState::Forgotten;
-		FLinearColor Color = TileTypeColor(Tile.Type);
+		FLinearColor Color = TileTypeColor(Tile.Type, Tile.DomainId);
 		if (Reachable.Contains(Tile.TileId))
 		{
 			Color = FLinearColor::White;
