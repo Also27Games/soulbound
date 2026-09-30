@@ -25,16 +25,20 @@ namespace
 	/** Clave base de los mensajes de pantalla de esta vista: una línea por clave, se sustituyen al refrescar. */
 	constexpr uint64 TextKeyBase = 0x53420500;
 
+	/**
+	 * Colores por tipo. Deliberadamente oscuros: la luz y la exposición del nivel del spike los multiplican por más
+	 * de dos, y con valores medios todo sale pastel y la casilla normal se confunde con la alcanzable (blanca).
+	 */
 	FLinearColor TileTypeColor(ETileType Type)
 	{
 		switch (Type)
 		{
-		case ETileType::Altar: return FLinearColor(0.9f, 0.5f, 0.1f);
-		case ETileType::Niche: return FLinearColor(0.6f, 0.3f, 0.85f);
-		case ETileType::PowerSource: return FLinearColor(0.2f, 0.8f, 0.9f);
-		case ETileType::PowerNode: return FLinearColor(0.3f, 0.85f, 0.35f);
+		case ETileType::Altar: return FLinearColor(0.45f, 0.18f, 0.02f);
+		case ETileType::Niche: return FLinearColor(0.25f, 0.08f, 0.45f);
+		case ETileType::PowerSource: return FLinearColor(0.03f, 0.30f, 0.40f);
+		case ETileType::PowerNode: return FLinearColor(0.06f, 0.40f, 0.10f);
 		case ETileType::Normal:
-		default: return FLinearColor(0.35f, 0.35f, 0.4f);
+		default: return FLinearColor(0.10f, 0.10f, 0.12f);
 		}
 	}
 
@@ -48,7 +52,7 @@ namespace
 	/** Atenuado de una casilla de un Dominio Olvidado: mismo tono, mucho más oscuro. */
 	FLinearColor Dimmed(const FLinearColor& Color)
 	{
-		return FLinearColor(Color.R * 0.25f, Color.G * 0.25f, Color.B * 0.25f);
+		return FLinearColor(Color.R * 0.4f, Color.G * 0.4f, Color.B * 0.4f);
 	}
 
 	const TCHAR* PhaseName(ETurnPhase Phase)
@@ -194,7 +198,7 @@ void ABoardViewActor::BuildEdges()
 			Strip->SetWorldLocation((A + B) * 0.5f + FVector(0.f, 0.f, EdgeThickness * 0.5f));
 			Strip->SetWorldRotation(FRotator(0.f, FMath::RadiansToDegrees(FMath::Atan2(Delta.Y, Delta.X)), 0.f));
 			Strip->SetWorldScale3D(FVector(Delta.Size() / 100.f, EdgeWidth / 100.f, EdgeThickness / 100.f));
-			Soulbound::Presentation::SetComponentColor(*Strip, BaseMaterial, FLinearColor(0.75f, 0.75f, 0.8f));
+			Soulbound::Presentation::SetComponentColor(*Strip, BaseMaterial, FLinearColor(0.04f, 0.04f, 0.05f));
 			EdgeStrips.Add(Strip);
 		}
 	}
@@ -300,7 +304,7 @@ void ABoardViewActor::Refresh()
 		}
 		else if (Tile.bSealed)
 		{
-			Color = FLinearColor(0.9f, 0.05f, 0.05f);
+			Color = FLinearColor(0.55f, 0.01f, 0.01f);
 		}
 		else if (bForgotten)
 		{
