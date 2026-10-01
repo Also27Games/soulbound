@@ -13,8 +13,8 @@ public class Soulbound : ModuleRules
 		// Also27Online: plugin propio de sesiones por código (Plugins/A27Online). Solo lo usa el spike de momento.
 		PrivateDependencyModuleNames.AddRange(new string[] { "Also27Online" });
 
-		// Uncomment if you are using Slate UI
-		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
+		// Slate y SlateCore: el panel de crónica y la leyenda de la vista de depuración (S-007).
+		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
 		
 		// Uncomment if you are using online features
 		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
