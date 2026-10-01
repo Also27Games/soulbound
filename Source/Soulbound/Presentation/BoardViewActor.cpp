@@ -406,7 +406,7 @@ void ABoardViewActor::BuildTiles()
 				return Text;
 			};
 			const FString Name = Board.Domains.IsValidIndex(Tile.DomainId) ? Board.Domains[Tile.DomainId].Name : FString();
-			NicheNames[Tile.TileId] = AddText(NicheNameSize, FVector(Diameter * 0.38f, 0.f, InlayHeight + 3.f));
+			NicheNames[Tile.TileId] = AddText(NicheNameSize, FVector(Diameter * NicheNameOffsetFraction, 0.f, InlayHeight + 3.f));
 			NicheNames[Tile.TileId]->SetText(FText::FromString(TwoLineName(Name)));
 			NicheNumbers[Tile.TileId] = AddText(NicheNumberSize, FVector(0.f, 0.f, InlayHeight + 3.f));
 			NicheNumbers[Tile.TileId]->SetText(FText::GetEmpty());

@@ -124,9 +124,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
 	float NicheNumberSize = 60.f;
 
-	/** Alto de la letra del nombre del Elegido en la etiqueta del Nicho, en cm. Valor inicial 19. */
+	/** Alto de la letra del nombre del Elegido en la etiqueta del Nicho, en cm. Valor inicial 30 (el nombre más largo, "(Mictlantecuhtli)", sobresale de la casilla). */
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
-	float NicheNameSize = 19.f;
+	float NicheNameSize = 30.f;
+
+	/** Distancia del nombre al centro del Nicho, hacia arriba de la pantalla, por el diámetro de la casilla. Valor inicial 0,55. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
+	float NicheNameOffsetFraction = 0.55f;
 
 	// ---- Asiento activo ----
 
