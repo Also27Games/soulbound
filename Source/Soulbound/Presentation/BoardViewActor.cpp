@@ -394,13 +394,13 @@ void ABoardViewActor::UpdateCamera()
 	}
 	LastViewportSize = Viewport;
 
-	// Cámara cenital fija: el tablero entero, con un 10 % de margen, en el hueco que dejan los paneles a la derecha.
+	// Cámara cenital fija: el tablero entero, con el margen CameraMargin, en el hueco que dejan los paneles a la derecha.
 	// Con FOV horizontal de 60 grados, a la altura H se ve media anchura H*tan(30); la media altura es esa entre el aspecto.
 	constexpr float Fov = 60.f;
 	const float Aspect = Viewport.X / Viewport.Y;
 	const float HalfTan = FMath::Tan(FMath::DegreesToRadians(Fov * 0.5f));
 	const float FreeFraction = 1.f - FMath::Clamp(PanelWidthPixels / static_cast<float>(Viewport.X), 0.f, 0.6f);
-	const float Height = 1.1f * FMath::Max(BoardHalf.Y / (FreeFraction * HalfTan), BoardHalf.X * Aspect / HalfTan);
+	const float Height = CameraMargin * FMath::Max(BoardHalf.Y / (FreeFraction * HalfTan), BoardHalf.X * Aspect / HalfTan);
 	// La pantalla crece hacia +Y a la derecha: para que el tablero quede a la izquierda, la cámara se corre hacia +Y.
 	const float VisibleHalfWidth = Height * HalfTan;
 	const float ShiftY = VisibleHalfWidth * (1.f - FreeFraction);

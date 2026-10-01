@@ -50,25 +50,25 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista")
 	float PositionScale = 3.f;
 
-	/** Diámetro de una casilla, en cm. Valor inicial 110. */
+	/** Diámetro de una casilla, en cm. Valor inicial 175: el tablero de 35 casillas deja como mínimo 210 entre centros. */
 	UPROPERTY(EditAnywhere, Category = "Vista")
-	float TileDiameter = 110.f;
+	float TileDiameter = 175.f;
 
-	/** Grosor de la tira de una conexión, en cm. Valor inicial 14. */
+	/** Grosor de la tira de una conexión, en cm. Valor inicial 22. */
 	UPROPERTY(EditAnywhere, Category = "Vista")
-	float EdgeWidth = 14.f;
+	float EdgeWidth = 22.f;
 
-	/** Diámetro de una ficha, en cm. Valor inicial 40. */
+	/** Diámetro de una ficha, en cm. Valor inicial 62. */
 	UPROPERTY(EditAnywhere, Category = "Vista")
-	float TokenDiameter = 40.f;
+	float TokenDiameter = 62.f;
 
 	/** Segundos entre refrescos del texto y de la cámara. Valor inicial 0,25 (4 Hz). */
 	UPROPERTY(EditAnywhere, Category = "Vista")
 	float HudIntervalSeconds = 0.25f;
 
-	/** El Altar mide esto por el diámetro de una casilla. Valor inicial 1,8. */
+	/** El Altar mide esto por el diámetro de una casilla. Valor inicial 1,6. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
-	float AltarScale = 1.8f;
+	float AltarScale = 1.6f;
 
 	/** Grosor de la losa del Altar, en cm (las demás miden 10). Valor inicial 22. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
@@ -84,49 +84,53 @@ public:
 
 	// ---- Etiquetas ----
 
-	/** Alto de la letra de la etiqueta de casilla (TileLabel), en cm. Valor inicial 24. */
+	/** Alto de la letra de la etiqueta de casilla (TileLabel), en cm. Valor inicial 40: "N D3·41" mide unos 155 cm y la casilla 175. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
-	float LabelSize = 24.f;
+	float LabelSize = 40.f;
 
-	/** Distancia de la etiqueta al centro, hacia abajo de la pantalla, por el diámetro de la casilla. Valor inicial 0,39. */
+	/** Distancia de la etiqueta al centro, hacia abajo de la pantalla, por el diámetro de la casilla. Valor inicial 0,4. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
-	float LabelOffsetFraction = 0.39f;
+	float LabelOffsetFraction = 0.4f;
 
-	/** Alto de la letra del número de la ficha, en cm. Valor inicial 26. */
+	/** Alto de la letra del número de la ficha, en cm. Valor inicial 40. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
-	float TokenLabelSize = 26.f;
+	float TokenLabelSize = 40.f;
 
 	// ---- Asiento activo ----
 
-	/** Cuánto sube la ficha del asiento activo, en cm. Valor inicial 45. */
+	/** Cuánto sube la ficha del asiento activo, en cm. Valor inicial 70. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Asiento activo")
-	float ActiveLift = 45.f;
+	float ActiveLift = 70.f;
 
 	/** Grados por segundo que gira la ficha activa. Valor inicial 90 (una vuelta cada cuatro segundos). */
 	UPROPERTY(EditAnywhere, Category = "Vista|Asiento activo")
 	float ActiveSpinDegreesPerSecond = 90.f;
 
-	/** Diámetro del aro de color (SeatRing) bajo la ficha activa, en cm. Valor inicial 150. */
+	/** Diámetro del aro de color (SeatRing) bajo la ficha activa, en cm. Valor inicial 235. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Asiento activo")
-	float RingDiameter = 150.f;
+	float RingDiameter = 235.f;
 
-	/** Ancho del aro, en cm. Valor inicial 10. */
+	/** Ancho del aro, en cm. Valor inicial 14. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Asiento activo")
-	float RingWidth = 10.f;
+	float RingWidth = 14.f;
 
 	// ---- Paneles ----
 
-	/** Ancho de la columna de la derecha (leyenda y crónica), en píxeles. La cámara deja ese hueco al tablero. Valor inicial 440. */
+	/** Ancho de la columna de la derecha (leyenda y crónica), en píxeles. La cámara deja ese hueco al tablero. Valor inicial 460. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Paneles")
-	float PanelWidthPixels = 440.f;
+	float PanelWidthPixels = 460.f;
 
-	/** Tamaño de la letra de los paneles. Valor inicial 11 (se lee a 1280x800). */
+	/** Tamaño de la letra de los paneles. Valor inicial 13 (se lee a 1280x800). */
 	UPROPERTY(EditAnywhere, Category = "Vista|Paneles")
-	int32 PanelFontSize = 11;
+	int32 PanelFontSize = 13;
 
 	/** Líneas de crónica que se conservan; al pasarse se recortan las más viejas. Valor inicial 300. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Paneles")
 	int32 ChronicleMaxLines = 300;
+
+	/** Margen de la cámara alrededor del tablero (1 = justo al borde). Valor inicial 1,04. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Paneles")
+	float CameraMargin = 1.04f;
 
 	// ---- Exposición ----
 
