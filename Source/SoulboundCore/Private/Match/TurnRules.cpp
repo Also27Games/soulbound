@@ -215,6 +215,7 @@ namespace Soulbound::Rules
 			return EIntentResult::Unreachable;
 		}
 		State.Seats[Seat].TileId = TileId;
+		LogEvent(State, EMatchEventType::Moved, NowSeconds, Seat, TileId);
 		State.TurnPhase = ETurnPhase::MoveAndResolve;
 		return EIntentResult::Accepted;
 	}

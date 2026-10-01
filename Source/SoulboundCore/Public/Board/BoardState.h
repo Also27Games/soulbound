@@ -139,7 +139,7 @@ struct SOULBOUNDCORE_API FDomainState
 	UPROPERTY()
 	int32 DomainId = INDEX_NONE;
 
-	/** Nombre provisional; solo vive en el archivo del tablero. */
+	/** Nombre del Elegido del Dominio, de los datos (domains[].name); solo vive en el archivo del tablero. */
 	UPROPERTY()
 	FString Name;
 

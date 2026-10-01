@@ -85,8 +85,8 @@ FSimulationResult FMatchSimulation::Run()
 
 	// Pasa al registro de texto lo que el motor ha dejado en su registro de eventos y la crónica no cuenta ya de otra
 	// forma: agotamientos, turnos saltados, Sellos que caen por el tope y la carrera por el vínculo (vínculos, Despertar,
-	// hogares, vueltas al hogar, victoria del Warden y fin de carrera). Inicio, tirada y destino los escribe StepTurn,
-	// que tiene las opciones; los Sellos que pone o quita el Warden, su propia línea.
+	// hogares, vueltas al hogar, victoria del Warden y fin de carrera) y los movimientos (Moved, S-007). Inicio y tirada
+	// los escribe StepTurn, que tiene las opciones; los Sellos que pone o quita el Warden, su propia línea.
 	auto LogNewEvents = [&Result, &State, &LoggedEvents]()
 	{
 		for (; LoggedEvents < State.EventLog.Num(); ++LoggedEvents)
@@ -99,7 +99,11 @@ FSimulationResult FMatchSimulation::Run()
 			{
 				Result.Log.Add(FString::Printf(TEXT("%s    cae el Sello de la %s"), *Stamp(Event.ClockSeconds), *DescribeTile(State.Board, Event.Value)));
 			}
-			if (Event.Type == EMatchEventType::TurnClockExpired)
+			if (Event.Type == EMatchEventType::Moved)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d va a la %s"), *Stamp(Event.ClockSeconds), Event.Seat, *DescribeTile(State.Board, Event.Value)));
+			}
+			else if (Event.Type == EMatchEventType::TurnClockExpired)
 			{
 				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d agota el reloj | insolencia %d"), *Stamp(Event.ClockSeconds), Event.Seat, State.Seats[Event.Seat].Insolence));
 			}
@@ -166,7 +170,8 @@ FSimulationResult FMatchSimulation::Run()
 					const EIntentResult Intent = Soulbound::Rules::SubmitDestinationIntent(State, State.ActiveSeat, Pending.TileId, Now);
 					if (Intent == EIntentResult::Accepted)
 					{
-						Result.Log.Add(FString::Printf(TEXT("%s    asiento %d va a la %s"), *Stamp(Now), State.ActiveSeat, *DescribeTile(State.Board, Pending.TileId)));
+						// El movimiento sale del registro de eventos (Moved), como el resto de sucesos de la crónica.
+						LogNewEvents();
 					}
 				}
 				else if (Now >= Pending.AtSeconds && State.ReachableOptions.IsEmpty())
