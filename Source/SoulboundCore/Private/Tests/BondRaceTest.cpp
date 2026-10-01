@@ -405,6 +405,58 @@ bool FBondRaceExtraTurnBeforeLimitTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBondRaceExtraTurnAfterLimitTest,
+	"Soulbound.Core.BondRace.TurnoExtraPendienteTrasElLimite",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FBondRaceExtraTurnAfterLimitTest::RunTest(const FString& Parameters)
+{
+	// Decisión del autor del 01/10/2026 (revisión de S-006): si el turno que acaba ya pasó el límite y deja un turno
+	// extra pendiente, la carrera termina al acabar ese turno y el extra se juega después, con las condiciones de
+	// fuera de la carrera (el Eco, confinado). Semilla fija 14.
+	FRandomStream Random;
+	FMatchState State;
+	if (!StartWithElects(*this, 14, 1, Random, State))
+	{
+		return false;
+	}
+	const double RaceEnd = State.Params.RaceDurationSeconds;
+	const int32 Seat = State.TurnOrder[1];
+	State.ActiveSeat = Seat;
+	Soulbound::Rules::GrantExtraTurns(State, Seat, 1);
+
+	if (!TestTrue(TEXT("El turno llega a la tirada"), AdvanceToChoice(State, Random, RaceEnd - 5.0)))
+	{
+		return false;
+	}
+	// Un destino que no sea un Nicho Libre, para que el asiento siga siendo Eco.
+	const int32* Destination = State.ReachableOptions.FindByPredicate([&State](int32 Tile)
+	{
+		const FTileState& TileState = State.Board.Tiles[Tile];
+		return TileState.Type != ETileType::Niche || State.Board.Domains[TileState.DomainId].NicheState != ENicheState::Free;
+	});
+	if (!TestNotNull(TEXT("Hay un destino que no es un Nicho Libre"), Destination))
+	{
+		return false;
+	}
+	Soulbound::Rules::SubmitDestinationIntent(State, Seat, *Destination, RaceEnd + 1.0);
+	while (State.TurnPhase != ETurnPhase::BetweenTurns && Soulbound::Rules::AdvanceTurn(State, RaceEnd + 1.0, Random))
+	{
+	}
+	TestEqual(TEXT("La carrera termina al acabar el turno, aunque quede el extra"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::RuneHunt));
+	TestEqual(TEXT("El extra lo juega el mismo asiento"), State.ActiveSeat, Seat);
+
+	if (!TestTrue(TEXT("El turno extra llega a la tirada"), AdvanceToChoice(State, Random, RaceEnd + 2.0)))
+	{
+		return false;
+	}
+	const FMoverTraits Mover = Soulbound::Rules::MakeMoverTraits(State, Seat);
+	TestTrue(TEXT("En el turno extra, el Eco ya está confinado"), Mover.bConfinedToForgotten);
+	TestTrue(TEXT("Y sus opciones son las del confinamiento"),
+		State.ReachableOptions == Soulbound::Rules::ReachableTiles(State.Board, State.Seats[Seat].TileId, State.Roll, Mover));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBondRaceEndOfRaceTest,
 	"Soulbound.Core.BondRace.FinDeCarrera",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
