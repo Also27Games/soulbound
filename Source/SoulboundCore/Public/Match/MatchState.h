@@ -42,6 +42,38 @@ enum class ETurnPhase : uint8
 	End,
 };
 
+/** Rol de un asiento (R-CAR-2, R-CAR-5): todos empiezan Eco Perdido; quien reclama un Nicho es Elegido para siempre. Nombre propuesto en S-006. */
+UENUM()
+enum class ESeatRole : uint8
+{
+	/** Eco Perdido (glosario `LostEcho`): el estado inicial; quien no se vincula en la carrera se queda así. */
+	LostEcho,
+	/** Elegido (glosario `Elect`): vinculado al Elegido del Dominio cuyo Nicho reclamó (FSeatState::DomainId). */
+	Elect,
+};
+
+/** Fase de la partida. Nombre propuesto en S-006. */
+UENUM()
+enum class EMatchPhase : uint8
+{
+	/** Carrera por el vínculo (glosario `BondRace`): empieza con la partida (R-CAR-1). */
+	BondRace,
+	/** Caza de runas (glosario `RuneHunt`): desde el fin de la carrera, si alguien se vinculó (R-CAR-8). */
+	RuneHunt,
+	/** Partida terminada: la máquina de turnos no avanza más y el Warden no actúa. Resultado en EMatchOutcome. */
+	MatchOver,
+};
+
+/** Resultado de la partida. Nombre propuesto en S-006. */
+UENUM()
+enum class EMatchOutcome : uint8
+{
+	/** La partida sigue. */
+	Undecided,
+	/** Victoria del Warden (glosario `WardenVictory`): derrota colectiva; en S-006, nadie se vinculó en la carrera (R-CAR-8). */
+	WardenVictory,
+};
+
 /** Tipo de un evento del registro de partida (R-TUR-15). Nombre propuesto en S-003 para el glosario. */
 UENUM()
 enum class EMatchEventType : uint8
@@ -63,6 +95,21 @@ enum class EMatchEventType : uint8
 	 * El liberado por tope va justo antes del SealPlaced que lo provoca. Nombre propuesto en S-004.
 	 */
 	SealReleased,
+	/** Un Eco reclama un Nicho y se vincula a su Elegido (R-CAR-4, R-CAR-5); Value es el Dominio. Nombre propuesto en S-006. */
+	Bonded,
+	/** Despertar del tablero (R-TAB-9): justo después del primer Bonded, con el mismo asiento. Nombre propuesto en S-006. */
+	BoardAwakening,
+	/** Un Eco recibe su Dominio Olvidado como hogar al acabar la carrera (R-TAB-12); Value es el Dominio. Nombre propuesto en S-006. */
+	HomeAssigned,
+	/**
+	 * Un Eco que acaba la carrera dentro de un Dominio con dueño vuelve a su hogar (decisión del autor del 01/10/2026,
+	 * para que el confinamiento de R-TAB-20 no lo deje encerrado); Value es la casilla. Nombre propuesto en S-006.
+	 */
+	ReturnedHome,
+	/** Victoria del Warden (R-CAR-8): nadie se vinculó; sin asiento, afecta a todos. Nombre propuesto en S-006. */
+	WardenVictory,
+	/** Fin de la carrera (R-CAR-1, R-CAR-8); Value es el número de Elegidos; sin asiento. Nombre propuesto en S-006. */
+	BondRaceEnded,
 };
 
 /**
@@ -81,11 +128,14 @@ struct SOULBOUNDCORE_API FMatchEvent
 	UPROPERTY()
 	double ClockSeconds = 0.0;
 
-	/** Asiento afectado; INDEX_NONE en los eventos de Sello. */
+	/** Asiento afectado; INDEX_NONE en los eventos de Sello, WardenVictory y BondRaceEnded. */
 	UPROPERTY()
 	int32 Seat = INDEX_NONE;
 
-	/** Dato del evento: la tirada en Rolled, la casilla en SealPlaced y SealReleased; INDEX_NONE en el resto. */
+	/**
+	 * Dato del evento: la tirada en Rolled; la casilla en SealPlaced, SealReleased y ReturnedHome; el Dominio en Bonded
+	 * y HomeAssigned; los Elegidos en BondRaceEnded; INDEX_NONE en el resto.
+	 */
 	UPROPERTY()
 	int32 Value = INDEX_NONE;
 };
@@ -114,6 +164,18 @@ struct SOULBOUNDCORE_API FSeatState
 	/** Turnos perdidos pendientes (R-TUR-10), de 0 al tope de los parámetros de partida. */
 	UPROPERTY()
 	int32 LostTurns = 0;
+
+	/** Eco Perdido o Elegido (R-CAR-2, R-CAR-5). Solo lo escriben las reglas de Match/BondRaceRules.h. */
+	UPROPERTY()
+	ESeatRole Role = ESeatRole::LostEcho;
+
+	/**
+	 * Dominio del asiento: el de su Elegido si es Elegido (R-CAR-5); el Olvidado asignado como hogar si es Eco tras la
+	 * carrera (R-TAB-12); INDEX_NONE para un Eco durante la carrera. Su Nicho es el hogar (R-TAB-13, HomeTile).
+	 * Solo lo escriben las reglas de Match/BondRaceRules.h. Nombre propuesto en S-006.
+	 */
+	UPROPERTY()
+	int32 DomainId = INDEX_NONE;
 };
 
 /**
@@ -175,6 +237,16 @@ struct SOULBOUNDCORE_API FMatchState
 	/** Registro de eventos (R-TUR-15), en orden de llegada. */
 	UPROPERTY()
 	TArray<FMatchEvent> EventLog;
+
+	/** Fase de la partida (S-006). Solo la escriben las reglas de Match/BondRaceRules.h. */
+	UPROPERTY()
+	EMatchPhase MatchPhase = EMatchPhase::BondRace;
+
+	/** Resultado de la partida; Undecided mientras sigue. Solo lo escriben las reglas de Match/BondRaceRules.h. */
+	UPROPERTY()
+	EMatchOutcome Outcome = EMatchOutcome::Undecided;
+
+	bool IsMatchOver() const { return MatchPhase == EMatchPhase::MatchOver; }
 
 	/** Tablero de prueba del spike: seis casillas con un ciclo, la 0 es el Altar y los cuatro asientos empiezan en ella. */
 	static FMatchState MakeSpikeMatch();

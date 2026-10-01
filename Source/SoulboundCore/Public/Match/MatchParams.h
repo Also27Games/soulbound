@@ -24,6 +24,13 @@ struct SOULBOUNDCORE_API FMatchParams
 	/** Tope de turnos perdidos acumulados por jugador (R-TUR-10, GDD 05). En datos. */
 	UPROPERTY()
 	int32 MaxLostTurns = 0;
+
+	/**
+	 * Duración de la carrera por el vínculo (R-CAR-1, R-TAB-27), en segundos del reloj de partida desde su inicio.
+	 * En datos; valor inicial 300 (S-006).
+	 */
+	UPROPERTY()
+	double RaceDurationSeconds = 0.0;
 };
 
 /** Por qué se rechazaron unos parámetros de partida. */
@@ -53,8 +60,8 @@ struct SOULBOUNDCORE_API FMatchParamsLoadResult
 namespace Soulbound::Rules
 {
 	/**
-	 * Comprueba que unos parámetros de partida tienen sentido: reloj de turno mayor que cero y topes enteros
-	 * mayores o iguales que cero. Params: los parámetros a comprobar. Devuelve None o MalformedData con el motivo;
+	 * Comprueba que unos parámetros de partida tienen sentido: reloj de turno y duración de la carrera mayores que
+	 * cero, y topes enteros mayores o iguales que cero. Params: los parámetros a comprobar. Devuelve None o MalformedData con el motivo;
 	 * el campo Params del resultado queda vacío.
 	 */
 	SOULBOUNDCORE_API FMatchParamsLoadResult ValidateMatchParams(const FMatchParams& Params);

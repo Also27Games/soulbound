@@ -1,12 +1,12 @@
-// Tests del tablero de 15 casillas por Dominio (S-005): el archivo generado por el editor de tablero pasa las reglas
-// del GDD 01 y sirve para una partida y una simulación enteras. Si alguno falla, el fallo es del archivo
-// (lo generó el editor, cuyo validador es un espejo en JavaScript): se avisa al autor, no se retoca el validador.
+// Tests del tablero de 15 casillas por Dominio (S-005): el archivo generado por el editor de tablero sirve para una
+// simulación entera. Si falla, el fallo es del archivo (lo generó el editor, cuyo validador es un espejo en
+// JavaScript): se avisa al autor, no se retoca el validador. Desde S-006, que el archivo es válido lo comprueba
+// Soulbound.Core.Board.Data.TodosLosTablerosValidos para todos los tableros de datos.
 // Se lanzan sin editor con Scripts/test.ps1. Filtro: "Soulbound.Core.Board15".
 
 #include "Board/BoardLoader.h"
 #include "Decider/Decider.h"
 #include "Match/MatchParams.h"
-#include "Match/MatchStart.h"
 #include "Math/RandomStream.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
@@ -44,33 +44,6 @@ namespace
 		}
 		return Deciders;
 	}
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoard15IsValidTest,
-	"Soulbound.Core.Board15.EsValidoYIniciaPartida",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
-
-bool FBoard15IsValidTest::RunTest(const FString& Parameters)
-{
-	// CA "El tablero de 15 es válido" (R-TAB-1 a 5): LoadBoardFromFile valida con ValidateBoard, 91 casillas,
-	// y StartMatch inicia una partida sobre él.
-	FBoardState Board;
-	if (!LoadBoard15(*this, Board))
-	{
-		return false;
-	}
-	TestTrue(TEXT("ValidateBoard lo acepta"), Soulbound::Rules::ValidateBoard(Board).IsSuccess());
-	TestEqual(TEXT("91 casillas"), Board.Tiles.Num(), 91);
-
-	FMatchParams Params;
-	if (!Soulbound::Tests::LoadTestMatchParams(*this, Params))
-	{
-		return false;
-	}
-	FRandomStream Random(1);
-	const FMatchStartResult Start = Soulbound::Rules::StartMatch(Board, Params, Soulbound::Match::MaxPlayers, Random);
-	TestTrue(FString::Printf(TEXT("StartMatch inicia la partida (%s)"), *Start.Message), Start.IsSuccess());
-	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoard15SimulationTest,
