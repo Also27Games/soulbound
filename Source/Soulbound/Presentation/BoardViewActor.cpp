@@ -249,6 +249,7 @@ void ABoardViewActor::BuildTiles()
 	Inlays.Init(nullptr, Board.Tiles.Num());
 	InlayOutlines.Init(nullptr, Board.Tiles.Num());
 	Halos.Init(nullptr, Board.Tiles.Num());
+	ForgottenRings.Init(nullptr, Board.Tiles.Num());
 	InlayHoles.Init(nullptr, Board.Tiles.Num());
 	Labels.Init(nullptr, Board.Tiles.Num());
 
@@ -305,6 +306,12 @@ void ABoardViewActor::BuildTiles()
 		Soulbound::Presentation::SetComponentColor(*Halo, BaseMaterial, ReachableColor);
 		Halo->SetVisibility(false);
 		Halos[Tile.TileId] = Halo;
+
+		// Aro de Dominio Olvidado: más alto que el halo, para que se vea también en una casilla alcanzable.
+		UStaticMeshComponent* Ring = AddShape(CylinderMesh, Position + FVector(0.f, 0.f, 3.f), FRotator::ZeroRotator, FVector(Diameter * ForgottenRingScale, Diameter * ForgottenRingScale, 6.f));
+		Soulbound::Presentation::SetComponentColor(*Ring, BaseMaterial, ForgottenRingColor);
+		Ring->SetVisibility(false);
+		ForgottenRings[Tile.TileId] = Ring;
 
 		// Marca del tipo sobre la losa, del tamaño justo para no tapar la ficha del centro, con contorno negro
 		// para que se distinga sobre cualquier Dominio.
@@ -493,7 +500,7 @@ void ABoardViewActor::BuildOverlay()
 	Rows.Add({TEXT("Estado de la casilla"),
 		{{ReachableColor, TEXT("alcanzable: halo blanco bajo la casilla")},
 			{SealedColor, TEXT("sellada (SELLO)")},
-			{Dimmed(DomainColor(0), ForgottenDim), TEXT("Olvidado: apagada")}}});
+			{ForgottenRingColor, TEXT("Dominio Olvidado: casillas apagadas con aro gris")}}});
 	// Una fila por asiento, con su rol al día: Eco (esfera) o Elegido (cono), y el Dominio que lleva.
 	FLegendRow Seats;
 	Seats.Title = TEXT("Fichas: esfera = Eco, cono = Elegido. El activo crece, sube, gira y lleva aro");
@@ -607,6 +614,10 @@ void ABoardViewActor::Refresh()
 			Base = SealedColor;
 		}
 		Actor->SetColor(Base);
+		if (UStaticMeshComponent* ForgottenRing = ForgottenRings.IsValidIndex(Tile.TileId) ? ForgottenRings[Tile.TileId].Get() : nullptr)
+		{
+			ForgottenRing->SetVisibility(bForgotten);
+		}
 		if (UStaticMeshComponent* Halo = Halos.IsValidIndex(Tile.TileId) ? Halos[Tile.TileId].Get() : nullptr)
 		{
 			Halo->SetVisibility(Reachable.Contains(Tile.TileId));

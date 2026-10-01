@@ -90,6 +90,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
 	float HaloScale = 1.35f;
 
+	/** Diámetro del aro de las casillas de un Dominio Olvidado, por el de la casilla. Valor inicial 1,2. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
+	float ForgottenRingScale = 1.2f;
+
 	/** Cuánto crece el contorno negro de las marcas de tipo (cubo, anillo, esfera) por la propia marca. Valor inicial 1,18. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
 	float OutlineScale = 1.18f;
@@ -195,6 +199,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	FLinearColor SealedColor = FLinearColor(0.01f, 0.01f, 0.01f);
 
+	/** Aro bajo las casillas de un Dominio Olvidado (además de apagarlas). */
+	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
+	FLinearColor ForgottenRingColor = FLinearColor(0.55f, 0.55f, 0.6f);
+
 	/** Cuánto se apaga la casilla de un Dominio Olvidado (multiplica el color). Valor inicial 0,3. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	float ForgottenDim = 0.3f;
@@ -267,6 +275,10 @@ private:
 	/** Contorno negro de la marca (nulo si no lleva marca). */
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> InlayOutlines;
+
+	/** Aro bajo cada casilla que se enseña si su Dominio es Olvidado. */
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> ForgottenRings;
 
 	/** Disco bajo cada casilla que se enseña si es alcanzable. */
 	UPROPERTY()
