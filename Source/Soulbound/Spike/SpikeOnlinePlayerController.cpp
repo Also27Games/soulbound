@@ -77,6 +77,11 @@ void ASpikeOnlinePlayerController::OnPrimaryClick()
 
 void ASpikeOnlinePlayerController::OnStepKey()
 {
+	// Con el juego en pausa (el menú de UGT abierto) la tecla no suelta un turno. Los comandos de consola no se tocan.
+	if (IsPaused())
+	{
+		return;
+	}
 	SbStep();
 }
 

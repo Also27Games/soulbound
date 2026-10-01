@@ -124,7 +124,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
 	float NicheNumberSize = 60.f;
 
-	/** Alto de la letra del nombre del Elegido en la etiqueta del Nicho, en cm. Valor inicial 30 (el nombre más largo, "(Mictlantecuhtli)", sobresale de la casilla). */
+	/** Alto de la letra del nombre del Elegido en la etiqueta del Nicho, en cm. Valor inicial 30. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
 	float NicheNameSize = 30.f;
 
@@ -300,7 +300,7 @@ private:
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> InlayOutlinesB;
 
-	/** Nombre del Elegido (de los datos, domains[].name), en dos líneas, sobre cada Nicho (nulo en las demás casillas). */
+	/** Nombre del Elegido (lo que va entre paréntesis en domains[].name) sobre cada Nicho (nulo en las demás casillas). */
 	UPROPERTY()
 	TArray<TObjectPtr<UTextRenderComponent>> NicheNames;
 

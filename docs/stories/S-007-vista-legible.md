@@ -57,7 +57,7 @@ Pedidos por el autor al probar la vista en PIE; son parte de la story. Cada uno 
 - **Cruz en la Fuente.** La Fuente de Poder lleva una cruz blanca con contorno negro (antes un anillo, que se confundía con el Nodo en rombo con esfera).
 - **Numeración de fichas y de Nichos reclamados.** El número del asiento va escrito en la ficha y en el cubo del Nicho reclamado. El Nicho reclamado conserva el color de su Dominio y lleva un aro del color del asiento.
 - **Evento `Moved`.** Excepción a "esta story no toca `SoulboundCore`": `SubmitDestinationIntent` registra el movimiento (asiento y casilla de destino), con test en `TurnRulesTest` y línea en la crónica de la simulación y en el panel ("el asiento 0 se mueve a D0·4").
-- **Nombres de los Elegidos desde datos.** La leyenda y la etiqueta del Nicho enseñan `domains[].name` del archivo del tablero. Los nombres de `tablero_35.json` y `tablero_15.json` entran en un commit de datos aparte.
+- **Nombres de los Elegidos desde datos.** La leyenda enseña `domains[].name` del archivo del tablero, entero; la etiqueta del Nicho, solo el nombre del Elegido (lo que va entre paréntesis). Los nombres de `tablero_35.json` y `tablero_15.json` entran en un commit de datos aparte.
 
 ## Fuera de esta story
 

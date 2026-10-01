@@ -79,15 +79,16 @@ namespace
 		}
 	}
 
-	/** Parte el nombre del Elegido ("El Banquete (Shuten-dōji)") en dos líneas para que quepa en la casilla. */
-	FString TwoLineName(const FString& Name)
+	/** Nombre del Elegido: lo que va entre paréntesis en el nombre del Dominio ("El Banquete (Shuten-dōji)"); sin paréntesis, el nombre entero. */
+	FString ElectName(const FString& DomainName)
 	{
-		int32 Split = INDEX_NONE;
-		if (Name.FindChar(TEXT('('), Split) && Split > 0)
+		int32 Open = INDEX_NONE;
+		int32 Close = INDEX_NONE;
+		if (DomainName.FindChar(TEXT('('), Open) && DomainName.FindLastChar(TEXT(')'), Close) && Close > Open + 1)
 		{
-			return Name.Left(Split).TrimEnd() + TEXT("\n") + Name.Mid(Split);
+			return DomainName.Mid(Open + 1, Close - Open - 1).TrimStartAndEnd();
 		}
-		return Name;
+		return DomainName;
 	}
 }
 
@@ -389,7 +390,7 @@ void ABoardViewActor::BuildTiles()
 
 		if (Tile.Type == ETileType::Niche)
 		{
-			// Nombre del Elegido (de los datos) arriba de la casilla; número del asiento sobre el cubo.
+			// Nombre del Elegido (el del paréntesis de domains[].name) arriba de la casilla; número del asiento sobre el cubo.
 			auto AddText = [this, &OnTop](float Size, const FVector& Offset)
 			{
 				UTextRenderComponent* Text = NewObject<UTextRenderComponent>(this);
@@ -407,7 +408,7 @@ void ABoardViewActor::BuildTiles()
 			};
 			const FString Name = Board.Domains.IsValidIndex(Tile.DomainId) ? Board.Domains[Tile.DomainId].Name : FString();
 			NicheNames[Tile.TileId] = AddText(NicheNameSize, FVector(Diameter * NicheNameOffsetFraction, 0.f, InlayHeight + 3.f));
-			NicheNames[Tile.TileId]->SetText(FText::FromString(TwoLineName(Name)));
+			NicheNames[Tile.TileId]->SetText(FText::FromString(ElectName(Name)));
 			NicheNumbers[Tile.TileId] = AddText(NicheNumberSize, FVector(0.f, 0.f, InlayHeight + 3.f));
 			NicheNumbers[Tile.TileId]->SetText(FText::GetEmpty());
 
