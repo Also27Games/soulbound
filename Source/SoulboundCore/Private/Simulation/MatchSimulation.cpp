@@ -84,7 +84,8 @@ FSimulationResult FMatchSimulation::Run()
 	int32 LoggedEvents = 0;
 
 	// Pasa al registro de texto lo que el motor ha dejado en su registro de eventos y la crónica no cuenta ya de otra
-	// forma: agotamientos, turnos saltados y Sellos que caen por el tope. Inicio, tirada y destino los escribe StepTurn,
+	// forma: agotamientos, turnos saltados, Sellos que caen por el tope y la carrera por el vínculo (vínculos, Despertar,
+	// hogares, vueltas al hogar, victoria del Warden y fin de carrera). Inicio, tirada y destino los escribe StepTurn,
 	// que tiene las opciones; los Sellos que pone o quita el Warden, su propia línea.
 	auto LogNewEvents = [&Result, &State, &LoggedEvents]()
 	{
@@ -105,6 +106,30 @@ FSimulationResult FMatchSimulation::Run()
 			else if (Event.Type == EMatchEventType::TurnSkipped)
 			{
 				Result.Log.Add(FString::Printf(TEXT("%s asiento %d pierde el turno | le quedan %d"), *Stamp(Event.ClockSeconds), Event.Seat, State.Seats[Event.Seat].LostTurns));
+			}
+			else if (Event.Type == EMatchEventType::Bonded)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d se vincula al Elegido del Dominio %d"), *Stamp(Event.ClockSeconds), Event.Seat, Event.Value));
+			}
+			else if (Event.Type == EMatchEventType::BoardAwakening)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d despierta el tablero: los Nodos se revelan"), *Stamp(Event.ClockSeconds), Event.Seat));
+			}
+			else if (Event.Type == EMatchEventType::WardenVictory)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s Victoria del Warden: nadie se ha vinculado"), *Stamp(Event.ClockSeconds)));
+			}
+			else if (Event.Type == EMatchEventType::BondRaceEnded)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s Fin de la carrera | %d Elegidos"), *Stamp(Event.ClockSeconds), Event.Value));
+			}
+			else if (Event.Type == EMatchEventType::HomeAssigned)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d queda Eco | hogar: Nicho Cerrado del Dominio %d"), *Stamp(Event.ClockSeconds), Event.Seat, Event.Value));
+			}
+			else if (Event.Type == EMatchEventType::ReturnedHome)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d vuelve a su hogar, la %s"), *Stamp(Event.ClockSeconds), Event.Seat, *DescribeTile(State.Board, Event.Value)));
 			}
 		}
 	};
@@ -159,8 +184,9 @@ FSimulationResult FMatchSimulation::Run()
 		}
 	};
 
-	// Bucle por sucesos: el reloj virtual salta al siguiente suceso, nunca avanza por fotogramas.
-	while (true)
+	// Bucle por sucesos: el reloj virtual salta al siguiente suceso, nunca avanza por fotogramas. Con la partida
+	// terminada (victoria del Warden, R-CAR-8) no queda nada que simular: ni turnos ni Warden.
+	while (!State.IsMatchOver())
 	{
 		const bool bEvaluationFirst = NextEvaluation <= NextTurnEvent;
 		const double Next = bEvaluationFirst ? NextEvaluation : NextTurnEvent;
@@ -198,7 +224,11 @@ FSimulationResult FMatchSimulation::Run()
 	Result.Log.Add(FString::Printf(TEXT("Fin | %d turnos | %d evaluaciones del Warden | %d intervenciones"), Result.Turns, Result.Evaluations, Result.Interventions));
 	for (const int32 Seat : State.TurnOrder)
 	{
-		Result.Log.Add(FString::Printf(TEXT("    asiento %d en la %s | insolencia %d"), Seat, *DescribeTile(State.Board, State.Seats[Seat].TileId), State.Seats[Seat].Insolence));
+		const FSeatState& SeatState = State.Seats[Seat];
+		const FString Role = SeatState.Role == ESeatRole::Elect
+			? FString::Printf(TEXT("Elegido del Dominio %d"), SeatState.DomainId)
+			: SeatState.DomainId == INDEX_NONE ? FString(TEXT("Eco")) : FString::Printf(TEXT("Eco, hogar en el Dominio %d"), SeatState.DomainId);
+		Result.Log.Add(FString::Printf(TEXT("    asiento %d, %s, en la %s | insolencia %d"), Seat, *Role, *DescribeTile(State.Board, SeatState.TileId), SeatState.Insolence));
 	}
 	Result.FinalState = State;
 	Result.WallSeconds = FPlatformTime::Seconds() - WallStart;

@@ -9,6 +9,7 @@
 #include "Match/TurnRules.h"
 #include "Misc/AutomationTest.h"
 #include "MatchTestSetup.h"
+#include "Warden/WardenBrain.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -381,6 +382,18 @@ bool FBondRaceEndOfRaceTest::RunTest(const FString& Parameters)
 			static_cast<int32>(Soulbound::Rules::SubmitDestinationIntent(State, State.ActiveSeat, State.Board.FindAltar(), RaceEnd + 100.0)), static_cast<int32>(EIntentResult::Accepted));
 		TestFalse(TEXT("E = 0: ni la carrera termina otra vez"), Soulbound::Rules::EndBondRace(State, RaceEnd + 100.0, Random));
 		TestTrue(TEXT("E = 0: el estado no cambia"), Soulbound::Tests::SameState(Before, State));
+
+		// Y el Warden no actúa sobre una partida terminada (decisión del autor del 01/10/2026). Generador con semilla 1.
+		FRandomStream WardenRandom(1);
+		const FWardenBrain Brain;
+		for (int32 Evaluation = 0; Evaluation < 50; ++Evaluation)
+		{
+			if (Brain.Evaluate(State, WardenRandom).IsIntervention())
+			{
+				AddError(TEXT("E = 0: el Warden interviene en una partida terminada"));
+				break;
+			}
+		}
 	}
 
 	for (int32 Elects = 1; Elects < Soulbound::Match::SeatCount; ++Elects)

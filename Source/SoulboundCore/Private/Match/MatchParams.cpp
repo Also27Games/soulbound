@@ -51,6 +51,10 @@ namespace Soulbound::Rules
 		{
 			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-TUR-10: el tope de turnos perdidos no puede ser negativo (es %d)."), Params.MaxLostTurns));
 		}
+		if (!(Params.RaceDurationSeconds > 0.0))
+		{
+			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-CAR-1: la duración de la carrera debe ser mayor que cero (es %g)."), Params.RaceDurationSeconds));
+		}
 		return FMatchParamsLoadResult();
 	}
 
@@ -67,6 +71,10 @@ namespace Soulbound::Rules
 		if (!ReadNumberField(*Root, TEXT("turnClockSeconds"), Params.TurnClockSeconds))
 		{
 			return Reject(EMatchParamsError::MalformedData, TEXT("El parámetro \"turnClockSeconds\" falta o no es un número."));
+		}
+		if (!ReadNumberField(*Root, TEXT("raceDurationSeconds"), Params.RaceDurationSeconds))
+		{
+			return Reject(EMatchParamsError::MalformedData, TEXT("El parámetro \"raceDurationSeconds\" falta o no es un número."));
 		}
 		const TPair<const TCHAR*, int32*> Caps[] = {
 			{TEXT("maxExtraTurns"), &Params.MaxExtraTurns},
