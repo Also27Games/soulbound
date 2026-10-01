@@ -500,7 +500,7 @@ void ABoardViewActor::BuildOverlay()
 	Rows.Add({TEXT("Estado de la casilla"),
 		{{ReachableColor, TEXT("alcanzable: halo blanco bajo la casilla")},
 			{SealedColor, TEXT("sellada (SELLO)")},
-			{ForgottenRingColor, TEXT("Dominio Olvidado: casillas apagadas con aro gris")}}});
+			{ForgottenRingColor, TEXT("Dominio Olvidado: casillas apagadas con aro gris oscuro")}}});
 	// Una fila por asiento, con su rol al día: Eco (esfera) o Elegido (cono), y el Dominio que lleva.
 	FLegendRow Seats;
 	Seats.Title = TEXT("Fichas: esfera = Eco, cono = Elegido. El activo crece, sube, gira y lleva aro");

@@ -201,7 +201,7 @@ public:
 
 	/** Aro bajo las casillas de un Dominio Olvidado (además de apagarlas). */
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
-	FLinearColor ForgottenRingColor = FLinearColor(0.55f, 0.55f, 0.6f);
+	FLinearColor ForgottenRingColor = FLinearColor(0.12f, 0.12f, 0.14f);
 
 	/** Cuánto se apaga la casilla de un Dominio Olvidado (multiplica el color). Valor inicial 0,3. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
