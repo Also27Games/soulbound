@@ -4,6 +4,7 @@
 #include "Decider/Decider.h"
 #include "Match/MatchState.h"
 #include "Match/TurnRules.h"
+#include "StepClock.h"
 #include "Math/RandomStream.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "MatchHostSubsystem.generated.h"
@@ -21,8 +22,11 @@ DECLARE_MULTICAST_DELEGATE(FOnMatchStateChanged);
  * turnos con el reloj real, consulta a los decisores dummy y recibe la intención del humano. Es el único que escribe
  * el estado y el único que avisa de que cambió. No contiene reglas: todas están en SoulboundCore.
  * También genera la presentación (ABoardViewActor); el mapa no cambia.
+ * Es quien lleva el reloj de partida y por eso es quien tiene el modo paso a paso (S-007, glosario "StepMode"): con él
+ * activo, la partida se detiene al entrar en BetweenTurns y el reloj se congela hasta que se concede un paso. La regla
+ * (cuándo detener, qué marca el reloj) está en FStepClock.
  */
-UCLASS(Config = Game)
+UCLASS(Config = Game, BlueprintType)
 class SOULBOUND_API UMatchHostSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
@@ -59,6 +63,24 @@ public:
 	/** El anfitrión del Warden pide aplicar una decisión sobre el estado; aquí se escribe y se avisa. */
 	void ApplyWardenDecision(const FWardenDecision& Decision);
 
+	/**
+	 * Modo paso a paso (S-007). Activo, la partida se detiene al acabar cada turno y el reloj se congela hasta que se
+	 * concede un paso (StepOnce). Cambiable en caliente: al desactivarlo la partida sigue sola.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Partida")
+	void SetStepMode(bool bEnabled);
+
+	UFUNCTION(BlueprintPure, Category = "Partida")
+	bool IsStepMode() const { return bStepMode; }
+
+	/** Suelta exactamente un turno. Solo hace algo si la partida está detenida esperando; devuelve si lo hizo. */
+	UFUNCTION(BlueprintCallable, Category = "Partida")
+	bool StepOnce();
+
+	/** Si la partida está detenida esperando el paso: el reloj no corre y el Warden no evalúa. */
+	UFUNCTION(BlueprintPure, Category = "Partida")
+	bool IsWaitingForStep() const { return StepClock.bHeld; }
+
 	/** Se lanza tras cada cambio del estado. */
 	FOnMatchStateChanged OnMatchStateChanged;
 
@@ -82,12 +104,16 @@ public:
 	UPROPERTY(Config)
 	float DummyResponseSeconds = 5.f;
 
+	/** Modo paso a paso al iniciar la partida. Valor inicial false (S-007). Se cambia en juego con SetStepMode o SbStepMode. */
+	UPROPERTY(Config, BlueprintGetter = IsStepMode, BlueprintSetter = SetStepMode, Category = "Partida")
+	bool bStepMode = false;
+
 	/** Cada cuántos segundos reales se avanza la máquina de turnos. Valor inicial 0,1. */
 	UPROPERTY(Config)
 	float AdvanceIntervalSeconds = 0.1f;
 
 private:
-	/** Segundos de partida: tiempo del mundo desde que empezó la partida (sin pausa en S-005). */
+	/** Segundos de partida: los que marca el reloj (congelado en el paso a paso, S-007). */
 	double MatchSeconds() const;
 
 	/** Avanza la máquina de turnos hasta que haya que esperar a alguien, consultando a los dummies. */
@@ -116,7 +142,7 @@ private:
 	FPendingDecision Pending;
 	FTimerHandle AdvanceTimer;
 	FString LastWardenLine;
-	double OriginWorldSeconds = 0.0;
+	FStepClock StepClock;
 	int32 UsedSeed = 0;
 	bool bHasMatch = false;
 

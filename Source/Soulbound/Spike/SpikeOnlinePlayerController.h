@@ -37,6 +37,14 @@ public:
 	UFUNCTION(Exec)
 	void SbLeave();
 
+	/** Modo paso a paso (S-007): SbStepMode 1 lo activa, SbStepMode 0 lo desactiva. Cambia en caliente. */
+	UFUNCTION(Exec)
+	void SbStepMode(int32 Enabled);
+
+	/** Suelta un turno con el paso a paso activo y la partida detenida (lo mismo que la barra espaciadora). */
+	UFUNCTION(Exec)
+	void SbStep();
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
@@ -49,6 +57,9 @@ private:
 	 * destino del asiento humano. El motor decide si vale; aquí no se comprueba nada de las reglas.
 	 */
 	void OnPrimaryClick();
+
+	/** Barra espaciadora o botón A del mando (S-007): pide al anfitrión el siguiente turno. */
+	void OnStepKey();
 
 	UA27OnlineSubsystem* GetOnline() const;
 	void Say(const FString& Text) const;

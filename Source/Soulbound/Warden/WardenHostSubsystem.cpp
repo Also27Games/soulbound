@@ -52,7 +52,8 @@ void UWardenHostSubsystem::Deinitialize()
 void UWardenHostSubsystem::Evaluate()
 {
 	UMatchHostSubsystem* Match = GetWorld() ? GetWorld()->GetSubsystem<UMatchHostSubsystem>() : nullptr;
-	if (!Match || !Match->HasMatch())
+	// Detenida en el paso a paso: el Warden no evalúa (el reloj de partida está congelado; S-007).
+	if (!Match || !Match->HasMatch() || Match->IsWaitingForStep())
 	{
 		return;
 	}

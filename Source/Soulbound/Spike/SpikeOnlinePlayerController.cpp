@@ -40,6 +40,9 @@ void ASpikeOnlinePlayerController::SetupInputComponent()
 	{
 		// Enlace directo a la tecla: no crea ningún asset de entrada (S-005 no toca assets).
 		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &ASpikeOnlinePlayerController::OnPrimaryClick);
+		// Paso a paso (S-007): también sin assets de entrada.
+		InputComponent->BindKey(EKeys::SpaceBar, IE_Pressed, this, &ASpikeOnlinePlayerController::OnStepKey);
+		InputComponent->BindKey(EKeys::Gamepad_FaceButton_Bottom, IE_Pressed, this, &ASpikeOnlinePlayerController::OnStepKey);
 	}
 }
 
@@ -69,6 +72,34 @@ void ASpikeOnlinePlayerController::OnPrimaryClick()
 		{
 			Match->SubmitHumanIntent(Tile->GetTileId());
 		}
+	}
+}
+
+void ASpikeOnlinePlayerController::OnStepKey()
+{
+	SbStep();
+}
+
+void ASpikeOnlinePlayerController::SbStepMode(int32 Enabled)
+{
+	UWorld* World = GetWorld();
+	UMatchHostSubsystem* Match = World ? World->GetSubsystem<UMatchHostSubsystem>() : nullptr;
+	if (!Match || !Match->HasMatch())
+	{
+		Say(TEXT("Sin partida: no hay modo paso a paso."));
+		return;
+	}
+	Match->SetStepMode(Enabled != 0);
+	Say(Enabled != 0 ? TEXT("Paso a paso ACTIVADO: espacio o SbStep para el siguiente turno.") : TEXT("Paso a paso desactivado."));
+}
+
+void ASpikeOnlinePlayerController::SbStep()
+{
+	UWorld* World = GetWorld();
+	UMatchHostSubsystem* Match = World ? World->GetSubsystem<UMatchHostSubsystem>() : nullptr;
+	if (Match && Match->HasMatch())
+	{
+		Match->StepOnce();
 	}
 }
 
