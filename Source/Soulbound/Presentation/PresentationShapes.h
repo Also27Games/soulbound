@@ -13,6 +13,7 @@ namespace Soulbound::Presentation
 	inline constexpr const TCHAR* CylinderPath = TEXT("/Engine/BasicShapes/Cylinder.Cylinder");
 	inline constexpr const TCHAR* CubePath = TEXT("/Engine/BasicShapes/Cube.Cube");
 	inline constexpr const TCHAR* SpherePath = TEXT("/Engine/BasicShapes/Sphere.Sphere");
+	inline constexpr const TCHAR* ConePath = TEXT("/Engine/BasicShapes/Cone.Cone");
 	inline constexpr const TCHAR* BasicMaterialPath = TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial");
 
 	/** Nombre del parámetro de color del material básico del motor. */

@@ -103,7 +103,8 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 	for (int32 Seat = 0; Seat < Soulbound::Match::SeatCount; ++Seat)
 	{
 		// El asiento del humano no tiene decisor: su intención llega por SubmitHumanIntent.
-		Deciders.Add(Seat == HumanSeat ? TSharedPtr<IDecider>() : TSharedPtr<IDecider>(MakeShared<FDummyDecider>()));
+		// Los demás, dummies de carrera (S-006): buscan el Nicho Libre más cercano. Doble de prueba hasta el bot básico.
+		Deciders.Add(Seat == HumanSeat ? TSharedPtr<IDecider>() : TSharedPtr<IDecider>(MakeShared<FRaceDummyDecider>()));
 	}
 	OriginWorldSeconds = World.GetTimeSeconds();
 	State.ClockSeconds = 0.0;
