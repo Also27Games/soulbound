@@ -14,11 +14,11 @@ ABoardTileActor::ABoardTileActor()
 	SetRootComponent(Mesh);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(Soulbound::Presentation::CylinderPath);
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(Soulbound::Presentation::CubePath);
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Material(Soulbound::Presentation::BasicMaterialPath);
-	if (Cylinder.Succeeded())
-	{
-		Mesh->SetStaticMesh(Cylinder.Object);
-	}
+	RoundMesh = Cylinder.Succeeded() ? Cylinder.Object : nullptr;
+	SquareMesh = Cube.Succeeded() ? Cube.Object : nullptr;
+	Mesh->SetStaticMesh(RoundMesh);
 	BaseMaterial = Material.Succeeded() ? Material.Object : nullptr;
 
 	// Solo el trazado del ratón (canal de visibilidad) la ve: no estorba a nada más.
@@ -31,4 +31,13 @@ ABoardTileActor::ABoardTileActor()
 void ABoardTileActor::SetColor(const FLinearColor& Color)
 {
 	Soulbound::Presentation::SetComponentColor(*Mesh, BaseMaterial, Color);
+}
+
+void ABoardTileActor::SetSquareShape(bool bSquare)
+{
+	UStaticMesh* Wanted = bSquare ? SquareMesh : RoundMesh;
+	if (Wanted && Mesh->GetStaticMesh() != Wanted)
+	{
+		Mesh->SetStaticMesh(Wanted);
+	}
 }

@@ -2,91 +2,45 @@
 
 #include "../Match/MatchHostSubsystem.h"
 #include "BoardTileActor.h"
+#include "ChroniclePanel.h"
+#include "EventText.h"
+#include "LegendPanel.h"
 #include "PresentationShapes.h"
 #include "SeatTokenActor.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "Engine/Engine.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/PostProcessVolume.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
 #include "Materials/MaterialInterface.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/SBoxPanel.h"
 
 namespace
 {
 	/** Casilla a la altura del suelo; las conexiones y las fichas se miden desde aquí. */
 	constexpr float TileThickness = 10.f;
 	constexpr float EdgeThickness = 4.f;
+	/** Alto de las marcas de tipo sobre la losa. */
+	constexpr float InlayHeight = 6.f;
+	/** Segmentos del aro de un Nicho reclamado. */
+	constexpr int32 NicheRingSegmentCount = 24;
 
 	/** Clave base de los mensajes de pantalla de esta vista: una línea por clave, se sustituyen al refrescar. */
 	constexpr uint64 TextKeyBase = 0x53420500;
 
-	/**
-	 * Color de fondo de la casilla normal según su Dominio (cambio pedido por el autor en la revisión de S-005):
-	 * seis tintes oscuros y poco saturados, ninguno gris, verde ni morado, y todos más oscuros que los colores de
-	 * tipo (DomainColor es el fondo; el tipo es la señal). Sin Dominio válido, azul muy oscuro.
-	 * Como el resto de colores, van bajos a propósito: la luz y la exposición del nivel del spike los multiplican
-	 * por más de dos.
-	 */
-	FLinearColor DomainColor(int32 DomainId)
+	/** Atenuado de una casilla de un Dominio Olvidado: mismo tono, más oscuro. */
+	FLinearColor Dimmed(const FLinearColor& Color, float Factor)
 	{
-		static const FLinearColor Colors[] = {
-			FLinearColor(0.06f, 0.10f, 0.28f), // 0 azul marino
-			FLinearColor(0.28f, 0.06f, 0.08f), // 1 burdeos
-			FLinearColor(0.28f, 0.22f, 0.04f), // 2 mostaza oscura
-			FLinearColor(0.04f, 0.20f, 0.22f), // 3 petróleo
-			FLinearColor(0.26f, 0.13f, 0.06f), // 4 marrón rojizo
-			FLinearColor(0.30f, 0.12f, 0.20f), // 5 rosa apagado
-		};
-		return (DomainId >= 0 && DomainId < UE_ARRAY_COUNT(Colors)) ? Colors[DomainId] : Colors[0];
-	}
-
-	/**
-	 * Colores de tipo: saturados y más claros que cualquier Dominio, para que el tipo destaque sobre el fondo. La
-	 * casilla normal usa el de su Dominio (DomainColor).
-	 */
-	FLinearColor TileTypeColor(ETileType Type, int32 DomainId)
-	{
-		switch (Type)
-		{
-		case ETileType::Altar: return FLinearColor(0.70f, 0.30f, 0.03f);
-		case ETileType::Niche: return FLinearColor(0.40f, 0.10f, 0.75f);
-		case ETileType::PowerSource: return FLinearColor(0.04f, 0.45f, 0.65f);
-		case ETileType::PowerNode: return FLinearColor(0.08f, 0.65f, 0.15f);
-		case ETileType::Normal:
-		default: return DomainColor(DomainId);
-		}
-	}
-
-	FLinearColor SeatColor(int32 Seat)
-	{
-		static const FLinearColor Colors[] = {
-			FLinearColor(0.2f, 0.5f, 1.f), FLinearColor(1.f, 0.3f, 0.4f), FLinearColor(0.3f, 0.9f, 0.4f), FLinearColor(1.f, 0.9f, 0.2f)};
-		return Colors[FMath::Clamp(Seat, 0, UE_ARRAY_COUNT(Colors) - 1)];
-	}
-
-	/**
-	 * Color del Nicho según su estado (S-006): el Libre, el color de tipo; el Cerrado, gris oscuro; el Reclamado, el
-	 * color del asiento que lo reclamó.
-	 */
-	FLinearColor NicheColor(const FBoardState& Board, const FTileState& Tile)
-	{
-		const FDomainState* Domain = Board.Domains.IsValidIndex(Tile.DomainId) ? &Board.Domains[Tile.DomainId] : nullptr;
-		if (!Domain || Domain->NicheState == ENicheState::Free)
-		{
-			return TileTypeColor(ETileType::Niche, Tile.DomainId);
-		}
-		return Domain->NicheState == ENicheState::Claimed ? SeatColor(Domain->OwnerSeat) : FLinearColor(0.10f, 0.10f, 0.10f);
-	}
-
-	/** Atenuado de una casilla de un Dominio Olvidado: mismo tono, mucho más oscuro. */
-	FLinearColor Dimmed(const FLinearColor& Color)
-	{
-		return FLinearColor(Color.R * 0.4f, Color.G * 0.4f, Color.B * 0.4f);
+		return FLinearColor(Color.R * Factor, Color.G * Factor, Color.B * Factor);
 	}
 
 	const TCHAR* PhaseName(ETurnPhase Phase)
@@ -103,26 +57,38 @@ namespace
 		return TEXT("?");
 	}
 
-	/** Texto de un evento del registro (R-TUR-15), para la línea "último suceso". */
-	FString DescribeEvent(const FMatchEvent& Event)
+	/** Marca de tiempo de la crónica: minutos y segundos del reloj de partida. */
+	FString Stamp(double Seconds)
 	{
-		switch (Event.Type)
+		const int32 Total = FMath::Max(0, FMath::FloorToInt(Seconds));
+		return FString::Printf(TEXT("%d:%02d"), Total / 60, Total % 60);
+	}
+
+	/** Etiqueta de una casilla: identificador y Dominio ("D3·41"), con el prefijo del tipo; el Altar, "ALTAR". */
+	FString TileLabelText(const FBoardState& Board, const FTileState& Tile)
+	{
+		const FString Plain = Soulbound::Presentation::TileShortName(Board, Tile.TileId);
+		switch (Tile.Type)
 		{
-		case EMatchEventType::TurnStarted: return FString::Printf(TEXT("empieza el turno del asiento %d"), Event.Seat);
-		case EMatchEventType::Rolled: return FString::Printf(TEXT("el asiento %d tira %d"), Event.Seat, Event.Value);
-		case EMatchEventType::TurnClockExpired: return FString::Printf(TEXT("el asiento %d AGOTA el reloj de turno: no se mueve"), Event.Seat);
-		case EMatchEventType::TurnSkipped: return FString::Printf(TEXT("el asiento %d pierde el turno"), Event.Seat);
-		case EMatchEventType::TurnEnded: return FString::Printf(TEXT("termina el turno del asiento %d"), Event.Seat);
-		case EMatchEventType::SealPlaced: return FString::Printf(TEXT("el Warden sella la casilla %d"), Event.Value);
-		case EMatchEventType::SealReleased: return FString::Printf(TEXT("se libera el Sello de la casilla %d"), Event.Value);
-		case EMatchEventType::Bonded: return FString::Printf(TEXT("el asiento %d se vincula al Elegido del Dominio %d"), Event.Seat, Event.Value);
-		case EMatchEventType::BoardAwakening: return FString::Printf(TEXT("el asiento %d despierta el tablero"), Event.Seat);
-		case EMatchEventType::HomeAssigned: return FString::Printf(TEXT("el asiento %d queda Eco, con hogar en el Dominio %d"), Event.Seat, Event.Value);
-		case EMatchEventType::ReturnedHome: return FString::Printf(TEXT("el asiento %d vuelve a su hogar, la casilla %d"), Event.Seat, Event.Value);
-		case EMatchEventType::WardenVictory: return FString(TEXT("VICTORIA DEL WARDEN: nadie se ha vinculado"));
-		case EMatchEventType::BondRaceEnded: return FString::Printf(TEXT("fin de la carrera: %d Elegidos"), Event.Value);
+		case ETileType::Niche: return TEXT("N ") + Plain;
+		case ETileType::PowerSource: return TEXT("F ") + Plain;
+		case ETileType::PowerNode: return TEXT("X ") + Plain;
+		case ETileType::Altar:
+		case ETileType::Normal:
+		default: return Plain;
 		}
-		return FString();
+	}
+
+	/** Nombre del Elegido: lo que va entre paréntesis en el nombre del Dominio ("El Banquete (Shuten-dōji)"); sin paréntesis, el nombre entero. */
+	FString ElectName(const FString& DomainName)
+	{
+		int32 Open = INDEX_NONE;
+		int32 Close = INDEX_NONE;
+		if (DomainName.FindChar(TEXT('('), Open) && DomainName.FindLastChar(TEXT(')'), Close) && Close > Open + 1)
+		{
+			return DomainName.Mid(Open + 1, Close - Open - 1).TrimStartAndEnd();
+		}
+		return DomainName;
 	}
 }
 
@@ -132,9 +98,40 @@ ABoardViewActor::ABoardViewActor()
 	SetRootComponent(CreateDefaultSubobject<USceneComponent>(TEXT("Root")));
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(Soulbound::Presentation::CubePath);
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(Soulbound::Presentation::CylinderPath);
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(Soulbound::Presentation::SpherePath);
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Material(Soulbound::Presentation::BasicMaterialPath);
 	CubeMesh = Cube.Succeeded() ? Cube.Object : nullptr;
+	CylinderMesh = Cylinder.Succeeded() ? Cylinder.Object : nullptr;
+	SphereMesh = Sphere.Succeeded() ? Sphere.Object : nullptr;
 	BaseMaterial = Material.Succeeded() ? Material.Object : nullptr;
+
+	// Seis tonos a 60 grados de tono entre sí, del mismo brillo medio, para distinguirse a un metro.
+	DomainColors = {
+		FLinearColor(0.03f, 0.15f, 0.90f), // 0 azul
+		FLinearColor(0.85f, 0.03f, 0.03f), // 1 rojo
+		FLinearColor(0.04f, 0.60f, 0.08f), // 2 verde
+		FLinearColor(0.75f, 0.05f, 0.60f), // 3 magenta
+		FLinearColor(0.03f, 0.60f, 0.70f), // 4 cian
+		FLinearColor(0.80f, 0.65f, 0.02f), // 5 amarillo
+	};
+	// Claros y algo lavados: la ficha se distingue de la casilla saturada que pisa.
+	SeatColors = {
+		FLinearColor(0.40f, 0.70f, 1.00f), // 0 celeste
+		FLinearColor(1.00f, 0.55f, 0.75f), // 1 rosa
+		FLinearColor(0.60f, 1.00f, 0.40f), // 2 lima
+		FLinearColor(1.00f, 0.95f, 0.60f), // 3 crema
+	};
+}
+
+FLinearColor ABoardViewActor::DomainColor(int32 DomainId) const
+{
+	return DomainColors.IsValidIndex(DomainId) ? DomainColors[DomainId] : FLinearColor(0.1f, 0.1f, 0.1f);
+}
+
+FLinearColor ABoardViewActor::SeatColor(int32 Seat) const
+{
+	return SeatColors.IsValidIndex(Seat) ? SeatColors[Seat] : FLinearColor::White;
 }
 
 void ABoardViewActor::Initialize(UMatchHostSubsystem* InHost)
@@ -150,6 +147,8 @@ void ABoardViewActor::Initialize(UMatchHostSubsystem* InHost)
 	BuildTiles();
 	BuildTokens();
 	BuildCamera();
+	BuildPostProcess();
+	BuildOverlay();
 	Refresh();
 
 	ChangedHandle = InHost->OnMatchStateChanged.AddUObject(this, &ABoardViewActor::Refresh);
@@ -163,6 +162,17 @@ void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		HostPtr->OnMatchStateChanged.Remove(ChangedHandle);
 	}
 	GetWorldTimerManager().ClearTimer(HudTimer);
+	if (Overlay.IsValid())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UGameViewportClient* Viewport = World->GetGameViewport())
+			{
+				Viewport->RemoveViewportWidgetContent(Overlay.ToSharedRef());
+			}
+		}
+		Overlay.Reset();
+	}
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -249,18 +259,173 @@ void ABoardViewActor::BuildTiles()
 	const FBoardState& Board = Host->GetState().Board;
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	TileTops.Init(TileThickness, Board.Tiles.Num());
+	Inlays.Init(nullptr, Board.Tiles.Num());
+	InlayOutlines.Init(nullptr, Board.Tiles.Num());
+	InlayOutlinesB.Init(nullptr, Board.Tiles.Num());
+	Halos.Init(nullptr, Board.Tiles.Num());
+	ForgottenRings.Init(nullptr, Board.Tiles.Num());
+	NicheNames.Init(nullptr, Board.Tiles.Num());
+	NicheNumbers.Init(nullptr, Board.Tiles.Num());
+	NicheRingFirst.Init(INDEX_NONE, Board.Tiles.Num());
+	InlayHoles.Init(nullptr, Board.Tiles.Num());
+	Labels.Init(nullptr, Board.Tiles.Num());
+
+	// Las marcas y las etiquetas son componentes de la vista, en coordenadas del mundo: la losa se aplasta y se
+	// escala, y lo que colgara de ella se deformaría con ella.
+	auto AddShape = [this](UStaticMesh* Mesh, const FVector& Location, const FRotator& Rotation, const FVector& Size)
+	{
+		UStaticMeshComponent* Component = NewObject<UStaticMeshComponent>(this);
+		Component->SetStaticMesh(Mesh);
+		Component->SetupAttachment(GetRootComponent());
+		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Component->SetCastShadow(false);
+		Component->RegisterComponent();
+		Component->SetWorldLocation(Location);
+		Component->SetWorldRotation(Rotation);
+		Component->SetWorldScale3D(Size / 100.f);
+		return Component;
+	};
+
 	for (const FTileState& Tile : Board.Tiles)
 	{
+		const FVector Position = TilePositions[Tile.TileId];
+		const bool bAltar = Tile.Type == ETileType::Altar;
+		const float Thickness = bAltar ? AltarThickness : TileThickness;
+		const float Diameter = TileDiameter * (bAltar ? AltarScale : 1.f);
+		TileTops[Tile.TileId] = Thickness;
+
+		// El tipo se ve por la silueta: Nicho cuadrado, Nodo en rombo, Altar grande y alto, el resto redondo.
+		FRotator Rotation = FRotator::ZeroRotator;
+		float Width = Diameter;
+		if (Tile.Type == ETileType::PowerNode)
+		{
+			Rotation = FRotator(0.f, 45.f, 0.f);
+			Width = Diameter * 0.8f;
+		}
+		else if (Tile.Type == ETileType::Niche)
+		{
+			Width = Diameter * 0.9f;
+		}
 		// El cilindro del motor mide 100 cm de diámetro y 100 de alto: se aplasta a una losa.
-		const FTransform Transform(FRotator::ZeroRotator, TilePositions[Tile.TileId] + FVector(0.f, 0.f, TileThickness * 0.5f),
-			FVector(TileDiameter / 100.f, TileDiameter / 100.f, TileThickness / 100.f));
+		const FTransform Transform(Rotation, Position + FVector(0.f, 0.f, Thickness * 0.5f), FVector(Width / 100.f, Width / 100.f, Thickness / 100.f));
 		ABoardTileActor* Actor = GetWorld()->SpawnActor<ABoardTileActor>(ABoardTileActor::StaticClass(), Transform, Params);
 		if (Actor)
 		{
 			Actor->SetTileId(Tile.TileId);
+			Actor->SetSquareShape(Tile.Type == ETileType::Niche || Tile.Type == ETileType::PowerNode);
 			Actor->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
 		}
 		TileActors.Add(Actor);
+
+		// Halo de "alcanzable": un disco por debajo de la losa, más ancho, que solo se ve en el borde. La losa
+		// conserva su color; el halo se enciende cuando la tirada la permite.
+		UStaticMeshComponent* Halo = AddShape(CylinderMesh, Position + FVector(0.f, 0.f, 2.f), FRotator::ZeroRotator, FVector(Diameter * HaloScale, Diameter * HaloScale, 4.f));
+		Soulbound::Presentation::SetComponentColor(*Halo, BaseMaterial, ReachableColor);
+		Halo->SetVisibility(false);
+		Halos[Tile.TileId] = Halo;
+
+		// Aro de Dominio Olvidado: más alto que el halo, para que se vea también en una casilla alcanzable.
+		UStaticMeshComponent* Ring = AddShape(CylinderMesh, Position + FVector(0.f, 0.f, 3.f), FRotator::ZeroRotator, FVector(Diameter * ForgottenRingScale, Diameter * ForgottenRingScale, 6.f));
+		Soulbound::Presentation::SetComponentColor(*Ring, BaseMaterial, ForgottenRingColor);
+		Ring->SetVisibility(false);
+		ForgottenRings[Tile.TileId] = Ring;
+
+		// Marca del tipo sobre la losa, del tamaño justo para no tapar la ficha del centro, con contorno negro
+		// para que se distinga sobre cualquier Dominio.
+		const float Inlay = TileDiameter * InlayScale;
+		const float Outline = Inlay * OutlineScale;
+		const FVector OnTop = Position + FVector(0.f, 0.f, Thickness);
+		const FVector Mid = OnTop + FVector(0.f, 0.f, InlayHeight * 0.5f);
+		switch (Tile.Type)
+		{
+		case ETileType::Niche:
+			InlayOutlines[Tile.TileId] = AddShape(CubeMesh, OnTop + FVector(0.f, 0.f, InlayHeight * 0.4f), FRotator::ZeroRotator, FVector(Outline, Outline, InlayHeight * 0.8f));
+			Inlays[Tile.TileId] = AddShape(CubeMesh, Mid, FRotator::ZeroRotator, FVector(Inlay, Inlay, InlayHeight));
+			break;
+		case ETileType::PowerSource:
+		{
+			// Cruz: dos brazos cruzados, con contorno negro. No se parece al rombo con esfera del Nodo.
+			const float Arm = Inlay * CrossArmThickness;
+			const float OutlineArm = Arm + (Outline - Inlay);
+			const FVector LowMid = OnTop + FVector(0.f, 0.f, InlayHeight * 0.4f);
+			InlayOutlines[Tile.TileId] = AddShape(CubeMesh, LowMid, FRotator::ZeroRotator, FVector(Outline, OutlineArm, InlayHeight * 0.8f));
+			InlayOutlinesB[Tile.TileId] = AddShape(CubeMesh, LowMid, FRotator::ZeroRotator, FVector(OutlineArm, Outline, InlayHeight * 0.8f));
+			Inlays[Tile.TileId] = AddShape(CubeMesh, Mid, FRotator::ZeroRotator, FVector(Inlay, Arm, InlayHeight));
+			InlayHoles[Tile.TileId] = AddShape(CubeMesh, Mid, FRotator::ZeroRotator, FVector(Arm, Inlay, InlayHeight));
+			break;
+		}
+		case ETileType::PowerNode:
+			InlayOutlines[Tile.TileId] = AddShape(SphereMesh, OnTop + FVector(0.f, 0.f, InlayHeight * 0.4f), FRotator::ZeroRotator, FVector(Outline, Outline, InlayHeight * 1.6f));
+			Inlays[Tile.TileId] = AddShape(SphereMesh, Mid, FRotator::ZeroRotator, FVector(Inlay, Inlay, InlayHeight * 2.f));
+			break;
+		default:
+			break;
+		}
+		if (UStaticMeshComponent* OutlineMesh = InlayOutlines[Tile.TileId].Get())
+		{
+			Soulbound::Presentation::SetComponentColor(*OutlineMesh, BaseMaterial, OutlineColor);
+		}
+		if (UStaticMeshComponent* OutlineMeshB = InlayOutlinesB[Tile.TileId].Get())
+		{
+			Soulbound::Presentation::SetComponentColor(*OutlineMeshB, BaseMaterial, OutlineColor);
+		}
+
+		// Etiqueta plana sobre la losa, en la franja de abajo (la parte baja de la pantalla), orientada a la cámara cenital.
+		UTextRenderComponent* Label = NewObject<UTextRenderComponent>(this);
+		Label->SetupAttachment(GetRootComponent());
+		Label->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Label->SetCastShadow(false);
+		Label->RegisterComponent();
+		Label->SetHorizontalAlignment(EHTA_Center);
+		Label->SetVerticalAlignment(EVRTA_TextCenter);
+		Label->SetWorldSize(LabelSize);
+		Label->SetTextRenderColor(FColor::White);
+		// El texto del motor se ve desde +X: tumbado con el frente hacia arriba (pitch 90) y la cabeza hacia +X, arriba
+		// de la pantalla (yaw 180). Con pitch -90 se veía por detrás, como en un espejo.
+		Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
+		Label->SetWorldLocation(OnTop + FVector(-Diameter * LabelOffsetFraction * (bAltar ? 1.f : 1.f), 0.f, InlayHeight + 3.f));
+		Label->SetText(FText::FromString(TileLabelText(Board, Tile)));
+		Labels[Tile.TileId] = Label;
+
+		if (Tile.Type == ETileType::Niche)
+		{
+			// Nombre del Elegido (el del paréntesis de domains[].name) arriba de la casilla; número del asiento sobre el cubo.
+			auto AddText = [this, &OnTop](float Size, const FVector& Offset)
+			{
+				UTextRenderComponent* Text = NewObject<UTextRenderComponent>(this);
+				Text->SetupAttachment(GetRootComponent());
+				Text->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				Text->SetCastShadow(false);
+				Text->RegisterComponent();
+				Text->SetHorizontalAlignment(EHTA_Center);
+				Text->SetVerticalAlignment(EVRTA_TextCenter);
+				Text->SetWorldSize(Size);
+				Text->SetTextRenderColor(FColor::White);
+				Text->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
+				Text->SetWorldLocation(OnTop + Offset);
+				return Text;
+			};
+			const FString Name = Board.Domains.IsValidIndex(Tile.DomainId) ? Board.Domains[Tile.DomainId].Name : FString();
+			NicheNames[Tile.TileId] = AddText(NicheNameSize, FVector(Diameter * NicheNameOffsetFraction, 0.f, InlayHeight + 3.f));
+			NicheNames[Tile.TileId]->SetText(FText::FromString(ElectName(Name)));
+			NicheNumbers[Tile.TileId] = AddText(NicheNumberSize, FVector(0.f, 0.f, InlayHeight + 3.f));
+			NicheNumbers[Tile.TileId]->SetText(FText::GetEmpty());
+
+			// Aro del asiento: segmentos en círculo alrededor de la casilla, apagados hasta que se reclama.
+			const float RingRadius = TileDiameter * NicheRingRadiusScale;
+			const float SegmentLength = 2.f * PI * RingRadius / NicheRingSegmentCount * 1.15f;
+			NicheRingFirst[Tile.TileId] = NicheRingSegments.Num();
+			for (int32 Index = 0; Index < NicheRingSegmentCount; ++Index)
+			{
+				const float Angle = 2.f * PI * Index / NicheRingSegmentCount;
+				UStaticMeshComponent* Segment = AddShape(CubeMesh, Position + FVector(FMath::Cos(Angle) * RingRadius, FMath::Sin(Angle) * RingRadius, 3.f),
+					FRotator(0.f, FMath::RadiansToDegrees(Angle) + 90.f, 0.f), FVector(SegmentLength, NicheRingWidth, 6.f));
+				Soulbound::Presentation::SetComponentColor(*Segment, BaseMaterial, FLinearColor::White);
+				Segment->SetVisibility(false);
+				NicheRingSegments.Add(Segment);
+			}
+		}
 	}
 }
 
@@ -275,6 +440,7 @@ void ABoardViewActor::BuildTokens()
 		if (Token)
 		{
 			Token->SetSeat(Seat);
+			Token->Configure(TokenLabelSize, ActiveLift, ActiveSpinDegreesPerSecond, RingDiameter, RingWidth, ActiveScale);
 			Token->SetColor(SeatColor(Seat));
 			Token->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
 		}
@@ -291,25 +457,195 @@ void ABoardViewActor::BuildCamera()
 		Min = FVector2D(FMath::Min(Min.X, Position.X), FMath::Min(Min.Y, Position.Y));
 		Max = FVector2D(FMath::Max(Max.X, Position.X), FMath::Max(Max.Y, Position.Y));
 	}
-	const FVector2D Center = (Min + Max) * 0.5;
-	const FVector2D Half = (Max - Min) * 0.5 + FVector2D(TileDiameter);
-
-	// Cámara cenital fija: el tablero entero a 16:9 con un 10 % de margen. Con FOV horizontal de 60 grados, a la
-	// altura H se ve media anchura H*tan(30); la media altura es esa entre 16/9.
-	constexpr float Fov = 60.f;
-	constexpr float Aspect = 16.f / 9.f;
-	const float HalfTan = FMath::Tan(FMath::DegreesToRadians(Fov * 0.5f));
-	const float Height = 1.1f * FMath::Max(Half.Y / HalfTan, Half.X * Aspect / HalfTan);
+	BoardCenter = (Min + Max) * 0.5;
+	BoardHalf = (Max - Min) * 0.5 + FVector2D(TileDiameter * AltarScale * 0.5f + RingDiameter * 0.1f);
 
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	Camera = GetWorld()->SpawnActor<ACameraActor>(ACameraActor::StaticClass(),
-		FTransform(FRotator(-90.f, 0.f, 0.f), FVector(Center.X, Center.Y, Height)), Params);
+	Camera = GetWorld()->SpawnActor<ACameraActor>(ACameraActor::StaticClass(), FTransform(FRotator(-90.f, 0.f, 0.f), FVector(BoardCenter.X, BoardCenter.Y, 1000.0)), Params);
 	if (Camera)
 	{
-		Camera->GetCameraComponent()->SetFieldOfView(Fov);
+		Camera->GetCameraComponent()->SetFieldOfView(60.f);
 		Camera->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
 	}
+	UpdateCamera();
+}
+
+void ABoardViewActor::UpdateCamera()
+{
+	if (!Camera)
+	{
+		return;
+	}
+	FVector2D Viewport(1280.0, 720.0);
+	if (const UGameViewportClient* Client = GetWorld()->GetGameViewport())
+	{
+		Client->GetViewportSize(Viewport);
+	}
+	if (Viewport.X < 1.0 || Viewport.Y < 1.0)
+	{
+		return;
+	}
+	LastViewportSize = Viewport;
+
+	// Cámara cenital fija: el tablero entero, con el margen CameraMargin, en el hueco que dejan los paneles a la derecha.
+	// Con FOV horizontal de 60 grados, a la altura H se ve media anchura H*tan(30); la media altura es esa entre el aspecto.
+	constexpr float Fov = 60.f;
+	const float Aspect = Viewport.X / Viewport.Y;
+	const float HalfTan = FMath::Tan(FMath::DegreesToRadians(Fov * 0.5f));
+	const float FreeFraction = 1.f - FMath::Clamp(PanelWidthPixels / static_cast<float>(Viewport.X), 0.f, 0.6f);
+	const float Height = CameraMargin * FMath::Max(BoardHalf.Y / (FreeFraction * HalfTan), BoardHalf.X * Aspect / HalfTan);
+	// La pantalla crece hacia +Y a la derecha: para que el tablero quede a la izquierda, la cámara se corre hacia +Y.
+	const float VisibleHalfWidth = Height * HalfTan;
+	const float ShiftY = VisibleHalfWidth * (1.f - FreeFraction);
+	Camera->SetActorLocation(FVector(BoardCenter.X, BoardCenter.Y + ShiftY, Height));
+}
+
+void ABoardViewActor::BuildPostProcess()
+{
+	// Exposición manual fija en un volumen sin límites, generado por código: el nivel del spike lleva la suya
+	// automática y los colores salían pastel. Prioridad alta para ganar a cualquier otro volumen del mapa.
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	PostProcess = GetWorld()->SpawnActor<APostProcessVolume>(APostProcessVolume::StaticClass(), FTransform::Identity, Params);
+	if (PostProcess)
+	{
+		PostProcess->bUnbound = true;
+		PostProcess->Priority = 1000.f;
+		PostProcess->Settings.bOverride_AutoExposureMethod = true;
+		PostProcess->Settings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
+		PostProcess->Settings.bOverride_AutoExposureBias = true;
+		PostProcess->Settings.AutoExposureBias = ExposureEV100;
+	}
+}
+
+void ABoardViewActor::BuildOverlay()
+{
+	UGameViewportClient* Viewport = GetWorld()->GetGameViewport();
+	if (!Viewport)
+	{
+		return;
+	}
+	const FBoardState& Board = Host->GetState().Board;
+
+	// La leyenda sale de los mismos colores que la vista: no pueden contradecirse.
+	TArray<FLegendRow> Rows;
+	FLegendRow Domains;
+	Domains.Title = TEXT("Dominios y su Elegido (color de la casilla, D<n> en la etiqueta). Fuera = Olvidado");
+	TWeakObjectPtr<UMatchHostSubsystem> WeakHost = Host;
+	for (int32 Id = 0; Id < Board.Domains.Num(); ++Id)
+	{
+		FLegendChip Chip;
+		Chip.Color = DomainColor(Id);
+		// Al día: fuera de la partida (Olvidado), en juego, o en juego con el asiento que reclamó su Nicho.
+		Chip.TextGetter = [WeakHost, Id]() -> FString
+		{
+			const UMatchHostSubsystem* HostPtr = WeakHost.Get();
+			if (!HostPtr || !HostPtr->HasMatch() || !HostPtr->GetState().Board.Domains.IsValidIndex(Id))
+			{
+				return FString::Printf(TEXT("D%d"), Id);
+			}
+			const FDomainState& Domain = HostPtr->GetState().Board.Domains[Id];
+			if (Domain.State == EDomainState::Forgotten)
+			{
+				return FString::Printf(TEXT("D%d %s: OLVIDADO (fuera)"), Id, *Domain.Name);
+			}
+			return Domain.OwnerSeat == INDEX_NONE
+				? FString::Printf(TEXT("D%d %s: en juego"), Id, *Domain.Name)
+				: FString::Printf(TEXT("D%d %s: en juego, asiento %d"), Id, *Domain.Name, Domain.OwnerSeat);
+		};
+		Domains.Chips.Add(Chip);
+	}
+	Rows.Add(Domains);
+	Rows.Add({TEXT("Tipo = forma (etiqueta: ALTAR, N, F, X)"),
+		{{AltarColor, TEXT("ALTAR: casilla grande y alta")},
+			{NicheFreeColor, TEXT("N Nicho: casilla cuadrada con cubo")},
+			{SourceColor, TEXT("F Fuente: casilla redonda con cruz")},
+			{NodeColor, TEXT("X Nodo: rombo con esfera")}}});
+	Rows.Add({TEXT("Nicho (el cubo)"),
+		{{NicheFreeColor, TEXT("Libre")}, {SeatColor(0), TEXT("Reclamado: aro y número del asiento")}, {NicheClosedColor, TEXT("Cerrado")}}});
+	Rows.Add({TEXT("Estado de la casilla"),
+		{{ReachableColor, TEXT("alcanzable: halo blanco bajo la casilla")},
+			{SealedColor, TEXT("sellada (SELLO)")},
+			{ForgottenRingColor, TEXT("Dominio Olvidado: casillas apagadas con aro gris oscuro")}}});
+	// Una fila por asiento, con su rol al día: Eco (esfera) o Elegido (cono), y el Dominio que lleva.
+	FLegendRow Seats;
+	Seats.Title = TEXT("Asientos (el número va en la ficha): esfera = Eco, cono = Elegido. El activo crece, sube, gira y lleva aro");
+	for (int32 Seat = 0; Seat < Host->GetState().Seats.Num(); ++Seat)
+	{
+		FLegendChip Chip;
+		Chip.Color = SeatColor(Seat);
+		Chip.TextGetter = [WeakHost, Seat]() -> FString
+		{
+			const UMatchHostSubsystem* HostPtr = WeakHost.Get();
+			if (!HostPtr || !HostPtr->HasMatch() || !HostPtr->GetState().Seats.IsValidIndex(Seat))
+			{
+				return FString::Printf(TEXT("%d"), Seat);
+			}
+			const FSeatState& SeatState = HostPtr->GetState().Seats[Seat];
+			const FBoardState& Board = HostPtr->GetState().Board;
+			const TCHAR* Who = Seat == HostPtr->GetHumanSeat() ? TEXT("humano") : TEXT("dummy");
+			const FString DomainName = Board.Domains.IsValidIndex(SeatState.DomainId) ? Board.Domains[SeatState.DomainId].Name : FString();
+			if (SeatState.Role == ESeatRole::Elect)
+			{
+				return FString::Printf(TEXT("%d (%s): ELEGIDO, D%d %s"), Seat, Who, SeatState.DomainId, *DomainName);
+			}
+			return SeatState.DomainId == INDEX_NONE
+				? FString::Printf(TEXT("%d (%s): ECO"), Seat, Who)
+				: FString::Printf(TEXT("%d (%s): ECO, hogar en D%d %s"), Seat, Who, SeatState.DomainId, *DomainName);
+		};
+		Seats.Chips.Add(Chip);
+	}
+	Rows.Add(Seats);
+
+	ChroniclePanel = SNew(SChroniclePanel).FontSize(PanelFontSize);
+	Overlay = SNew(SBox)
+		.HAlign(HAlign_Right)
+		.VAlign(VAlign_Fill)
+		.Padding(FMargin(0.f, 8.f, 8.f, 8.f))
+		.Visibility(EVisibility::SelfHitTestInvisible)
+		[
+			SNew(SBox)
+			.WidthOverride(PanelWidthPixels)
+			[
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					SNew(SLegendPanel).FontSize(PanelFontSize).Rows(Rows)
+				]
+				+ SVerticalBox::Slot().FillHeight(1.f).Padding(0.f, 6.f, 0.f, 0.f)
+				[
+					ChroniclePanel.ToSharedRef()
+				]
+			]
+		];
+	Viewport->AddViewportWidgetContent(Overlay.ToSharedRef(), 10);
+}
+
+void ABoardViewActor::RefreshChronicle(const FMatchState& State)
+{
+	if (!ChroniclePanel.IsValid() || State.EventLog.Num() == ChronicleLineCount)
+	{
+		return;
+	}
+	ChronicleLineCount = State.EventLog.Num();
+
+	// La más reciente primero; se conservan solo las últimas ChronicleMaxLines.
+	TArray<FChronicleLine> Lines;
+	const int32 First = FMath::Max(0, State.EventLog.Num() - FMath::Max(ChronicleMaxLines, 1));
+	for (int32 Index = State.EventLog.Num() - 1; Index >= First; --Index)
+	{
+		const FMatchEvent& Event = State.EventLog[Index];
+		FLinearColor Color = SeatColor(Event.Seat);
+		switch (Soulbound::Presentation::EventSource(Event.Type))
+		{
+		case Soulbound::Presentation::EEventSource::Warden: Color = WardenLineColor; break;
+		case Soulbound::Presentation::EEventSource::Race: Color = RaceLineColor; break;
+		case Soulbound::Presentation::EEventSource::Seat: break;
+		}
+		Lines.Add({FString::Printf(TEXT("[%s] %s"), *Stamp(Event.ClockSeconds), *Soulbound::Presentation::DescribeEvent(Event, State.Board)), Color});
+	}
+	ChroniclePanel->SetLines(Lines);
 }
 
 void ABoardViewActor::Refresh()
@@ -336,22 +672,73 @@ void ABoardViewActor::Refresh()
 		{
 			continue;
 		}
-		const bool bForgotten = State.Board.Domains.IsValidIndex(Tile.DomainId) && State.Board.Domains[Tile.DomainId].State == EDomainState::Forgotten;
-		FLinearColor Color = Tile.Type == ETileType::Niche ? NicheColor(State.Board, Tile) : TileTypeColor(Tile.Type, Tile.DomainId);
-		if (Reachable.Contains(Tile.TileId))
+		const FDomainState* Domain = State.Board.Domains.IsValidIndex(Tile.DomainId) ? &State.Board.Domains[Tile.DomainId] : nullptr;
+		const bool bForgotten = Domain && Domain->State == EDomainState::Forgotten;
+		const float Dim = bForgotten ? ForgottenDim : 1.f;
+
+		// La losa lleva el color del Dominio (el del tipo, en el Altar); la marca de encima, el del tipo.
+		FLinearColor Base = Tile.Type == ETileType::Altar ? AltarColor : Dimmed(DomainColor(Tile.DomainId), Dim);
+		if (Tile.bSealed)
 		{
-			Color = FLinearColor::White;
+			Base = SealedColor;
 		}
-		else if (Tile.bSealed)
+		Actor->SetColor(Base);
+		if (UStaticMeshComponent* ForgottenRing = ForgottenRings.IsValidIndex(Tile.TileId) ? ForgottenRings[Tile.TileId].Get() : nullptr)
 		{
-			Color = FLinearColor(0.55f, 0.01f, 0.01f);
+			ForgottenRing->SetVisibility(bForgotten);
 		}
-		else if (bForgotten)
+		if (UStaticMeshComponent* Halo = Halos.IsValidIndex(Tile.TileId) ? Halos[Tile.TileId].Get() : nullptr)
 		{
-			Color = Dimmed(Color);
+			Halo->SetVisibility(Reachable.Contains(Tile.TileId));
 		}
-		Actor->SetColor(Color);
+
+		UStaticMeshComponent* Inlay = Inlays.IsValidIndex(Tile.TileId) ? Inlays[Tile.TileId].Get() : nullptr;
+		if (Inlay)
+		{
+			FLinearColor Mark = Base;
+			switch (Tile.Type)
+			{
+			case ETileType::Niche:
+				// El cubo no cambia de color por quien lo reclama: el Dominio se sigue viendo. Libre y Reclamado, el color de
+				// tipo; Cerrado, gris oscuro. El Reclamado lleva el aro y el número del asiento (más abajo).
+				Mark = Domain && Domain->NicheState == ENicheState::Closed ? NicheClosedColor : NicheFreeColor;
+				break;
+			case ETileType::PowerSource: Mark = Dimmed(SourceColor, Dim); break;
+			case ETileType::PowerNode: Mark = Dimmed(NodeColor, Dim); break;
+			default: break;
+			}
+			Soulbound::Presentation::SetComponentColor(*Inlay, BaseMaterial, Mark);
+		}
+		if (UStaticMeshComponent* Hole = InlayHoles.IsValidIndex(Tile.TileId) ? InlayHoles[Tile.TileId].Get() : nullptr)
+		{
+			// Segundo brazo de la cruz de la Fuente: el mismo color que el primero.
+			Soulbound::Presentation::SetComponentColor(*Hole, BaseMaterial, Dimmed(SourceColor, Dim));
+		}
+		if (Tile.Type == ETileType::Niche && NicheRingFirst.IsValidIndex(Tile.TileId) && NicheRingFirst[Tile.TileId] != INDEX_NONE)
+		{
+			const bool bClaimed = Domain && Domain->NicheState == ENicheState::Claimed;
+			const FLinearColor RingColor = bClaimed ? SeatColor(Domain->OwnerSeat) : FLinearColor::White;
+			const int32 First = NicheRingFirst[Tile.TileId];
+			for (int32 Index = First; Index < First + NicheRingSegmentCount && NicheRingSegments.IsValidIndex(Index); ++Index)
+			{
+				Soulbound::Presentation::SetComponentColor(*NicheRingSegments[Index], BaseMaterial, RingColor);
+				NicheRingSegments[Index]->SetVisibility(bClaimed);
+			}
+			if (UTextRenderComponent* Number = NicheNumbers[Tile.TileId].Get())
+			{
+				Number->SetText(bClaimed ? FText::AsNumber(Domain->OwnerSeat) : FText::GetEmpty());
+			}
+		}
+		if (UTextRenderComponent* Label = Labels.IsValidIndex(Tile.TileId) ? Labels[Tile.TileId].Get() : nullptr)
+		{
+			const FString Text = TileLabelText(State.Board, Tile) + (Tile.bSealed ? TEXT("\nSELLO") : TEXT(""));
+			Label->SetText(FText::FromString(Text));
+			Label->SetTextRenderColor(Tile.bSealed ? FColor::Red : FColor::White);
+		}
 	}
+
+	// Asiento activo: solo mientras dura su turno; entre turnos no juega nadie.
+	const bool bSomeoneActive = !State.IsMatchOver() && State.TurnPhase != ETurnPhase::BetweenTurns;
 
 	// Fichas: sobre su casilla y, si comparten casilla, repartidas en un círculo pequeño.
 	for (int32 Seat = 0; Seat < State.Seats.Num() && Seat < TokenActors.Num(); ++Seat)
@@ -378,10 +765,13 @@ void ABoardViewActor::Refresh()
 			const float Angle = 2.f * PI * MyIndex / Sharing;
 			Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * (TileDiameter * 0.28f);
 		}
-		Token->SetActorLocation(TilePositions[TileId] + Offset + FVector(0.f, 0.f, TileThickness + TokenDiameter * 0.5f));
+		Token->MoveTo(TilePositions[TileId] + Offset + FVector(0.f, 0.f, TileTops[TileId] + TokenDiameter * 0.5f), TokenSlideSeconds);
 		// Elegido: cono; Eco: esfera (criterio manual "Vínculo visible").
 		Token->SetElectShape(State.Seats[Seat].Role == ESeatRole::Elect);
+		Token->SetActive(bSomeoneActive && Seat == State.ActiveSeat);
 	}
+
+	RefreshChronicle(State);
 }
 
 void ABoardViewActor::ShowText(int32 Line, const FColor& Color, const FString& Text) const
@@ -413,22 +803,42 @@ void ABoardViewActor::TickHud()
 				Controller->SetViewTarget(Camera);
 			}
 		}
+		// Si la ventana cambia de tamaño, el tablero se recoloca en el hueco de los paneles.
+		if (const UGameViewportClient* Client = GetWorld()->GetGameViewport())
+		{
+			FVector2D Viewport;
+			Client->GetViewportSize(Viewport);
+			if (!Viewport.Equals(LastViewportSize, 0.5))
+			{
+				UpdateCamera();
+			}
+		}
 	}
 
 	const bool bWaiting = State.TurnPhase == ETurnPhase::RollAndChoose;
 	const bool bHumanTurn = bWaiting && State.ActiveSeat == HostPtr->GetHumanSeat();
+	const bool bStepWait = HostPtr->IsWaitingForStep();
 	const int32 TurnNumber = State.TurnPhase == ETurnPhase::BetweenTurns ? State.TurnCount : State.TurnCount + 1;
 
-	ShowText(0, FColor::White, FString::Printf(TEXT("Turno %d | asiento activo: %d (%s) | fase: %s"),
-		TurnNumber, State.ActiveSeat, State.ActiveSeat == HostPtr->GetHumanSeat() ? TEXT("humano") : TEXT("dummy"), PhaseName(State.TurnPhase)));
+	// La línea del turno lleva el color del asiento que juega; entre turnos, blanca (no juega nadie).
+	const bool bSomeoneActive = !State.IsMatchOver() && State.TurnPhase != ETurnPhase::BetweenTurns;
+	ShowText(0, bSomeoneActive ? SeatColor(State.ActiveSeat).ToFColor(true) : FColor::White,
+		FString::Printf(TEXT("Turno %d | juega: asiento %d (%s) | fase: %s"), TurnNumber, State.ActiveSeat,
+			State.ActiveSeat == HostPtr->GetHumanSeat() ? TEXT("humano") : TEXT("dummy"), PhaseName(State.TurnPhase)));
 
 	const FString Clock = bWaiting ? FString::Printf(TEXT("%.0f s"), FMath::Max(0.0, State.TurnDeadlineSeconds - State.ClockSeconds)) : FString(TEXT("-"));
 	ShowText(1, bHumanTurn ? FColor::Green : FColor::White, FString::Printf(TEXT("Tirada: %d | reloj de turno: %s%s"),
 		State.Roll, *Clock, bHumanTurn ? TEXT("  <- tu turno: clic en una casilla blanca") : TEXT("")));
 
-	ShowText(2, FColor::Yellow, State.EventLog.IsEmpty()
-		? FString(TEXT("Ultimo suceso: -"))
-		: FString::Printf(TEXT("Ultimo suceso: %s"), *DescribeEvent(State.EventLog.Last())));
+	// Paso a paso (S-007): lo que espera, bien visible.
+	if (bStepWait)
+	{
+		ShowText(2, FColor::Yellow, TEXT("PASO A PASO: espacio para el siguiente turno"));
+	}
+	else if (HostPtr->IsStepMode())
+	{
+		ShowText(2, FColor(200, 200, 90), TEXT("PASO A PASO activo: la partida se detendra al acabar este turno"));
+	}
 
 	const FString Sealed = State.Board.SealedTiles.IsEmpty()
 		? FString(TEXT("ninguno"))

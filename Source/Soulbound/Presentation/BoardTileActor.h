@@ -5,6 +5,7 @@
 #include "BoardTileActor.generated.h"
 
 class UMaterialInterface;
+class UStaticMesh;
 class UStaticMeshComponent;
 
 /**
@@ -27,12 +28,21 @@ public:
 	/** Pinta la casilla. */
 	void SetColor(const FLinearColor& Color);
 
+	/** Forma de la losa: cuadrada (cubo) o redonda (cilindro, la de origen). Conserva el color. S-007: el tipo se ve por la forma. */
+	void SetSquareShape(bool bSquare);
+
 private:
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> Mesh;
 
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> BaseMaterial;
+
+	UPROPERTY()
+	TObjectPtr<UStaticMesh> RoundMesh;
+
+	UPROPERTY()
+	TObjectPtr<UStaticMesh> SquareMesh;
 
 	int32 TileId = INDEX_NONE;
 };

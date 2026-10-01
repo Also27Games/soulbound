@@ -106,7 +106,8 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 		// Los demás, dummies de carrera (S-006): buscan el Nicho Libre más cercano. Doble de prueba hasta el bot básico.
 		Deciders.Add(Seat == HumanSeat ? TSharedPtr<IDecider>() : TSharedPtr<IDecider>(MakeShared<FRaceDummyDecider>()));
 	}
-	OriginWorldSeconds = World.GetTimeSeconds();
+	StepClock = FStepClock();
+	StepClock.OriginWorldSeconds = World.GetTimeSeconds();
 	State.ClockSeconds = 0.0;
 	bHasMatch = true;
 
@@ -117,14 +118,14 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 double UMatchHostSubsystem::MatchSeconds() const
 {
 	const UWorld* World = GetWorld();
-	return World ? World->GetTimeSeconds() - OriginWorldSeconds : 0.0;
+	return World ? StepClock.MatchSeconds(World->GetTimeSeconds()) : 0.0;
 }
 
 void UMatchHostSubsystem::Advance()
 {
-	if (!bHasMatch)
+	if (!bHasMatch || StepClock.bHeld)
 	{
-		return;
+		return; // detenida en el paso a paso: ni dummies, ni reloj, ni turno
 	}
 	const double Now = MatchSeconds();
 	State.ClockSeconds = Now;
@@ -133,6 +134,15 @@ void UMatchHostSubsystem::Advance()
 	// Las reglas son del motor: aquí solo se pregunta al decisor, se entrega su intención y se avanza el turno.
 	while (true)
 	{
+		// Paso a paso: al entrar en BetweenTurns la partida se detiene hasta que se concede un paso.
+		if (StepClock.ShouldHold(bStepMode, State.TurnPhase, State.MatchPhase))
+		{
+			StepClock.Hold(GetWorld()->GetTimeSeconds());
+			UE_LOG(LogSoulboundMatch, Log, TEXT("Paso a paso: partida detenida en t=%.1f s, esperando el siguiente turno."), StepClock.FrozenMatchSeconds);
+			bChanged = true;
+			break;
+		}
+
 		const int32 Seat = State.ActiveSeat;
 		if (State.TurnPhase == ETurnPhase::RollAndChoose && Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid())
 		{
@@ -165,6 +175,7 @@ void UMatchHostSubsystem::Advance()
 		{
 			break;
 		}
+		StepClock.NoteTurnPhase(State.TurnPhase);
 		bChanged = true;
 	}
 
@@ -172,6 +183,38 @@ void UMatchHostSubsystem::Advance()
 	{
 		OnMatchStateChanged.Broadcast();
 	}
+}
+
+void UMatchHostSubsystem::SetStepMode(bool bEnabled)
+{
+	bStepMode = bEnabled;
+	if (!bHasMatch)
+	{
+		return;
+	}
+	if (!bEnabled)
+	{
+		StepClock.Disable(GetWorld()->GetTimeSeconds());
+		UE_LOG(LogSoulboundMatch, Log, TEXT("Paso a paso desactivado: la partida sigue sola."));
+		OnMatchStateChanged.Broadcast();
+	}
+	else
+	{
+		UE_LOG(LogSoulboundMatch, Log, TEXT("Paso a paso activado: la partida se detendra al acabar el turno en curso."));
+	}
+	Advance();
+}
+
+bool UMatchHostSubsystem::StepOnce()
+{
+	if (!bHasMatch || !StepClock.Step(GetWorld()->GetTimeSeconds()))
+	{
+		return false;
+	}
+	UE_LOG(LogSoulboundMatch, Log, TEXT("Paso a paso: se juega un turno."));
+	OnMatchStateChanged.Broadcast();
+	Advance();
+	return true;
 }
 
 EIntentResult UMatchHostSubsystem::SubmitHumanIntent(int32 TileId)
