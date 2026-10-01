@@ -6,7 +6,7 @@
 
 La vista de S-005 y S-006 pinta la partida, pero el autor no puede seguirla en PIE: los colores salen pastel por la exposición automática del nivel, no se sabe qué casilla es cuál ni de qué Dominio, no se distingue quién juega y el único suceso en pantalla desaparece antes de leerlo. Resultado: los criterios manuales de S-005 y S-006 se dieron por buenos con la crónica, no con la vista. Esta story convierte la vista en una herramienta que se entiende sin leer la crónica. Sigue siendo vista de depuración, sin arte y sin assets.
 
-Decidido por el autor el 02/10/2026: etiquetas con identificador y Dominio en todas las casillas; tecla del paso a paso, la barra espaciadora (y el botón A del mando si no complica); el modo paso a paso se cambia en caliente (Blueprint y consola), no solo por configuración; la crónica entera en un panel lateral con scroll, no seis líneas; la story se cierra por rondas.
+Decidido por el autor el 01/10/2026: etiquetas con identificador y Dominio en todas las casillas; tecla del paso a paso, la barra espaciadora (y el botón A del mando si no complica); el modo paso a paso se cambia en caliente (Blueprint y consola), no solo por configuración; la crónica entera en un panel lateral con scroll, no seis líneas; la story se cierra por rondas.
 
 ## Qué se construye
 
