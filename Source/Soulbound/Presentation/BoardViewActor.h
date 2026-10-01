@@ -17,7 +17,9 @@ class UStaticMeshComponent;
  * conexiones del grafo, una casilla por casilla del tablero, una ficha por asiento y la cámara cenital, y los
  * redibuja cuando el anfitrión de partida avisa de un cambio. Lee el estado en solo lectura; no contiene reglas
  * (las casillas alcanzables son las que guarda el estado, calculadas por el motor). También pinta el texto de
- * depuración del turno, que refresca a intervalo corto porque el reloj cambia sin que cambie el estado.
+ * depuración del turno, que refresca a intervalo corto porque el reloj cambia sin que cambie el estado. Desde S-006
+ * enseña la carrera por el vínculo: Nicho Libre, Cerrado o con el color de quien lo reclamó, ficha cónica del
+ * Elegido, tiempo de carrera, rol y hogar de cada asiento, fin de carrera y victoria del Warden.
  * Sin arte: formas básicas del motor y el material básico con parámetro de color. Nada se coloca a mano en el mapa.
  */
 UCLASS(NotBlueprintable)

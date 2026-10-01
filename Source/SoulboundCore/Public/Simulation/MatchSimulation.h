@@ -45,6 +45,7 @@ struct SOULBOUNDCORE_API FSimulationResult
  * las mismas reglas y el mismo cerebro que en juego; solo cambia quién avanza el reloj. Inicia la partida con
  * StartMatch y juega los turnos con la máquina de turnos del motor (Match/TurnRules.h): la simulación consulta a
  * los decisores y avanza el reloj, pero no contiene reglas de turno. El cerebro del Warden sigue siendo el del spike.
+ * La partida acaba al llegar a DurationSeconds o, antes, al terminar con victoria del Warden (R-CAR-8, S-006).
  */
 class SOULBOUNDCORE_API FMatchSimulation
 {

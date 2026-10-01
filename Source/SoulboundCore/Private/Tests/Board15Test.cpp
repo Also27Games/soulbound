@@ -1,12 +1,12 @@
-// Tests del tablero de 15 casillas por Dominio (S-005): el archivo generado por el editor de tablero pasa las reglas
-// del GDD 01 y sirve para una partida y una simulación enteras. Si alguno falla, el fallo es del archivo
-// (lo generó el editor, cuyo validador es un espejo en JavaScript): se avisa al autor, no se retoca el validador.
+// Tests del tablero de 15 casillas por Dominio (S-005): el archivo generado por el editor de tablero sirve para una
+// simulación entera. Si falla, el fallo es del archivo (lo generó el editor, cuyo validador es un espejo en
+// JavaScript): se avisa al autor, no se retoca el validador. Desde S-006, que el archivo es válido lo comprueba
+// Soulbound.Core.Board.Data.TodosLosTablerosValidos para todos los tableros de datos.
 // Se lanzan sin editor con Scripts/test.ps1. Filtro: "Soulbound.Core.Board15".
 
 #include "Board/BoardLoader.h"
 #include "Decider/Decider.h"
 #include "Match/MatchParams.h"
-#include "Match/MatchStart.h"
 #include "Math/RandomStream.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
@@ -46,33 +46,6 @@ namespace
 	}
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoard15IsValidTest,
-	"Soulbound.Core.Board15.EsValidoYIniciaPartida",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
-
-bool FBoard15IsValidTest::RunTest(const FString& Parameters)
-{
-	// CA "El tablero de 15 es válido" (R-TAB-1 a 5): LoadBoardFromFile valida con ValidateBoard, 91 casillas,
-	// y StartMatch inicia una partida sobre él.
-	FBoardState Board;
-	if (!LoadBoard15(*this, Board))
-	{
-		return false;
-	}
-	TestTrue(TEXT("ValidateBoard lo acepta"), Soulbound::Rules::ValidateBoard(Board).IsSuccess());
-	TestEqual(TEXT("91 casillas"), Board.Tiles.Num(), 91);
-
-	FMatchParams Params;
-	if (!Soulbound::Tests::LoadTestMatchParams(*this, Params))
-	{
-		return false;
-	}
-	FRandomStream Random(1);
-	const FMatchStartResult Start = Soulbound::Rules::StartMatch(Board, Params, Soulbound::Match::MaxPlayers, Random);
-	TestTrue(FString::Printf(TEXT("StartMatch inicia la partida (%s)"), *Start.Message), Start.IsSuccess());
-	return true;
-}
-
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoard15SimulationTest,
 	"Soulbound.Core.Board15.SimulacionDeterminista",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
@@ -89,7 +62,10 @@ bool FBoard15SimulationTest::RunTest(const FString& Parameters)
 	const FSimulationResult B = FMatchSimulation(Params, FourDummies()).Run();
 
 	TestTrue(TEXT("La partida termina y se jugaron turnos"), A.Turns > 0);
-	TestTrue(TEXT("La partida llega a su duración"), A.FinalState.ClockSeconds >= Params.DurationSeconds - Params.EvaluationPeriodSeconds);
+	// Desde S-006, con dummies al azar en un tablero de 91 casillas nadie suele vincularse en la carrera: la partida
+	// termina entonces con victoria del Warden (R-CAR-8), antes de su duración.
+	TestTrue(TEXT("La partida llega a su duración o termina con victoria del Warden"),
+		A.FinalState.ClockSeconds >= Params.DurationSeconds - Params.EvaluationPeriodSeconds || A.FinalState.Outcome == EMatchOutcome::WardenVictory);
 	TestEqual(TEXT("Misma semilla, mismo número de líneas"), A.Log.Num(), B.Log.Num());
 	TestTrue(TEXT("Misma semilla, mismo registro"), A.Log == B.Log);
 	TestTrue(TEXT("Misma semilla, mismo estado final"), Soulbound::Tests::SameState(A.FinalState, B.FinalState));

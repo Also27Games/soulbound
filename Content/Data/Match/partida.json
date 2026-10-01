@@ -1,5 +1,6 @@
 {
   "turnClockSeconds": 30,
   "maxExtraTurns": 2,
-  "maxLostTurns": 2
+  "maxLostTurns": 2,
+  "raceDurationSeconds": 300
 }

@@ -1,6 +1,7 @@
 #include "Match/TurnRules.h"
 
 #include "Board/MovementRules.h"
+#include "Match/BondRaceRules.h"
 #include "Math/RandomStream.h"
 
 namespace
@@ -61,8 +62,8 @@ namespace
 		// TODO(R-TUR-4): con Celeridad el jugador elige uno o dos dados en PreRoll; hoy siempre el valor por defecto.
 		State.TurnPhase = ETurnPhase::RollAndChoose;
 		State.Roll = Soulbound::Rules::RollDice(Random, Soulbound::Dice::DefaultCount);
-		// TODO(R-TUR-7): los rasgos del jugador (Paso Libre) llegan con la story de runas y poderes.
-		const FMoverTraits Mover;
+		// R-TAB-21: los rasgos del asiento salen del estado con la misma función que puede usar cualquiera (MakeMoverTraits).
+		const FMoverTraits Mover = Soulbound::Rules::MakeMoverTraits(State, State.ActiveSeat);
 		State.ReachableOptions = Soulbound::Rules::ReachableTiles(State.Board, State.Seats[State.ActiveSeat].TileId, State.Roll, Mover);
 		LogEvent(State, EMatchEventType::Rolled, NowSeconds, State.ActiveSeat, State.Roll);
 	}
@@ -74,8 +75,19 @@ namespace
 		LogEvent(State, EMatchEventType::TurnEnded, NowSeconds, State.ActiveSeat);
 	}
 
+	/**
+	 * R-CAR-1, R-TAB-27: agotado el tiempo de la carrera, termina al acabar el turno en curso. Se mira al entrar en
+	 * BetweenTurns y antes de empezar un turno, nunca a mitad de uno. Devuelve true si la carrera terminó.
+	 */
+	bool EndBondRaceIfTimeIsUp(FMatchState& State, double NowSeconds, FRandomStream& Random)
+	{
+		// TODO(R-TAB-26): el fin de carrera como interrupción del turno en curso es de la story del Warden.
+		return State.MatchPhase == EMatchPhase::BondRace && NowSeconds >= State.Params.RaceDurationSeconds
+			&& Soulbound::Rules::EndBondRace(State, NowSeconds, Random);
+	}
+
 	/** End → BetweenTurns: turno extra del mismo asiento (R-TUR-9) o siguiente del orden (R-TUR-1). */
-	void LeaveEnd(FMatchState& State)
+	void LeaveEnd(FMatchState& State, double NowSeconds, FRandomStream& Random)
 	{
 		FSeatState& Seat = State.Seats[State.ActiveSeat];
 		SettleExtraAgainstLost(Seat);
@@ -90,6 +102,11 @@ namespace
 		State.TurnPhase = ETurnPhase::BetweenTurns;
 		State.Roll = 0;
 		State.ReachableOptions.Reset();
+		// R-TUR-9 antes que R-CAR-1: el fin de carrera se mira al acabar cada turno, extra o no. Un turno extra concedido
+		// y empezado antes del límite se juega entero, y la carrera termina al acabarlo. Si el turno que acaba aquí ya
+		// pasó el límite y deja un turno extra pendiente, la carrera termina ahora y ese turno extra se juega después,
+		// ya fuera de la carrera y con sus condiciones (confinamiento de los Ecos): decisión del autor del 01/10/2026.
+		EndBondRaceIfTimeIsUp(State, NowSeconds, Random);
 	}
 
 	/** Si la partida tiene lo que la máquina de turnos necesita: orden de turno sobre asientos existentes y turno activo en él. */
@@ -125,14 +142,19 @@ namespace Soulbound::Rules
 
 	bool AdvanceTurn(FMatchState& State, double NowSeconds, FRandomStream& Random)
 	{
-		if (!HasTurnOrder(State))
+		// R-CAR-8: con la partida terminada, la máquina de turnos no avanza más.
+		if (!HasTurnOrder(State) || State.IsMatchOver())
 		{
 			return false;
 		}
 		switch (State.TurnPhase)
 		{
 		case ETurnPhase::BetweenTurns:
-			EnterStart(State, NowSeconds);
+			// Si el tiempo de carrera se agotó sin turno en curso, termina antes de empezar el siguiente.
+			if (!EndBondRaceIfTimeIsUp(State, NowSeconds, Random))
+			{
+				EnterStart(State, NowSeconds);
+			}
 			return true;
 		case ETurnPhase::Start:
 			State.TurnPhase = ETurnPhase::PreRoll;
@@ -158,11 +180,14 @@ namespace Soulbound::Rules
 			}
 			return false;
 		case ETurnPhase::MoveAndResolve:
-			// TODO(R-TUR-2): resolución de la casilla de destino (Fuente, Nicho, Nodos), en las stories de cada sistema.
+			// R-CAR-4: el Nicho se resuelve aquí. Sin movimiento (R-TAB-18) el asiento sigue donde terminó el anterior,
+			// que nunca es un Nicho Libre para un Eco: lo habría reclamado al llegar.
+			Soulbound::Rules::ResolveNicheLanding(State, State.ActiveSeat, NowSeconds, Random);
+			// TODO(R-TUR-2): resolución de Fuentes y Nodos, en las stories de runas y de Nodos.
 			EnterEnd(State, NowSeconds);
 			return true;
 		case ETurnPhase::End:
-			LeaveEnd(State);
+			LeaveEnd(State, NowSeconds, Random);
 			return true;
 		}
 		return false;

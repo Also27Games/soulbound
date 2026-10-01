@@ -35,7 +35,8 @@ namespace Soulbound::Rules
 {
 	/**
 	 * Prepara el estado inicial de una partida sobre un tablero cargado:
-	 *  - R-TAB-2: los cuatro asientos empiezan en el Altar.
+	 *  - R-TAB-2, R-CAR-2: los cuatro asientos empiezan en el Altar, como Ecos Perdidos.
+	 *  - R-CAR-1, R-TAB-8: la partida empieza en la carrera por el vínculo, con el tablero Primordial.
 	 *  - R-TAB-5: cada Nodo de Poder recibe al azar un efecto, respetando las cantidades por efecto de los datos.
 	 *  - R-TAB-6: se eligen al azar 6 menos PlayerCount Dominios y se marcan Olvidados, con su Nicho Cerrado.
 	 *  - R-TUR-1: se sortea el orden de turno, una permutación de los cuatro asientos; juega primero el primero.

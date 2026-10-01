@@ -1,7 +1,10 @@
 // Tests de la simulación con reloj virtual (R-SIM-1 a 5 del GDD 08). Desde S-003 la simulación inicia la partida
 // con StartMatch sobre el tablero de pruebas y juega los turnos con la máquina de turnos del motor.
 // Determinismo por semilla, coste por partida y uso de la máquina de turnos. Desde S-004, los Sellos de partidas
-// enteras cumplen R-TAB-22 y la crónica cuenta los que caen por el tope. Se lanzan con Scripts/test.ps1.
+// enteras cumplen R-TAB-22 y la crónica cuenta los que caen por el tope. Desde S-006, la carrera por el vínculo con
+// cuatro dummies de carrera: simulación y crónica sobre el tablero de 35 casillas, e informe de 50 semillas por cada
+// tablero de Content/Data/Boards. Los tests del motor no leen la configuración del juego.
+// Se lanzan con Scripts/test.ps1.
 
 #include "Decider/Decider.h"
 #include "HAL/PlatformMisc.h"
@@ -21,6 +24,17 @@ namespace
 		for (int32 i = 0; i < Soulbound::Match::SeatCount; ++i)
 		{
 			Deciders.Add(MakeShared<FDummyDecider>());
+		}
+		return Deciders;
+	}
+
+	/** Cuatro dummies de carrera (S-006): buscan el Nicho Libre más cercano mientras son Ecos en carrera. */
+	TArray<TSharedPtr<IDecider>> FourRaceDummies()
+	{
+		TArray<TSharedPtr<IDecider>> Deciders;
+		for (int32 i = 0; i < Soulbound::Match::SeatCount; ++i)
+		{
+			Deciders.Add(MakeShared<FRaceDummyDecider>());
 		}
 		return Deciders;
 	}
@@ -61,6 +75,18 @@ namespace
 	{
 		OutParams.Seed = Seed;
 		return Soulbound::Tests::LoadTestBoard(Test, OutParams.Board) && Soulbound::Tests::LoadTestMatchParams(Test, OutParams.MatchParams);
+	}
+
+	/** Parámetros de simulación con el tablero BoardFileName de Content/Data/Boards y los parámetros de partida del archivo. */
+	bool MakeBoardParams(FAutomationTestBase& Test, const FString& BoardFileName, int32 Seed, FSimulationParams& OutParams)
+	{
+		OutParams.Seed = Seed;
+		return Soulbound::Tests::LoadBoardFile(Test, BoardFileName, OutParams.Board) && Soulbound::Tests::LoadTestMatchParams(Test, OutParams.MatchParams);
+	}
+
+	int32 CountEvents(const FMatchState& State, EMatchEventType Type)
+	{
+		return Soulbound::Tests::EventsOfType(State, Type).Num();
 	}
 }
 
@@ -217,16 +243,18 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationChronicleTest,
 
 bool FMatchSimulationChronicleTest::RunTest(const FString& Parameters)
 {
-	// Herramienta de lectura, no un criterio: el registro de una partida entera con dummies (semilla fija 42), para
-	// leer el ritmo turno a turno: quién juega, qué tira, adónde va y qué hace el Warden. Siempre comprueba que el
-	// registro cuenta la partida entera; solo lo imprime con la variable de entorno SOULBOUND_CRONICA=1, que pone
-	// Scripts/test.ps1 -Cronica (líneas "info" de la consola). Sin ella, una línea de resumen.
+	// Herramienta de lectura, no un criterio: el registro de una partida entera con dummies de carrera sobre el tablero
+	// de 35 casillas (semilla fija 42; hasta S-005, dummies al azar sobre el tablero de pruebas), para leer el
+	// ritmo turno a turno: quién juega, qué tira, adónde va, quién se vincula, cuándo acaba la carrera y qué hace el
+	// Warden. Siempre comprueba que el registro cuenta la partida entera; solo lo imprime con la variable de entorno
+	// SOULBOUND_CRONICA=1, que pone Scripts/test.ps1 -Cronica (líneas "info" de la consola). Sin ella, una línea de
+	// resumen.
 	FSimulationParams Params;
-	if (!MakeParams(*this, 42, Params))
+	if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), 42, Params))
 	{
 		return false;
 	}
-	const FSimulationResult Result = FMatchSimulation(Params, FourDummies()).Run();
+	const FSimulationResult Result = FMatchSimulation(Params, FourRaceDummies()).Run();
 
 	auto CountLines = [&Result](const TCHAR* Fragment)
 	{
@@ -240,6 +268,15 @@ bool FMatchSimulationChronicleTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Cada Sello que cae por el tope tiene su línea"), CountLines(TEXT(" cae el Sello de la ")),
 		Result.FinalState.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::SealReleased; }).Num()
 		- CountLines(TEXT(" Warden libera la ")));
+
+	// S-006: vínculos y fin de carrera, una línea por evento.
+	const FMatchState& Final = Result.FinalState;
+	TestEqual(TEXT("Cada vínculo tiene su línea"), CountLines(TEXT(" se vincula al Elegido ")), CountEvents(Final, EMatchEventType::Bonded));
+	TestEqual(TEXT("El Despertar tiene su línea"), CountLines(TEXT(" despierta el tablero")), CountEvents(Final, EMatchEventType::BoardAwakening));
+	TestEqual(TEXT("La carrera termina y tiene su línea"), CountLines(TEXT(" Fin de la carrera ")), 1);
+	TestEqual(TEXT("Cada hogar asignado tiene su línea"), CountLines(TEXT(" queda Eco ")), CountEvents(Final, EMatchEventType::HomeAssigned));
+	TestEqual(TEXT("Cada vuelta al hogar tiene su línea"), CountLines(TEXT(" vuelve a su hogar")), CountEvents(Final, EMatchEventType::ReturnedHome));
+	TestEqual(TEXT("La victoria del Warden tiene su línea"), CountLines(TEXT(" Victoria del Warden")), CountEvents(Final, EMatchEventType::WardenVictory));
 
 	if (FPlatformMisc::GetEnvironmentVariable(TEXT("SOULBOUND_CRONICA")) == TEXT("1"))
 	{
@@ -331,6 +368,113 @@ bool FMatchSimulationSealsTest::RunTest(const FString& Parameters)
 		CapReleases += Released - CountLines(TEXT("] Warden libera la "));
 	}
 	TestTrue(TEXT("En alguna partida el tope entra en juego"), CapReleases > 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationBondRaceTest,
+	"Soulbound.Core.Simulation.CarreraConDummiesDeCarrera",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationBondRaceTest::RunTest(const FString& Parameters)
+{
+	// Criterio "Simulación" (S-006): dada la simulación con cuatro dummies de carrera sobre el tablero de 35 casillas,
+	// la partida entera termina, es determinista por semilla y baja del segundo. Semilla fija 42; otra, la 43.
+	FSimulationParams Params;
+	if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), 42, Params))
+	{
+		return false;
+	}
+	const FSimulationResult A = FMatchSimulation(Params, FourRaceDummies()).Run();
+	const FSimulationResult B = FMatchSimulation(Params, FourRaceDummies()).Run();
+
+	TestTrue(TEXT("Se juegan turnos"), A.Turns > 0);
+	TestEqual(TEXT("La carrera termina una vez"), CountEvents(A.FinalState, EMatchEventType::BondRaceEnded), 1);
+	TestTrue(TEXT("La partida termina: o se acaba o llega a su duración"),
+		A.FinalState.IsMatchOver() || A.FinalState.ClockSeconds >= Params.DurationSeconds - Params.EvaluationPeriodSeconds);
+	TestTrue(TEXT("Misma semilla, mismo registro"), A.Log == B.Log);
+	TestTrue(TEXT("Misma semilla, mismo estado final"), Soulbound::Tests::SameState(A.FinalState, B.FinalState));
+	TestTrue(FString::Printf(TEXT("Una partida tarda menos de un segundo (%.4f s)"), A.WallSeconds), A.WallSeconds < 1.0);
+
+	FSimulationParams Other = Params;
+	Other.Seed = 43;
+	TestTrue(TEXT("Otra semilla, otro registro"), FMatchSimulation(Other, FourRaceDummies()).Run().Log != A.Log);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationBondRaceReportTest,
+	"Soulbound.Core.Simulation.InformeDeCarrera",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
+{
+	// Herramienta de lectura, no un criterio sobre cifras (criterio "Simulación" de S-006): por cada tablero de
+	// Content/Data/Boards, 50 partidas con cuatro dummies de carrera (semillas fijas 1 a 50). Imprime un bloque por
+	// tablero: % de partidas sin ningún vínculo, Elegidos por partida de media, % de asientos que quedan Eco y segundo
+	// medio de fin de carrera. Objetivo del GDD 03, para el autor: nadie vinculado < 5 %, Eco por jugador entre 15 y
+	// 35 %. Solo comprueba que cada partida cierra su carrera. Imprime con SOULBOUND_INFORME=1 (Scripts/test.ps1
+	// -Informe); sin ella, una línea de resumen.
+	constexpr int32 Games = 50;
+	const TArray<FString> Boards = Soulbound::Tests::BoardFileNames();
+	if (!TestTrue(TEXT("Hay archivos de tablero"), Boards.Num() > 0))
+	{
+		return false;
+	}
+
+	TArray<FString> Lines;
+	for (const FString& BoardFile : Boards)
+	{
+		FSimulationParams Params;
+		if (!MakeBoardParams(*this, BoardFile, 1, Params))
+		{
+			continue;
+		}
+		int32 WardenVictories = 0;
+		int32 Elects = 0;
+		int32 EchoSeats = 0;
+		int32 Seats = 0;
+		double RaceEndSum = 0.0;
+		double WallSum = 0.0;
+		for (int32 Seed = 1; Seed <= Games; ++Seed)
+		{
+			Params.Seed = Seed;
+			const FSimulationResult Result = FMatchSimulation(Params, FourRaceDummies()).Run();
+			const FMatchState& State = Result.FinalState;
+			const TArray<FMatchEvent> Ended = Soulbound::Tests::EventsOfType(State, EMatchEventType::BondRaceEnded);
+			if (!TestEqual(FString::Printf(TEXT("%s, semilla %d: la carrera termina una vez"), *BoardFile, Seed), Ended.Num(), 1))
+			{
+				continue;
+			}
+			RaceEndSum += Ended[0].ClockSeconds;
+			WardenVictories += State.Outcome == EMatchOutcome::WardenVictory ? 1 : 0;
+			for (const FSeatState& Seat : State.Seats)
+			{
+				Elects += Seat.Role == ESeatRole::Elect ? 1 : 0;
+				EchoSeats += Seat.Role == ESeatRole::LostEcho ? 1 : 0;
+				++Seats;
+			}
+			WallSum += Result.WallSeconds;
+		}
+
+		Lines.Add(FString::Printf(TEXT("Informe de carrera | %s | %d casillas | %d partidas | 4 dummies de carrera | carrera de %.0f s"),
+			*BoardFile, Params.Board.Tiles.Num(), Games, Params.MatchParams.RaceDurationSeconds));
+		Lines.Add(FString::Printf(TEXT("    partidas sin ningún vínculo (victoria del Warden): %.1f %% (objetivo < 5 %%)"), 100.0 * WardenVictories / Games));
+		Lines.Add(FString::Printf(TEXT("    Elegidos por partida, de media: %.2f de 4"), static_cast<double>(Elects) / Games));
+		Lines.Add(FString::Printf(TEXT("    asientos que quedan Eco: %.1f %% (objetivo por jugador entre 15 y 35 %%)"), Seats > 0 ? 100.0 * EchoSeats / Seats : 0.0));
+		Lines.Add(FString::Printf(TEXT("    fin de carrera, segundo medio: %.1f"), RaceEndSum / Games));
+		Lines.Add(FString::Printf(TEXT("    tiempo real: %.3f s en total"), WallSum));
+	}
+
+	if (FPlatformMisc::GetEnvironmentVariable(TEXT("SOULBOUND_INFORME")) == TEXT("1"))
+	{
+		for (const FString& Line : Lines)
+		{
+			UE_LOG(LogSoulboundTest, Display, TEXT("%s"), *Line);
+		}
+	}
+	else
+	{
+		UE_LOG(LogSoulboundTest, Display, TEXT("informe de carrera: %d tableros; ejecuta test.ps1 -Informe para verlo"), Boards.Num());
+	}
 	return true;
 }
 

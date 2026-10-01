@@ -1,8 +1,11 @@
-// Tests de casillas alcanzables: CA-TAB-15 (R-TAB-14), CA-TAB-17 (R-TAB-16, Altar) y CA-TAB-18 (R-TAB-17, Sello).
+// Tests de casillas alcanzables: CA-TAB-15 (R-TAB-14), CA-TAB-17 (R-TAB-16, Altar), CA-TAB-18 (R-TAB-17, Sello) y
+// CA-TAB-20 (R-TAB-19, las fichas no bloquean; S-006).
 // Se lanzan sin editor con Scripts/test.ps1 (comandlet con -nullrhi). Filtro: "Soulbound.Core".
 
 #include "Board/BoardState.h"
 #include "Board/MovementRules.h"
+#include "Match/BondRaceRules.h"
+#include "Match/MatchState.h"
 #include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -165,6 +168,27 @@ bool FReachableTilesAltarStopsTest::RunTest(const FString& Parameters)
 	const FBoardState Six = MakeSixTileBoard();
 	// Con T=4: 3-2-1-0 para en el Altar con tirada de sobra, 3-5-4-1-0 llega exacto, y 3-5-4-1-2 y 3-2-1-4-5 son exactas.
 	TestEqual(TEXT("Tablero de seis, desde 3 con T=4: el Altar por los dos caminos, la 2 y la 5"), Join(Soulbound::Rules::ReachableTiles(Six, 3, 4, Mover)), TEXT("0,2,5"));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FReachableTilesTokensDoNotBlockTest,
+	"Soulbound.Core.Board.ReachableTiles.FichasNoBloquean",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FReachableTilesTokensDoNotBlockTest::RunTest(const FString& Parameters)
+{
+	// CA-TAB-20 (R-TAB-19): dada una casilla ocupada, las alcanzables la incluyen y las de más allá también. Ya era así
+	// (la ocupación no se mira); se fija con los rasgos del asiento que usa la máquina de turnos (MakeMoverTraits).
+	// Tablero del spike: 0 (Altar) - 1 - 2 - 3, y 1 - 4 - 5 - 3. Tres fichas en la 1; la cuarta, en el Altar.
+	FMatchState State = FMatchState::MakeSpikeMatch();
+	for (int32 Seat = 1; Seat < State.Seats.Num(); ++Seat)
+	{
+		State.Seats[Seat].TileId = 1;
+	}
+	TestTrue(TEXT("La casilla 1 está ocupada"), State.IsTileOccupied(1));
+	const FMoverTraits Mover = Soulbound::Rules::MakeMoverTraits(State, 0);
+	TestEqual(TEXT("Con T=1, la casilla ocupada es alcanzable"), Join(Soulbound::Rules::ReachableTiles(State.Board, 0, 1, Mover)), TEXT("1"));
+	TestEqual(TEXT("Con T=2, las de más allá también"), Join(Soulbound::Rules::ReachableTiles(State.Board, 0, 2, Mover)), TEXT("2,4"));
 	return true;
 }
 

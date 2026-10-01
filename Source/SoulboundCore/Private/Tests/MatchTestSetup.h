@@ -7,8 +7,10 @@
 #include "Match/MatchParams.h"
 #include "Match/MatchStart.h"
 #include "Match/MatchState.h"
+#include "Match/TurnRules.h"
 #include "Math/RandomStream.h"
 #include "Misc/AutomationTest.h"
+#include "HAL/FileManager.h"
 #include "Misc/Paths.h"
 #include "UObject/Class.h"
 
@@ -24,6 +26,38 @@ namespace Soulbound::Tests
 	inline FString MatchParamsPath()
 	{
 		return FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data/Match/partida.json"));
+	}
+
+	/** Carpeta de los archivos de tablero del proyecto, Content/Data/Boards. */
+	inline FString BoardsDirectory()
+	{
+		return FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data/Boards"));
+	}
+
+	/** Nombres de todos los archivos de tablero (*.json de Content/Data/Boards), en orden alfabético. */
+	inline TArray<FString> BoardFileNames()
+	{
+		TArray<FString> Files;
+		IFileManager::Get().FindFiles(Files, *FPaths::Combine(BoardsDirectory(), TEXT("*.json")), true, false);
+		Files.Sort();
+		return Files;
+	}
+
+	/** Carga Content/Data/Boards/FileName; si falla, lo apunta como error del test y devuelve false. */
+	inline bool LoadBoardFile(FAutomationTestBase& Test, const FString& FileName, FBoardState& OutBoard)
+	{
+		const FBoardLoadResult Result = Soulbound::Rules::LoadBoardFromFile(FPaths::Combine(BoardsDirectory(), FileName));
+		OutBoard = Result.Board;
+		return Test.TestTrue(FString::Printf(TEXT("%s carga y pasa ValidateBoard (%s)"), *FileName, *Result.Message), Result.IsSuccess());
+	}
+
+	/**
+	 * Tablero de las simulaciones de carrera (S-006, revisión): el de 35 casillas, explícito. Los tests del motor no
+	 * leen la configuración del juego (DefaultGame.ini).
+	 */
+	inline const TCHAR* RaceBoardFileName()
+	{
+		return TEXT("tablero_35.json");
 	}
 
 	/** Carga el tablero de pruebas; si falla, lo apunta como error del test y devuelve false. */
@@ -57,6 +91,50 @@ namespace Soulbound::Tests
 		FMatchStartResult Result = Soulbound::Rules::StartMatch(Board, Params, Soulbound::Match::MaxPlayers, Random);
 		OutState = MoveTemp(Result.State);
 		return Test.TestTrue(FString::Printf(TEXT("La partida empieza (%s)"), *Result.Message), Result.IsSuccess());
+	}
+
+	/**
+	 * El asiento Seat termina su movimiento en TileId en el instante NowSeconds, por la máquina de turnos: se prepara
+	 * su turno en RollAndChoose con esa casilla como única opción (el montaje que el test necesita, sin depender del
+	 * dado), se entrega la intención y se avanza hasta BetweenTurns, que es donde se resuelve el destino. Solo para
+	 * tests. Devuelve false si la intención no se acepta o el turno no llega a terminar.
+	 */
+	inline bool LandOn(FMatchState& State, FRandomStream& Random, int32 Seat, int32 TileId, double NowSeconds)
+	{
+		State.ActiveSeat = Seat;
+		State.TurnPhase = ETurnPhase::RollAndChoose;
+		State.TurnDeadlineSeconds = NowSeconds + State.Params.TurnClockSeconds;
+		State.Roll = 1;
+		State.ReachableOptions = {TileId};
+		if (Soulbound::Rules::SubmitDestinationIntent(State, Seat, TileId, NowSeconds) != EIntentResult::Accepted)
+		{
+			return false;
+		}
+		for (int32 Step = 0; Step < 8 && State.TurnPhase != ETurnPhase::BetweenTurns; ++Step)
+		{
+			Soulbound::Rules::AdvanceTurn(State, NowSeconds, Random);
+		}
+		return State.TurnPhase == ETurnPhase::BetweenTurns;
+	}
+
+	/** Dominios con el Nicho en el estado pedido, en orden de identificador. */
+	inline TArray<int32> DomainsWithNiche(const FMatchState& State, ENicheState NicheState)
+	{
+		TArray<int32> Result;
+		for (const FDomainState& Domain : State.Board.Domains)
+		{
+			if (Domain.NicheState == NicheState)
+			{
+				Result.Add(Domain.DomainId);
+			}
+		}
+		return Result;
+	}
+
+	/** Eventos del registro de un tipo, en orden. */
+	inline TArray<FMatchEvent> EventsOfType(const FMatchState& State, EMatchEventType Type)
+	{
+		return State.EventLog.FilterByPredicate([Type](const FMatchEvent& Event) { return Event.Type == Type; });
 	}
 
 	/** Si dos estados de partida son idénticos campo a campo (todos los campos son UPROPERTY). */

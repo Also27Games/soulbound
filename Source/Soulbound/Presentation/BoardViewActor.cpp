@@ -69,6 +69,20 @@ namespace
 		return Colors[FMath::Clamp(Seat, 0, UE_ARRAY_COUNT(Colors) - 1)];
 	}
 
+	/**
+	 * Color del Nicho según su estado (S-006): el Libre, el color de tipo; el Cerrado, gris oscuro; el Reclamado, el
+	 * color del asiento que lo reclamó.
+	 */
+	FLinearColor NicheColor(const FBoardState& Board, const FTileState& Tile)
+	{
+		const FDomainState* Domain = Board.Domains.IsValidIndex(Tile.DomainId) ? &Board.Domains[Tile.DomainId] : nullptr;
+		if (!Domain || Domain->NicheState == ENicheState::Free)
+		{
+			return TileTypeColor(ETileType::Niche, Tile.DomainId);
+		}
+		return Domain->NicheState == ENicheState::Claimed ? SeatColor(Domain->OwnerSeat) : FLinearColor(0.10f, 0.10f, 0.10f);
+	}
+
 	/** Atenuado de una casilla de un Dominio Olvidado: mismo tono, mucho más oscuro. */
 	FLinearColor Dimmed(const FLinearColor& Color)
 	{
@@ -101,6 +115,12 @@ namespace
 		case EMatchEventType::TurnEnded: return FString::Printf(TEXT("termina el turno del asiento %d"), Event.Seat);
 		case EMatchEventType::SealPlaced: return FString::Printf(TEXT("el Warden sella la casilla %d"), Event.Value);
 		case EMatchEventType::SealReleased: return FString::Printf(TEXT("se libera el Sello de la casilla %d"), Event.Value);
+		case EMatchEventType::Bonded: return FString::Printf(TEXT("el asiento %d se vincula al Elegido del Dominio %d"), Event.Seat, Event.Value);
+		case EMatchEventType::BoardAwakening: return FString::Printf(TEXT("el asiento %d despierta el tablero"), Event.Seat);
+		case EMatchEventType::HomeAssigned: return FString::Printf(TEXT("el asiento %d queda Eco, con hogar en el Dominio %d"), Event.Seat, Event.Value);
+		case EMatchEventType::ReturnedHome: return FString::Printf(TEXT("el asiento %d vuelve a su hogar, la casilla %d"), Event.Seat, Event.Value);
+		case EMatchEventType::WardenVictory: return FString(TEXT("VICTORIA DEL WARDEN: nadie se ha vinculado"));
+		case EMatchEventType::BondRaceEnded: return FString::Printf(TEXT("fin de la carrera: %d Elegidos"), Event.Value);
 		}
 		return FString();
 	}
@@ -317,7 +337,7 @@ void ABoardViewActor::Refresh()
 			continue;
 		}
 		const bool bForgotten = State.Board.Domains.IsValidIndex(Tile.DomainId) && State.Board.Domains[Tile.DomainId].State == EDomainState::Forgotten;
-		FLinearColor Color = TileTypeColor(Tile.Type, Tile.DomainId);
+		FLinearColor Color = Tile.Type == ETileType::Niche ? NicheColor(State.Board, Tile) : TileTypeColor(Tile.Type, Tile.DomainId);
 		if (Reachable.Contains(Tile.TileId))
 		{
 			Color = FLinearColor::White;
@@ -359,6 +379,8 @@ void ABoardViewActor::Refresh()
 			Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * (TileDiameter * 0.28f);
 		}
 		Token->SetActorLocation(TilePositions[TileId] + Offset + FVector(0.f, 0.f, TileThickness + TokenDiameter * 0.5f));
+		// Elegido: cono; Eco: esfera (criterio manual "Vínculo visible").
+		Token->SetElectShape(State.Seats[Seat].Role == ESeatRole::Elect);
 	}
 }
 
@@ -418,4 +440,38 @@ void ABoardViewActor::TickHud()
 		: FString::Printf(TEXT("Warden: \"%s\""), *HostPtr->GetLastWardenLine()));
 
 	ShowText(5, FColor::Silver, FString::Printf(TEXT("Semilla: %d (fijala con FixedSeed para repetir la partida) | t=%.0f s"), HostPtr->GetSeed(), State.ClockSeconds));
+
+	// Carrera por el vínculo (S-006): tiempo que queda, fin, o victoria del Warden; y el rol y el hogar de cada asiento.
+	FString Race;
+	FColor RaceColor = FColor::Cyan;
+	if (State.Outcome == EMatchOutcome::WardenVictory)
+	{
+		Race = TEXT("VICTORIA DEL WARDEN: nadie se ha vinculado. La partida ha terminado.");
+		RaceColor = FColor::Red;
+	}
+	else if (State.MatchPhase == EMatchPhase::BondRace)
+	{
+		const double Left = State.Params.RaceDurationSeconds - State.ClockSeconds;
+		Race = Left > 0.0
+			? FString::Printf(TEXT("Carrera por el vinculo: quedan %.0f s"), Left)
+			: FString(TEXT("Carrera por el vinculo: tiempo agotado, termina al acabar este turno"));
+	}
+	else
+	{
+		const int32 Elects = State.Seats.FilterByPredicate([](const FSeatState& Seat) { return Seat.Role == ESeatRole::Elect; }).Num();
+		Race = FString::Printf(TEXT("FIN DE LA CARRERA: %d Elegidos. Los Ecos quedan confinados a los Dominios Olvidados."), Elects);
+	}
+	ShowText(6, RaceColor, Race);
+
+	TArray<FString> Roles;
+	for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
+	{
+		const FSeatState& SeatState = State.Seats[Seat];
+		Roles.Add(SeatState.Role == ESeatRole::Elect
+			? FString::Printf(TEXT("%d Elegido (Dominio %d)"), Seat, SeatState.DomainId)
+			: SeatState.DomainId == INDEX_NONE
+				? FString::Printf(TEXT("%d Eco"), Seat)
+				: FString::Printf(TEXT("%d Eco, hogar: Nicho del Dominio %d"), Seat, SeatState.DomainId));
+	}
+	ShowText(7, FColor::Cyan, FString::Printf(TEXT("Asientos: %s"), *FString::Join(Roles, TEXT(" | "))));
 }

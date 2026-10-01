@@ -39,7 +39,7 @@ public:
 
 	explicit FWardenBrain(const FParams& InParams = FParams()) : Params(InParams) {}
 
-	/** Evalúa el estado y decide. Determinista para un mismo estado y un mismo generador. */
+	/** Evalúa el estado y decide. Determinista para un mismo estado y un mismo generador. Con la partida terminada, nada. */
 	FWardenDecision Evaluate(const FMatchState& State, FRandomStream& Rng) const;
 
 	/**

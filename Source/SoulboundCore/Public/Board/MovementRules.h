@@ -9,6 +9,12 @@ struct SOULBOUNDCORE_API FMoverTraits
 {
 	/** Paso Libre: atraviesa y pisa casillas selladas (glosario "Paso Libre"). */
 	bool bFreePassage = false;
+
+	/**
+	 * Confinado a los Dominios Olvidados: un Eco tras la carrera solo transita por el Altar y los Dominios Olvidados
+	 * (R-TAB-20, R-ECO-2). Lo calcula MakeMoverTraits (Match/BondRaceRules.h). Nombre propuesto en S-006.
+	 */
+	bool bConfinedToForgotten = false;
 };
 
 namespace Soulbound::Rules
@@ -20,12 +26,17 @@ namespace Soulbound::Rules
 	 *  - R-TAB-16: el Altar, si un camino llega a él con longitud menor o igual que Roll; el camino termina ahí
 	 *    y no lo cruza. Salir del Altar de origen es un movimiento normal.
 	 *  - R-TAB-17: la casilla anterior a una sellada con la que topa un camino, aunque sobre tirada.
+	 *  - R-TAB-20: con bConfinedToForgotten, las casillas de un Dominio con dueño no existen para el camino: ni se
+	 *    pisan ni se atraviesan, y no detienen antes como un Sello (R-TAB-17 habla solo de Sellos).
+	 *  - R-TAB-19: las fichas nunca bloquean; la ocupación no se mira.
 	 * El origen nunca es alcanzable; si no queda ninguna, el jugador no se mueve (R-TAB-18).
 	 * Devuelve identificadores únicos en orden ascendente. Tirada 0 o casilla inválida: ninguna.
-	 * Pendiente para sus stories: casillas ocupadas (R-TAB-19).
 	 */
 	SOULBOUNDCORE_API TArray<int32> ReachableTiles(const FBoardState& Board, int32 FromTile, int32 Roll, const FMoverTraits& Mover);
 
-	/** Una casilla es transitable para el jugador si no está sellada o el jugador tiene Paso Libre. */
+	/**
+	 * Criterio único de transitabilidad (R-TAB-21): una casilla es transitable para el jugador si no está sellada o
+	 * tiene Paso Libre, y, si está confinado a los Olvidados, si no pertenece a un Dominio con dueño (el Altar sí).
+	 */
 	SOULBOUNDCORE_API bool IsPassable(const FBoardState& Board, int32 TileId, const FMoverTraits& Mover);
 }

@@ -51,13 +51,27 @@ enum class EDomainState : uint8
 	Forgotten,
 };
 
+/**
+ * Estado del tablero (R-TAB-8, R-TAB-9): Primordial desde el inicio hasta que el primer jugador reclama un Nicho;
+ * entonces Despierto, sin vuelta atrás, y los Nodos de Poder quedan revelados todos a la vez (Despertar del tablero,
+ * glosario `BoardAwakening`). Nombre propuesto en S-006.
+ */
+UENUM()
+enum class EBoardPhase : uint8
+{
+	/** Primordial: nadie se ha vinculado; los Nodos no están revelados y no hay runas (R-TAB-8). */
+	Primordial,
+	/** Despierto: desde el primer vínculo hasta el fin de la partida (R-TAB-9). */
+	Awakened,
+};
+
 /** Estado del Nicho de un Dominio. */
 UENUM()
 enum class ENicheState : uint8
 {
 	/** Libre: se puede reclamar. */
 	Free,
-	/** Reclamado por un Eco que se ha vinculado a su Elegido (S-004). */
+	/** Reclamado por un Eco que se ha vinculado a su Elegido (R-CAR-4); el asiento está en FDomainState::OwnerSeat. */
 	Claimed,
 	/** Cerrado: el Nicho de un Dominio Olvidado (R-TAB-6, glosario "Dominio Olvidado"). */
 	Closed,
@@ -134,6 +148,13 @@ struct SOULBOUNDCORE_API FDomainState
 
 	UPROPERTY()
 	ENicheState NicheState = ENicheState::Free;
+
+	/**
+	 * Dueño del Dominio: el asiento que reclamó su Nicho y es su Elegido (R-CAR-4), o INDEX_NONE si nadie lo ha
+	 * reclamado. Lo escriben solo las reglas de Match/BondRaceRules.h. Nombre propuesto en S-006.
+	 */
+	UPROPERTY()
+	int32 OwnerSeat = INDEX_NONE;
 };
 
 /** Parámetros de juego que dependen del tablero. Se cargan del mismo archivo; ningún valor vive en el código. */
@@ -190,6 +211,13 @@ struct SOULBOUNDCORE_API FBoardState
 	 */
 	UPROPERTY()
 	TArray<int32> SealedTiles;
+
+	/** Primordial o Despierto (R-TAB-8, R-TAB-9). Solo lo escriben las reglas de Match/BondRaceRules.h. */
+	UPROPERTY()
+	EBoardPhase Phase = EBoardPhase::Primordial;
+
+	/** Si los efectos de los Nodos de Poder están revelados: desde el Despertar, todos a la vez (R-TAB-9). */
+	bool AreNodesRevealed() const { return Phase == EBoardPhase::Awakened; }
 
 	/** Añade una casilla y devuelve su identificador. */
 	int32 AddTile();

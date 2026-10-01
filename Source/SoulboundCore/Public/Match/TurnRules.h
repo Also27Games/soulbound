@@ -52,14 +52,16 @@ namespace Soulbound::Rules
 	 *  - PreRoll → RollAndChoose: tira (R-TUR-5), calcula las casillas alcanzables y registra Rolled.
 	 *  - En RollAndChoose: sin casillas alcanzables, pasa a MoveAndResolve sin mover (R-TAB-18); con el reloj agotado,
 	 *    registra TurnClockExpired, sube la insolencia y pasa a End sin mover (R-TUR-8); si no, espera la intención.
-	 *  - MoveAndResolve → End: registra TurnEnded.
+	 *  - MoveAndResolve → End: resuelve el Nicho de destino (R-CAR-4, ResolveNicheLanding) y registra TurnEnded.
 	 *  - End → BetweenTurns: si el asiento tiene turnos extra, consume uno y vuelve a jugar (R-TUR-9); si no, pasa al
-	 *    siguiente del orden de turno.
+	 *    siguiente del orden de turno. Con el tiempo de carrera agotado, la carrera termina aquí (R-CAR-1, R-TAB-27).
+	 *  - En BetweenTurns con el tiempo de carrera agotado, la carrera termina antes de empezar otro turno.
 	 * Al empezar un turno y al terminarlo, los turnos perdidos se descuentan contra los extra uno a uno (caso límite
 	 * del GDD 02), así un turno extra concedido durante el turno también se compensa.
 	 * NowSeconds: instante actual del reloj de partida; es la marca de tiempo de los eventos.
 	 * Random: el sorteo de la partida (solo lo usa la tirada).
-	 * Devuelve true si cambió de fase; false si espera la intención de destino o si la partida no tiene orden de turno.
+	 * Devuelve true si cambió el estado; false si espera la intención de destino, si la partida no tiene orden de turno
+	 * o si la partida terminó (R-CAR-8): entonces no cambia nada.
 	 */
 	SOULBOUNDCORE_API bool AdvanceTurn(FMatchState& State, double NowSeconds, FRandomStream& Random);
 

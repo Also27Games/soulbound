@@ -90,13 +90,20 @@ namespace Soulbound::Rules
 			Domain.NicheState = bForgotten ? ENicheState::Closed : ENicheState::Free;
 		}
 
-		// R-TAB-2: siempre cuatro asientos, todos en el Altar.
+		// R-TAB-2, R-CAR-2: siempre cuatro asientos, todos en el Altar y Ecos Perdidos sin Dominio.
 		State.Seats.SetNum(Soulbound::Match::SeatCount);
 		const int32 Altar = State.Board.FindAltar();
 		for (FSeatState& Seat : State.Seats)
 		{
 			Seat.TileId = Altar;
+			Seat.Role = ESeatRole::LostEcho;
+			Seat.DomainId = INDEX_NONE;
 		}
+
+		// R-CAR-1, R-TAB-8: la carrera empieza con la partida y el tablero, Primordial.
+		State.MatchPhase = EMatchPhase::BondRace;
+		State.Outcome = EMatchOutcome::Undecided;
+		State.Board.Phase = EBoardPhase::Primordial;
 
 		// R-TUR-1: el orden de turno se sortea una vez y no cambia en toda la partida. Va el último, para que el
 		// sorteo de Nodos y Olvidados siga dando lo mismo con la misma semilla que antes de existir.

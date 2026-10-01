@@ -6,6 +6,11 @@
 FWardenDecision FWardenBrain::Evaluate(const FMatchState& State, FRandomStream& Rng) const
 {
 	FWardenDecision Decision;
+	// Con la partida terminada (victoria del Warden, R-CAR-8) el Warden ya no actúa (decisión del autor del 01/10/2026).
+	if (State.IsMatchOver())
+	{
+		return Decision;
+	}
 
 	// Consumimos siempre el mismo número de valores del generador para que la secuencia sea reproducible.
 	const double Dice = Rng.FRand();

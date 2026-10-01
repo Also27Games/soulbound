@@ -1,6 +1,6 @@
-// Tests de los parámetros de partida (S-003, criterio "Parámetros"): el reloj de turno (R-TUR-8) y los topes de
-// turnos extra y perdidos (R-TUR-9, R-TUR-10) salen de Content/Data/Match/partida.json; un archivo mal formado se
-// rechaza con motivo, igual que el tablero. Filtro: "Soulbound.Core.Match.Params".
+// Tests de los parámetros de partida (S-003, criterio "Parámetros"): el reloj de turno (R-TUR-8), los topes de
+// turnos extra y perdidos (R-TUR-9, R-TUR-10) y, desde S-006, la duración de la carrera (R-CAR-1) salen de
+// Content/Data/Match/partida.json; un archivo mal formado se rechaza con motivo, igual que el tablero. Filtro: "Soulbound.Core.Match.Params".
 
 #include "Match/MatchParams.h"
 #include "Misc/AutomationTest.h"
@@ -21,15 +21,17 @@ bool FMatchParamsLoadTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	TestTrue(TEXT("El reloj de turno del archivo es positivo"), FromFile.TurnClockSeconds > 0.0);
+	TestTrue(TEXT("La duración de la carrera del archivo es positiva (R-CAR-1)"), FromFile.RaceDurationSeconds > 0.0);
 
 	// Los valores salen del texto, no del código: con otros valores en el JSON, otros parámetros.
 	const FMatchParamsLoadResult Other = Soulbound::Rules::LoadMatchParamsFromJsonString(
-		TEXT("{ \"turnClockSeconds\": 12.5, \"maxExtraTurns\": 3, \"maxLostTurns\": 0 }"));
+		TEXT("{ \"turnClockSeconds\": 12.5, \"maxExtraTurns\": 3, \"maxLostTurns\": 0, \"raceDurationSeconds\": 45 }"));
 	if (TestTrue(FString::Printf(TEXT("Otros valores cargan (%s)"), *Other.Message), Other.IsSuccess()))
 	{
 		TestEqual(TEXT("Reloj de turno leído del texto"), Other.Params.TurnClockSeconds, 12.5);
 		TestEqual(TEXT("Tope de extra leído del texto"), Other.Params.MaxExtraTurns, 3);
 		TestEqual(TEXT("Tope de perdidos leído del texto"), Other.Params.MaxLostTurns, 0);
+		TestEqual(TEXT("Duración de la carrera leída del texto"), Other.Params.RaceDurationSeconds, 45.0);
 	}
 	return true;
 }
@@ -43,14 +45,17 @@ bool FMatchParamsRejectTest::RunTest(const FString& Parameters)
 	// Criterio "Parámetros": un archivo mal formado se rechaza entero, con MalformedData y un motivo legible.
 	const TPair<const TCHAR*, const TCHAR*> Cases[] = {
 		{TEXT("no es JSON"), TEXT("reloj: 30")},
-		{TEXT("falta el reloj"), TEXT("{ \"maxExtraTurns\": 2, \"maxLostTurns\": 2 }")},
-		{TEXT("falta el tope de extra"), TEXT("{ \"turnClockSeconds\": 30, \"maxLostTurns\": 2 }")},
-		{TEXT("falta el tope de perdidos"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2 }")},
-		{TEXT("reloj como texto"), TEXT("{ \"turnClockSeconds\": \"30\", \"maxExtraTurns\": 2, \"maxLostTurns\": 2 }")},
-		{TEXT("reloj a cero"), TEXT("{ \"turnClockSeconds\": 0, \"maxExtraTurns\": 2, \"maxLostTurns\": 2 }")},
-		{TEXT("reloj negativo"), TEXT("{ \"turnClockSeconds\": -5, \"maxExtraTurns\": 2, \"maxLostTurns\": 2 }")},
-		{TEXT("tope de extra negativo"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": -1, \"maxLostTurns\": 2 }")},
-		{TEXT("tope de perdidos con decimales"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 1.5 }")},
+		{TEXT("falta el reloj"), TEXT("{ \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300 }")},
+		{TEXT("falta el tope de extra"), TEXT("{ \"turnClockSeconds\": 30, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300 }")},
+		{TEXT("falta el tope de perdidos"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"raceDurationSeconds\": 300 }")},
+		{TEXT("reloj como texto"), TEXT("{ \"turnClockSeconds\": \"30\", \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300 }")},
+		{TEXT("reloj a cero"), TEXT("{ \"turnClockSeconds\": 0, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300 }")},
+		{TEXT("reloj negativo"), TEXT("{ \"turnClockSeconds\": -5, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300 }")},
+		{TEXT("tope de extra negativo"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": -1, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300 }")},
+		{TEXT("tope de perdidos con decimales"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 1.5, \"raceDurationSeconds\": 300 }")},
+		{TEXT("falta la duración de la carrera"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2 }")},
+		{TEXT("duración de la carrera a cero"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 0 }")},
+		{TEXT("duración de la carrera como texto"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": \"300\" }")},
 	};
 	for (const TPair<const TCHAR*, const TCHAR*>& Case : Cases)
 	{

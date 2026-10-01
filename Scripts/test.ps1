@@ -8,10 +8,15 @@
     .\Scripts\test.ps1 -Filtro Soulbound.Core
     .\Scripts\test.ps1 -Cronica             # además imprime la crónica de una partida simulada
     .\Scripts\test.ps1 -Cronica -Filtro Soulbound.Core.Simulation.CronicaDeUnaPartida   # solo la crónica
+    .\Scripts\test.ps1 -Informe -Filtro Soulbound.Core.Simulation.InformeDeCarrera      # informe de 50 carreras
   -Cronica pone la variable de entorno SOULBOUND_CRONICA=1 mientras corre el comandlet y al terminar la deja como
   estaba. Con ella, Soulbound.Core.Simulation.CronicaDeUnaPartida imprime una partida entera turno a turno (quién
   juega, qué tira, adónde va, qué hace el Warden) en las líneas "info"; sin ella, solo una línea de resumen.
   El test comprueba que la crónica está completa en los dos casos.
+  -Informe pone SOULBOUND_INFORME=1 del mismo modo: Soulbound.Core.Simulation.InformeDeCarrera imprime, por cada
+  tablero de Content/Data/Boards y sobre 50 partidas con dummies de carrera, el % de partidas sin ningún vínculo, los
+  Elegidos por partida de media, el % de asientos que quedan Eco y el segundo medio de fin de carrera (S-006). Son
+  cifras para el autor; el test no las juzga.
   Arranca el editor en modo comandlet (-nullrhi, sin ventana), ejecuta los tests y resume el resultado.
   Devuelve código 1 si algún test falla o si no se ejecutó ninguno. Compila antes con Scripts\build.ps1 -Que editor.
   Motor: variable de entorno UE_ROOT o, si no existe, C:\UE_Engines\UE_5.8.
@@ -19,7 +24,8 @@
 param(
     [string]$Filtro = 'Soulbound.',
     [string]$Engine = $env:UE_ROOT,
-    [switch]$Cronica
+    [switch]$Cronica,
+    [switch]$Informe
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,7 +34,7 @@ if (-not $Engine) { $Engine = 'C:\UE_Engines\UE_5.8' }
 $Raiz = Split-Path -Parent $PSScriptRoot
 $Proyecto = Join-Path $Raiz 'Soulbound.uproject'
 $EditorCmd = Join-Path $Engine 'Engine\Binaries\Win64\UnrealEditor-Cmd.exe'
-$Informe = Join-Path $Raiz 'Saved\Automation\Informe'
+$RutaInforme = Join-Path $Raiz 'Saved\Automation\Informe'
 
 foreach ($Ruta in @($Proyecto, $EditorCmd)) {
     if (-not (Test-Path $Ruta)) { throw "No existe: $Ruta" }
@@ -37,17 +43,20 @@ foreach ($Ruta in @($Proyecto, $EditorCmd)) {
 Write-Host "== Tests '$Filtro' (comandlet, sin ventana)" -ForegroundColor Cyan
 # $env: vive en la sesión de PowerShell que llama al script: se restaura al terminar para que -Cronica no se herede.
 $CronicaPrevia = $env:SOULBOUND_CRONICA
+$InformePrevio = $env:SOULBOUND_INFORME
 if ($Cronica) { $env:SOULBOUND_CRONICA = '1' }
+if ($Informe) { $env:SOULBOUND_INFORME = '1' }
 try {
     $Tiempo = Measure-Command {
         $script:Salida = & $EditorCmd $Proyecto `
             "-ExecCmds=Automation RunTests $Filtro; Quit" `
             '-unattended' '-nopause' '-nullrhi' '-nosplash' '-nosound' '-log' '-stdout' '-FullStdOutLogOutput' `
-            "-ReportExportPath=$Informe" 2>&1 | ForEach-Object { "$_" }
+            "-ReportExportPath=$RutaInforme" 2>&1 | ForEach-Object { "$_" }
     }
 }
 finally {
     $env:SOULBOUND_CRONICA = $CronicaPrevia
+    $env:SOULBOUND_INFORME = $InformePrevio
 }
 
 $Lineas = $script:Salida | Where-Object { $_ -match 'LogAutomationController' -or $_ -match 'LogAutomationCommandLine' }

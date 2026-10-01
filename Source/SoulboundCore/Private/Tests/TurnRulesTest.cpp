@@ -585,7 +585,14 @@ bool FTurnDummyTest::RunTest(const FString& Parameters)
 			TArray<int32> Events;
 			for (int32 Index = LogStart; Index < State.EventLog.Num(); ++Index)
 			{
-				Events.Add(static_cast<int32>(State.EventLog[Index].Type));
+				// Solo los eventos de la máquina de turnos: los de resolver la casilla (vínculo y Despertar, S-006)
+				// dependen del destino elegido, no de quién lo elige.
+				const EMatchEventType Type = State.EventLog[Index].Type;
+				if (Type == EMatchEventType::TurnStarted || Type == EMatchEventType::Rolled || Type == EMatchEventType::TurnClockExpired
+					|| Type == EMatchEventType::TurnSkipped || Type == EMatchEventType::TurnEnded)
+				{
+					Events.Add(static_cast<int32>(Type));
+				}
 			}
 			OutTrace.Add(FString::Printf(TEXT("fases %s eventos %s"), *Describe(Phases), *Describe(Events)));
 		}
