@@ -12,27 +12,27 @@
   "domains": [
     {
       "id": 0,
-      "name": "Dominio provisional 0"
+      "name": "El Banquete (Shuten-dōji)"
     },
     {
       "id": 1,
-      "name": "Dominio provisional 1"
+      "name": "El Fiordo Encadenado (Fenrir)"
     },
     {
       "id": 2,
-      "name": "Dominio provisional 2"
+      "name": "El Río de la Noche (Apep)"
     },
     {
       "id": 3,
-      "name": "Dominio provisional 3"
+      "name": "El Descenso (Mictlantecuhtli)"
     },
     {
       "id": 4,
-      "name": "Dominio provisional 4"
+      "name": "La Ruina Tormentosa (Tifón)"
     },
     {
       "id": 5,
-      "name": "Dominio provisional 5"
+      "name": "El Bosque Negro (Koschei)"
     }
   ],
   "tiles": [
