@@ -78,13 +78,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
 	float AltarThickness = 22.f;
 
-	/** Diámetro de la marca del tipo (cubo del Nicho, anillo de la Fuente, esfera del Nodo) por el de la casilla. Valor inicial 0,6. */
+	/** Diámetro de la marca del tipo (cubo del Nicho, cruz de la Fuente, esfera del Nodo) por el de la casilla. Valor inicial 0,6. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
 	float InlayScale = 0.6f;
 
-	/** Diámetro del hueco del anillo de la Fuente por el de la casilla. Valor inicial 0,34. */
+	/** Grosor de los brazos de la cruz de la Fuente por su largo. Valor inicial 0,3. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
-	float RingHoleScale = 0.34f;
+	float CrossArmThickness = 0.3f;
 
 	/** Diámetro del halo bajo una casilla alcanzable, por el de la casilla. Valor inicial 1,35. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
@@ -94,7 +94,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
 	float ForgottenRingScale = 1.2f;
 
-	/** Cuánto crece el contorno negro de las marcas de tipo (cubo, anillo, esfera) por la propia marca. Valor inicial 1,18. */
+	/** Cuánto crece el contorno negro de las marcas de tipo (cubo, cruz, esfera) por la propia marca. Valor inicial 1,18. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
 	float OutlineScale = 1.18f;
 
@@ -179,7 +179,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	FLinearColor NicheClosedColor = FLinearColor(0.12f, 0.12f, 0.12f);
 
-	/** Anillo de la Fuente de Poder. Blanco con contorno negro: se distingue sobre los seis Dominios. */
+	/** Cruz de la Fuente de Poder. Blanca con contorno negro: se distingue sobre los seis Dominios. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	FLinearColor SourceColor = FLinearColor(1.f, 1.f, 1.f);
 
@@ -268,13 +268,17 @@ private:
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> EdgeStrips;
 
-	/** Marca del tipo sobre cada casilla (nula si no lleva): cubo, anillo o esfera. */
+	/** Marca del tipo sobre cada casilla (nula si no lleva): cubo, cruz o esfera. */
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> Inlays;
 
 	/** Contorno negro de la marca (nulo si no lleva marca). */
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> InlayOutlines;
+
+	/** Contorno del segundo brazo de la cruz de la Fuente (nulo en las demás). */
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> InlayOutlinesB;
 
 	/** Aro bajo cada casilla que se enseña si su Dominio es Olvidado. */
 	UPROPERTY()
@@ -284,7 +288,7 @@ private:
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> Halos;
 
-	/** Hueco del anillo de la Fuente (nulo en las demás). */
+	/** Segundo brazo de la cruz de la Fuente (nulo en las demás). */
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> InlayHoles;
 

@@ -248,6 +248,7 @@ void ABoardViewActor::BuildTiles()
 	TileTops.Init(TileThickness, Board.Tiles.Num());
 	Inlays.Init(nullptr, Board.Tiles.Num());
 	InlayOutlines.Init(nullptr, Board.Tiles.Num());
+	InlayOutlinesB.Init(nullptr, Board.Tiles.Num());
 	Halos.Init(nullptr, Board.Tiles.Num());
 	ForgottenRings.Init(nullptr, Board.Tiles.Num());
 	InlayHoles.Init(nullptr, Board.Tiles.Num());
@@ -326,11 +327,17 @@ void ABoardViewActor::BuildTiles()
 			Inlays[Tile.TileId] = AddShape(CubeMesh, Mid, FRotator::ZeroRotator, FVector(Inlay, Inlay, InlayHeight));
 			break;
 		case ETileType::PowerSource:
-			// Anillo: contorno negro, disco del color de la Fuente y, encima, otro más pequeño del color de la losa.
-			InlayOutlines[Tile.TileId] = AddShape(CylinderMesh, OnTop + FVector(0.f, 0.f, InlayHeight * 0.4f), FRotator::ZeroRotator, FVector(Outline, Outline, InlayHeight * 0.8f));
-			Inlays[Tile.TileId] = AddShape(CylinderMesh, Mid, FRotator::ZeroRotator, FVector(Inlay, Inlay, InlayHeight));
-			InlayHoles[Tile.TileId] = AddShape(CylinderMesh, Mid + FVector(0.f, 0.f, 0.5f), FRotator::ZeroRotator, FVector(TileDiameter * RingHoleScale, TileDiameter * RingHoleScale, InlayHeight));
+		{
+			// Cruz: dos brazos cruzados, con contorno negro. No se parece al rombo con esfera del Nodo.
+			const float Arm = Inlay * CrossArmThickness;
+			const float OutlineArm = Arm + (Outline - Inlay);
+			const FVector LowMid = OnTop + FVector(0.f, 0.f, InlayHeight * 0.4f);
+			InlayOutlines[Tile.TileId] = AddShape(CubeMesh, LowMid, FRotator::ZeroRotator, FVector(Outline, OutlineArm, InlayHeight * 0.8f));
+			InlayOutlinesB[Tile.TileId] = AddShape(CubeMesh, LowMid, FRotator::ZeroRotator, FVector(OutlineArm, Outline, InlayHeight * 0.8f));
+			Inlays[Tile.TileId] = AddShape(CubeMesh, Mid, FRotator::ZeroRotator, FVector(Inlay, Arm, InlayHeight));
+			InlayHoles[Tile.TileId] = AddShape(CubeMesh, Mid, FRotator::ZeroRotator, FVector(Arm, Inlay, InlayHeight));
 			break;
+		}
 		case ETileType::PowerNode:
 			InlayOutlines[Tile.TileId] = AddShape(SphereMesh, OnTop + FVector(0.f, 0.f, InlayHeight * 0.4f), FRotator::ZeroRotator, FVector(Outline, Outline, InlayHeight * 1.6f));
 			Inlays[Tile.TileId] = AddShape(SphereMesh, Mid, FRotator::ZeroRotator, FVector(Inlay, Inlay, InlayHeight * 2.f));
@@ -341,6 +348,10 @@ void ABoardViewActor::BuildTiles()
 		if (UStaticMeshComponent* OutlineMesh = InlayOutlines[Tile.TileId].Get())
 		{
 			Soulbound::Presentation::SetComponentColor(*OutlineMesh, BaseMaterial, OutlineColor);
+		}
+		if (UStaticMeshComponent* OutlineMeshB = InlayOutlinesB[Tile.TileId].Get())
+		{
+			Soulbound::Presentation::SetComponentColor(*OutlineMeshB, BaseMaterial, OutlineColor);
 		}
 
 		// Etiqueta plana sobre la losa, en la franja de abajo (la parte baja de la pantalla), orientada a la cámara cenital.
@@ -493,7 +504,7 @@ void ABoardViewActor::BuildOverlay()
 	Rows.Add({TEXT("Tipo = forma (etiqueta: ALTAR, N, F, X)"),
 		{{AltarColor, TEXT("ALTAR: casilla grande y alta")},
 			{NicheFreeColor, TEXT("N Nicho: casilla cuadrada con cubo")},
-			{SourceColor, TEXT("F Fuente: casilla redonda con anillo")},
+			{SourceColor, TEXT("F Fuente: casilla redonda con cruz")},
 			{NodeColor, TEXT("X Nodo: rombo con esfera")}}});
 	Rows.Add({TEXT("Nicho (el cubo)"),
 		{{NicheFreeColor, TEXT("Libre")}, {SeatColor(0), TEXT("Reclamado: color del asiento")}, {NicheClosedColor, TEXT("Cerrado")}}});
@@ -642,7 +653,8 @@ void ABoardViewActor::Refresh()
 		}
 		if (UStaticMeshComponent* Hole = InlayHoles.IsValidIndex(Tile.TileId) ? InlayHoles[Tile.TileId].Get() : nullptr)
 		{
-			Soulbound::Presentation::SetComponentColor(*Hole, BaseMaterial, Base);
+			// Segundo brazo de la cruz de la Fuente: el mismo color que el primero.
+			Soulbound::Presentation::SetComponentColor(*Hole, BaseMaterial, Dimmed(SourceColor, Dim));
 		}
 		if (UTextRenderComponent* Label = Labels.IsValidIndex(Tile.TileId) ? Labels[Tile.TileId].Get() : nullptr)
 		{
