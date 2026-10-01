@@ -457,10 +457,30 @@ void ABoardViewActor::BuildOverlay()
 	// La leyenda sale de los mismos colores que la vista: no pueden contradecirse.
 	TArray<FLegendRow> Rows;
 	FLegendRow Domains;
-	Domains.Title = TEXT("Dominio = color de la casilla (y D<n> en la etiqueta)");
+	Domains.Title = TEXT("Dominios = color de la casilla (D<n> en la etiqueta). Fuera = Olvidado");
+	TWeakObjectPtr<UMatchHostSubsystem> WeakHost = Host;
 	for (int32 Id = 0; Id < Board.Domains.Num(); ++Id)
 	{
-		Domains.Chips.Add({DomainColor(Id), FString::Printf(TEXT("D%d"), Id)});
+		FLegendChip Chip;
+		Chip.Color = DomainColor(Id);
+		// Al día: fuera de la partida (Olvidado), en juego, o en juego con el asiento que reclamó su Nicho.
+		Chip.TextGetter = [WeakHost, Id]() -> FString
+		{
+			const UMatchHostSubsystem* HostPtr = WeakHost.Get();
+			if (!HostPtr || !HostPtr->HasMatch() || !HostPtr->GetState().Board.Domains.IsValidIndex(Id))
+			{
+				return FString::Printf(TEXT("D%d"), Id);
+			}
+			const FDomainState& Domain = HostPtr->GetState().Board.Domains[Id];
+			if (Domain.State == EDomainState::Forgotten)
+			{
+				return FString::Printf(TEXT("D%d: OLVIDADO (fuera)"), Id);
+			}
+			return Domain.OwnerSeat == INDEX_NONE
+				? FString::Printf(TEXT("D%d: en juego"), Id)
+				: FString::Printf(TEXT("D%d: en juego, Elegido = asiento %d"), Id, Domain.OwnerSeat);
+		};
+		Domains.Chips.Add(Chip);
 	}
 	Rows.Add(Domains);
 	Rows.Add({TEXT("Tipo = forma (etiqueta: ALTAR, N, F, X)"),
@@ -477,7 +497,6 @@ void ABoardViewActor::BuildOverlay()
 	// Una fila por asiento, con su rol al día: Eco (esfera) o Elegido (cono), y el Dominio que lleva.
 	FLegendRow Seats;
 	Seats.Title = TEXT("Fichas: esfera = Eco, cono = Elegido. El activo crece, sube, gira y lleva aro");
-	TWeakObjectPtr<UMatchHostSubsystem> WeakHost = Host;
 	for (int32 Seat = 0; Seat < Host->GetState().Seats.Num(); ++Seat)
 	{
 		FLegendChip Chip;
@@ -493,7 +512,7 @@ void ABoardViewActor::BuildOverlay()
 			const TCHAR* Who = Seat == HostPtr->GetHumanSeat() ? TEXT("humano") : TEXT("dummy");
 			if (SeatState.Role == ESeatRole::Elect)
 			{
-				return FString::Printf(TEXT("%d (%s): ELEGIDO, Dominio %d"), Seat, Who, SeatState.DomainId);
+				return FString::Printf(TEXT("%d (%s): ELEGIDO del Dominio %d"), Seat, Who, SeatState.DomainId);
 			}
 			return SeatState.DomainId == INDEX_NONE
 				? FString::Printf(TEXT("%d (%s): ECO"), Seat, Who)
