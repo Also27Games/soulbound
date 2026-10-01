@@ -121,9 +121,35 @@ void ASeatTokenActor::SetActive(bool bInActive)
 	}
 }
 
+void ASeatTokenActor::MoveTo(const FVector& Location, float SlideSeconds)
+{
+	if (!bPlaced || SlideSeconds <= 0.f)
+	{
+		SetActorLocation(Location);
+		SlideTarget = Location;
+		SlideElapsed = SlideDuration = SlideSeconds;
+		bPlaced = true;
+		return;
+	}
+	// El mismo destino no reinicia el deslizamiento (la vista repinta a cada cambio del estado).
+	if (Location.Equals(SlideTarget, 0.5))
+	{
+		return;
+	}
+	SlideStart = GetActorLocation();
+	SlideTarget = Location;
+	SlideDuration = SlideSeconds;
+	SlideElapsed = 0.f;
+}
+
 void ASeatTokenActor::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (bPlaced && SlideElapsed < SlideDuration)
+	{
+		SlideElapsed = FMath::Min(SlideElapsed + DeltaSeconds, SlideDuration);
+		SetActorLocation(FMath::Lerp(SlideStart, SlideTarget, SlideElapsed / SlideDuration));
+	}
 	// Sube y baja suave hacia la altura que toca, sin saltos cuando cambia el asiento activo.
 	const float TargetLift = bActive ? Lift : 0.f;
 	CurrentLift = FMath::FInterpTo(CurrentLift, TargetLift, DeltaSeconds, 8.f);

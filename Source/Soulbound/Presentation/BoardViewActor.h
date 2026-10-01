@@ -62,6 +62,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista")
 	float TokenDiameter = 62.f;
 
+	/** Segundos que tarda la ficha en deslizarse en línea recta de su casilla a la de destino. 0 la coloca sin deslizar. Valor inicial 0,5. */
+	UPROPERTY(EditAnywhere, Category = "Vista")
+	float TokenSlideSeconds = 0.5f;
+
 	/** Segundos entre refrescos del texto y de la cámara. Valor inicial 0,25 (4 Hz). */
 	UPROPERTY(EditAnywhere, Category = "Vista")
 	float HudIntervalSeconds = 0.25f;

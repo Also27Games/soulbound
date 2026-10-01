@@ -42,6 +42,12 @@ public:
 	 */
 	void Configure(float InLabelSize, float InLift, float InSpinDegreesPerSecond, float InRingDiameter, float InRingWidth, float InActiveScale);
 
+	/**
+	 * Lleva la ficha a Location deslizándola en línea recta desde donde esté, en SlideSeconds. La primera vez, o con
+	 * SlideSeconds a 0, la coloca sin deslizar. Es solo presentación: el estado ya está en el destino.
+	 */
+	void MoveTo(const FVector& Location, float SlideSeconds);
+
 	/** Asiento activo: se eleva, gira y enseña el aro. Inactivo, vuelve a su sitio sin giro y sin aro. */
 	void SetActive(bool bInActive);
 
@@ -75,6 +81,11 @@ private:
 	UPROPERTY()
 	TObjectPtr<UStaticMesh> CubeMesh;
 
+	FVector SlideStart = FVector::ZeroVector;
+	FVector SlideTarget = FVector::ZeroVector;
+	float SlideDuration = 0.f;
+	float SlideElapsed = 0.f;
+	bool bPlaced = false;
 	FLinearColor RingColor = FLinearColor::White;
 	float Lift = 45.f;
 	float ActiveScale = 1.3f;

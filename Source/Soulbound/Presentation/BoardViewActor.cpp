@@ -650,7 +650,7 @@ void ABoardViewActor::Refresh()
 			const float Angle = 2.f * PI * MyIndex / Sharing;
 			Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * (TileDiameter * 0.28f);
 		}
-		Token->SetActorLocation(TilePositions[TileId] + Offset + FVector(0.f, 0.f, TileTops[TileId] + TokenDiameter * 0.5f));
+		Token->MoveTo(TilePositions[TileId] + Offset + FVector(0.f, 0.f, TileTops[TileId] + TokenDiameter * 0.5f), TokenSlideSeconds);
 		// Elegido: cono; Eco: esfera (criterio manual "Vínculo visible").
 		Token->SetElectShape(State.Seats[Seat].Role == ESeatRole::Elect);
 		Token->SetActive(bSomeoneActive && Seat == State.ActiveSeat);
