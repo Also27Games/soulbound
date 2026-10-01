@@ -16,12 +16,11 @@ Decidido por el autor el 02/10/2026: etiquetas con identificador y Dominio en to
 4. **Asiento activo.** La ficha del asiento activo se eleva y gira despacio mientras dura su turno; la línea del turno lleva el color del asiento; un aro del mismo color bajo su ficha.
 5. **Crónica en pantalla.** Panel lateral a la derecha con todos los sucesos de la partida (el registro de eventos del motor, con el mismo texto que la crónica de la simulación): el último arriba, con scroll, cada línea con la marca de tiempo y el color del asiento afectado (los del Warden en naranja, los de carrera en cian). Hecho en C++ con Slate (`SScrollBox` añadido al viewport), sin widget ni asset. Si pasa de un tope de líneas en parámetro (valor inicial 300), se recortan las más viejas. Sustituye a la línea "último suceso".
 6. **Modo paso a paso.** Propiedad del anfitrión de partida (`bStepMode`, valor inicial `false`): de configuración (`DefaultGame.ini`), legible y escribible desde Blueprint, y cambiable en caliente con dos comandos de consola en el controlador del spike, `SbStepMode 1|0` y `SbStep`, como los `SbStatus`/`SbLogin` que ya existen. Activo, la partida se detiene al terminar cada turno (al entrar en `BetweenTurns`) y el reloj de partida se congela hasta que el jugador pulsa la barra espaciadora (o el botón A del mando) o ejecuta `SbStep`; entonces se juega el siguiente turno entero (los dummies responden a sus 5 s; el humano, con su clic y su reloj de 30 s) y vuelve a detenerse. El anfitrión del Warden no evalúa mientras la partida está detenida. El texto dice "PASO A PASO: espacio para el siguiente turno" cuando espera. Congelar el reloj es desplazar el origen (`OriginWorldSeconds`), como ya hace el anfitrión.
-8. **Deslizamiento de la ficha** (añadido por el autor durante la story). La ficha no se teletransporta: se desliza en línea recta de la casilla de origen a la de destino en un tiempo en parámetro (valor inicial 0,5 s). Solo vista, sin reglas: el estado ya está en el destino desde que el motor acepta la intención. Recorrer el camino casilla a casilla queda para la story del Warden, que es cuando el motor guardará el camino.
 7. **Capturas pendientes.** Con la vista nueva se repiten y documentan con captura los criterios manuales de S-005 (CA-TAB-22, Partida viva, Reloj, Sellos) y S-006 (Vínculo visible, Fin de carrera, Victoria del Warden).
 
 ## Criterios de aceptación
 
-Automáticos: ninguno nuevo en el motor (la story no toca `SoulboundCore`); los 65 actuales siguen en verde. Compila y empaqueta (`build.ps1 -Que package`).
+Automáticos: la story no toca las reglas de `SoulboundCore`; la única excepción es el evento `Moved` (ver "Añadidos del autor"), con su test. Los 65 anteriores siguen en verde. Compila y empaqueta (`build.ps1 -Que package`).
 
 Manuales, en PIE, con captura cada uno:
 
@@ -47,6 +46,18 @@ Por rondas. El agente entrega una primera versión completa, la prueba en PIE po
 - Colores y tamaños como parámetros con valor inicial documentado en la clase de la vista, no repartidos por el código.
 - Las posiciones de las casillas vienen del archivo del tablero: si se encimán, se arregla en el editor web (`Scripts/board-editor`, botón "Separar casillas"), no en la vista. `PositionScale` sigue siendo parámetro por si hace falta aire.
 - Steam Deck: etiquetas y panel tienen que leerse a 1280×800; comprobar al menos en una ventana de PIE a ese tamaño.
+
+## Añadidos del autor durante las rondas
+
+Pedidos por el autor al probar la vista en PIE; son parte de la story. Cada uno es un commit de ronda.
+
+- **Deslizamiento de la ficha.** No se teletransporta: se desliza en línea recta de la casilla de origen a la de destino en un tiempo en parámetro (`TokenSlideSeconds`, valor inicial 0,5 s). Solo vista; el estado ya está en el destino desde que el motor acepta la intención. Recorrer el camino casilla a casilla queda para la story del Warden, cuando el motor guarde el camino.
+- **Leyenda con los Dominios fuera y el Elegido por asiento.** Cada Dominio dice si está en juego u Olvidado (fuera) y, si lo hay, el asiento que lo reclamó; cada asiento dice si es Eco o Elegido y de qué Dominio, con su número.
+- **Aro de Dominio Olvidado.** Las casillas de un Dominio Olvidado, además de apagadas, llevan un aro gris oscuro por debajo.
+- **Cruz en la Fuente.** La Fuente de Poder lleva una cruz blanca con contorno negro (antes un anillo, que se confundía con el Nodo en rombo con esfera).
+- **Numeración de fichas y de Nichos reclamados.** El número del asiento va escrito en la ficha y en el cubo del Nicho reclamado. El Nicho reclamado conserva el color de su Dominio y lleva un aro del color del asiento.
+- **Evento `Moved`.** Excepción a "esta story no toca `SoulboundCore`": `SubmitDestinationIntent` registra el movimiento (asiento y casilla de destino), con test en `TurnRulesTest` y línea en la crónica de la simulación y en el panel ("el asiento 0 se mueve a D0·4").
+- **Nombres de los Elegidos desde datos.** La leyenda y la etiqueta del Nicho enseñan `domains[].name` del archivo del tablero. Los nombres de `tablero_35.json` y `tablero_15.json` entran en un commit de datos aparte.
 
 ## Fuera de esta story
 

@@ -2,7 +2,17 @@
 
 namespace Soulbound::Presentation
 {
-	FString DescribeEvent(const FMatchEvent& Event)
+	FString TileShortName(const FBoardState& Board, int32 TileId)
+	{
+		if (!Board.IsValidTile(TileId))
+		{
+			return FString::Printf(TEXT("casilla %d"), TileId);
+		}
+		const FTileState& Tile = Board.Tiles[TileId];
+		return Tile.Type == ETileType::Altar ? FString(TEXT("ALTAR")) : FString::Printf(TEXT("D%d·%d"), Tile.DomainId, Tile.TileId);
+	}
+
+	FString DescribeEvent(const FMatchEvent& Event, const FBoardState& Board)
 	{
 		switch (Event.Type)
 		{
@@ -11,6 +21,7 @@ namespace Soulbound::Presentation
 		case EMatchEventType::TurnClockExpired: return FString::Printf(TEXT("el asiento %d AGOTA el reloj de turno: no se mueve"), Event.Seat);
 		case EMatchEventType::TurnSkipped: return FString::Printf(TEXT("el asiento %d pierde el turno"), Event.Seat);
 		case EMatchEventType::TurnEnded: return FString::Printf(TEXT("termina el turno del asiento %d"), Event.Seat);
+		case EMatchEventType::Moved: return FString::Printf(TEXT("el asiento %d se mueve a %s"), Event.Seat, *TileShortName(Board, Event.Value));
 		case EMatchEventType::SealPlaced: return FString::Printf(TEXT("el Warden sella la casilla %d"), Event.Value);
 		case EMatchEventType::SealReleased: return FString::Printf(TEXT("se libera el Sello de la casilla %d"), Event.Value);
 		case EMatchEventType::Bonded: return FString::Printf(TEXT("el asiento %d se vincula al Elegido del Dominio %d"), Event.Seat, Event.Value);

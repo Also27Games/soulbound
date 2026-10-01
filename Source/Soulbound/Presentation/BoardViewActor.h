@@ -112,6 +112,22 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
 	float TokenLabelSize = 40.f;
 
+	/** Radio del aro del asiento en un Nicho reclamado, por el diámetro de la casilla. Valor inicial 0,7. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
+	float NicheRingRadiusScale = 0.7f;
+
+	/** Ancho del aro del Nicho reclamado, en cm. Valor inicial 12. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
+	float NicheRingWidth = 12.f;
+
+	/** Alto de la letra del número de asiento sobre el cubo del Nicho reclamado, en cm. Valor inicial 60. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
+	float NicheNumberSize = 60.f;
+
+	/** Alto de la letra del nombre del Elegido en la etiqueta del Nicho, en cm. Valor inicial 19. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
+	float NicheNameSize = 19.f;
+
 	// ---- Asiento activo ----
 
 	/** Cuánto sube la ficha del asiento activo, en cm. Valor inicial 70. */
@@ -279,6 +295,20 @@ private:
 	/** Contorno del segundo brazo de la cruz de la Fuente (nulo en las demás). */
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> InlayOutlinesB;
+
+	/** Nombre del Elegido (de los datos, domains[].name), en dos líneas, sobre cada Nicho (nulo en las demás casillas). */
+	UPROPERTY()
+	TArray<TObjectPtr<UTextRenderComponent>> NicheNames;
+
+	/** Número del asiento sobre el cubo de cada Nicho reclamado (nulo en las demás casillas). */
+	UPROPERTY()
+	TArray<TObjectPtr<UTextRenderComponent>> NicheNumbers;
+
+	/** Segmentos de los aros de los Nichos, seguidos: NicheRingFirst[casilla] es el primero de los de esa casilla. */
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> NicheRingSegments;
+
+	TArray<int32> NicheRingFirst;
 
 	/** Aro bajo cada casilla que se enseña si su Dominio es Olvidado. */
 	UPROPERTY()

@@ -31,6 +31,8 @@ namespace
 	constexpr float EdgeThickness = 4.f;
 	/** Alto de las marcas de tipo sobre la losa. */
 	constexpr float InlayHeight = 6.f;
+	/** Segmentos del aro de un Nicho reclamado. */
+	constexpr int32 NicheRingSegmentCount = 24;
 
 	/** Clave base de los mensajes de pantalla de esta vista: una línea por clave, se sustituyen al refrescar. */
 	constexpr uint64 TextKeyBase = 0x53420500;
@@ -63,18 +65,29 @@ namespace
 	}
 
 	/** Etiqueta de una casilla: identificador y Dominio ("D3·41"), con el prefijo del tipo; el Altar, "ALTAR". */
-	FString TileLabelText(const FTileState& Tile)
+	FString TileLabelText(const FBoardState& Board, const FTileState& Tile)
 	{
-		const FString Plain = FString::Printf(TEXT("D%d·%d"), Tile.DomainId, Tile.TileId);
+		const FString Plain = Soulbound::Presentation::TileShortName(Board, Tile.TileId);
 		switch (Tile.Type)
 		{
-		case ETileType::Altar: return FString(TEXT("ALTAR"));
 		case ETileType::Niche: return TEXT("N ") + Plain;
 		case ETileType::PowerSource: return TEXT("F ") + Plain;
 		case ETileType::PowerNode: return TEXT("X ") + Plain;
+		case ETileType::Altar:
 		case ETileType::Normal:
 		default: return Plain;
 		}
+	}
+
+	/** Parte el nombre del Elegido ("El Banquete (Shuten-dōji)") en dos líneas para que quepa en la casilla. */
+	FString TwoLineName(const FString& Name)
+	{
+		int32 Split = INDEX_NONE;
+		if (Name.FindChar(TEXT('('), Split) && Split > 0)
+		{
+			return Name.Left(Split).TrimEnd() + TEXT("\n") + Name.Mid(Split);
+		}
+		return Name;
 	}
 }
 
@@ -251,6 +264,9 @@ void ABoardViewActor::BuildTiles()
 	InlayOutlinesB.Init(nullptr, Board.Tiles.Num());
 	Halos.Init(nullptr, Board.Tiles.Num());
 	ForgottenRings.Init(nullptr, Board.Tiles.Num());
+	NicheNames.Init(nullptr, Board.Tiles.Num());
+	NicheNumbers.Init(nullptr, Board.Tiles.Num());
+	NicheRingFirst.Init(INDEX_NONE, Board.Tiles.Num());
 	InlayHoles.Init(nullptr, Board.Tiles.Num());
 	Labels.Init(nullptr, Board.Tiles.Num());
 
@@ -368,8 +384,47 @@ void ABoardViewActor::BuildTiles()
 		// de la pantalla (yaw 180). Con pitch -90 se veía por detrás, como en un espejo.
 		Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
 		Label->SetWorldLocation(OnTop + FVector(-Diameter * LabelOffsetFraction * (bAltar ? 1.f : 1.f), 0.f, InlayHeight + 3.f));
-		Label->SetText(FText::FromString(TileLabelText(Tile)));
+		Label->SetText(FText::FromString(TileLabelText(Board, Tile)));
 		Labels[Tile.TileId] = Label;
+
+		if (Tile.Type == ETileType::Niche)
+		{
+			// Nombre del Elegido (de los datos) arriba de la casilla; número del asiento sobre el cubo.
+			auto AddText = [this, &OnTop](float Size, const FVector& Offset)
+			{
+				UTextRenderComponent* Text = NewObject<UTextRenderComponent>(this);
+				Text->SetupAttachment(GetRootComponent());
+				Text->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				Text->SetCastShadow(false);
+				Text->RegisterComponent();
+				Text->SetHorizontalAlignment(EHTA_Center);
+				Text->SetVerticalAlignment(EVRTA_TextCenter);
+				Text->SetWorldSize(Size);
+				Text->SetTextRenderColor(FColor::White);
+				Text->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
+				Text->SetWorldLocation(OnTop + Offset);
+				return Text;
+			};
+			const FString Name = Board.Domains.IsValidIndex(Tile.DomainId) ? Board.Domains[Tile.DomainId].Name : FString();
+			NicheNames[Tile.TileId] = AddText(NicheNameSize, FVector(Diameter * 0.38f, 0.f, InlayHeight + 3.f));
+			NicheNames[Tile.TileId]->SetText(FText::FromString(TwoLineName(Name)));
+			NicheNumbers[Tile.TileId] = AddText(NicheNumberSize, FVector(0.f, 0.f, InlayHeight + 3.f));
+			NicheNumbers[Tile.TileId]->SetText(FText::GetEmpty());
+
+			// Aro del asiento: segmentos en círculo alrededor de la casilla, apagados hasta que se reclama.
+			const float RingRadius = TileDiameter * NicheRingRadiusScale;
+			const float SegmentLength = 2.f * PI * RingRadius / NicheRingSegmentCount * 1.15f;
+			NicheRingFirst[Tile.TileId] = NicheRingSegments.Num();
+			for (int32 Index = 0; Index < NicheRingSegmentCount; ++Index)
+			{
+				const float Angle = 2.f * PI * Index / NicheRingSegmentCount;
+				UStaticMeshComponent* Segment = AddShape(CubeMesh, Position + FVector(FMath::Cos(Angle) * RingRadius, FMath::Sin(Angle) * RingRadius, 3.f),
+					FRotator(0.f, FMath::RadiansToDegrees(Angle) + 90.f, 0.f), FVector(SegmentLength, NicheRingWidth, 6.f));
+				Soulbound::Presentation::SetComponentColor(*Segment, BaseMaterial, FLinearColor::White);
+				Segment->SetVisibility(false);
+				NicheRingSegments.Add(Segment);
+			}
+		}
 	}
 }
 
@@ -475,7 +530,7 @@ void ABoardViewActor::BuildOverlay()
 	// La leyenda sale de los mismos colores que la vista: no pueden contradecirse.
 	TArray<FLegendRow> Rows;
 	FLegendRow Domains;
-	Domains.Title = TEXT("Dominios = color de la casilla (D<n> en la etiqueta). Fuera = Olvidado");
+	Domains.Title = TEXT("Dominios y su Elegido (color de la casilla, D<n> en la etiqueta). Fuera = Olvidado");
 	TWeakObjectPtr<UMatchHostSubsystem> WeakHost = Host;
 	for (int32 Id = 0; Id < Board.Domains.Num(); ++Id)
 	{
@@ -492,11 +547,11 @@ void ABoardViewActor::BuildOverlay()
 			const FDomainState& Domain = HostPtr->GetState().Board.Domains[Id];
 			if (Domain.State == EDomainState::Forgotten)
 			{
-				return FString::Printf(TEXT("D%d: OLVIDADO (fuera)"), Id);
+				return FString::Printf(TEXT("D%d %s: OLVIDADO (fuera)"), Id, *Domain.Name);
 			}
 			return Domain.OwnerSeat == INDEX_NONE
-				? FString::Printf(TEXT("D%d: en juego"), Id)
-				: FString::Printf(TEXT("D%d: en juego, Elegido = asiento %d"), Id, Domain.OwnerSeat);
+				? FString::Printf(TEXT("D%d %s: en juego"), Id, *Domain.Name)
+				: FString::Printf(TEXT("D%d %s: en juego, asiento %d"), Id, *Domain.Name, Domain.OwnerSeat);
 		};
 		Domains.Chips.Add(Chip);
 	}
@@ -507,14 +562,14 @@ void ABoardViewActor::BuildOverlay()
 			{SourceColor, TEXT("F Fuente: casilla redonda con cruz")},
 			{NodeColor, TEXT("X Nodo: rombo con esfera")}}});
 	Rows.Add({TEXT("Nicho (el cubo)"),
-		{{NicheFreeColor, TEXT("Libre")}, {SeatColor(0), TEXT("Reclamado: color del asiento")}, {NicheClosedColor, TEXT("Cerrado")}}});
+		{{NicheFreeColor, TEXT("Libre")}, {SeatColor(0), TEXT("Reclamado: aro y número del asiento")}, {NicheClosedColor, TEXT("Cerrado")}}});
 	Rows.Add({TEXT("Estado de la casilla"),
 		{{ReachableColor, TEXT("alcanzable: halo blanco bajo la casilla")},
 			{SealedColor, TEXT("sellada (SELLO)")},
 			{ForgottenRingColor, TEXT("Dominio Olvidado: casillas apagadas con aro gris oscuro")}}});
 	// Una fila por asiento, con su rol al día: Eco (esfera) o Elegido (cono), y el Dominio que lleva.
 	FLegendRow Seats;
-	Seats.Title = TEXT("Fichas: esfera = Eco, cono = Elegido. El activo crece, sube, gira y lleva aro");
+	Seats.Title = TEXT("Asientos (el número va en la ficha): esfera = Eco, cono = Elegido. El activo crece, sube, gira y lleva aro");
 	for (int32 Seat = 0; Seat < Host->GetState().Seats.Num(); ++Seat)
 	{
 		FLegendChip Chip;
@@ -527,14 +582,16 @@ void ABoardViewActor::BuildOverlay()
 				return FString::Printf(TEXT("%d"), Seat);
 			}
 			const FSeatState& SeatState = HostPtr->GetState().Seats[Seat];
+			const FBoardState& Board = HostPtr->GetState().Board;
 			const TCHAR* Who = Seat == HostPtr->GetHumanSeat() ? TEXT("humano") : TEXT("dummy");
+			const FString DomainName = Board.Domains.IsValidIndex(SeatState.DomainId) ? Board.Domains[SeatState.DomainId].Name : FString();
 			if (SeatState.Role == ESeatRole::Elect)
 			{
-				return FString::Printf(TEXT("%d (%s): ELEGIDO del Dominio %d"), Seat, Who, SeatState.DomainId);
+				return FString::Printf(TEXT("%d (%s): ELEGIDO, D%d %s"), Seat, Who, SeatState.DomainId, *DomainName);
 			}
 			return SeatState.DomainId == INDEX_NONE
 				? FString::Printf(TEXT("%d (%s): ECO"), Seat, Who)
-				: FString::Printf(TEXT("%d (%s): ECO, hogar en el Dominio %d"), Seat, Who, SeatState.DomainId);
+				: FString::Printf(TEXT("%d (%s): ECO, hogar en D%d %s"), Seat, Who, SeatState.DomainId, *DomainName);
 		};
 		Seats.Chips.Add(Chip);
 	}
@@ -585,7 +642,7 @@ void ABoardViewActor::RefreshChronicle(const FMatchState& State)
 		case Soulbound::Presentation::EEventSource::Race: Color = RaceLineColor; break;
 		case Soulbound::Presentation::EEventSource::Seat: break;
 		}
-		Lines.Add({FString::Printf(TEXT("[%s] %s"), *Stamp(Event.ClockSeconds), *Soulbound::Presentation::DescribeEvent(Event)), Color});
+		Lines.Add({FString::Printf(TEXT("[%s] %s"), *Stamp(Event.ClockSeconds), *Soulbound::Presentation::DescribeEvent(Event, State.Board)), Color});
 	}
 	ChroniclePanel->SetLines(Lines);
 }
@@ -641,9 +698,9 @@ void ABoardViewActor::Refresh()
 			switch (Tile.Type)
 			{
 			case ETileType::Niche:
-				// Libre, el color de tipo; Reclamado, el del asiento; Cerrado, gris oscuro.
-				Mark = !Domain || Domain->NicheState == ENicheState::Free ? NicheFreeColor
-					: Domain->NicheState == ENicheState::Claimed ? SeatColor(Domain->OwnerSeat) : NicheClosedColor;
+				// El cubo no cambia de color por quien lo reclama: el Dominio se sigue viendo. Libre y Reclamado, el color de
+				// tipo; Cerrado, gris oscuro. El Reclamado lleva el aro y el número del asiento (más abajo).
+				Mark = Domain && Domain->NicheState == ENicheState::Closed ? NicheClosedColor : NicheFreeColor;
 				break;
 			case ETileType::PowerSource: Mark = Dimmed(SourceColor, Dim); break;
 			case ETileType::PowerNode: Mark = Dimmed(NodeColor, Dim); break;
@@ -656,9 +713,24 @@ void ABoardViewActor::Refresh()
 			// Segundo brazo de la cruz de la Fuente: el mismo color que el primero.
 			Soulbound::Presentation::SetComponentColor(*Hole, BaseMaterial, Dimmed(SourceColor, Dim));
 		}
+		if (Tile.Type == ETileType::Niche && NicheRingFirst.IsValidIndex(Tile.TileId) && NicheRingFirst[Tile.TileId] != INDEX_NONE)
+		{
+			const bool bClaimed = Domain && Domain->NicheState == ENicheState::Claimed;
+			const FLinearColor RingColor = bClaimed ? SeatColor(Domain->OwnerSeat) : FLinearColor::White;
+			const int32 First = NicheRingFirst[Tile.TileId];
+			for (int32 Index = First; Index < First + NicheRingSegmentCount && NicheRingSegments.IsValidIndex(Index); ++Index)
+			{
+				Soulbound::Presentation::SetComponentColor(*NicheRingSegments[Index], BaseMaterial, RingColor);
+				NicheRingSegments[Index]->SetVisibility(bClaimed);
+			}
+			if (UTextRenderComponent* Number = NicheNumbers[Tile.TileId].Get())
+			{
+				Number->SetText(bClaimed ? FText::AsNumber(Domain->OwnerSeat) : FText::GetEmpty());
+			}
+		}
 		if (UTextRenderComponent* Label = Labels.IsValidIndex(Tile.TileId) ? Labels[Tile.TileId].Get() : nullptr)
 		{
-			const FString Text = TileLabelText(Tile) + (Tile.bSealed ? TEXT("\nSELLO") : TEXT(""));
+			const FString Text = TileLabelText(State.Board, Tile) + (Tile.bSealed ? TEXT("\nSELLO") : TEXT(""));
 			Label->SetText(FText::FromString(Text));
 			Label->SetTextRenderColor(Tile.bSealed ? FColor::Red : FColor::White);
 		}
