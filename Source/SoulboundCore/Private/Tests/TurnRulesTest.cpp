@@ -636,10 +636,11 @@ bool FTurnEventLogTest::RunTest(const FString& Parameters)
 	// Turno confirmado: empieza en 12 y confirma en 17.
 	const int32 First = State.ActiveSeat;
 	TestEqual(TEXT("Turno confirmado: se juega"), PlayTurn(State, Random, 12.0, 17.0).Seat, First);
-	TestEqual(TEXT("Turno confirmado: tres eventos"), State.EventLog.Num(), 3);
+	TestEqual(TEXT("Turno confirmado: cuatro eventos (con el movimiento, S-007)"), State.EventLog.Num(), 4);
 	ExpectEvent(*this, TEXT("Confirmado, inicio"), State, 0, EMatchEventType::TurnStarted, 12.0, First);
 	ExpectEvent(*this, TEXT("Confirmado, tirada"), State, 1, EMatchEventType::Rolled, 12.0, First);
-	ExpectEvent(*this, TEXT("Confirmado, fin"), State, 2, EMatchEventType::TurnEnded, 17.0, First);
+	ExpectEvent(*this, TEXT("Confirmado, movimiento"), State, 2, EMatchEventType::Moved, 17.0, First);
+	ExpectEvent(*this, TEXT("Confirmado, fin"), State, 3, EMatchEventType::TurnEnded, 17.0, First);
 	TestTrue(TEXT("La tirada queda en el registro"), State.EventLog.IsValidIndex(1) && State.EventLog[1].Value >= 1 && State.EventLog[1].Value <= Soulbound::Dice::Faces);
 
 	// Turno agotado: empieza en 20 y nadie confirma.
@@ -650,11 +651,56 @@ bool FTurnEventLogTest::RunTest(const FString& Parameters)
 	}
 	const double Deadline = State.TurnDeadlineSeconds;
 	TestTrue(TEXT("Turno agotado: termina"), AdvanceToBetweenTurns(State, Random, Deadline));
-	TestEqual(TEXT("Turno agotado: cuatro eventos más"), State.EventLog.Num(), 7);
-	ExpectEvent(*this, TEXT("Agotado, inicio"), State, 3, EMatchEventType::TurnStarted, 20.0, Second);
-	ExpectEvent(*this, TEXT("Agotado, tirada"), State, 4, EMatchEventType::Rolled, 20.0, Second);
-	ExpectEvent(*this, TEXT("Agotado, agotamiento"), State, 5, EMatchEventType::TurnClockExpired, Deadline, Second);
-	ExpectEvent(*this, TEXT("Agotado, fin"), State, 6, EMatchEventType::TurnEnded, Deadline, Second);
+	TestEqual(TEXT("Turno agotado: cuatro eventos más, sin movimiento"), State.EventLog.Num(), 8);
+	ExpectEvent(*this, TEXT("Agotado, inicio"), State, 4, EMatchEventType::TurnStarted, 20.0, Second);
+	ExpectEvent(*this, TEXT("Agotado, tirada"), State, 5, EMatchEventType::Rolled, 20.0, Second);
+	ExpectEvent(*this, TEXT("Agotado, agotamiento"), State, 6, EMatchEventType::TurnClockExpired, Deadline, Second);
+	ExpectEvent(*this, TEXT("Agotado, fin"), State, 7, EMatchEventType::TurnEnded, Deadline, Second);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTurnMovedEventTest,
+	"Soulbound.Core.Match.Turn.MovimientoEnElRegistro",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FTurnMovedEventTest::RunTest(const FString& Parameters)
+{
+	// S-007, ampliación del autor (R-TUR-15): al aceptar la intención de destino, el registro lleva un evento Moved con
+	// el asiento, la casilla de destino y la marca de tiempo de la confirmación, antes del fin del turno. Las
+	// intenciones rechazadas no dejan evento.
+	FRandomStream Random(81);
+	FMatchState State;
+	if (!StartTestMatch(*this, Random, State) || !TestTrue(TEXT("El turno llega a la tirada"), AdvanceToChoice(State, Random, 10.0))
+		|| !TestFalse(TEXT("Hay casillas alcanzables"), State.ReachableOptions.IsEmpty()))
+	{
+		return false;
+	}
+	const int32 Seat = State.ActiveSeat;
+	const int32 Origin = State.Seats[Seat].TileId;
+	const int32 Destination = State.ReachableOptions.Last();
+	const int32 OtherSeat = NextInOrder(State, Seat);
+
+	auto CountMoved = [&State]()
+	{
+		return State.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::Moved; }).Num();
+	};
+
+	TestEqual(TEXT("Otro asiento: se rechaza"), SubmitDestinationIntent(State, OtherSeat, Destination, 12.0), EIntentResult::WrongSeat);
+	TestEqual(TEXT("Casilla no alcanzable (el origen): se rechaza"), SubmitDestinationIntent(State, Seat, Origin, 12.0), EIntentResult::Unreachable);
+	TestEqual(TEXT("Las intenciones rechazadas no dejan evento de movimiento"), CountMoved(), 0);
+
+	TestEqual(TEXT("Destino alcanzable: se acepta"), SubmitDestinationIntent(State, Seat, Destination, 14.0), EIntentResult::Accepted);
+	if (TestEqual(TEXT("La intención aceptada deja un evento de movimiento"), CountMoved(), 1))
+	{
+		const FMatchEvent& Moved = State.EventLog.Last();
+		TestEqual(TEXT("Es el último evento"), static_cast<int32>(Moved.Type), static_cast<int32>(EMatchEventType::Moved));
+		TestEqual(TEXT("Asiento que se mueve"), Moved.Seat, Seat);
+		TestEqual(TEXT("Casilla de destino"), Moved.Value, Destination);
+		TestEqual(TEXT("Marca de tiempo de la confirmación"), Moved.ClockSeconds, 14.0);
+	}
+	TestTrue(TEXT("El turno termina"), AdvanceToBetweenTurns(State, Random, 14.0));
+	TestEqual(TEXT("Terminar el turno no añade otro movimiento"), CountMoved(), 1);
+	TestEqual(TEXT("El asiento está en el destino"), State.Seats[Seat].TileId, Destination);
 	return true;
 }
 

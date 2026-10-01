@@ -110,6 +110,12 @@ enum class EMatchEventType : uint8
 	WardenVictory,
 	/** Fin de la carrera (R-CAR-1, R-CAR-8); Value es el número de Elegidos; sin asiento. Nombre propuesto en S-006. */
 	BondRaceEnded,
+	/**
+	 * Un asiento mueve su ficha: el motor acepta su intención de destino (SubmitDestinationIntent); Value es la casilla
+	 * de destino. Va antes de los eventos de resolver la casilla (Bonded...). Añadido por el autor en S-007 para la
+	 * vista y la crónica; el camino casilla a casilla queda para la story del Warden. Nombre propuesto en S-007.
+	 */
+	Moved,
 };
 
 /**
