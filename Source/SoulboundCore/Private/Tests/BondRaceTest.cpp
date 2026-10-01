@@ -351,6 +351,60 @@ bool FBondRaceEndTriggersTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBondRaceExtraTurnBeforeLimitTest,
+	"Soulbound.Core.BondRace.TurnoExtraAntesDelLimite",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FBondRaceExtraTurnBeforeLimitTest::RunTest(const FString& Parameters)
+{
+	// R-TUR-9 antes que R-CAR-1 (revisión de S-006): un turno extra concedido y empezado antes del límite de la carrera
+	// se juega entero, y la carrera termina al acabarlo. Semilla fija 13.
+	FRandomStream Random;
+	FMatchState State;
+	if (!StartWithElects(*this, 13, 1, Random, State))
+	{
+		return false;
+	}
+	const double RaceEnd = State.Params.RaceDurationSeconds;
+	const int32 Seat = State.TurnOrder[1];
+	State.ActiveSeat = Seat;
+	Soulbound::Rules::GrantExtraTurns(State, Seat, 1);
+
+	// Primer turno: acaba antes del límite y deja el extra pendiente.
+	if (!TestTrue(TEXT("El turno llega a la tirada"), AdvanceToChoice(State, Random, RaceEnd - 10.0)) || !TestFalse(TEXT("Hay opciones"), State.ReachableOptions.IsEmpty()))
+	{
+		return false;
+	}
+	Soulbound::Rules::SubmitDestinationIntent(State, Seat, State.ReachableOptions[0], RaceEnd - 8.0);
+	while (State.TurnPhase != ETurnPhase::BetweenTurns && Soulbound::Rules::AdvanceTurn(State, RaceEnd - 8.0, Random))
+	{
+	}
+	TestEqual(TEXT("Juega otra vez el mismo asiento"), State.ActiveSeat, Seat);
+	TestEqual(TEXT("La carrera sigue"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::BondRace));
+
+	// Turno extra: empieza antes del límite y confirma después; se juega entero.
+	const int32 StartedBefore = EventsOfType(State, EMatchEventType::TurnStarted).Num();
+	if (!TestTrue(TEXT("El turno extra llega a la tirada"), AdvanceToChoice(State, Random, RaceEnd - 2.0)) || !TestFalse(TEXT("Hay opciones"), State.ReachableOptions.IsEmpty()))
+	{
+		return false;
+	}
+	TestEqual(TEXT("El turno extra empieza antes del límite"), EventsOfType(State, EMatchEventType::TurnStarted).Num(), StartedBefore + 1);
+	TestEqual(TEXT("Intención del turno extra después del límite: se acepta"),
+		static_cast<int32>(Soulbound::Rules::SubmitDestinationIntent(State, Seat, State.ReachableOptions[0], RaceEnd + 3.0)), static_cast<int32>(EIntentResult::Accepted));
+	while (State.TurnPhase != ETurnPhase::End && Soulbound::Rules::AdvanceTurn(State, RaceEnd + 3.0, Random))
+	{
+	}
+	TestEqual(TEXT("Mientras dura el turno extra, la carrera sigue"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::BondRace));
+	Soulbound::Rules::AdvanceTurn(State, RaceEnd + 3.0, Random);
+	TestEqual(TEXT("Al acabar el turno extra, la carrera termina"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::RuneHunt));
+	const TArray<FMatchEvent> Ended = EventsOfType(State, EMatchEventType::BondRaceEnded);
+	if (TestEqual(TEXT("Un fin de carrera"), Ended.Num(), 1))
+	{
+		TestEqual(TEXT("En el instante en que acaba el turno extra"), Ended[0].ClockSeconds, RaceEnd + 3.0);
+	}
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBondRaceEndOfRaceTest,
 	"Soulbound.Core.BondRace.FinDeCarrera",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)

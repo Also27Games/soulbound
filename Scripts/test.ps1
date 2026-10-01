@@ -13,9 +13,10 @@
   estaba. Con ella, Soulbound.Core.Simulation.CronicaDeUnaPartida imprime una partida entera turno a turno (quién
   juega, qué tira, adónde va, qué hace el Warden) en las líneas "info"; sin ella, solo una línea de resumen.
   El test comprueba que la crónica está completa en los dos casos.
-  -Informe pone SOULBOUND_INFORME=1 del mismo modo: Soulbound.Core.Simulation.InformeDeCarrera imprime, sobre 50
-  partidas con dummies de carrera en el tablero configurado, el % de partidas sin ningún vínculo, el % de asientos
-  que quedan Eco y el segundo medio de fin de carrera (S-006). Son cifras para el autor; el test no las juzga.
+  -Informe pone SOULBOUND_INFORME=1 del mismo modo: Soulbound.Core.Simulation.InformeDeCarrera imprime, por cada
+  tablero de Content/Data/Boards y sobre 50 partidas con dummies de carrera, el % de partidas sin ningún vínculo, los
+  Elegidos por partida de media, el % de asientos que quedan Eco y el segundo medio de fin de carrera (S-006). Son
+  cifras para el autor; el test no las juzga.
   Arranca el editor en modo comandlet (-nullrhi, sin ventana), ejecuta los tests y resume el resultado.
   Devuelve código 1 si algún test falla o si no se ejecutó ninguno. Compila antes con Scripts\build.ps1 -Que editor.
   Motor: variable de entorno UE_ROOT o, si no existe, C:\UE_Engines\UE_5.8.

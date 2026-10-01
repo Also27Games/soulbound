@@ -102,6 +102,10 @@ namespace
 		State.TurnPhase = ETurnPhase::BetweenTurns;
 		State.Roll = 0;
 		State.ReachableOptions.Reset();
+		// R-TUR-9 antes que R-CAR-1: el fin de carrera se mira al acabar cada turno, extra o no. Un turno extra concedido
+		// y empezado antes del límite se juega entero, y la carrera termina al acabarlo. Si el turno que acaba aquí ya
+		// pasó el límite y deja un turno extra pendiente, la carrera termina ahora y ese turno extra se juega después,
+		// ya fuera de la carrera.
 		EndBondRaceIfTimeIsUp(State, NowSeconds, Random);
 	}
 

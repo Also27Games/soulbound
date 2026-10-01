@@ -10,7 +10,7 @@
 #include "Match/TurnRules.h"
 #include "Math/RandomStream.h"
 #include "Misc/AutomationTest.h"
-#include "Misc/ConfigCacheIni.h"
+#include "HAL/FileManager.h"
 #include "Misc/Paths.h"
 #include "UObject/Class.h"
 
@@ -28,27 +28,36 @@ namespace Soulbound::Tests
 		return FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data/Match/partida.json"));
 	}
 
-	/**
-	 * Tablero configurado del juego (S-006): el que carga el anfitrión de partida, de BoardRelativePath en la sección
-	 * del MatchHost de DefaultGame.ini. Sin la línea, el valor inicial del código (UMatchHostSubsystem), el de 15.
-	 */
-	inline FString ConfiguredBoardPath()
+	/** Carpeta de los archivos de tablero del proyecto, Content/Data/Boards. */
+	inline FString BoardsDirectory()
 	{
-		FString Relative = TEXT("Data/Boards/tablero_15.json");
-		if (GConfig)
-		{
-			GConfig->GetString(TEXT("/Script/Soulbound.MatchHostSubsystem"), TEXT("BoardRelativePath"), Relative, GGameIni);
-		}
-		return FPaths::Combine(FPaths::ProjectContentDir(), Relative);
+		return FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data/Boards"));
 	}
 
-	/** Carga el tablero configurado del juego; si falla, lo apunta como error del test y devuelve false. */
-	inline bool LoadConfiguredBoard(FAutomationTestBase& Test, FBoardState& OutBoard)
+	/** Nombres de todos los archivos de tablero (*.json de Content/Data/Boards), en orden alfabético. */
+	inline TArray<FString> BoardFileNames()
 	{
-		const FString Path = ConfiguredBoardPath();
-		const FBoardLoadResult Result = Soulbound::Rules::LoadBoardFromFile(Path);
+		TArray<FString> Files;
+		IFileManager::Get().FindFiles(Files, *FPaths::Combine(BoardsDirectory(), TEXT("*.json")), true, false);
+		Files.Sort();
+		return Files;
+	}
+
+	/** Carga Content/Data/Boards/FileName; si falla, lo apunta como error del test y devuelve false. */
+	inline bool LoadBoardFile(FAutomationTestBase& Test, const FString& FileName, FBoardState& OutBoard)
+	{
+		const FBoardLoadResult Result = Soulbound::Rules::LoadBoardFromFile(FPaths::Combine(BoardsDirectory(), FileName));
 		OutBoard = Result.Board;
-		return Test.TestTrue(FString::Printf(TEXT("El tablero configurado %s carga (%s)"), *FPaths::GetCleanFilename(Path), *Result.Message), Result.IsSuccess());
+		return Test.TestTrue(FString::Printf(TEXT("%s carga y pasa ValidateBoard (%s)"), *FileName, *Result.Message), Result.IsSuccess());
+	}
+
+	/**
+	 * Tablero de las simulaciones de carrera (S-006, revisión): el de 35 casillas, explícito. Los tests del motor no
+	 * leen la configuración del juego (DefaultGame.ini).
+	 */
+	inline const TCHAR* RaceBoardFileName()
+	{
+		return TEXT("tablero_35.json");
 	}
 
 	/** Carga el tablero de pruebas; si falla, lo apunta como error del test y devuelve false. */

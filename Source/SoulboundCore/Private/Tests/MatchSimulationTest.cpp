@@ -2,7 +2,8 @@
 // con StartMatch sobre el tablero de pruebas y juega los turnos con la máquina de turnos del motor.
 // Determinismo por semilla, coste por partida y uso de la máquina de turnos. Desde S-004, los Sellos de partidas
 // enteras cumplen R-TAB-22 y la crónica cuenta los que caen por el tope. Desde S-006, la carrera por el vínculo con
-// cuatro dummies de carrera sobre el tablero configurado del juego: simulación, crónica e informe de 50 semillas.
+// cuatro dummies de carrera: simulación y crónica sobre el tablero de 35 casillas, e informe de 50 semillas por cada
+// tablero de Content/Data/Boards. Los tests del motor no leen la configuración del juego.
 // Se lanzan con Scripts/test.ps1.
 
 #include "Decider/Decider.h"
@@ -76,11 +77,11 @@ namespace
 		return Soulbound::Tests::LoadTestBoard(Test, OutParams.Board) && Soulbound::Tests::LoadTestMatchParams(Test, OutParams.MatchParams);
 	}
 
-	/** Parámetros de simulación con el tablero configurado del juego (S-006) y los parámetros de partida del archivo. */
-	bool MakeConfiguredParams(FAutomationTestBase& Test, int32 Seed, FSimulationParams& OutParams)
+	/** Parámetros de simulación con el tablero BoardFileName de Content/Data/Boards y los parámetros de partida del archivo. */
+	bool MakeBoardParams(FAutomationTestBase& Test, const FString& BoardFileName, int32 Seed, FSimulationParams& OutParams)
 	{
 		OutParams.Seed = Seed;
-		return Soulbound::Tests::LoadConfiguredBoard(Test, OutParams.Board) && Soulbound::Tests::LoadTestMatchParams(Test, OutParams.MatchParams);
+		return Soulbound::Tests::LoadBoardFile(Test, BoardFileName, OutParams.Board) && Soulbound::Tests::LoadTestMatchParams(Test, OutParams.MatchParams);
 	}
 
 	int32 CountEvents(const FMatchState& State, EMatchEventType Type)
@@ -243,13 +244,13 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationChronicleTest,
 bool FMatchSimulationChronicleTest::RunTest(const FString& Parameters)
 {
 	// Herramienta de lectura, no un criterio: el registro de una partida entera con dummies de carrera sobre el tablero
-	// configurado del juego (semilla fija 42; hasta S-005, dummies al azar sobre el tablero de pruebas), para leer el
+	// de 35 casillas (semilla fija 42; hasta S-005, dummies al azar sobre el tablero de pruebas), para leer el
 	// ritmo turno a turno: quién juega, qué tira, adónde va, quién se vincula, cuándo acaba la carrera y qué hace el
 	// Warden. Siempre comprueba que el registro cuenta la partida entera; solo lo imprime con la variable de entorno
 	// SOULBOUND_CRONICA=1, que pone Scripts/test.ps1 -Cronica (líneas "info" de la consola). Sin ella, una línea de
 	// resumen.
 	FSimulationParams Params;
-	if (!MakeConfiguredParams(*this, 42, Params))
+	if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), 42, Params))
 	{
 		return false;
 	}
@@ -376,10 +377,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationBondRaceTest,
 
 bool FMatchSimulationBondRaceTest::RunTest(const FString& Parameters)
 {
-	// Criterio "Simulación" (S-006): dada la simulación con cuatro dummies de carrera sobre el tablero configurado,
+	// Criterio "Simulación" (S-006): dada la simulación con cuatro dummies de carrera sobre el tablero de 35 casillas,
 	// la partida entera termina, es determinista por semilla y baja del segundo. Semilla fija 42; otra, la 43.
 	FSimulationParams Params;
-	if (!MakeConfiguredParams(*this, 42, Params))
+	if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), 42, Params))
 	{
 		return false;
 	}
@@ -406,50 +407,63 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationBondRaceReportTest,
 
 bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 {
-	// Herramienta de lectura, no un criterio sobre cifras (criterio "Simulación" de S-006): 50 partidas con cuatro
-	// dummies de carrera sobre el tablero configurado (semillas fijas 1 a 50). Imprime el % de partidas sin ningún
-	// vínculo, el % de asientos que quedan Eco y el segundo medio de fin de carrera. Objetivo del GDD 03, para el
-	// autor: nadie vinculado < 5 %, Eco por jugador entre 15 y 35 %. Solo comprueba que cada partida cierra su carrera.
-	// Imprime con SOULBOUND_INFORME=1 (Scripts/test.ps1 -Informe); sin ella, una línea de resumen.
+	// Herramienta de lectura, no un criterio sobre cifras (criterio "Simulación" de S-006): por cada tablero de
+	// Content/Data/Boards, 50 partidas con cuatro dummies de carrera (semillas fijas 1 a 50). Imprime un bloque por
+	// tablero: % de partidas sin ningún vínculo, Elegidos por partida de media, % de asientos que quedan Eco y segundo
+	// medio de fin de carrera. Objetivo del GDD 03, para el autor: nadie vinculado < 5 %, Eco por jugador entre 15 y
+	// 35 %. Solo comprueba que cada partida cierra su carrera. Imprime con SOULBOUND_INFORME=1 (Scripts/test.ps1
+	// -Informe); sin ella, una línea de resumen.
 	constexpr int32 Games = 50;
-	FSimulationParams Params;
-	if (!MakeConfiguredParams(*this, 1, Params))
+	const TArray<FString> Boards = Soulbound::Tests::BoardFileNames();
+	if (!TestTrue(TEXT("Hay archivos de tablero"), Boards.Num() > 0))
 	{
 		return false;
 	}
-	int32 WardenVictories = 0;
-	int32 EchoSeats = 0;
-	int32 Seats = 0;
-	double RaceEndSum = 0.0;
-	double WallSum = 0.0;
-	for (int32 Seed = 1; Seed <= Games; ++Seed)
+
+	TArray<FString> Lines;
+	for (const FString& BoardFile : Boards)
 	{
-		Params.Seed = Seed;
-		const FSimulationResult Result = FMatchSimulation(Params, FourRaceDummies()).Run();
-		const FMatchState& State = Result.FinalState;
-		const TArray<FMatchEvent> Ended = Soulbound::Tests::EventsOfType(State, EMatchEventType::BondRaceEnded);
-		if (!TestEqual(FString::Printf(TEXT("Semilla %d: la carrera termina una vez"), Seed), Ended.Num(), 1))
+		FSimulationParams Params;
+		if (!MakeBoardParams(*this, BoardFile, 1, Params))
 		{
 			continue;
 		}
-		RaceEndSum += Ended[0].ClockSeconds;
-		WardenVictories += State.Outcome == EMatchOutcome::WardenVictory ? 1 : 0;
-		for (const FSeatState& Seat : State.Seats)
+		int32 WardenVictories = 0;
+		int32 Elects = 0;
+		int32 EchoSeats = 0;
+		int32 Seats = 0;
+		double RaceEndSum = 0.0;
+		double WallSum = 0.0;
+		for (int32 Seed = 1; Seed <= Games; ++Seed)
 		{
-			EchoSeats += Seat.Role == ESeatRole::LostEcho ? 1 : 0;
-			++Seats;
+			Params.Seed = Seed;
+			const FSimulationResult Result = FMatchSimulation(Params, FourRaceDummies()).Run();
+			const FMatchState& State = Result.FinalState;
+			const TArray<FMatchEvent> Ended = Soulbound::Tests::EventsOfType(State, EMatchEventType::BondRaceEnded);
+			if (!TestEqual(FString::Printf(TEXT("%s, semilla %d: la carrera termina una vez"), *BoardFile, Seed), Ended.Num(), 1))
+			{
+				continue;
+			}
+			RaceEndSum += Ended[0].ClockSeconds;
+			WardenVictories += State.Outcome == EMatchOutcome::WardenVictory ? 1 : 0;
+			for (const FSeatState& Seat : State.Seats)
+			{
+				Elects += Seat.Role == ESeatRole::Elect ? 1 : 0;
+				EchoSeats += Seat.Role == ESeatRole::LostEcho ? 1 : 0;
+				++Seats;
+			}
+			WallSum += Result.WallSeconds;
 		}
-		WallSum += Result.WallSeconds;
+
+		Lines.Add(FString::Printf(TEXT("Informe de carrera | %s | %d casillas | %d partidas | 4 dummies de carrera | carrera de %.0f s"),
+			*BoardFile, Params.Board.Tiles.Num(), Games, Params.MatchParams.RaceDurationSeconds));
+		Lines.Add(FString::Printf(TEXT("    partidas sin ningún vínculo (victoria del Warden): %.1f %% (objetivo < 5 %%)"), 100.0 * WardenVictories / Games));
+		Lines.Add(FString::Printf(TEXT("    Elegidos por partida, de media: %.2f de 4"), static_cast<double>(Elects) / Games));
+		Lines.Add(FString::Printf(TEXT("    asientos que quedan Eco: %.1f %% (objetivo por jugador entre 15 y 35 %%)"), Seats > 0 ? 100.0 * EchoSeats / Seats : 0.0));
+		Lines.Add(FString::Printf(TEXT("    fin de carrera, segundo medio: %.1f"), RaceEndSum / Games));
+		Lines.Add(FString::Printf(TEXT("    tiempo real: %.3f s en total"), WallSum));
 	}
 
-	const TArray<FString> Lines = {
-		FString::Printf(TEXT("Informe de carrera | %s | %d partidas | 4 dummies de carrera | carrera de %.0f s"),
-			*FPaths::GetCleanFilename(Soulbound::Tests::ConfiguredBoardPath()), Games, Params.MatchParams.RaceDurationSeconds),
-		FString::Printf(TEXT("    partidas sin ningún vínculo (victoria del Warden): %.1f %% (objetivo < 5 %%)"), 100.0 * WardenVictories / Games),
-		FString::Printf(TEXT("    asientos que quedan Eco: %.1f %% (objetivo por jugador entre 15 y 35 %%)"), Seats > 0 ? 100.0 * EchoSeats / Seats : 0.0),
-		FString::Printf(TEXT("    fin de carrera, segundo medio: %.1f"), RaceEndSum / Games),
-		FString::Printf(TEXT("    tiempo real: %.3f s en total"), WallSum),
-	};
 	if (FPlatformMisc::GetEnvironmentVariable(TEXT("SOULBOUND_INFORME")) == TEXT("1"))
 	{
 		for (const FString& Line : Lines)
@@ -459,7 +473,7 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 	}
 	else
 	{
-		UE_LOG(LogSoulboundTest, Display, TEXT("informe de carrera: ejecuta test.ps1 -Informe para verlo"));
+		UE_LOG(LogSoulboundTest, Display, TEXT("informe de carrera: %d tableros; ejecuta test.ps1 -Informe para verlo"), Boards.Num());
 	}
 	return true;
 }
