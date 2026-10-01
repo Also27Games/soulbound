@@ -111,6 +111,11 @@
     <label><span>Dominio</span><select id="selDomain"></select></label>
     <button id="btnDelete" class="danger">Borrar casilla</button>
   </div>
+  <div class="row">
+    <button id="btnSpread" class="secondary">Separar casillas</button>
+    <label><span>Distancia mínima</span><input type="number" id="gMinDist" min="30" max="120" value="58"></label>
+  </div>
+  <p class="hint">"Separar casillas" aleja las casillas que se enciman hasta la distancia mínima y acorta las conexiones muy largas, sin salir de su sector. Solo mueve posiciones: el grafo no cambia. El Altar no se mueve.</p>
   <div class="legend">
     <span><i style="background:var(--altar)"></i>Altar</span><span><i style="background:var(--normal)"></i>normal</span>
     <span><i style="background:var(--niche)"></i>Nicho</span><span><i style="background:var(--source)"></i>Fuente</span><span><i style="background:var(--node)"></i>Nodo</span>
@@ -402,6 +407,52 @@
     for (const t of board.tiles) if (!board.positions[t.id]) board.positions[t.id] = [CX + (Math.random() - .5) * 200, CY + (Math.random() - .5) * 200];
   }
 
+  // Separa las casillas encimadas: empuja los centros a menos de minD hasta esa distancia, tira un poco de las
+  // conexiones más largas que 150 para que el camino siga leyéndose, y mantiene cada casilla dentro de su sector.
+  // Solo toca board.positions. Es el mismo algoritmo con el que se relajó tablero_15.json.
+  function spread(minD) {
+    const ids = board.tiles.map(t => t.id);
+    const A = altar();
+    const pos = {}; for (const id of ids) pos[id] = [...(board.positions[id] || [CX, CY])];
+    const domainOf = new Map(board.tiles.map(t => [t.id, t.domain]));
+    const SECTOR = 29 * Math.PI / 180;
+    function clampSector(id) {
+      if (A && id === A.id) { pos[id] = [CX, CY]; return; }
+      const d = domainOf.get(id); if (d === null || d === undefined) return;
+      const center = (d * 60 - 90) * Math.PI / 180;
+      const dx = pos[id][0] - CX, dy = pos[id][1] - CY;
+      const r = Math.min(Math.max(Math.hypot(dx, dy), 95), 470);
+      let delta = Math.atan2(dy, dx) - center;
+      delta = ((delta + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+      delta = Math.max(-SECTOR, Math.min(SECTOR, delta));
+      pos[id] = [CX + r * Math.cos(center + delta), CY + r * Math.sin(center + delta)];
+    }
+    for (let it = 0; it < 600; it++) {
+      let moved = 0;
+      for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+        const a = ids[i], b = ids[j];
+        let dx = pos[b][0] - pos[a][0], dy = pos[b][1] - pos[a][1], d = Math.hypot(dx, dy);
+        if (d >= minD) continue;
+        if (d < 1e-6) { dx = 1; dy = 0; d = 1; }
+        const push = (minD - d) / 2 * 0.6, ux = dx / d, uy = dy / d;
+        if (!A || a !== A.id) { pos[a][0] -= ux * push; pos[a][1] -= uy * push; }
+        if (!A || b !== A.id) { pos[b][0] += ux * push; pos[b][1] += uy * push; }
+        moved += push;
+      }
+      for (const [a, b] of board.edges) {
+        if (!pos[a] || !pos[b]) continue;
+        const dx = pos[b][0] - pos[a][0], dy = pos[b][1] - pos[a][1], d = Math.hypot(dx, dy);
+        if (d <= 150) continue;
+        const pull = (d - 150) * 0.05, ux = dx / d, uy = dy / d;
+        if (!A || a !== A.id) { pos[a][0] += ux * pull; pos[a][1] += uy * pull; }
+        if (!A || b !== A.id) { pos[b][0] -= ux * pull; pos[b][1] -= uy * pull; }
+      }
+      for (const id of ids) clampSector(id);
+      if (moved < 0.5) break;
+    }
+    for (const id of ids) board.positions[id] = [Math.round(pos[id][0]), Math.round(pos[id][1])];
+  }
+
   // ---------- Dibujo ----------
   const svg = $('svg');
   function render() {
@@ -503,6 +554,7 @@
   $('btnRandom').addEventListener('click', () => { generate(num('gSeed')); selected = null; render(); });
   $('btnAnother').addEventListener('click', () => { set('gSeed', num('gSeed') + 1); generate(num('gSeed')); selected = null; render(); });
   $('btnEmpty').addEventListener('click', () => { board = emptyBoard(); selected = null; render(); });
+  $('btnSpread').addEventListener('click', () => { spread(num('gMinDist')); render(); });
   $('btnLoad').addEventListener('click', () => $('fileInput').click());
   $('fileInput').addEventListener('change', async evt => {
     const f = evt.target.files[0]; if (!f) return;
