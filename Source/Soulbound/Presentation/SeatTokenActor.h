@@ -40,7 +40,7 @@ public:
 	 * Parámetros de la presentación que da la vista: letra del número, elevación y giro del asiento activo, y el aro
 	 * (diámetro y grosor, en cm). Se llama una vez al crear la ficha.
 	 */
-	void Configure(float InLabelSize, float InLift, float InSpinDegreesPerSecond, float InRingDiameter, float InRingWidth);
+	void Configure(float InLabelSize, float InLift, float InSpinDegreesPerSecond, float InRingDiameter, float InRingWidth, float InActiveScale);
 
 	/** Asiento activo: se eleva, gira y enseña el aro. Inactivo, vuelve a su sitio sin giro y sin aro. */
 	void SetActive(bool bInActive);
@@ -77,6 +77,8 @@ private:
 
 	FLinearColor RingColor = FLinearColor::White;
 	float Lift = 45.f;
+	float ActiveScale = 1.3f;
+	float CurrentScale = 1.f;
 	float SpinDegreesPerSecond = 90.f;
 	float RingDiameter = 130.f;
 	float RingWidth = 8.f;

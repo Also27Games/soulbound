@@ -28,7 +28,7 @@ ASeatTokenActor::ASeatTokenActor()
 	RingRoot = CreateDefaultSubobject<USceneComponent>(TEXT("RingRoot"));
 	RingRoot->SetupAttachment(GetRootComponent());
 	Label = CreateDefaultSubobject<UTextRenderComponent>(TEXT("Label"));
-	Label->SetupAttachment(GetRootComponent());
+	Label->SetupAttachment(Pivot); // gira con la ficha: el número girando es lo que se ve desde arriba
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(Soulbound::Presentation::SpherePath);
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cone(Soulbound::Presentation::ConePath);
@@ -44,24 +44,25 @@ ASeatTokenActor::ASeatTokenActor()
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Mesh->SetCastShadow(false);
 
-	// Número del asiento, plano sobre la ficha y legible desde la cámara cenital (el texto del motor se lee desde -X).
+	// Número del asiento, plano sobre la ficha y legible desde la cámara cenital (el texto del motor se ve desde +X).
 	Label->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Label->SetHorizontalAlignment(EHTA_Center);
 	Label->SetVerticalAlignment(EVRTA_TextCenter);
-	Label->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f));
+	Label->SetRelativeRotation(FRotator(90.f, 180.f, 0.f));
 	Label->SetCastShadow(false);
 }
 
-void ASeatTokenActor::Configure(float InLabelSize, float InLift, float InSpinDegreesPerSecond, float InRingDiameter, float InRingWidth)
+void ASeatTokenActor::Configure(float InLabelSize, float InLift, float InSpinDegreesPerSecond, float InRingDiameter, float InRingWidth, float InActiveScale)
 {
 	Lift = InLift;
+	ActiveScale = InActiveScale;
 	SpinDegreesPerSecond = InSpinDegreesPerSecond;
 	RingDiameter = InRingDiameter;
 	RingWidth = InRingWidth;
 	// La raíz lleva la escala de la ficha: el texto y el aro se miden en cm del mundo, así que se compensa.
 	const float RootScale = FMath::Max(GetActorScale3D().X, 0.01f);
 	Label->SetWorldSize(InLabelSize / RootScale);
-	Label->SetRelativeLocation(FVector(0.f, 0.f, 60.f + Lift / RootScale));
+	Label->SetRelativeLocation(FVector(0.f, 0.f, 62.f));
 	BuildRing();
 	SetActive(false);
 }
@@ -128,6 +129,8 @@ void ASeatTokenActor::Tick(float DeltaSeconds)
 	CurrentLift = FMath::FInterpTo(CurrentLift, TargetLift, DeltaSeconds, 8.f);
 	const float RootScale = FMath::Max(GetActorScale3D().X, 0.01f);
 	Pivot->SetRelativeLocation(FVector(0.f, 0.f, CurrentLift / RootScale));
+	CurrentScale = FMath::FInterpTo(CurrentScale, bActive ? ActiveScale : 1.f, DeltaSeconds, 8.f);
+	Pivot->SetRelativeScale3D(FVector(CurrentScale));
 	if (bActive)
 	{
 		Pivot->AddRelativeRotation(FRotator(0.f, SpinDegreesPerSecond * DeltaSeconds, 0.f));

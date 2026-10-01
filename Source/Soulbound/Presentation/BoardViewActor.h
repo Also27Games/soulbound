@@ -82,6 +82,14 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
 	float RingHoleScale = 0.34f;
 
+	/** Diámetro del halo bajo una casilla alcanzable, por el de la casilla. Valor inicial 1,35. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
+	float HaloScale = 1.35f;
+
+	/** Cuánto crece el contorno negro de las marcas de tipo (cubo, anillo, esfera) por la propia marca. Valor inicial 1,18. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
+	float OutlineScale = 1.18f;
+
 	// ---- Etiquetas ----
 
 	/** Alto de la letra de la etiqueta de casilla (TileLabel), en cm. Valor inicial 40: "N D3·41" mide unos 155 cm y la casilla 175. */
@@ -101,6 +109,10 @@ public:
 	/** Cuánto sube la ficha del asiento activo, en cm. Valor inicial 70. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Asiento activo")
 	float ActiveLift = 70.f;
+
+	/** Cuánto crece la ficha activa (1 = nada). Se ve desde arriba mejor que la elevación. Valor inicial 1,3. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Asiento activo")
+	float ActiveScale = 1.3f;
 
 	/** Grados por segundo que gira la ficha activa. Valor inicial 90 (una vuelta cada cuatro segundos). */
 	UPROPERTY(EditAnywhere, Category = "Vista|Asiento activo")
@@ -159,15 +171,19 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	FLinearColor NicheClosedColor = FLinearColor(0.12f, 0.12f, 0.12f);
 
-	/** Anillo de la Fuente de Poder. */
+	/** Anillo de la Fuente de Poder. Blanco con contorno negro: se distingue sobre los seis Dominios. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
-	FLinearColor SourceColor = FLinearColor(1.f, 0.5f, 0.05f);
+	FLinearColor SourceColor = FLinearColor(1.f, 1.f, 1.f);
+
+	/** Contorno de las marcas de tipo. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
+	FLinearColor OutlineColor = FLinearColor(0.f, 0.f, 0.f);
 
 	/** Esfera del Nodo de Poder. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	FLinearColor NodeColor = FLinearColor(0.7f, 1.f, 0.7f);
 
-	/** Casilla alcanzable por la tirada. */
+	/** Halo bajo la casilla alcanzable por la tirada: la casilla conserva su color. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	FLinearColor ReachableColor = FLinearColor(1.f, 1.f, 1.f);
 
@@ -243,6 +259,14 @@ private:
 	/** Marca del tipo sobre cada casilla (nula si no lleva): cubo, anillo o esfera. */
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> Inlays;
+
+	/** Contorno negro de la marca (nulo si no lleva marca). */
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> InlayOutlines;
+
+	/** Disco bajo cada casilla que se enseña si es alcanzable. */
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> Halos;
 
 	/** Hueco del anillo de la Fuente (nulo en las demás). */
 	UPROPERTY()

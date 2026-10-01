@@ -8,6 +8,8 @@ struct FLegendChip
 {
 	FLinearColor Color = FLinearColor::White;
 	FString Text;
+	/** Si existe, da el texto cada vez que se pinta (la leyenda de un dato que cambia, como el rol de un asiento). */
+	TFunction<FString()> TextGetter;
 };
 
 /** Una fila de la leyenda: un título y sus muestras. */

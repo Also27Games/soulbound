@@ -247,6 +247,8 @@ void ABoardViewActor::BuildTiles()
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 	TileTops.Init(TileThickness, Board.Tiles.Num());
 	Inlays.Init(nullptr, Board.Tiles.Num());
+	InlayOutlines.Init(nullptr, Board.Tiles.Num());
+	Halos.Init(nullptr, Board.Tiles.Num());
 	InlayHoles.Init(nullptr, Board.Tiles.Num());
 	Labels.Init(nullptr, Board.Tiles.Num());
 
@@ -297,24 +299,41 @@ void ABoardViewActor::BuildTiles()
 		}
 		TileActors.Add(Actor);
 
-		// Marca del tipo sobre la losa, del tamaño justo para no tapar la ficha del centro.
+		// Halo de "alcanzable": un disco por debajo de la losa, más ancho, que solo se ve en el borde. La losa
+		// conserva su color; el halo se enciende cuando la tirada la permite.
+		UStaticMeshComponent* Halo = AddShape(CylinderMesh, Position + FVector(0.f, 0.f, 2.f), FRotator::ZeroRotator, FVector(Diameter * HaloScale, Diameter * HaloScale, 4.f));
+		Soulbound::Presentation::SetComponentColor(*Halo, BaseMaterial, ReachableColor);
+		Halo->SetVisibility(false);
+		Halos[Tile.TileId] = Halo;
+
+		// Marca del tipo sobre la losa, del tamaño justo para no tapar la ficha del centro, con contorno negro
+		// para que se distinga sobre cualquier Dominio.
 		const float Inlay = TileDiameter * InlayScale;
+		const float Outline = Inlay * OutlineScale;
 		const FVector OnTop = Position + FVector(0.f, 0.f, Thickness);
+		const FVector Mid = OnTop + FVector(0.f, 0.f, InlayHeight * 0.5f);
 		switch (Tile.Type)
 		{
 		case ETileType::Niche:
-			Inlays[Tile.TileId] = AddShape(CubeMesh, OnTop + FVector(0.f, 0.f, InlayHeight * 0.5f), FRotator::ZeroRotator, FVector(Inlay, Inlay, InlayHeight));
+			InlayOutlines[Tile.TileId] = AddShape(CubeMesh, OnTop + FVector(0.f, 0.f, InlayHeight * 0.4f), FRotator::ZeroRotator, FVector(Outline, Outline, InlayHeight * 0.8f));
+			Inlays[Tile.TileId] = AddShape(CubeMesh, Mid, FRotator::ZeroRotator, FVector(Inlay, Inlay, InlayHeight));
 			break;
 		case ETileType::PowerSource:
-			// Anillo: un disco del color de la Fuente con otro más pequeño encima, del color de la losa.
-			Inlays[Tile.TileId] = AddShape(CylinderMesh, OnTop + FVector(0.f, 0.f, InlayHeight * 0.5f), FRotator::ZeroRotator, FVector(Inlay, Inlay, InlayHeight));
-			InlayHoles[Tile.TileId] = AddShape(CylinderMesh, OnTop + FVector(0.f, 0.f, InlayHeight * 0.5f + 0.5f), FRotator::ZeroRotator, FVector(TileDiameter * RingHoleScale, TileDiameter * RingHoleScale, InlayHeight));
+			// Anillo: contorno negro, disco del color de la Fuente y, encima, otro más pequeño del color de la losa.
+			InlayOutlines[Tile.TileId] = AddShape(CylinderMesh, OnTop + FVector(0.f, 0.f, InlayHeight * 0.4f), FRotator::ZeroRotator, FVector(Outline, Outline, InlayHeight * 0.8f));
+			Inlays[Tile.TileId] = AddShape(CylinderMesh, Mid, FRotator::ZeroRotator, FVector(Inlay, Inlay, InlayHeight));
+			InlayHoles[Tile.TileId] = AddShape(CylinderMesh, Mid + FVector(0.f, 0.f, 0.5f), FRotator::ZeroRotator, FVector(TileDiameter * RingHoleScale, TileDiameter * RingHoleScale, InlayHeight));
 			break;
 		case ETileType::PowerNode:
-			Inlays[Tile.TileId] = AddShape(SphereMesh, OnTop + FVector(0.f, 0.f, InlayHeight * 0.5f), FRotator::ZeroRotator, FVector(Inlay, Inlay, InlayHeight * 2.f));
+			InlayOutlines[Tile.TileId] = AddShape(SphereMesh, OnTop + FVector(0.f, 0.f, InlayHeight * 0.4f), FRotator::ZeroRotator, FVector(Outline, Outline, InlayHeight * 1.6f));
+			Inlays[Tile.TileId] = AddShape(SphereMesh, Mid, FRotator::ZeroRotator, FVector(Inlay, Inlay, InlayHeight * 2.f));
 			break;
 		default:
 			break;
+		}
+		if (UStaticMeshComponent* OutlineMesh = InlayOutlines[Tile.TileId].Get())
+		{
+			Soulbound::Presentation::SetComponentColor(*OutlineMesh, BaseMaterial, OutlineColor);
 		}
 
 		// Etiqueta plana sobre la losa, en la franja de abajo (la parte baja de la pantalla), orientada a la cámara cenital.
@@ -327,8 +346,9 @@ void ABoardViewActor::BuildTiles()
 		Label->SetVerticalAlignment(EVRTA_TextCenter);
 		Label->SetWorldSize(LabelSize);
 		Label->SetTextRenderColor(FColor::White);
-		// El texto del motor se lee desde -X: tumbado con el frente hacia arriba y la cabeza hacia +X (arriba de la pantalla).
-		Label->SetWorldRotation(FRotator(-90.f, 0.f, 0.f));
+		// El texto del motor se ve desde +X: tumbado con el frente hacia arriba (pitch 90) y la cabeza hacia +X, arriba
+		// de la pantalla (yaw 180). Con pitch -90 se veía por detrás, como en un espejo.
+		Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
 		Label->SetWorldLocation(OnTop + FVector(-Diameter * LabelOffsetFraction * (bAltar ? 1.f : 1.f), 0.f, InlayHeight + 3.f));
 		Label->SetText(FText::FromString(TileLabelText(Tile)));
 		Labels[Tile.TileId] = Label;
@@ -346,7 +366,7 @@ void ABoardViewActor::BuildTokens()
 		if (Token)
 		{
 			Token->SetSeat(Seat);
-			Token->Configure(TokenLabelSize, ActiveLift, ActiveSpinDegreesPerSecond, RingDiameter, RingWidth);
+			Token->Configure(TokenLabelSize, ActiveLift, ActiveSpinDegreesPerSecond, RingDiameter, RingWidth, ActiveScale);
 			Token->SetColor(SeatColor(Seat));
 			Token->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
 		}
@@ -451,14 +471,35 @@ void ABoardViewActor::BuildOverlay()
 	Rows.Add({TEXT("Nicho (el cubo)"),
 		{{NicheFreeColor, TEXT("Libre")}, {SeatColor(0), TEXT("Reclamado: color del asiento")}, {NicheClosedColor, TEXT("Cerrado")}}});
 	Rows.Add({TEXT("Estado de la casilla"),
-		{{ReachableColor, TEXT("alcanzable: elige una")},
+		{{ReachableColor, TEXT("alcanzable: halo blanco bajo la casilla")},
 			{SealedColor, TEXT("sellada (SELLO)")},
 			{Dimmed(DomainColor(0), ForgottenDim), TEXT("Olvidado: apagada")}}});
+	// Una fila por asiento, con su rol al día: Eco (esfera) o Elegido (cono), y el Dominio que lleva.
 	FLegendRow Seats;
-	Seats.Title = TEXT("Ficha = asiento. Esfera Eco, cono Elegido. Activo: sube, gira y aro");
+	Seats.Title = TEXT("Fichas: esfera = Eco, cono = Elegido. El activo crece, sube, gira y lleva aro");
+	TWeakObjectPtr<UMatchHostSubsystem> WeakHost = Host;
 	for (int32 Seat = 0; Seat < Host->GetState().Seats.Num(); ++Seat)
 	{
-		Seats.Chips.Add({SeatColor(Seat), FString::Printf(TEXT("asiento %d"), Seat)});
+		FLegendChip Chip;
+		Chip.Color = SeatColor(Seat);
+		Chip.TextGetter = [WeakHost, Seat]() -> FString
+		{
+			const UMatchHostSubsystem* HostPtr = WeakHost.Get();
+			if (!HostPtr || !HostPtr->HasMatch() || !HostPtr->GetState().Seats.IsValidIndex(Seat))
+			{
+				return FString::Printf(TEXT("%d"), Seat);
+			}
+			const FSeatState& SeatState = HostPtr->GetState().Seats[Seat];
+			const TCHAR* Who = Seat == HostPtr->GetHumanSeat() ? TEXT("humano") : TEXT("dummy");
+			if (SeatState.Role == ESeatRole::Elect)
+			{
+				return FString::Printf(TEXT("%d (%s): ELEGIDO, Dominio %d"), Seat, Who, SeatState.DomainId);
+			}
+			return SeatState.DomainId == INDEX_NONE
+				? FString::Printf(TEXT("%d (%s): ECO"), Seat, Who)
+				: FString::Printf(TEXT("%d (%s): ECO, hogar en el Dominio %d"), Seat, Who, SeatState.DomainId);
+		};
+		Seats.Chips.Add(Chip);
 	}
 	Rows.Add(Seats);
 
@@ -542,15 +583,15 @@ void ABoardViewActor::Refresh()
 
 		// La losa lleva el color del Dominio (el del tipo, en el Altar); la marca de encima, el del tipo.
 		FLinearColor Base = Tile.Type == ETileType::Altar ? AltarColor : Dimmed(DomainColor(Tile.DomainId), Dim);
-		if (Reachable.Contains(Tile.TileId))
-		{
-			Base = ReachableColor;
-		}
-		else if (Tile.bSealed)
+		if (Tile.bSealed)
 		{
 			Base = SealedColor;
 		}
 		Actor->SetColor(Base);
+		if (UStaticMeshComponent* Halo = Halos.IsValidIndex(Tile.TileId) ? Halos[Tile.TileId].Get() : nullptr)
+		{
+			Halo->SetVisibility(Reachable.Contains(Tile.TileId));
+		}
 
 		UStaticMeshComponent* Inlay = Inlays.IsValidIndex(Tile.TileId) ? Inlays[Tile.TileId].Get() : nullptr;
 		if (Inlay)

@@ -38,7 +38,7 @@ void SLegendPanel::Construct(const FArguments& InArgs)
 				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 				[
 					SNew(STextBlock)
-					.Text(FText::FromString(Chip.Text))
+					.Text_Lambda([Chip]() { return FText::FromString(Chip.TextGetter ? Chip.TextGetter() : Chip.Text); })
 					.Font(FCoreStyle::GetDefaultFontStyle("Regular", FontSize))
 					.ColorAndOpacity(FLinearColor(0.9f, 0.9f, 0.9f))
 				]
