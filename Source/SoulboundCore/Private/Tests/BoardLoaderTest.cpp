@@ -5,6 +5,7 @@
 
 #include "Board/BoardLoader.h"
 #include "Board/BoardState.h"
+#include "Board/DomainTouches.h"
 #include "Dom/JsonObject.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
@@ -14,6 +15,8 @@
 #include "Serialization/JsonWriter.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+
+using Soulbound::BoardGraph::DomainTouches;
 
 namespace
 {
@@ -66,26 +69,6 @@ namespace
 		return Board.Tiles.FilterByPredicate([&](const FTileState& T) { return T.DomainId == DomainId && T.Type == Type; }).Num();
 	}
 
-	/** Si alguna casilla del Dominio tiene una conexión con una casilla que cumple Pred. */
-	template <typename PredType>
-	bool DomainTouches(const FBoardState& Board, int32 DomainId, PredType Pred)
-	{
-		for (const FTileState& Tile : Board.Tiles)
-		{
-			if (Tile.DomainId != DomainId)
-			{
-				continue;
-			}
-			for (const int32 Other : Tile.Neighbours)
-			{
-				if (Pred(Board.Tiles[Other]))
-				{
-					return true;
-				}
-			}
-		}
-		return false;
-	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLoadsGraphFromFileTest,
@@ -469,6 +452,17 @@ bool FBoardRejectsMalformedFileTest::RunTest(const FString& Parameters)
 	ExpectRejected(*this, TEXT("Parámetro negativo"), Mutated([](FJsonObject& J)
 	{
 		J.GetObjectField(TEXT("parameters"))->SetNumberField(TEXT("maxSealedTiles"), -1);
+	}), EBoardError::MalformedData);
+	// S-008: los cargadores comparten la lectura estricta de números (Data/JsonFields.h): un texto "4" no es un número.
+	ExpectRejected(*this, TEXT("Parámetro que es un texto y no un número"), Mutated([](FJsonObject& J)
+	{
+		J.GetObjectField(TEXT("parameters"))->SetStringField(TEXT("runeReservePerSource"), TEXT("4"));
+	}), EBoardError::MalformedData);
+	ExpectRejected(*this, TEXT("Conexión con un identificador que es un texto"), Mutated([](FJsonObject& J)
+	{
+		TArray<TSharedPtr<FJsonValue>> Edges = J.GetArrayField(TEXT("edges"));
+		Edges.Add(MakeShared<FJsonValueArray>(TArray<TSharedPtr<FJsonValue>>{MakeShared<FJsonValueString>(TEXT("1")), MakeShared<FJsonValueNumber>(2)}));
+		J.SetArrayField(TEXT("edges"), Edges);
 	}), EBoardError::MalformedData);
 	ExpectRejected(*this, TEXT("Tipo de casilla desconocido"), Mutated([](FJsonObject& J)
 	{

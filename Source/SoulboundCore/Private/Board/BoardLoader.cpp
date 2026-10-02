@@ -1,11 +1,13 @@
 #include "Board/BoardLoader.h"
 
+#include "Board/DomainTouches.h"
 #include "Data/JsonFields.h"
 #include "Dom/JsonObject.h"
 #include "Misc/FileHelper.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 
+using Soulbound::BoardGraph::DomainTouches;
 using Soulbound::JsonFields::ReadIntegerField;
 using Soulbound::JsonFields::ReadIntegerValue;
 
@@ -212,19 +214,6 @@ namespace
 		return Count;
 	}
 
-	/** Si alguna casilla del Dominio DomainId tiene una conexión con una casilla que cumple Pred. */
-	template <typename PredType>
-	bool DomainTouches(const FBoardState& Board, int32 DomainId, PredType Pred)
-	{
-		for (const FTileState& Tile : Board.Tiles)
-		{
-			if (Tile.DomainId == DomainId && Tile.Neighbours.ContainsByPredicate([&](int32 Other) { return Pred(Board.Tiles[Other]); }))
-			{
-				return true;
-			}
-		}
-		return false;
-	}
 }
 
 namespace Soulbound::Rules
