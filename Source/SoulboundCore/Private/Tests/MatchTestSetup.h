@@ -4,6 +4,7 @@
 // de datos como en el juego, y una partida iniciada con StartMatch. Solo para tests.
 
 #include "Board/BoardLoader.h"
+#include "Elects/ElectsLoader.h"
 #include "Match/MatchParams.h"
 #include "Match/MatchStart.h"
 #include "Match/MatchState.h"
@@ -26,6 +27,11 @@ namespace Soulbound::Tests
 	inline FString MatchParamsPath()
 	{
 		return FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data/Match/partida.json"));
+	}
+
+	inline FString ElectsPath()
+	{
+		return FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data/Elects/elegidos.json"));
 	}
 
 	/** Carpeta de los archivos de tablero del proyecto, Content/Data/Boards. */
@@ -76,6 +82,14 @@ namespace Soulbound::Tests
 		return Test.TestTrue(FString::Printf(TEXT("Los parámetros de partida cargan (%s)"), *Result.Message), Result.IsSuccess());
 	}
 
+	/** Carga Content/Data/Elects/elegidos.json; si falla, lo apunta como error del test y devuelve false. */
+	inline bool LoadTestElects(FAutomationTestBase& Test, FElectsTable& OutElects)
+	{
+		const FElectsLoadResult Result = Soulbound::Rules::LoadElectsFromFile(ElectsPath());
+		OutElects = Result.Table;
+		return Test.TestTrue(FString::Printf(TEXT("Los Elegidos cargan (%s)"), *Result.Message), Result.IsSuccess());
+	}
+
 	/**
 	 * Inicia una partida de cuatro jugadores sobre el tablero de pruebas con los parámetros de partida del archivo.
 	 * Random queda como lo deja StartMatch: es el sorteo de la partida y los turnos siguen tirando de él.
@@ -84,11 +98,12 @@ namespace Soulbound::Tests
 	{
 		FBoardState Board;
 		FMatchParams Params;
-		if (!LoadTestBoard(Test, Board) || !LoadTestMatchParams(Test, Params))
+		FElectsTable Elects;
+		if (!LoadTestBoard(Test, Board) || !LoadTestMatchParams(Test, Params) || !LoadTestElects(Test, Elects))
 		{
 			return false;
 		}
-		FMatchStartResult Result = Soulbound::Rules::StartMatch(Board, Params, Soulbound::Match::MaxPlayers, Random);
+		FMatchStartResult Result = Soulbound::Rules::StartMatch(Board, Params, Elects, Soulbound::Match::MaxPlayers, Random);
 		OutState = MoveTemp(Result.State);
 		return Test.TestTrue(FString::Printf(TEXT("La partida empieza (%s)"), *Result.Message), Result.IsSuccess());
 	}
@@ -97,7 +112,8 @@ namespace Soulbound::Tests
 	 * El asiento Seat termina su movimiento en TileId en el instante NowSeconds, por la máquina de turnos: se prepara
 	 * su turno en RollAndChoose con esa casilla como única opción (el montaje que el test necesita, sin depender del
 	 * dado), se entrega la intención y se avanza hasta BetweenTurns, que es donde se resuelve el destino. Solo para
-	 * tests. Devuelve false si la intención no se acepta o el turno no llega a terminar.
+	 * tests. Se detiene también en SkillTrial, a la espera del minijuego (S-008). Devuelve false si la intención no se
+	 * acepta o el turno no llega a terminar ni a quedar en SkillTrial.
 	 */
 	inline bool LandOn(FMatchState& State, FRandomStream& Random, int32 Seat, int32 TileId, double NowSeconds)
 	{
@@ -110,11 +126,11 @@ namespace Soulbound::Tests
 		{
 			return false;
 		}
-		for (int32 Step = 0; Step < 8 && State.TurnPhase != ETurnPhase::BetweenTurns; ++Step)
+		for (int32 Step = 0; Step < 8 && State.TurnPhase != ETurnPhase::BetweenTurns && State.TurnPhase != ETurnPhase::SkillTrial; ++Step)
 		{
 			Soulbound::Rules::AdvanceTurn(State, NowSeconds, Random);
 		}
-		return State.TurnPhase == ETurnPhase::BetweenTurns;
+		return State.TurnPhase == ETurnPhase::BetweenTurns || State.TurnPhase == ETurnPhase::SkillTrial;
 	}
 
 	/** Dominios con el Nicho en el estado pedido, en orden de identificador. */

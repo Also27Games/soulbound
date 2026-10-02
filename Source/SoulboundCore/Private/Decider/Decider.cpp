@@ -74,3 +74,14 @@ int32 FRaceDummyDecider::ChooseDestination(const FMatchState& State, int32 Seat,
 	// Sin Nicho Libre al alcance de ninguna opción, al azar como el dummy.
 	return FDummyDecider().ChooseDestination(State, Seat, Closest.IsEmpty() ? Options : Closest, Rng);
 }
+
+// TODO(R-RUN-2): esqueleto de S-008 para que los tests compilen y fallen; la implementación llega en el siguiente commit.
+bool FDummyDecider::PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng)
+{
+	return false;
+}
+
+bool FRaceDummyDecider::PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng)
+{
+	return false;
+}

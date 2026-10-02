@@ -52,7 +52,10 @@ namespace Soulbound::Rules
 	 *  - PreRoll → RollAndChoose: tira (R-TUR-5), calcula las casillas alcanzables y registra Rolled.
 	 *  - En RollAndChoose: sin casillas alcanzables, pasa a MoveAndResolve sin mover (R-TAB-18); con el reloj agotado,
 	 *    registra TurnClockExpired, sube la insolencia y pasa a End sin mover (R-TUR-8); si no, espera la intención.
-	 *  - MoveAndResolve → End: resuelve el Nicho de destino (R-CAR-4, ResolveNicheLanding) y registra TurnEnded.
+	 *  - MoveAndResolve → End: resuelve el Nicho de destino (R-CAR-4, ResolveNicheLanding) y la Fuente (R-RUN-2,
+	 *    ResolvePowerSourceLanding, solo si el asiento se ha movido) y registra TurnEnded. Si un Elegido llega a la
+	 *    Fuente de un Dominio Olvidado, pasa a SkillTrial en vez de a End.
+	 *  - SkillTrial: espera el resultado del minijuego (SubmitSkillTrialResult); no avanza ni cambia nada.
 	 *  - End → BetweenTurns: si el asiento tiene turnos extra, consume uno y vuelve a jugar (R-TUR-9); si no, pasa al
 	 *    siguiente del orden de turno. Con el tiempo de carrera agotado, la carrera termina aquí (R-CAR-1, R-TAB-27).
 	 *  - En BetweenTurns con el tiempo de carrera agotado, la carrera termina antes de empezar otro turno.
@@ -72,6 +75,15 @@ namespace Soulbound::Rules
 	 * Devuelve Accepted si la ficha se movió y el turno pasó a MoveAndResolve, o el motivo del rechazo.
 	 */
 	SOULBOUNDCORE_API EIntentResult SubmitDestinationIntent(FMatchState& State, int32 Seat, int32 TileId, double NowSeconds);
+
+	/**
+	 * Resultado del minijuego de habilidad del asiento Seat (R-TAB-7), la única forma de salir de SkillTrial, como la
+	 * intención de destino lo es de RollAndChoose. Si se supera, el asiento obtiene la runa de la Fuente; si no, no. En
+	 * ambos casos el turno pasa a End. Sin plazo en S-008 (TODO(R-MIN) en TurnRules.cpp).
+	 * bPassed: si superó la prueba. NowSeconds: marca de tiempo de los eventos.
+	 * Devuelve Accepted, o WrongSeat o WrongPhase sin tocar el estado. Nombre propuesto en S-008.
+	 */
+	SOULBOUNDCORE_API EIntentResult SubmitSkillTrialResult(FMatchState& State, int32 Seat, bool bPassed, double NowSeconds);
 
 	/**
 	 * Concede Count turnos extra al asiento Seat (R-TUR-9), sin pasar del tope de los parámetros de partida.

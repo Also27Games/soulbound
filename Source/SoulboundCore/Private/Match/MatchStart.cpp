@@ -26,7 +26,7 @@ namespace
 
 namespace Soulbound::Rules
 {
-	FMatchStartResult StartMatch(const FBoardState& Board, const FMatchParams& Params, int32 PlayerCount, FRandomStream& Random)
+	FMatchStartResult StartMatch(const FBoardState& Board, const FMatchParams& Params, const FElectsTable& Elects, int32 PlayerCount, FRandomStream& Random)
 	{
 		using Soulbound::Board::DomainCount;
 

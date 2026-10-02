@@ -186,6 +186,9 @@ namespace Soulbound::Rules
 			// TODO(R-TUR-2): resolución de Fuentes y Nodos, en las stories de runas y de Nodos.
 			EnterEnd(State, NowSeconds);
 			return true;
+		case ETurnPhase::SkillTrial:
+			// TODO(R-MIN): el minijuego espera sin plazo; su tiempo propio llega con su story.
+			return false;
 		case ETurnPhase::End:
 			LeaveEnd(State, NowSeconds, Random);
 			return true;
@@ -218,6 +221,12 @@ namespace Soulbound::Rules
 		LogEvent(State, EMatchEventType::Moved, NowSeconds, Seat, TileId);
 		State.TurnPhase = ETurnPhase::MoveAndResolve;
 		return EIntentResult::Accepted;
+	}
+
+	EIntentResult SubmitSkillTrialResult(FMatchState& State, int32 Seat, bool bPassed, double NowSeconds)
+	{
+		// TODO(R-RUN-2): esqueleto de S-008; la implementación llega en el siguiente commit.
+		return EIntentResult::WrongPhase;
 	}
 
 	bool GrantExtraTurns(FMatchState& State, int32 Seat, int32 Count)

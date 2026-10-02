@@ -26,6 +26,8 @@ struct SOULBOUNDCORE_API FSimulationParams
 	FBoardState Board;
 	/** Parámetros de partida ya cargados (LoadMatchParamsFromFile). */
 	FMatchParams MatchParams;
+	/** Los seis Elegidos ya cargados (LoadElectsFromFile). Obligatorios, como en StartMatch (S-008). */
+	FElectsTable Elects;
 };
 
 struct SOULBOUNDCORE_API FSimulationResult

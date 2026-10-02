@@ -63,7 +63,7 @@ FSimulationResult FMatchSimulation::Run()
 	FRandomStream Rng(Params.Seed);
 	FRandomStream DeciderRng(Params.Seed + 1);
 	// En Fase 1 los bots rellenan los huecos: siempre juegan cuatro (R-TAB-6, decisión del autor del 25/09/2026).
-	FMatchStartResult Start = Soulbound::Rules::StartMatch(Params.Board, Params.MatchParams, Soulbound::Match::MaxPlayers, Rng);
+	FMatchStartResult Start = Soulbound::Rules::StartMatch(Params.Board, Params.MatchParams, Params.Elects, Soulbound::Match::MaxPlayers, Rng);
 	if (!Start.IsSuccess())
 	{
 		Result.Log.Add(FString::Printf(TEXT("error semilla=%d \"%s\""), Params.Seed, *Start.Message));

@@ -1,9 +1,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Match/MatchState.h"
 #include "Math/RandomStream.h"
-
-struct FMatchState;
 
 /**
  * Decisor (glosario "Decisor"): quien decide por un asiento. Humano, bot básico, dummy o dummy insolente
@@ -16,6 +15,15 @@ public:
 
 	/** Elige una casilla de destino entre las alcanzables. Devuelve INDEX_NONE si no hay opciones. */
 	virtual int32 ChooseDestination(const FMatchState& State, int32 Seat, const TArray<int32>& Options, FRandomStream& Rng) = 0;
+
+	/**
+	 * Resultado del minijuego de habilidad (glosario "Minijuego de habilidad"): true si el asiento lo supera. Lo pregunta
+	 * quien avanza la partida cuando el motor espera en SkillTrial, y entrega la respuesta con SubmitSkillTrialResult,
+	 * igual que hace con el destino (S-008). Trial y Difficulty son los datos de la prueba (FMatchState::PendingTrial y
+	 * PendingDifficulty). El minijuego real de un humano llegará con su story; hasta entonces los dummies responden con
+	 * una probabilidad fija (0,5) sacada del generador que les pasan.
+	 */
+	virtual bool PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng) = 0;
 };
 
 /** Dummy: elige al azar con el generador que le pasan, así la simulación sigue siendo determinista por semilla. */
@@ -23,6 +31,7 @@ class SOULBOUNDCORE_API FDummyDecider : public IDecider
 {
 public:
 	virtual int32 ChooseDestination(const FMatchState& State, int32 Seat, const TArray<int32>& Options, FRandomStream& Rng) override;
+	virtual bool PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng) override;
 };
 
 /**
@@ -35,4 +44,5 @@ class SOULBOUNDCORE_API FRaceDummyDecider : public IDecider
 {
 public:
 	virtual int32 ChooseDestination(const FMatchState& State, int32 Seat, const TArray<int32>& Options, FRandomStream& Rng) override;
+	virtual bool PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng) override;
 };

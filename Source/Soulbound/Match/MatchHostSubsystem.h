@@ -92,6 +92,10 @@ public:
 	UPROPERTY(Config)
 	FString MatchParamsRelativePath = TEXT("Data/Match/partida.json");
 
+	/** Ruta de los Elegidos, relativa a Content/ (S-008). */
+	UPROPERTY(Config)
+	FString ElectsRelativePath = TEXT("Data/Elects/elegidos.json");
+
 	/** Semilla de la partida. Valor inicial -1: aleatoria. Un valor de 0 en adelante la fija para repetir una partida. */
 	UPROPERTY(Config)
 	int32 FixedSeed = -1;

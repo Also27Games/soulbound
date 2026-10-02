@@ -3,6 +3,7 @@
 #include "../Presentation/BoardViewActor.h"
 #include "../Spike/SpikeOnlineGameMode.h"
 #include "Board/BoardLoader.h"
+#include "Elects/ElectsLoader.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/GameModeBase.h"
@@ -75,9 +76,10 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 
 	const FBoardLoadResult Board = Soulbound::Rules::LoadBoardFromFile(BoardPath);
 	const FMatchParamsLoadResult Params = Soulbound::Rules::LoadMatchParamsFromFile(ParamsPath);
-	if (!Board.IsSuccess() || !Params.IsSuccess())
+	const FElectsLoadResult Elects = Soulbound::Rules::LoadElectsFromFile(FPaths::Combine(FPaths::ProjectContentDir(), ElectsRelativePath));
+	if (!Board.IsSuccess() || !Params.IsSuccess() || !Elects.IsSuccess())
 	{
-		const FString Error = !Board.IsSuccess() ? Board.Message : Params.Message;
+		const FString Error = !Board.IsSuccess() ? Board.Message : !Params.IsSuccess() ? Params.Message : Elects.Message;
 		UE_LOG(LogSoulboundMatch, Error, TEXT("No se pudo iniciar la partida: %s"), *Error);
 		if (GEngine)
 		{
@@ -91,7 +93,7 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 	// Los decisores tienen su propio generador (semilla + 1), como en la simulación: no tocan los dados de la partida.
 	DeciderRng.Initialize(UsedSeed + 1);
 
-	FMatchStartResult Start = Soulbound::Rules::StartMatch(Board.Board, Params.Params, Soulbound::Match::MaxPlayers, MatchRng);
+	FMatchStartResult Start = Soulbound::Rules::StartMatch(Board.Board, Params.Params, Elects.Table, Soulbound::Match::MaxPlayers, MatchRng);
 	if (!Start.IsSuccess())
 	{
 		UE_LOG(LogSoulboundMatch, Error, TEXT("StartMatch rechaza la partida: %s"), *Start.Message);

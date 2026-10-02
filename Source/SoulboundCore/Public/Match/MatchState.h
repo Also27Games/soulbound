@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Board/BoardState.h"
+#include "Elects/Elects.h"
 #include "Match/MatchParams.h"
 #include "MatchState.generated.h"
 
@@ -38,8 +39,33 @@ enum class ETurnPhase : uint8
 	RollAndChoose,
 	/** Movimiento y resolución de la casilla de destino. */
 	MoveAndResolve,
+	/**
+	 * Un Elegido en la Fuente de un Dominio Olvidado juega el minijuego de habilidad (R-RUN-2, R-TAB-7): la máquina espera
+	 * el resultado, como espera el destino, y AdvanceTurn no avanza hasta SubmitSkillTrialResult. Sin plazo en S-008.
+	 * Nombre propuesto en S-008.
+	 */
+	SkillTrial,
 	/** Fin de turno. */
 	End,
+};
+
+/** Qué prueba de habilidad espera el motor (glosario "Minijuego de habilidad"). Nombre propuesto en S-008. */
+UENUM()
+enum class ESkillTrial : uint8
+{
+	/** Ninguna: no hay prueba pendiente. */
+	None,
+	/** Fuente de Olvidado (R-TAB-7): la prueba de un Elegido para obtener una runa. */
+	ForgottenSource,
+};
+
+/** Dificultad de una prueba (glosario "Minijuego de habilidad"). Nombre propuesto en S-008; hoy solo se usa Easy. */
+UENUM()
+enum class ESkillDifficulty : uint8
+{
+	Easy,
+	Normal,
+	Hard,
 };
 
 /** Rol de un asiento (R-CAR-2, R-CAR-5): todos empiezan Eco Perdido; quien reclama un Nicho es Elegido para siempre. Nombre propuesto en S-006. */
@@ -116,6 +142,16 @@ enum class EMatchEventType : uint8
 	 * vista y la crónica; el camino casilla a casilla queda para la story del Warden. Nombre propuesto en S-007.
 	 */
 	Moved,
+	/** Un asiento obtiene una runa (R-RUN-2); Value es el tipo de runa. Nombre propuesto en S-008. */
+	RuneObtained,
+	/** Un Elegido supera el minijuego de una Fuente de Olvidado (R-TAB-7); Value es el tipo de runa. Nombre propuesto en S-008. */
+	SkillMinigamePassed,
+	/** Un Elegido falla el minijuego de una Fuente de Olvidado (R-TAB-7); Value es el tipo de runa. Nombre propuesto en S-008. */
+	SkillMinigameFailed,
+	/** Un asiento termina en una Fuente sin reserva (R-RUN-4); Value es el tipo de runa. Nombre propuesto en S-008. */
+	SourceDepleted,
+	/** Una runa de un asiento vuelve a la reserva de su Fuente (R-RUN-6); Value es el tipo de runa. Nombre propuesto en S-008. */
+	RuneReturned,
 };
 
 /**
@@ -156,8 +192,17 @@ struct SOULBOUNDCORE_API FSeatState
 	UPROPERTY()
 	int32 TileId = 0;
 
+	/**
+	 * Brazal (glosario "Brazal Arcano"): runas por tipo, seis contadores indexados por el Dominio de la runa (R-RUN-1),
+	 * sin límite. Solo las reglas de Match/RuneRules.h los escriben. Sustituye a RuneCount (S-008).
+	 */
 	UPROPERTY()
-	int32 RuneCount = 0;
+	TArray<int32> Runes;
+
+	FSeatState() { Runes.Init(0, Soulbound::Board::DomainCount); }
+
+	/** Runas del tipo RuneType en el Brazal; 0 si el tipo no existe. */
+	int32 RuneCountOf(int32 RuneType) const { return Runes.IsValidIndex(RuneType) ? Runes[RuneType] : 0; }
 
 	/** Insolencia (glosario): de 0 a Soulbound::Match::MaxInsolence. */
 	UPROPERTY()
@@ -243,6 +288,26 @@ struct SOULBOUNDCORE_API FMatchState
 	/** Registro de eventos (R-TUR-15), en orden de llegada. */
 	UPROPERTY()
 	TArray<FMatchEvent> EventLog;
+
+	/** Los seis Elegidos: nombre, afinidad y mapa de runa a poder (R-ELE-1, R-ELE-3). Los carga StartMatch (S-008). */
+	UPROPERTY()
+	FElectsTable Elects;
+
+	/**
+	 * Si el asiento activo ha movido su ficha en el turno en curso (R-RUN-3: quedarse en una Fuente sin casillas
+	 * alcanzables no cuenta como llegada). Lo pone SubmitDestinationIntent y lo limpia el inicio de cada turno, los
+	 * extra incluidos. Nombre propuesto en S-008.
+	 */
+	UPROPERTY()
+	bool bActiveSeatMoved = false;
+
+	/** Prueba de habilidad que espera el motor en la fase SkillTrial; None fuera de ella. Nombre propuesto en S-008. */
+	UPROPERTY()
+	ESkillTrial PendingTrial = ESkillTrial::None;
+
+	/** Dificultad de la prueba pendiente. Solo vale con PendingTrial distinto de None. */
+	UPROPERTY()
+	ESkillDifficulty PendingDifficulty = ESkillDifficulty::Easy;
 
 	/** Fase de la partida (S-006). Solo la escriben las reglas de Match/BondRaceRules.h. */
 	UPROPERTY()
