@@ -5,6 +5,8 @@
 #include "ChroniclePanel.h"
 #include "EventText.h"
 #include "LegendPanel.h"
+#include "Match/BondRaceRules.h"
+#include "Match/RuneRules.h"
 #include "PresentationShapes.h"
 #include "SeatTokenActor.h"
 #include "Camera/CameraActor.h"
@@ -52,6 +54,7 @@ namespace
 		case ETurnPhase::PreRoll: return TEXT("antes de tirar");
 		case ETurnPhase::RollAndChoose: return TEXT("tirada y destino");
 		case ETurnPhase::MoveAndResolve: return TEXT("movimiento");
+		case ETurnPhase::SkillTrial: return TEXT("minijuego de la Fuente");
 		case ETurnPhase::End: return TEXT("fin de turno");
 		}
 		return TEXT("?");
@@ -71,7 +74,16 @@ namespace
 		switch (Tile.Type)
 		{
 		case ETileType::Niche: return TEXT("N ") + Plain;
-		case ETileType::PowerSource: return TEXT("F ") + Plain;
+		case ETileType::PowerSource:
+		{
+			// Reserva de la Fuente (S-008): desde el Despertar, lo que queda sobre lo que tenía; agotada, AGOTADA.
+			const FString Source = TEXT("F ") + Plain;
+			if (Board.Phase != EBoardPhase::Awakened)
+			{
+				return Source;
+			}
+			return Tile.RuneReserve > 0 ? FString::Printf(TEXT("%s\n%d/%d"), *Source, Tile.RuneReserve, Board.Params.RuneReservePerSource) : Source + TEXT("\nAGOTADA");
+		}
 		case ETileType::PowerNode: return TEXT("X ") + Plain;
 		case ETileType::Altar:
 		case ETileType::Normal:
@@ -79,16 +91,60 @@ namespace
 		}
 	}
 
-	/** Nombre del Elegido: lo que va entre paréntesis en el nombre del Dominio ("El Banquete (Shuten-dōji)"); sin paréntesis, el nombre entero. */
-	FString ElectName(const FString& DomainName)
+	/** Nombre del Elegido del Dominio, de elegidos.json (S-008); vacío si el Dominio no tiene Elegido. */
+	FString ElectName(const FMatchState& State, int32 DomainId)
 	{
-		int32 Open = INDEX_NONE;
-		int32 Close = INDEX_NONE;
-		if (DomainName.FindChar(TEXT('('), Open) && DomainName.FindLastChar(TEXT(')'), Close) && Close > Open + 1)
+		return State.Elects.IsValidDomain(DomainId) ? State.Elects.Elects[DomainId].Name : FString();
+	}
+
+	/** "El Banquete · Shuten-dōji": el nombre del Dominio (del tablero) y el de su Elegido (de elegidos.json). */
+	FString DomainTitle(const FMatchState& State, int32 DomainId)
+	{
+		const FString Domain = State.Board.Domains.IsValidIndex(DomainId) ? State.Board.Domains[DomainId].Name : FString();
+		const FString Elect = ElectName(State, DomainId);
+		return Elect.IsEmpty() ? Domain : FString::Printf(TEXT("%s · %s"), *Domain, *Elect);
+	}
+
+	const TCHAR* PowerName(EPower Power)
+	{
+		switch (Power)
 		{
-			return DomainName.Mid(Open + 1, Close - Open - 1).TrimStartAndEnd();
+		case EPower::Duel: return TEXT("Duelo");
+		case EPower::Haste: return TEXT("Celeridad");
+		case EPower::FreePassage: return TEXT("Paso Libre");
+		case EPower::Expel: return TEXT("Expulsión");
+		case EPower::PlanarFlight: return TEXT("Vuelo Planar");
+		case EPower::Deflection: return TEXT("Desvío");
 		}
-		return DomainName;
+		return TEXT("?");
+	}
+
+	/**
+	 * Brazal de un asiento (S-008, solo lectura): sus runas por tipo (D<n>×cantidad, solo las que tiene) y sus poderes
+	 * activos. Paso Libre por afinidad (Fenrir) se marca aparte, porque no depende de ninguna runa.
+	 */
+	FString BracerText(const FMatchState& State, int32 Seat)
+	{
+		const FSeatState& SeatState = State.Seats[Seat];
+		TArray<FString> Runes;
+		for (int32 RuneType = 0; RuneType < SeatState.Runes.Num(); ++RuneType)
+		{
+			if (SeatState.Runes[RuneType] > 0)
+			{
+				Runes.Add(FString::Printf(TEXT("D%d×%d"), RuneType, SeatState.Runes[RuneType]));
+			}
+		}
+		TArray<FString> Powers;
+		for (const EPower Power : Soulbound::Rules::GetActivePowers(State, Seat))
+		{
+			Powers.Add(PowerName(Power));
+		}
+		if (Soulbound::Rules::MakeMoverTraits(State, Seat).bFreePassage && !Soulbound::Rules::IsPowerActive(State, Seat, EPower::FreePassage))
+		{
+			Powers.Add(TEXT("Paso Libre (afinidad)"));
+		}
+		return FString::Printf(TEXT("%d: runas %s | poderes %s"), Seat,
+			Runes.IsEmpty() ? TEXT("-") : *FString::Join(Runes, TEXT(" ")), Powers.IsEmpty() ? TEXT("-") : *FString::Join(Powers, TEXT(", ")));
 	}
 }
 
@@ -390,7 +446,7 @@ void ABoardViewActor::BuildTiles()
 
 		if (Tile.Type == ETileType::Niche)
 		{
-			// Nombre del Elegido (el del paréntesis de domains[].name) arriba de la casilla; número del asiento sobre el cubo.
+			// Nombre del Elegido (de elegidos.json) arriba de la casilla; número del asiento sobre el cubo.
 			auto AddText = [this, &OnTop](float Size, const FVector& Offset)
 			{
 				UTextRenderComponent* Text = NewObject<UTextRenderComponent>(this);
@@ -406,9 +462,8 @@ void ABoardViewActor::BuildTiles()
 				Text->SetWorldLocation(OnTop + Offset);
 				return Text;
 			};
-			const FString Name = Board.Domains.IsValidIndex(Tile.DomainId) ? Board.Domains[Tile.DomainId].Name : FString();
 			NicheNames[Tile.TileId] = AddText(NicheNameSize, FVector(Diameter * NicheNameOffsetFraction, 0.f, InlayHeight + 3.f));
-			NicheNames[Tile.TileId]->SetText(FText::FromString(ElectName(Name)));
+			NicheNames[Tile.TileId]->SetText(FText::FromString(ElectName(Host->GetState(), Tile.DomainId)));
 			NicheNumbers[Tile.TileId] = AddText(NicheNumberSize, FVector(0.f, 0.f, InlayHeight + 3.f));
 			NicheNumbers[Tile.TileId]->SetText(FText::GetEmpty());
 
@@ -548,11 +603,11 @@ void ABoardViewActor::BuildOverlay()
 			const FDomainState& Domain = HostPtr->GetState().Board.Domains[Id];
 			if (Domain.State == EDomainState::Forgotten)
 			{
-				return FString::Printf(TEXT("D%d %s: OLVIDADO (fuera)"), Id, *Domain.Name);
+				return FString::Printf(TEXT("D%d %s: OLVIDADO (fuera)"), Id, *DomainTitle(HostPtr->GetState(), Id));
 			}
 			return Domain.OwnerSeat == INDEX_NONE
-				? FString::Printf(TEXT("D%d %s: en juego"), Id, *Domain.Name)
-				: FString::Printf(TEXT("D%d %s: en juego, asiento %d"), Id, *Domain.Name, Domain.OwnerSeat);
+				? FString::Printf(TEXT("D%d %s: en juego"), Id, *DomainTitle(HostPtr->GetState(), Id))
+				: FString::Printf(TEXT("D%d %s: en juego, asiento %d"), Id, *DomainTitle(HostPtr->GetState(), Id), Domain.OwnerSeat);
 		};
 		Domains.Chips.Add(Chip);
 	}
@@ -583,9 +638,8 @@ void ABoardViewActor::BuildOverlay()
 				return FString::Printf(TEXT("%d"), Seat);
 			}
 			const FSeatState& SeatState = HostPtr->GetState().Seats[Seat];
-			const FBoardState& Board = HostPtr->GetState().Board;
 			const TCHAR* Who = Seat == HostPtr->GetHumanSeat() ? TEXT("humano") : TEXT("dummy");
-			const FString DomainName = Board.Domains.IsValidIndex(SeatState.DomainId) ? Board.Domains[SeatState.DomainId].Name : FString();
+			const FString DomainName = DomainTitle(HostPtr->GetState(), SeatState.DomainId);
 			if (SeatState.Role == ESeatRole::Elect)
 			{
 				return FString::Printf(TEXT("%d (%s): ELEGIDO, D%d %s"), Seat, Who, SeatState.DomainId, *DomainName);
@@ -597,6 +651,25 @@ void ABoardViewActor::BuildOverlay()
 		Seats.Chips.Add(Chip);
 	}
 	Rows.Add(Seats);
+	// Brazal de cada asiento (S-008): runas por tipo y poderes activos, al día.
+	FLegendRow Bracers;
+	Bracers.Title = TEXT("Brazal por asiento: runas (D<n>×cantidad, una por Dominio) y poderes activos. Fuente: F, con su reserva");
+	for (int32 Seat = 0; Seat < Host->GetState().Seats.Num(); ++Seat)
+	{
+		FLegendChip Chip;
+		Chip.Color = SeatColor(Seat);
+		Chip.TextGetter = [WeakHost, Seat]() -> FString
+		{
+			const UMatchHostSubsystem* HostPtr = WeakHost.Get();
+			if (!HostPtr || !HostPtr->HasMatch() || !HostPtr->GetState().Seats.IsValidIndex(Seat))
+			{
+				return FString::Printf(TEXT("%d"), Seat);
+			}
+			return BracerText(HostPtr->GetState(), Seat);
+		};
+		Bracers.Chips.Add(Chip);
+	}
+	Rows.Add(Bracers);
 
 	ChroniclePanel = SNew(SChroniclePanel).FontSize(PanelFontSize);
 	Overlay = SNew(SBox)
@@ -703,7 +776,10 @@ void ABoardViewActor::Refresh()
 				// tipo; Cerrado, gris oscuro. El Reclamado lleva el aro y el número del asiento (más abajo).
 				Mark = Domain && Domain->NicheState == ENicheState::Closed ? NicheClosedColor : NicheFreeColor;
 				break;
-			case ETileType::PowerSource: Mark = Dimmed(SourceColor, Dim); break;
+			case ETileType::PowerSource:
+				// Agotada (S-008): la cruz se apaga; viva, el color del tipo.
+				Mark = Dimmed(SourceColor, State.Board.Phase == EBoardPhase::Awakened && Tile.RuneReserve <= 0 ? Dim * SourceDepletedDim : Dim);
+				break;
 			case ETileType::PowerNode: Mark = Dimmed(NodeColor, Dim); break;
 			default: break;
 			}
@@ -712,7 +788,8 @@ void ABoardViewActor::Refresh()
 		if (UStaticMeshComponent* Hole = InlayHoles.IsValidIndex(Tile.TileId) ? InlayHoles[Tile.TileId].Get() : nullptr)
 		{
 			// Segundo brazo de la cruz de la Fuente: el mismo color que el primero.
-			Soulbound::Presentation::SetComponentColor(*Hole, BaseMaterial, Dimmed(SourceColor, Dim));
+			const bool bDepleted = State.Board.Phase == EBoardPhase::Awakened && Tile.RuneReserve <= 0;
+			Soulbound::Presentation::SetComponentColor(*Hole, BaseMaterial, Dimmed(SourceColor, bDepleted ? Dim * SourceDepletedDim : Dim));
 		}
 		if (Tile.Type == ETileType::Niche && NicheRingFirst.IsValidIndex(Tile.TileId) && NicheRingFirst[Tile.TileId] != INDEX_NONE)
 		{
@@ -733,7 +810,8 @@ void ABoardViewActor::Refresh()
 		{
 			const FString Text = TileLabelText(State.Board, Tile) + (Tile.bSealed ? TEXT("\nSELLO") : TEXT(""));
 			Label->SetText(FText::FromString(Text));
-			Label->SetTextRenderColor(Tile.bSealed ? FColor::Red : FColor::White);
+			const bool bDepletedSource = Tile.Type == ETileType::PowerSource && State.Board.Phase == EBoardPhase::Awakened && Tile.RuneReserve <= 0;
+			Label->SetTextRenderColor(Tile.bSealed ? FColor::Red : bDepletedSource ? FColor(130, 130, 130) : FColor::White);
 		}
 	}
 
@@ -826,9 +904,17 @@ void ABoardViewActor::TickHud()
 		FString::Printf(TEXT("Turno %d | juega: asiento %d (%s) | fase: %s"), TurnNumber, State.ActiveSeat,
 			State.ActiveSeat == HostPtr->GetHumanSeat() ? TEXT("humano") : TEXT("dummy"), PhaseName(State.TurnPhase)));
 
+	if (State.TurnPhase == ETurnPhase::SkillTrial)
+	{
+		// Minijuego de la Fuente de un Olvidado (S-008): aún no existe; el decisor del asiento responde al azar.
+		ShowText(1, FColor::Yellow, FString::Printf(TEXT("Minijuego de la Fuente: el asiento %d espera el resultado (resuelto al azar, probabilidad 0,5)"), State.ActiveSeat));
+	}
+	else
+	{
 	const FString Clock = bWaiting ? FString::Printf(TEXT("%.0f s"), FMath::Max(0.0, State.TurnDeadlineSeconds - State.ClockSeconds)) : FString(TEXT("-"));
 	ShowText(1, bHumanTurn ? FColor::Green : FColor::White, FString::Printf(TEXT("Tirada: %d | reloj de turno: %s%s"),
 		State.Roll, *Clock, bHumanTurn ? TEXT("  <- tu turno: clic en una casilla blanca") : TEXT("")));
+	}
 
 	// Paso a paso (S-007): lo que espera, bien visible.
 	if (bStepWait)

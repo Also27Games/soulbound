@@ -30,6 +30,12 @@ namespace Soulbound::Presentation
 		case EMatchEventType::ReturnedHome: return FString::Printf(TEXT("el asiento %d vuelve a su hogar, %s"), Event.Seat, *TileShortName(Board, Event.Value));
 		case EMatchEventType::WardenVictory: return FString(TEXT("VICTORIA DEL WARDEN: nadie se ha vinculado"));
 		case EMatchEventType::BondRaceEnded: return FString::Printf(TEXT("fin de la carrera: %d Elegidos"), Event.Value);
+		case EMatchEventType::RuneObtained: return FString::Printf(TEXT("el asiento %d obtiene la runa del Dominio %d"), Event.Seat, Event.Value);
+		// El minijuego real no existe aún (su story): el decisor del asiento lo resuelve al azar, y la crónica lo dice.
+		case EMatchEventType::SkillMinigamePassed: return FString::Printf(TEXT("el asiento %d SUPERA el minijuego de la Fuente del Dominio %d (resuelto al azar)"), Event.Seat, Event.Value);
+		case EMatchEventType::SkillMinigameFailed: return FString::Printf(TEXT("el asiento %d FALLA el minijuego de la Fuente del Dominio %d (resuelto al azar)"), Event.Seat, Event.Value);
+		case EMatchEventType::SourceDepleted: return FString::Printf(TEXT("el asiento %d llega a la Fuente del Dominio %d, AGOTADA: sin runa"), Event.Seat, Event.Value);
+		case EMatchEventType::RuneReturned: return FString::Printf(TEXT("el asiento %d devuelve la runa del Dominio %d a su Fuente"), Event.Seat, Event.Value);
 		}
 		return FString();
 	}

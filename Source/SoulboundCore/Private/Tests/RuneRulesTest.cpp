@@ -612,7 +612,7 @@ bool FRunesEventLogTest::RunTest(const FString& Parameters)
 		{
 			TestEqual(Name + TEXT(": asiento"), Found[0].Seat, Want.Seat);
 			TestEqual(Name + TEXT(": tipo de runa"), Found[0].Value, Want.Value);
-			TestTrue(Name + TEXT(": marca de tiempo del reloj de partida"), Found[0].ClockSeconds >= Want.Seconds - 1.0 && Found[0].ClockSeconds <= Want.Seconds + 1.0);
+			TestEqual(Name + TEXT(": marca de tiempo del reloj de partida"), Found[0].ClockSeconds, Want.Seconds);
 		}
 	}
 	return true;

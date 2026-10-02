@@ -227,6 +227,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	float ForgottenDim = 0.3f;
 
+	/** Cuánto se apaga la cruz de una Fuente agotada (multiplica su color). Valor inicial 0,15 (S-008). */
+	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
+	float SourceDepletedDim = 0.15f;
+
 	/** Línea de crónica de las intervenciones del Warden. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	FLinearColor WardenLineColor = FLinearColor(1.f, 0.45f, 0.05f);
