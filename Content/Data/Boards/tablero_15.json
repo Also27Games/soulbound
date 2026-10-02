@@ -1,12 +1,12 @@
 {
   "parameters": {"powerSourcesPerDomain": 1, "powerNodeEffects": {"duel": 2, "oracle": 2, "planar": 2}, "maxSealedTiles": 3, "runeReservePerSource": 4},
   "domains": [
-    {"id": 0, "name": "El Banquete (Shuten-dōji)"},
-    {"id": 1, "name": "El Fiordo Encadenado (Fenrir)"},
-    {"id": 2, "name": "El Río de la Noche (Apep)"},
-    {"id": 3, "name": "El Descenso (Mictlantecuhtli)"},
-    {"id": 4, "name": "La Ruina Tormentosa (Tifón)"},
-    {"id": 5, "name": "El Bosque Negro (Koschei)"}
+    {"id": 0, "name": "El Banquete"},
+    {"id": 1, "name": "El Fiordo Encadenado"},
+    {"id": 2, "name": "El Río de la Noche"},
+    {"id": 3, "name": "El Descenso"},
+    {"id": 4, "name": "La Ruina Tormentosa"},
+    {"id": 5, "name": "El Bosque Negro"}
   ],
   "tiles": [
     {"id": 0, "type": "altar"},
