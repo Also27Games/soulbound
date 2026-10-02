@@ -312,6 +312,12 @@ bool FRunesSkillTrialTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Otro asiento no puede responder"), static_cast<int32>(Soulbound::Rules::SubmitSkillTrialResult(F.State, FirstEcho, true, F.Now + 1.0)), static_cast<int32>(EIntentResult::WrongSeat));
 	TestTrue(TEXT("... y no cambia nada"), Soulbound::Tests::SameState(Waiting, F.State));
 
+	FMatchState NoPending = F.State;
+	NoPending.PendingTrial = ESkillTrial::None;
+	const FMatchState NoPendingBefore = NoPending;
+	TestEqual(TEXT("En SkillTrial pero sin prueba pendiente, el resultado se rechaza por fase"), static_cast<int32>(Soulbound::Rules::SubmitSkillTrialResult(NoPending, Elect, true, F.Now + 1.0)), static_cast<int32>(EIntentResult::WrongPhase));
+	TestTrue(TEXT("... y no cambia nada"), Soulbound::Tests::SameState(NoPendingBefore, NoPending));
+
 	TestEqual(TEXT("Falla el minijuego: aceptado"), static_cast<int32>(F.Trial(Elect, false)), static_cast<int32>(EIntentResult::Accepted));
 	TestEqual(TEXT("Falla: sin runa"), F.Runes(Elect, Forgotten), 0);
 	TestEqual(TEXT("Falla: la reserva no baja"), F.Reserve(Source), R);

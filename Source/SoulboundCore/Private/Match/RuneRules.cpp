@@ -1,16 +1,10 @@
 #include "Match/RuneRules.h"
+#include "Match/MatchEvents.h"
+
+using Soulbound::Rules::LogEvent;
 
 namespace
 {
-	void LogEvent(FMatchState& State, EMatchEventType Type, double NowSeconds, int32 Seat, int32 Value = INDEX_NONE)
-	{
-		FMatchEvent& Event = State.EventLog.AddDefaulted_GetRef();
-		Event.Type = Type;
-		Event.ClockSeconds = NowSeconds;
-		Event.Seat = Seat;
-		Event.Value = Value;
-	}
-
 	/** Si la casilla es una Fuente de Poder de un Dominio válido. */
 	bool IsPowerSource(const FBoardState& Board, int32 TileId)
 	{

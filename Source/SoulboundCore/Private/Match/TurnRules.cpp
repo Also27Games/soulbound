@@ -3,19 +3,13 @@
 #include "Board/MovementRules.h"
 #include "Match/BondRaceRules.h"
 #include "Match/RuneRules.h"
+#include "Match/MatchEvents.h"
 #include "Math/RandomStream.h"
+
+using Soulbound::Rules::LogEvent;
 
 namespace
 {
-	void LogEvent(FMatchState& State, EMatchEventType Type, double NowSeconds, int32 Seat, int32 Value = INDEX_NONE)
-	{
-		FMatchEvent& Event = State.EventLog.AddDefaulted_GetRef();
-		Event.Type = Type;
-		Event.ClockSeconds = NowSeconds;
-		Event.Seat = Seat;
-		Event.Value = Value;
-	}
-
 	/** Asiento que sigue a Seat en el orden de turno (R-TUR-1). */
 	int32 NextInTurnOrder(const FMatchState& State, int32 Seat)
 	{
@@ -240,7 +234,7 @@ namespace Soulbound::Rules
 		{
 			return EIntentResult::WrongSeat;
 		}
-		if (State.TurnPhase != ETurnPhase::SkillTrial)
+		if (State.TurnPhase != ETurnPhase::SkillTrial || State.PendingTrial == ESkillTrial::None)
 		{
 			return EIntentResult::WrongPhase;
 		}

@@ -1,19 +1,13 @@
 #include "Match/BondRaceRules.h"
 
 #include "Match/RuneRules.h"
+#include "Match/MatchEvents.h"
 #include "Math/RandomStream.h"
+
+using Soulbound::Rules::LogEvent;
 
 namespace
 {
-	void LogEvent(FMatchState& State, EMatchEventType Type, double NowSeconds, int32 Seat, int32 Value = INDEX_NONE)
-	{
-		FMatchEvent& Event = State.EventLog.AddDefaulted_GetRef();
-		Event.Type = Type;
-		Event.ClockSeconds = NowSeconds;
-		Event.Seat = Seat;
-		Event.Value = Value;
-	}
-
 	/** Baraja Items con el sorteo de la partida (Fisher-Yates): misma semilla, mismo orden. Como en StartMatch. */
 	void Shuffle(TArray<int32>& Items, FRandomStream& Random)
 	{

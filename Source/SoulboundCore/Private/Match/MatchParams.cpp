@@ -1,9 +1,13 @@
 #include "Match/MatchParams.h"
 
+#include "Data/JsonFields.h"
 #include "Dom/JsonObject.h"
 #include "Misc/FileHelper.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+
+using Soulbound::JsonFields::ReadIntegerField;
+using Soulbound::JsonFields::ReadNumberField;
 
 namespace
 {
@@ -15,24 +19,6 @@ namespace
 		return Result;
 	}
 
-	/** Lee el campo numérico Field de Object. Devuelve false si falta o no es un número JSON (un texto "30" no vale). */
-	bool ReadNumberField(const FJsonObject& Object, const TCHAR* Field, double& Out)
-	{
-		const TSharedPtr<FJsonValue> Value = Object.TryGetField(Field);
-		return Value.IsValid() && Value->Type == EJson::Number && Value->TryGetNumber(Out);
-	}
-
-	/** Lee el campo entero Field de Object. Devuelve false si falta, no es un número o tiene decimales. */
-	bool ReadIntegerField(const FJsonObject& Object, const TCHAR* Field, int32& Out)
-	{
-		double Number = 0.0;
-		if (!ReadNumberField(Object, Field, Number) || Number != FMath::FloorToDouble(Number) || Number < MIN_int32 || Number > MAX_int32)
-		{
-			return false;
-		}
-		Out = static_cast<int32>(Number);
-		return true;
-	}
 }
 
 namespace Soulbound::Rules

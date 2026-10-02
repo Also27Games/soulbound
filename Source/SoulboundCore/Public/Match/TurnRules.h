@@ -81,7 +81,7 @@ namespace Soulbound::Rules
 	 * intención de destino lo es de RollAndChoose. Si se supera, el asiento obtiene la runa de la Fuente; si no, no. En
 	 * ambos casos el turno pasa a End. Sin plazo en S-008 (TODO(R-MIN) en TurnRules.cpp).
 	 * bPassed: si superó la prueba. NowSeconds: marca de tiempo de los eventos.
-	 * Devuelve Accepted, o WrongSeat o WrongPhase sin tocar el estado. Nombre propuesto en S-008.
+	 * Devuelve Accepted, o WrongSeat o WrongPhase (también sin prueba pendiente, PendingTrial None) sin tocar el estado. Nombre propuesto en S-008.
 	 */
 	SOULBOUNDCORE_API EIntentResult SubmitSkillTrialResult(FMatchState& State, int32 Seat, bool bPassed, double NowSeconds);
 
