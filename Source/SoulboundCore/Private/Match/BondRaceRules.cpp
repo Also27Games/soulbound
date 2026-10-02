@@ -1,5 +1,6 @@
 #include "Match/BondRaceRules.h"
 
+#include "Match/RuneRules.h"
 #include "Math/RandomStream.h"
 
 namespace
@@ -76,6 +77,11 @@ namespace Soulbound::Rules
 		if (State.Board.Phase == EBoardPhase::Primordial)
 		{
 			State.Board.Phase = EBoardPhase::Awakened;
+			// R-RUN-4: cada Fuente arranca con la reserva de los datos al Despertar (S-008).
+			for (FTileState& BoardTile : State.Board.Tiles)
+			{
+				BoardTile.RuneReserve = BoardTile.Type == ETileType::PowerSource ? State.Board.Params.RuneReservePerSource : 0;
+			}
 			LogEvent(State, EMatchEventType::BoardAwakening, NowSeconds, Seat);
 		}
 
@@ -173,9 +179,13 @@ namespace Soulbound::Rules
 		{
 			return Mover;
 		}
-		// TODO(R-TUR-7): Paso Libre llega con la story de runas y poderes.
 		// TODO(R-ECO-2): el permiso temporal de invasión (Noche de los Ecos) lo da un decreto del Warden, en su story.
 		Mover.bConfinedToForgotten = State.Seats[Seat].Role == ESeatRole::LostEcho && State.MatchPhase != EMatchPhase::BondRace;
+		// R-POD-2, R-ELE-2: Paso Libre por la runa que lo da según el mapa del Elegido, o siempre por la afinidad de Fenrir.
+		const FSeatState& SeatState = State.Seats[Seat];
+		const bool bFreePassageAffinity = SeatState.Role == ESeatRole::Elect && State.Elects.IsValidDomain(SeatState.DomainId)
+			&& State.Elects.Elects[SeatState.DomainId].Affinity == EAffinity::FreePassage;
+		Mover.bFreePassage = bFreePassageAffinity || IsPowerActive(State, Seat, EPower::FreePassage);
 		return Mover;
 	}
 }

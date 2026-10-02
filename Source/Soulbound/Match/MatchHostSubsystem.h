@@ -137,12 +137,16 @@ private:
 		int32 TurnCount = INDEX_NONE;
 		double ReadyAtSeconds = 0.0;
 		int32 TileId = INDEX_NONE;
+		/** Resultado del minijuego que confirmará, si lo que espera es la prueba de una Fuente (S-008). */
+		bool bPassedTrial = false;
 	};
 
 	FMatchState State;
 	FRandomStream MatchRng;
 	FRandomStream DeciderRng;
 	TArray<TSharedPtr<IDecider>> Deciders;
+	/** Responde las pruebas de habilidad del asiento humano hasta que exista el minijuego real (S-008). */
+	FDummyDecider HumanTrialDecider;
 	FPendingDecision Pending;
 	FTimerHandle AdvanceTimer;
 	FString LastWardenLine;

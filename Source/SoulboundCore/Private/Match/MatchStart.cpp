@@ -1,6 +1,7 @@
 #include "Match/MatchStart.h"
 
 #include "Board/BoardLoader.h"
+#include "Elects/ElectsLoader.h"
 #include "Math/RandomStream.h"
 
 namespace
@@ -45,11 +46,17 @@ namespace Soulbound::Rules
 		{
 			return Fail(EMatchStartError::InvalidMatchParams, TEXT("Los parámetros de partida no son válidos: ") + ParamsValidation.Message);
 		}
+		const FElectsLoadResult ElectsValidation = ValidateElects(Elects);
+		if (!ElectsValidation.IsSuccess())
+		{
+			return Fail(EMatchStartError::InvalidElects, TEXT("Los Elegidos no son válidos: ") + ElectsValidation.Message);
+		}
 
 		FMatchStartResult Result;
 		FMatchState& State = Result.State;
 		State.Board = Board;
 		State.Params = Params;
+		State.Elects = Elects;
 
 		// R-TAB-5: una bolsa con tantos efectos de cada tipo como piden los datos, barajada y repartida a los Nodos
 		// en orden de casilla. ValidateBoard garantiza que hay tantos Nodos como efectos en la bolsa.

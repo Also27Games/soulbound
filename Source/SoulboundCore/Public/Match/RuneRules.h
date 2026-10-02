@@ -29,8 +29,8 @@ namespace Soulbound::Rules
 	 *  - Un Elegido obtiene en cualquier Fuente; si el Dominio es Olvidado, antes debe superar el minijuego: la función
 	 *    deja la prueba pendiente (FMatchState::PendingTrial) y devuelve TrialPending sin tocar el Brazal. Un Eco solo
 	 *    obtiene en Fuentes de Dominios Olvidados y sin minijuego (R-ECO-3, R-CAR-7b).
-	 *  - Con reserva cero no hay runa y se registra SourceDepleted (R-RUN-4); con un minijuego pendiente, la reserva se mira al
-	 *    resolverlo.
+	 *  - Con reserva cero no hay runa ni minijuego: se registra SourceDepleted (R-RUN-4) y devuelve Depleted. Solo se
+	 *    registra si el asiento podría haber obtenido: un Eco en la Fuente de un Dominio con dueño no deja evento.
 	 *  - Al obtener, el Brazal sube uno en el tipo de la Fuente (su Dominio) y la reserva baja uno (RuneObtained).
 	 * NowSeconds: marca de tiempo de los eventos. Devuelve qué pasó.
 	 */
@@ -38,8 +38,7 @@ namespace Soulbound::Rules
 
 	/**
 	 * Aplica el resultado del minijuego pendiente del asiento Seat (lo llama SubmitSkillTrialResult): si se supera,
-	 * registra SkillMinigamePassed y obtiene la runa de la Fuente (RuneObtained; o SourceDepleted si la reserva se
-	 * agotó); si no, registra SkillMinigameFailed y nada más. Limpia la prueba pendiente.
+	 * registra SkillMinigamePassed y obtiene la runa de la Fuente (RuneObtained); si no, registra SkillMinigameFailed y nada más. Limpia la prueba pendiente.
 	 * Devuelve true si el asiento obtuvo la runa.
 	 */
 	SOULBOUNDCORE_API bool ApplySkillTrialResult(FMatchState& State, int32 Seat, bool bPassed, double NowSeconds);

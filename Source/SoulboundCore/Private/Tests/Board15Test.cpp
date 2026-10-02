@@ -32,7 +32,8 @@ namespace
 	bool MakeParams15(FAutomationTestBase& Test, int32 Seed, FSimulationParams& OutParams)
 	{
 		OutParams.Seed = Seed;
-		return LoadBoard15(Test, OutParams.Board) && Soulbound::Tests::LoadTestMatchParams(Test, OutParams.MatchParams);
+		return LoadBoard15(Test, OutParams.Board) && Soulbound::Tests::LoadTestMatchParams(Test, OutParams.MatchParams)
+			&& Soulbound::Tests::LoadTestElects(Test, OutParams.Elects);
 	}
 
 	TArray<TSharedPtr<IDecider>> FourDummies()

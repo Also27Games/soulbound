@@ -4,6 +4,15 @@
 #include "Match/MatchState.h"
 #include "Math/RandomStream.h"
 
+namespace Soulbound::Decider
+{
+	/**
+	 * Probabilidad con la que un dummy supera el minijuego de habilidad (decisión del autor, 02/10/2026). Valor inicial
+	 * 0,5; es el comportamiento de un doble de prueba hasta que exista el minijuego real, no una regla de juego.
+	 */
+	inline constexpr double DummySkillSuccessChance = 0.5;
+}
+
 /**
  * Decisor (glosario "Decisor"): quien decide por un asiento. Humano, bot básico, dummy o dummy insolente
  * implementan la misma interfaz; el motor no distingue. Spike: solo la elección de destino.

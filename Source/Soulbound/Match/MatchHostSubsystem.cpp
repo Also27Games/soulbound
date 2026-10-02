@@ -167,6 +167,29 @@ void UMatchHostSubsystem::Advance()
 				Pending.bPending = false;
 			}
 		}
+		else if (State.TurnPhase == ETurnPhase::SkillTrial)
+		{
+			// El minijuego se resuelve como el destino: se pregunta a un decisor y se entrega su resultado. Mientras el
+			// minijuego real del humano no exista (su story), su prueba la responde un dummy, al azar con probabilidad 0,5 (S-008).
+			if (Pending.bPending && (Pending.Seat != Seat || Pending.TurnCount != State.TurnCount))
+			{
+				Pending.bPending = false;
+			}
+			if (!Pending.bPending)
+			{
+				IDecider& Decider = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid() ? *Deciders[Seat] : static_cast<IDecider&>(HumanTrialDecider);
+				Pending.bPending = true;
+				Pending.Seat = Seat;
+				Pending.TurnCount = State.TurnCount;
+				Pending.ReadyAtSeconds = Now + DummyResponseSeconds;
+				Pending.bPassedTrial = Decider.PassSkillMinigame(State, Seat, State.PendingTrial, State.PendingDifficulty, DeciderRng);
+			}
+			if (Now >= Pending.ReadyAtSeconds)
+			{
+				bChanged |= Soulbound::Rules::SubmitSkillTrialResult(State, Seat, Pending.bPassedTrial, Now) == EIntentResult::Accepted;
+				Pending.bPending = false;
+			}
+		}
 		else
 		{
 			Pending.bPending = false;

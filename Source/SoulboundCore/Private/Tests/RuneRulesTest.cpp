@@ -319,6 +319,7 @@ bool FRunesSkillTrialTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Falla: el turno termina"), static_cast<int32>(F.State.TurnPhase), static_cast<int32>(ETurnPhase::End));
 	Soulbound::Rules::AdvanceTurn(F.State, F.Now, F.Random);
 	TestEqual(TEXT("... y pasa a entre turnos"), static_cast<int32>(F.State.TurnPhase), static_cast<int32>(ETurnPhase::BetweenTurns));
+	F.State.ActiveSeat = Elect;
 	TestEqual(TEXT("Fuera de la prueba, el resultado se rechaza por fase"), static_cast<int32>(F.Trial(Elect, true)), static_cast<int32>(EIntentResult::WrongPhase));
 
 	TestTrue(TEXT("Sale y vuelve a la Fuente"), F.Land(Elect, F.State.Board.Tiles[Source].Neighbours[0]) && F.Land(Elect, Source));
