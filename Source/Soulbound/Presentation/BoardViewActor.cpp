@@ -75,15 +75,8 @@ namespace
 		{
 		case ETileType::Niche: return TEXT("N ") + Plain;
 		case ETileType::PowerSource:
-		{
-			// Reserva de la Fuente (S-008): desde el Despertar, lo que queda sobre lo que tenía; agotada, AGOTADA.
-			const FString Source = TEXT("F ") + Plain;
-			if (Board.Phase != EBoardPhase::Awakened)
-			{
-				return Source;
-			}
-			return Tile.RuneReserve > 0 ? FString::Printf(TEXT("%s\n%d/%d"), *Source, Tile.RuneReserve, Board.Params.RuneReservePerSource) : Source + TEXT("\nAGOTADA");
-		}
+			// La reserva no va en la etiqueta: tiene su propio contador azul sobre la Fuente (S-008).
+			return TEXT("F ") + Plain;
 		case ETileType::PowerNode: return TEXT("X ") + Plain;
 		case ETileType::Altar:
 		case ETileType::Normal:
@@ -323,6 +316,7 @@ void ABoardViewActor::BuildTiles()
 	ForgottenRings.Init(nullptr, Board.Tiles.Num());
 	NicheNames.Init(nullptr, Board.Tiles.Num());
 	NicheNumbers.Init(nullptr, Board.Tiles.Num());
+	SourceReserves.Init(nullptr, Board.Tiles.Num());
 	NicheRingFirst.Init(INDEX_NONE, Board.Tiles.Num());
 	InlayHoles.Init(nullptr, Board.Tiles.Num());
 	Labels.Init(nullptr, Board.Tiles.Num());
@@ -443,6 +437,24 @@ void ABoardViewActor::BuildTiles()
 		Label->SetWorldLocation(OnTop + FVector(-Diameter * LabelOffsetFraction * (bAltar ? 1.f : 1.f), 0.f, InlayHeight + 3.f));
 		Label->SetText(FText::FromString(TileLabelText(Board, Tile)));
 		Labels[Tile.TileId] = Label;
+
+		if (Tile.Type == ETileType::PowerSource)
+		{
+			// Contador de reserva en el centro de la Fuente, en azul: se distingue de la etiqueta blanca (S-008).
+			UTextRenderComponent* Reserve = NewObject<UTextRenderComponent>(this);
+			Reserve->SetupAttachment(GetRootComponent());
+			Reserve->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Reserve->SetCastShadow(false);
+			Reserve->RegisterComponent();
+			Reserve->SetHorizontalAlignment(EHTA_Center);
+			Reserve->SetVerticalAlignment(EVRTA_TextCenter);
+			Reserve->SetWorldSize(NicheNumberSize);
+			Reserve->SetTextRenderColor(SourceReserveColor);
+			Reserve->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
+			Reserve->SetWorldLocation(OnTop + FVector(0.f, 0.f, InlayHeight + 3.f));
+			Reserve->SetText(FText::GetEmpty());
+			SourceReserves[Tile.TileId] = Reserve;
+		}
 
 		if (Tile.Type == ETileType::Niche)
 		{
@@ -805,6 +817,13 @@ void ABoardViewActor::Refresh()
 			{
 				Number->SetText(bClaimed ? FText::AsNumber(Domain->OwnerSeat) : FText::GetEmpty());
 			}
+		}
+		if (UTextRenderComponent* Reserve = SourceReserves.IsValidIndex(Tile.TileId) ? SourceReserves[Tile.TileId].Get() : nullptr)
+		{
+			// Desde el Despertar: lo que queda sobre lo que tenía. Agotada: 0/n, y la cruz y la etiqueta se apagan.
+			Reserve->SetText(State.Board.Phase == EBoardPhase::Awakened
+				? FText::FromString(FString::Printf(TEXT("%d/%d"), Tile.RuneReserve, State.Board.Params.RuneReservePerSource))
+				: FText::GetEmpty());
 		}
 		if (UTextRenderComponent* Label = Labels.IsValidIndex(Tile.TileId) ? Labels[Tile.TileId].Get() : nullptr)
 		{
