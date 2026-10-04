@@ -54,9 +54,19 @@ protected:
 private:
 	/**
 	 * Clic izquierdo (S-005): si hay una casilla bajo el cursor, envía al anfitrión de partida la intención de
-	 * destino del asiento humano. El motor decide si vale; aquí no se comprueba nada de las reglas.
+	 * destino del asiento humano; si el humano tiene pendiente un salto planar, la casilla es su respuesta (S-009). El
+	 * motor decide si vale; aquí no se comprueba nada de las reglas.
 	 */
 	void OnPrimaryClick();
+
+	/**
+	 * Tecla numérica (S-009): contesta la elección pendiente del humano. 1 a 9 eligen la opción con ese número, en el
+	 * orden en que la vista las enseña; 0 es "no". El motor decide si vale.
+	 */
+	void OnChoiceKey(int32 Number);
+
+	/** Tecla R (S-009): el humano pide repetir la tirada (afinidad de Apep). El motor decide si puede. */
+	void OnRerollKey();
 
 	/** Barra espaciadora o botón A del mando (S-007): pide al anfitrión el siguiente turno. */
 	void OnStepKey();

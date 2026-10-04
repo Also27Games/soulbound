@@ -146,18 +146,41 @@ void UMatchHostSubsystem::Advance()
 		}
 
 		const int32 Seat = State.ActiveSeat;
-		if (State.TurnPhase == ETurnPhase::RollAndChoose && Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid())
+		const bool bDummy = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid();
+		// Una decisión pendiente de otro turno (otro asiento u otro TurnCount) o de otra cosa (otra elección, o el destino
+		// tras una elección) ya no vale: se descarta.
+		if (Pending.bPending && (Pending.Seat != Seat || Pending.TurnCount != State.TurnCount || Pending.ChoiceKind != State.PendingChoice.Kind))
 		{
-			// Una decisión pendiente de otro turno (otro asiento u otro TurnCount) ya no vale: se descarta.
-			if (Pending.bPending && (Pending.Seat != Seat || Pending.TurnCount != State.TurnCount))
-			{
-				Pending.bPending = false;
-			}
+			Pending.bPending = false;
+		}
+		if (State.PendingChoice.IsOpen() && bDummy)
+		{
+			// Elecciones (S-009): dados, repetir, salto y acción. Se pregunta al decisor y se entrega su respuesta a su hora,
+			// como el destino; la repetición se contesta antes de elegir destino.
 			if (!Pending.bPending)
 			{
 				Pending.bPending = true;
 				Pending.Seat = Seat;
 				Pending.TurnCount = State.TurnCount;
+				Pending.ChoiceKind = State.PendingChoice.Kind;
+				Pending.ReadyAtSeconds = Now + DummyResponseSeconds;
+				Pending.Option = Deciders[Seat]->ChooseOption(State, Seat, State.PendingChoice, DeciderRng);
+			}
+			if (Now >= Pending.ReadyAtSeconds)
+			{
+				bChanged |= Soulbound::Rules::SubmitChoiceIntent(State, Seat, Pending.ChoiceKind, Pending.Option, Now, MatchRng) == EIntentResult::Accepted;
+				Pending.bPending = false;
+				continue;
+			}
+		}
+		else if (State.TurnPhase == ETurnPhase::RollAndChoose && bDummy)
+		{
+			if (!Pending.bPending)
+			{
+				Pending.bPending = true;
+				Pending.Seat = Seat;
+				Pending.TurnCount = State.TurnCount;
+				Pending.ChoiceKind = EChoiceKind::None;
 				Pending.ReadyAtSeconds = Now + DummyResponseSeconds;
 				Pending.TileId = Deciders[Seat]->ChooseDestination(State, Seat, State.ReachableOptions, DeciderRng);
 			}
@@ -171,16 +194,13 @@ void UMatchHostSubsystem::Advance()
 		{
 			// El minijuego se resuelve como el destino: se pregunta a un decisor y se entrega su resultado. Mientras el
 			// minijuego real del humano no exista (su story), su prueba la responde un dummy, al azar con probabilidad 0,5 (S-008).
-			if (Pending.bPending && (Pending.Seat != Seat || Pending.TurnCount != State.TurnCount))
-			{
-				Pending.bPending = false;
-			}
 			if (!Pending.bPending)
 			{
-				IDecider& Decider = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid() ? *Deciders[Seat] : static_cast<IDecider&>(HumanTrialDecider);
+				IDecider& Decider = bDummy ? *Deciders[Seat] : static_cast<IDecider&>(HumanTrialDecider);
 				Pending.bPending = true;
 				Pending.Seat = Seat;
 				Pending.TurnCount = State.TurnCount;
+				Pending.ChoiceKind = EChoiceKind::None;
 				Pending.ReadyAtSeconds = Now + DummyResponseSeconds;
 				Pending.bPassedTrial = Decider.PassSkillMinigame(State, Seat, State.PendingTrial, State.PendingDifficulty, DeciderRng);
 			}
@@ -188,6 +208,8 @@ void UMatchHostSubsystem::Advance()
 			{
 				bChanged |= Soulbound::Rules::SubmitSkillTrialResult(State, Seat, Pending.bPassedTrial, Now) == EIntentResult::Accepted;
 				Pending.bPending = false;
+				// Tras el minijuego puede quedar abierta una elección (S-009, R-INT-1): se atiende en la vuelta siguiente.
+				continue;
 			}
 		}
 		else
@@ -251,6 +273,22 @@ EIntentResult UMatchHostSubsystem::SubmitHumanIntent(int32 TileId)
 	const double Now = MatchSeconds();
 	State.ClockSeconds = Now;
 	const EIntentResult Result = Soulbound::Rules::SubmitDestinationIntent(State, HumanSeat, TileId, Now);
+	if (Result == EIntentResult::Accepted)
+	{
+		OnMatchStateChanged.Broadcast();
+	}
+	return Result;
+}
+
+EIntentResult UMatchHostSubsystem::SubmitHumanChoice(EChoiceKind Kind, int32 Option)
+{
+	if (!bHasMatch)
+	{
+		return EIntentResult::WrongPhase;
+	}
+	const double Now = MatchSeconds();
+	State.ClockSeconds = Now;
+	const EIntentResult Result = Soulbound::Rules::SubmitChoiceIntent(State, HumanSeat, Kind, Option, Now, MatchRng);
 	if (Result == EIntentResult::Accepted)
 	{
 		OnMatchStateChanged.Broadcast();

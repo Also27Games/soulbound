@@ -60,6 +60,13 @@ public:
 	 */
 	EIntentResult SubmitHumanIntent(int32 TileId);
 
+	/**
+	 * Respuesta del asiento humano a su elección pendiente (S-009): dados, repetir, salto o expulsión. Se entrega tal cual
+	 * a SubmitChoiceIntent, como el destino: el motor decide si vale. Kind: el tipo de elección que contesta. Option: una
+	 * de sus opciones, o INDEX_NONE para "no". Devuelve lo que dijo el motor.
+	 */
+	EIntentResult SubmitHumanChoice(EChoiceKind Kind, int32 Option);
+
 	/** El anfitrión del Warden pide aplicar una decisión sobre el estado; aquí se escribe y se avisa. */
 	void ApplyWardenDecision(const FWardenDecision& Decision);
 
@@ -104,7 +111,10 @@ public:
 	UPROPERTY(Config)
 	int32 HumanSeat = 0;
 
-	/** Segundos que tarda un dummy en confirmar su destino desde que tiene la tirada. Valor inicial 5 (como en la simulación, S-003). */
+	/**
+	 * Segundos que tarda un dummy en confirmar su destino desde que tiene la tirada, y en contestar cada elección (S-009).
+	 * Valor inicial 5 (como en la simulación, S-003); menor que el reloj de elección, así un dummy nunca lo agota.
+	 */
 	UPROPERTY(Config)
 	float DummyResponseSeconds = 5.f;
 
@@ -128,7 +138,8 @@ private:
 
 	/**
 	 * Respuesta ya decidida de un dummy, a la espera de su hora. Va atada al turno que la originó (asiento y
-	 * TurnCount): si el turno cambia por cualquier otra vía (reloj agotado, turno extra del mismo asiento), se descarta.
+	 * TurnCount) y a lo que contesta (ChoiceKind, None para el destino y el minijuego): si cambia por cualquier otra vía
+	 * (reloj agotado, turno extra del mismo asiento, otra elección), se descarta.
 	 */
 	struct FPendingDecision
 	{
@@ -139,6 +150,10 @@ private:
 		int32 TileId = INDEX_NONE;
 		/** Resultado del minijuego que confirmará, si lo que espera es la prueba de una Fuente (S-008). */
 		bool bPassedTrial = false;
+		/** Elección que contesta (S-009), o None si es el destino o el minijuego. */
+		EChoiceKind ChoiceKind = EChoiceKind::None;
+		/** Opción que entregará, si contesta una elección (S-009). */
+		int32 Option = INDEX_NONE;
 	};
 
 	FMatchState State;
