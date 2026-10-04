@@ -12,6 +12,12 @@ namespace Soulbound::Dice
 
 	/** Dados que tira todo jugador por defecto (R-TUR-5; dos solo con Celeridad, R-TUR-4, GDD de runas). */
 	inline constexpr int32 DefaultCount = 1;
+
+	/**
+	 * Máximo de dados de una tirada (R-TUR-4: uno o dos con Celeridad). Es también lo que consume del sorteo cada tirada
+	 * y cada repetición, se tiren uno o dos (decisión del autor del 04/10/2026). Definición de regla, no un valor de ajuste.
+	 */
+	inline constexpr int32 MaxCount = 2;
 }
 
 /** Qué pasó con una intención de destino (glosario "Intención"). Solo Accepted cambia el estado. Nombre propuesto en S-003. */
@@ -27,6 +33,8 @@ enum class EIntentResult : uint8
 	Unreachable,
 	/** Llega en el límite del reloj de turno o después (R-TUR-8). El agotamiento lo aplica AdvanceTurn. */
 	ClockExpired,
+	/** La opción no está entre las de la elección pendiente, o es "no" en una elección que no lo admite (S-009). */
+	InvalidOption,
 };
 
 /**
@@ -84,6 +92,23 @@ namespace Soulbound::Rules
 	 * Devuelve Accepted, o WrongSeat o WrongPhase (también sin prueba pendiente, PendingTrial None) sin tocar el estado. Nombre propuesto en S-008.
 	 */
 	SOULBOUNDCORE_API EIntentResult SubmitSkillTrialResult(FMatchState& State, int32 Seat, bool bPassed, double NowSeconds);
+
+	/**
+	 * Intención que contesta la elección pendiente del asiento Seat (S-009; glosario "Intención"): la única forma de
+	 * elegir dados, repetir, saltar o expulsar. Se valida asiento, tipo de elección (Kind debe ser el de la pendiente:
+	 * una respuesta tardía no contesta otra elección), plazo y opción; si no es válida se descarta sin castigo y sin
+	 * tocar el estado. Option: una de FPendingChoice::Options, o INDEX_NONE para "no" si la elección lo admite.
+	 * Efectos al aceptarla:
+	 *  - DiceCount: fija los dados del turno y registra DiceChosen; la tirada la hace AdvanceTurn.
+	 *  - Reroll: tira de nuevo con los mismos dados, recalcula las alcanzables y registra Rerolled (R-TUR-6); "no" cierra
+	 *    la oferta. En los dos casos se sacan del sorteo los dos valores de la repetición.
+	 *  - PlanarJump: la ficha salta a la casilla y se registra PlanarJumped (R-POD-5); después se ofrece la acción.
+	 *  - Expel: el asiento elegido vuelve a su hogar y se registra Expelled (R-POD-4); después termina el turno.
+	 * NowSeconds: instante en que llega. Random: el sorteo de la partida (solo lo usa la repetición).
+	 * Devuelve Accepted, WrongSeat, WrongPhase (no hay elección pendiente de ese tipo), ClockExpired o InvalidOption.
+	 * Nombre propuesto en S-009.
+	 */
+	SOULBOUNDCORE_API EIntentResult SubmitChoiceIntent(FMatchState& State, int32 Seat, EChoiceKind Kind, int32 Option, double NowSeconds, FRandomStream& Random);
 
 	/**
 	 * Concede Count turnos extra al asiento Seat (R-TUR-9), sin pasar del tope de los parámetros de partida.

@@ -137,4 +137,27 @@ namespace Soulbound::Rules
 		}
 		return Active;
 	}
+
+	bool HasAffinity(const FMatchState& State, int32 Seat, EAffinity Affinity)
+	{
+		return false;
+	}
+
+	TArray<int32> PlanarJumpOptions(const FMatchState& State, int32 Seat)
+	{
+		return {};
+	}
+
+	TArray<int32> ExpelTargets(const FMatchState& State, int32 Seat)
+	{
+		return {};
+	}
+
+	void ApplyPlanarJump(FMatchState& State, int32 Seat, int32 TileId, double NowSeconds)
+	{
+	}
+
+	void ApplyExpel(FMatchState& State, int32 Seat, int32 Target, double NowSeconds)
+	{
+	}
 }

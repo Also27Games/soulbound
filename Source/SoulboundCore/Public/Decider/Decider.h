@@ -33,25 +33,38 @@ public:
 	 * una probabilidad fija (0,5) sacada del generador que les pasan.
 	 */
 	virtual bool PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng) = 0;
+
+	/**
+	 * Contesta la elección pendiente Choice del asiento Seat (S-009): una de Choice.Options, o INDEX_NONE para "no" si
+	 * la elección lo admite (FPendingChoice::CanDecline). Quien avanza la partida la pregunta cuando la máquina espera
+	 * una elección y entrega la respuesta con SubmitChoiceIntent, igual que el destino. Nombre propuesto en S-009.
+	 */
+	virtual int32 ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng) = 0;
 };
 
-/** Dummy: elige al azar con el generador que le pasan, así la simulación sigue siendo determinista por semilla. */
+/**
+ * Dummy: elige al azar con el generador que le pasan, así la simulación sigue siendo determinista por semilla. En las
+ * elecciones, al azar entre las opciones y "no" si la elección lo admite, todas con la misma probabilidad (S-009).
+ */
 class SOULBOUNDCORE_API FDummyDecider : public IDecider
 {
 public:
 	virtual int32 ChooseDestination(const FMatchState& State, int32 Seat, const TArray<int32>& Options, FRandomStream& Rng) override;
 	virtual bool PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng) override;
+	virtual int32 ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng) override;
 };
 
 /**
  * Dummy de carrera (S-006, nombre propuesto): doble de prueba para la simulación y la vista de depuración, no el bot
  * básico del GDD 08. Si es Eco y la carrera sigue, elige la opción que deja más cerca, en pasos del grafo (sin mirar
  * Sellos ni el Altar), el Nicho Libre más cercano; los empates, al azar. Si es Elegido, la carrera acabó o no queda
- * ningún Nicho Libre al que llegar, elige al azar como FDummyDecider. Siempre con el generador que le pasan.
+ * ningún Nicho Libre al que llegar, elige al azar como FDummyDecider. Siempre con el generador que le pasan. Las
+ * elecciones (S-009), como FDummyDecider.
  */
 class SOULBOUNDCORE_API FRaceDummyDecider : public IDecider
 {
 public:
 	virtual int32 ChooseDestination(const FMatchState& State, int32 Seat, const TArray<int32>& Options, FRandomStream& Rng) override;
 	virtual bool PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng) override;
+	virtual int32 ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng) override;
 };

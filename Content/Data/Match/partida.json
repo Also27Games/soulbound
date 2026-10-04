@@ -2,5 +2,6 @@
   "turnClockSeconds": 30,
   "maxExtraTurns": 2,
   "maxLostTurns": 2,
-  "raceDurationSeconds": 300
+  "raceDurationSeconds": 300,
+  "choiceClockSeconds": 10
 }

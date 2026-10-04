@@ -134,3 +134,13 @@ bool FRaceDummyDecider::PassSkillMinigame(const FMatchState& State, int32 Seat, 
 {
 	return FDummyDecider().PassSkillMinigame(State, Seat, Trial, Difficulty, Rng);
 }
+
+int32 FDummyDecider::ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng)
+{
+	return INDEX_NONE;
+}
+
+int32 FRaceDummyDecider::ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng)
+{
+	return FDummyDecider().ChooseOption(State, Seat, Choice, Rng);
+}

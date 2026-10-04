@@ -33,11 +33,18 @@ enum class ETurnPhase : uint8
 	BetweenTurns,
 	/** Inicio de turno: arranca el reloj de turno. Salida del Vacío (R-TUR-3), en su story. */
 	Start,
-	/** Decisiones previas a la tirada. Hoy se pasa sin decisión; Celeridad (R-TUR-4), en la story de runas. */
+	/**
+	 * Decisiones previas a la tirada: con Celeridad, el asiento elige uno o dos dados (R-TUR-4, elección pendiente
+	 * DiceCount, bajo el reloj de turno); sin Celeridad se pasa sin decisión (S-009).
+	 */
 	PreRoll,
 	/** Tirada y elección de destino, un solo paso (R-TUR-7): espera la intención del asiento activo. */
 	RollAndChoose,
-	/** Movimiento y resolución de la casilla de destino. */
+	/**
+	 * Movimiento y resolución de la casilla de destino (R-INT-1): primero el efecto de la casilla (Nicho, Fuente y su
+	 * minijuego), después el salto planar y después, como mucho, una acción contra un jugador. El salto y la acción son
+	 * elecciones pendientes con su propio reloj (S-009).
+	 */
 	MoveAndResolve,
 	/**
 	 * Un Elegido en la Fuente de un Dominio Olvidado juega el minijuego de habilidad (R-RUN-2, R-TAB-7): la máquina espera
@@ -57,6 +64,52 @@ enum class ESkillTrial : uint8
 	None,
 	/** Fuente de Olvidado (R-TAB-7): la prueba de un Elegido para obtener una runa. */
 	ForgottenSource,
+};
+
+/**
+ * Tipo de una elección pendiente (S-009, nombre propuesto): qué decide el asiento activo y qué significa cada opción.
+ * Mitad del motor del componente de selección (glosario "SelectionPrompt", GDD 07): opciones y plazo.
+ */
+UENUM()
+enum class EChoiceKind : uint8
+{
+	/** Ninguna: no hay elección pendiente. */
+	None,
+	/** Celeridad (R-TUR-4): cuántos dados tirar; opciones 1 y 2. Obligatoria: no admite "no". Bajo el reloj de turno. */
+	DiceCount,
+	/** Afinidad de Apep (R-TUR-6, R-ELE-2): repetir la tirada; opción 1, "repetir". Bajo el reloj de turno. */
+	Reroll,
+	/** Vuelo Planar (R-POD-5, R-TAB-15): saltar a otro Nodo Planar; las opciones son casillas. Con el reloj de elección. */
+	PlanarJump,
+	/** Expulsión (R-POD-4, R-INT-2): a quién mandar a su hogar; las opciones son asientos. Con el reloj de elección. */
+	Expel,
+};
+
+/**
+ * Elección pendiente del asiento activo (S-009, nombre propuesto): tipo, opciones y plazo. La máquina de turnos la abre
+ * y espera la intención (SubmitChoiceIntent), como espera el destino; agotado el plazo, la resuelve ella. Solo la
+ * escriben las reglas de Match/TurnRules.h.
+ */
+USTRUCT()
+struct SOULBOUNDCORE_API FPendingChoice
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	EChoiceKind Kind = EChoiceKind::None;
+
+	/** Opciones válidas; su significado depende de Kind (dados, 1 para repetir, casillas o asientos). */
+	UPROPERTY()
+	TArray<int32> Options;
+
+	/** Plazo en segundos del reloj de partida: el del reloj de turno (DiceCount, Reroll) o el del reloj de elección. */
+	UPROPERTY()
+	double DeadlineSeconds = 0.0;
+
+	bool IsOpen() const { return Kind != EChoiceKind::None; }
+
+	/** Si admite "no" (INDEX_NONE): todas menos la elección de dados. */
+	bool CanDecline() const { return Kind != EChoiceKind::DiceCount; }
 };
 
 /** Dificultad de una prueba (glosario "Minijuego de habilidad"). Nombre propuesto en S-008; hoy solo se usa Easy. */
@@ -152,6 +205,22 @@ enum class EMatchEventType : uint8
 	SourceDepleted,
 	/** Una runa de un asiento vuelve a la reserva de su Fuente (R-RUN-6); Value es el tipo de runa. Nombre propuesto en S-008. */
 	RuneReturned,
+	/** Un asiento con Celeridad elige cuántos dados tira (R-TUR-4); Value es el número de dados. Nombre propuesto en S-009. */
+	DiceChosen,
+	/** Apep repite la tirada (R-TUR-6); Value es la tirada nueva. Nombre propuesto en S-009. */
+	Rerolled,
+	/** Un asiento salta de un Nodo Planar a otro (R-POD-5); Value es la casilla de destino. Nombre propuesto en S-009. */
+	PlanarJumped,
+	/**
+	 * Un asiento expulsa a otro a su hogar (R-POD-4); Seat es quien expulsa y Value el asiento expulsado. La casilla de
+	 * llegada es el hogar del expulsado (HomeTile). Nombre propuesto en S-009.
+	 */
+	Expelled,
+	/**
+	 * Se agota el plazo de una elección que admite "no" y se resuelve como "no", sin castigo (S-009); Value es el tipo de
+	 * elección (EChoiceKind). La elección de dados no lo deja: su agotamiento es TurnClockExpired. Nombre propuesto en S-009.
+	 */
+	ChoiceExpired,
 };
 
 /**
@@ -176,7 +245,7 @@ struct SOULBOUNDCORE_API FMatchEvent
 
 	/**
 	 * Dato del evento: la tirada en Rolled; la casilla en SealPlaced, SealReleased y ReturnedHome; el Dominio en Bonded
-	 * y HomeAssigned; los Elegidos en BondRaceEnded; INDEX_NONE en el resto.
+	 * y HomeAssigned; los Elegidos en BondRaceEnded; los de los eventos de S-008 y S-009, en su tipo; INDEX_NONE en el resto.
 	 */
 	UPROPERTY()
 	int32 Value = INDEX_NONE;
@@ -273,6 +342,13 @@ struct SOULBOUNDCORE_API FMatchState
 	UPROPERTY()
 	double TurnDeadlineSeconds = 0.0;
 
+	/**
+	 * Dados del turno en curso (R-TUR-4, R-TUR-5): 1, o 2 si el asiento lo eligió con Celeridad; 0 mientras no se sabe.
+	 * La repetición de Apep tira los mismos (R-TUR-6). Nombre propuesto en S-009.
+	 */
+	UPROPERTY()
+	int32 DiceCount = 0;
+
 	/** Tirada del turno en curso (R-TUR-5); 0 antes de tirar. */
 	UPROPERTY()
 	int32 Roll = 0;
@@ -308,6 +384,19 @@ struct SOULBOUNDCORE_API FMatchState
 	/** Dificultad de la prueba pendiente. Solo vale con PendingTrial distinto de None. */
 	UPROPERTY()
 	ESkillDifficulty PendingDifficulty = ESkillDifficulty::Easy;
+
+	/** Elección pendiente del asiento activo (S-009); Kind None si no hay. */
+	UPROPERTY()
+	FPendingChoice PendingChoice;
+
+	/**
+	 * Si faltan por sacar del sorteo de la partida los dos valores reservados para la repetición del turno en curso
+	 * (decisión del autor del 04/10/2026: todo turno que llega a PreRoll consume exactamente cuatro valores, dos de la
+	 * tirada y dos de la repetición, se repita o no). Se sacan al cerrarse la oferta de repetición, o justo después de
+	 * la tirada si no hay oferta. No guarda ningún valor futuro. Nombre propuesto en S-009.
+	 */
+	UPROPERTY()
+	bool bRerollValuesPending = false;
 
 	/** Fase de la partida (S-006). Solo la escriben las reglas de Match/BondRaceRules.h. */
 	UPROPERTY()
