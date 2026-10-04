@@ -3,7 +3,8 @@
 // Determinismo por semilla, coste por partida y uso de la máquina de turnos. Desde S-004, los Sellos de partidas
 // enteras cumplen R-TAB-22 y la crónica cuenta los que caen por el tope. Desde S-006, la carrera por el vínculo con
 // cuatro dummies de carrera: simulación y crónica sobre el tablero de 35 casillas, e informe de 50 semillas por cada
-// tablero de Content/Data/Boards. Los tests del motor no leen la configuración del juego.
+// tablero de Content/Data/Boards. Desde S-009, las elecciones de los dummies (dados, repetición, salto y expulsión) y
+// sus cifras en el informe. Los tests del motor no leen la configuración del juego.
 // Se lanzan con Scripts/test.ps1.
 
 #include "Decider/Decider.h"
@@ -71,15 +72,31 @@ namespace
 		}
 	};
 
-	/** Tiradas de la partida en orden, tal como las registró el motor. */
-	TArray<int32> RollSequence(const FSimulationResult& Result)
+	/** Una tirada del registro y con cuántos dados se hizo (S-009: dos si el asiento lo eligió con Celeridad). */
+	struct FLoggedRoll
 	{
-		TArray<int32> Rolls;
+		int32 Roll = 0;
+		int32 Dice = Soulbound::Dice::DefaultCount;
+	};
+
+	/** Tiradas de la partida en orden, tal como las registró el motor, con sus dados (DiceChosen del mismo turno). */
+	TArray<FLoggedRoll> RollSequence(const FSimulationResult& Result)
+	{
+		TArray<FLoggedRoll> Rolls;
+		int32 Dice = Soulbound::Dice::DefaultCount;
 		for (const FMatchEvent& Event : Result.FinalState.EventLog)
 		{
-			if (Event.Type == EMatchEventType::Rolled)
+			if (Event.Type == EMatchEventType::TurnStarted)
 			{
-				Rolls.Add(Event.Value);
+				Dice = Soulbound::Dice::DefaultCount;
+			}
+			else if (Event.Type == EMatchEventType::DiceChosen)
+			{
+				Dice = Event.Value;
+			}
+			else if (Event.Type == EMatchEventType::Rolled)
+			{
+				Rolls.Add({Event.Value, Dice});
 			}
 		}
 		return Rolls;
@@ -136,22 +153,32 @@ bool FMatchSimulationDeterminismTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Misma semilla, mismo estado final"), Soulbound::Tests::SameState(A.FinalState, B.FinalState));
 
 	// Misma semilla, mismos dados, ocupe quien ocupe cada asiento (grabación y reproducción, GDD 08): los decisores
-	// no tocan el sorteo de la partida. Se cambia el decisor del asiento 2 por uno que gasta y elige distinto.
+	// no tocan el sorteo de la partida. Se cambia el decisor del asiento 2 por uno que gasta y elige distinto. Desde
+	// S-009 una tirada consume siempre los mismos valores del sorteo (decisión del autor del 04/10/2026), pero con
+	// Celeridad su resultado depende de cuántos dados se eligieron: se comparan las tiradas hechas con los mismos dados
+	// en las dos partidas.
 	TArray<TSharedPtr<IDecider>> Mixed = FourDummies();
 	Mixed[2] = MakeShared<FLastOptionDecider>();
 	const FSimulationResult Other = FMatchSimulation(Params, MoveTemp(Mixed)).Run();
-	const TArray<int32> RollsA = RollSequence(A);
-	const TArray<int32> RollsOther = RollSequence(Other);
+	const TArray<FLoggedRoll> RollsA = RollSequence(A);
+	const TArray<FLoggedRoll> RollsOther = RollSequence(Other);
 	TestTrue(TEXT("Hay tiradas"), RollsA.Num() > 0);
 	TestEqual(TEXT("Con otro decisor en un asiento, el mismo número de tiradas"), RollsOther.Num(), RollsA.Num());
+	int32 Compared = 0;
 	for (int32 i = 0; i < FMath::Min(RollsA.Num(), RollsOther.Num()); ++i)
 	{
-		if (RollsA[i] != RollsOther[i])
+		if (RollsA[i].Dice != RollsOther[i].Dice)
 		{
-			AddError(FString::Printf(TEXT("Con otro decisor en el asiento 2, la tirada %d cambia: %d frente a %d"), i, RollsA[i], RollsOther[i]));
+			continue;
+		}
+		++Compared;
+		if (RollsA[i].Roll != RollsOther[i].Roll)
+		{
+			AddError(FString::Printf(TEXT("Con otro decisor en el asiento 2, la tirada %d cambia: %d frente a %d"), i, RollsA[i].Roll, RollsOther[i].Roll));
 			break;
 		}
 	}
+	TestTrue(TEXT("Hay tiradas con los mismos dados que comparar"), Compared > 0);
 	TestFalse(TEXT("Y la partida es otra: el decisor distinto sí cambia los destinos"), Soulbound::Tests::SameState(A.FinalState, Other.FinalState));
 
 	// Los turnos no son una constante: salen de los parámetros. El dummy confirma a los DummyResponseSeconds de

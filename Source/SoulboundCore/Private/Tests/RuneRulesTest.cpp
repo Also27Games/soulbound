@@ -75,7 +75,10 @@ namespace
 			return Soulbound::Rules::SubmitSkillTrialResult(State, Seat, bPassed, Now);
 		}
 
-		/** El turno de Seat empieza y termina sin que se mueva (sin casillas alcanzables, R-TAB-18). */
+		/**
+		 * El turno de Seat empieza y termina sin que se mueva (sin casillas alcanzables, R-TAB-18). Desde S-009, si tiene
+		 * Celeridad (la runa de su propio Dominio), elige un dado: la máquina espera esa elección (R-TUR-4).
+		 */
 		void StayPut(int32 Seat)
 		{
 			Now += 1.0;
@@ -83,6 +86,10 @@ namespace
 			State.TurnPhase = ETurnPhase::BetweenTurns;
 			for (int32 Step = 0; Step < 3; ++Step)
 			{
+				if (State.PendingChoice.Kind == EChoiceKind::DiceCount)
+				{
+					Soulbound::Rules::SubmitChoiceIntent(State, Seat, EChoiceKind::DiceCount, 1, Now, Random);
+				}
 				Soulbound::Rules::AdvanceTurn(State, Now, Random);
 			}
 			State.ReachableOptions.Reset();

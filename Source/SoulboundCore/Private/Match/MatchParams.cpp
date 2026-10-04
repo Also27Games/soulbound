@@ -41,6 +41,10 @@ namespace Soulbound::Rules
 		{
 			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-CAR-1: la duración de la carrera debe ser mayor que cero (es %g)."), Params.RaceDurationSeconds));
 		}
+		if (!(Params.ChoiceClockSeconds > 0.0))
+		{
+			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("S-009: el reloj de elección debe ser mayor que cero (es %g)."), Params.ChoiceClockSeconds));
+		}
 		return FMatchParamsLoadResult();
 	}
 
@@ -61,6 +65,10 @@ namespace Soulbound::Rules
 		if (!ReadNumberField(*Root, TEXT("raceDurationSeconds"), Params.RaceDurationSeconds))
 		{
 			return Reject(EMatchParamsError::MalformedData, TEXT("El parámetro \"raceDurationSeconds\" falta o no es un número."));
+		}
+		if (!ReadNumberField(*Root, TEXT("choiceClockSeconds"), Params.ChoiceClockSeconds))
+		{
+			return Reject(EMatchParamsError::MalformedData, TEXT("El parámetro \"choiceClockSeconds\" falta o no es un número."));
 		}
 		const TPair<const TCHAR*, int32*> Caps[] = {
 			{TEXT("maxExtraTurns"), &Params.MaxExtraTurns},
