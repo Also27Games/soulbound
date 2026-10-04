@@ -54,6 +54,11 @@ namespace
 			}
 			return Options.IsEmpty() ? INDEX_NONE : Options.Last();
 		}
+
+		virtual bool PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng) override
+		{
+			return true;
+		}
 	};
 
 	/** Tiradas de la partida en orden, tal como las registró el motor. */
@@ -74,14 +79,16 @@ namespace
 	bool MakeParams(FAutomationTestBase& Test, int32 Seed, FSimulationParams& OutParams)
 	{
 		OutParams.Seed = Seed;
-		return Soulbound::Tests::LoadTestBoard(Test, OutParams.Board) && Soulbound::Tests::LoadTestMatchParams(Test, OutParams.MatchParams);
+		return Soulbound::Tests::LoadTestBoard(Test, OutParams.Board) && Soulbound::Tests::LoadTestMatchParams(Test, OutParams.MatchParams)
+			&& Soulbound::Tests::LoadTestElects(Test, OutParams.Elects);
 	}
 
 	/** Parámetros de simulación con el tablero BoardFileName de Content/Data/Boards y los parámetros de partida del archivo. */
 	bool MakeBoardParams(FAutomationTestBase& Test, const FString& BoardFileName, int32 Seed, FSimulationParams& OutParams)
 	{
 		OutParams.Seed = Seed;
-		return Soulbound::Tests::LoadBoardFile(Test, BoardFileName, OutParams.Board) && Soulbound::Tests::LoadTestMatchParams(Test, OutParams.MatchParams);
+		return Soulbound::Tests::LoadBoardFile(Test, BoardFileName, OutParams.Board) && Soulbound::Tests::LoadTestMatchParams(Test, OutParams.MatchParams)
+			&& Soulbound::Tests::LoadTestElects(Test, OutParams.Elects);
 	}
 
 	int32 CountEvents(const FMatchState& State, EMatchEventType Type)
@@ -435,6 +442,10 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 		int32 Seats = 0;
 		double RaceEndSum = 0.0;
 		double WallSum = 0.0;
+		TArray<int32> RunesPerSeat;
+		RunesPerSeat.Init(0, Soulbound::Match::SeatCount);
+		int32 SourcesTotal = 0;
+		int32 SourcesDepleted = 0;
 		for (int32 Seed = 1; Seed <= Games; ++Seed)
 		{
 			Params.Seed = Seed;
@@ -454,6 +465,17 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 				++Seats;
 			}
 			WallSum += Result.WallSeconds;
+			const TArray<FMatchEvent> Obtained = Soulbound::Tests::EventsOfType(State, EMatchEventType::RuneObtained);
+			for (const FMatchEvent& Event : Obtained)
+			{
+				// Runas obtenidas por asiento, contadas del registro: las devueltas no restan.
+				RunesPerSeat[Event.Seat] += 1;
+			}
+			for (const FTileState& Tile : State.Board.Tiles)
+			{
+				SourcesTotal += Tile.Type == ETileType::PowerSource ? 1 : 0;
+				SourcesDepleted += Tile.Type == ETileType::PowerSource && State.Board.Phase == EBoardPhase::Awakened && Tile.RuneReserve == 0 ? 1 : 0;
+			}
 		}
 
 		Lines.Add(FString::Printf(TEXT("Informe de carrera | %s | %d casillas | %d partidas | 4 dummies de carrera | carrera de %.0f s"),
@@ -462,6 +484,9 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 		Lines.Add(FString::Printf(TEXT("    Elegidos por partida, de media: %.2f de 4"), static_cast<double>(Elects) / Games));
 		Lines.Add(FString::Printf(TEXT("    asientos que quedan Eco: %.1f %% (objetivo por jugador entre 15 y 35 %%)"), Seats > 0 ? 100.0 * EchoSeats / Seats : 0.0));
 		Lines.Add(FString::Printf(TEXT("    fin de carrera, segundo medio: %.1f"), RaceEndSum / Games));
+		Lines.Add(FString::Printf(TEXT("    runas obtenidas por asiento, de media por partida: %s"),
+			*FString::JoinBy(RunesPerSeat, TEXT(" | "), [](int32 Sum) { return FString::Printf(TEXT("%.2f"), static_cast<double>(Sum) / Games); })));
+		Lines.Add(FString::Printf(TEXT("    Fuentes agotadas al final: %.1f %%"), SourcesTotal > 0 ? 100.0 * SourcesDepleted / SourcesTotal : 0.0));
 		Lines.Add(FString::Printf(TEXT("    tiempo real: %.3f s en total"), WallSum));
 	}
 
@@ -475,6 +500,160 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 	else
 	{
 		UE_LOG(LogSoulboundTest, Display, TEXT("informe de carrera: %d tableros; ejecuta test.ps1 -Informe para verlo"), Boards.Num());
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationRunesTest,
+	"Soulbound.Core.Simulation.RunasConDummiesDeCarrera",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationRunesTest::RunTest(const FString& Parameters)
+{
+	// Criterio "Simulación" (S-008): dados cuatro dummies de carrera sobre el tablero de 35 casillas, acabada la carrera
+	// obtienen runas y juegan minijuegos; la crónica los cuenta; es determinista por semilla y baja del segundo; y no
+	// se pierde ninguna runa: las de los Brazales más las de las reservas suman las de partida. Semillas fijas 1 a 20.
+	FSimulationParams Params;
+	if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), 1, Params))
+	{
+		return false;
+	}
+	int32 Obtained = 0;
+	int32 Trials = 0;
+	bool bChronicleCountsRunes = true;
+	bool bChronicleCountsTrials = true;
+	for (int32 Seed = 1; Seed <= 20; ++Seed)
+	{
+		Params.Seed = Seed;
+		const FSimulationResult A = FMatchSimulation(Params, FourRaceDummies()).Run();
+		const FSimulationResult B = FMatchSimulation(Params, FourRaceDummies()).Run();
+		const FString Context = FString::Printf(TEXT("Semilla %d"), Seed);
+		TestTrue(Context + TEXT(": mismo registro"), A.Log == B.Log);
+		TestTrue(Context + TEXT(": mismo estado final"), Soulbound::Tests::SameState(A.FinalState, B.FinalState));
+		TestTrue(FString::Printf(TEXT("%s: baja del segundo (%.4f s)"), *Context, A.WallSeconds), A.WallSeconds < 1.0);
+
+		const FMatchState& State = A.FinalState;
+		const int32 Gained = CountEvents(State, EMatchEventType::RuneObtained);
+		const int32 Played = CountEvents(State, EMatchEventType::SkillMinigamePassed) + CountEvents(State, EMatchEventType::SkillMinigameFailed);
+		Obtained += Gained;
+		Trials += Played;
+		bChronicleCountsRunes &= Gained == 0 || A.Log.ContainsByPredicate([](const FString& Line) { return Line.Contains(TEXT("runa")); });
+		bChronicleCountsTrials &= Played == 0 || A.Log.ContainsByPredicate([](const FString& Line) { return Line.Contains(TEXT("minijuego")); });
+
+		if (State.Board.Phase == EBoardPhase::Awakened)
+		{
+			int32 InBracers = 0;
+			for (const FSeatState& Seat : State.Seats)
+			{
+				for (const int32 Count : Seat.Runes)
+				{
+					InBracers += Count;
+				}
+			}
+			int32 InReserves = 0;
+			int32 Sources = 0;
+			for (const FTileState& Tile : State.Board.Tiles)
+			{
+				Sources += Tile.Type == ETileType::PowerSource ? 1 : 0;
+				InReserves += Tile.RuneReserve;
+			}
+			TestEqual(Context + TEXT(": las runas de los Brazales más las reservas son las de partida"), InBracers + InReserves, Sources * State.Board.Params.RuneReservePerSource);
+		}
+	}
+	TestTrue(TEXT("En 20 partidas se obtienen runas"), Obtained > 0);
+	TestTrue(TEXT("En 20 partidas se juegan minijuegos"), Trials > 0);
+	TestTrue(TEXT("La crónica cuenta las runas"), bChronicleCountsRunes);
+	TestTrue(TEXT("La crónica cuenta los minijuegos"), bChronicleCountsTrials);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRaceDummySeeksSourcesTest,
+	"Soulbound.Core.Simulation.DummiesBuscanFuentes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FRaceDummySeeksSourcesTest::RunTest(const FString& Parameters)
+{
+	// Criterio "Simulación" (S-008): acabada la carrera, el dummy va hacia la Fuente con reserva más cercana donde pueda
+	// obtener (Elegido: cualquiera; Eco: la de un Olvidado). Desde el Altar, con todas las casillas vecinas como opciones,
+	// elige una que no deja más lejos de la Fuente válida más cercana que ninguna otra. Semillas fijas 1 a 10.
+	FRandomStream Start(1);
+	FMatchState State;
+	{
+		FBoardState Board;
+		FMatchParams MatchParams;
+		FElectsTable Elects;
+		if (!Soulbound::Tests::LoadBoardFile(*this, Soulbound::Tests::RaceBoardFileName(), Board) || !Soulbound::Tests::LoadTestMatchParams(*this, MatchParams)
+			|| !Soulbound::Tests::LoadTestElects(*this, Elects))
+		{
+			return false;
+		}
+		FMatchStartResult Result = Soulbound::Rules::StartMatch(Board, MatchParams, Elects, Soulbound::Match::MaxPlayers, Start);
+		if (!TestTrue(TEXT("La partida empieza"), Result.IsSuccess()))
+		{
+			return false;
+		}
+		State = MoveTemp(Result.State);
+	}
+	State.MatchPhase = EMatchPhase::RuneHunt;
+	State.Board.Phase = EBoardPhase::Awakened;
+	for (FTileState& Tile : State.Board.Tiles)
+	{
+		Tile.RuneReserve = Tile.Type == ETileType::PowerSource ? State.Board.Params.RuneReservePerSource : 0;
+	}
+	State.Seats[0].Role = ESeatRole::Elect;
+	State.Seats[0].DomainId = 0;
+	// Asiento 1: Eco con hogar en un Dominio Olvidado.
+	State.Seats[1].Role = ESeatRole::LostEcho;
+	for (const FDomainState& Domain : State.Board.Domains)
+	{
+		if (Domain.State == EDomainState::Forgotten)
+		{
+			State.Seats[1].DomainId = Domain.DomainId;
+			break;
+		}
+	}
+
+	const int32 Altar = State.Board.FindAltar();
+	for (const int32 Seat : {0, 1})
+	{
+		// Pasos desde cada casilla hasta la Fuente válida más cercana, por búsqueda en anchura (oráculo del test).
+		TArray<int32> Steps;
+		Steps.Init(MAX_int32, State.Board.Tiles.Num());
+		TArray<int32> Queue;
+		for (const FTileState& Tile : State.Board.Tiles)
+		{
+			const bool bValid = Tile.Type == ETileType::PowerSource && Tile.RuneReserve > 0
+				&& (Seat == 0 || State.Board.Domains[Tile.DomainId].State == EDomainState::Forgotten);
+			if (bValid)
+			{
+				Steps[Tile.TileId] = 0;
+				Queue.Add(Tile.TileId);
+			}
+		}
+		for (int32 i = 0; i < Queue.Num(); ++i)
+		{
+			for (const int32 Next : State.Board.Tiles[Queue[i]].Neighbours)
+			{
+				if (Steps[Next] == MAX_int32)
+				{
+					Steps[Next] = Steps[Queue[i]] + 1;
+					Queue.Add(Next);
+				}
+			}
+		}
+		const TArray<int32>& Options = State.Board.Tiles[Altar].Neighbours;
+		int32 Best = MAX_int32;
+		for (const int32 Option : Options)
+		{
+			Best = FMath::Min(Best, Steps[Option]);
+		}
+		for (int32 Seed = 1; Seed <= 10; ++Seed)
+		{
+			FRandomStream Rng(Seed);
+			const int32 Choice = FRaceDummyDecider().ChooseDestination(State, Seat, Options, Rng);
+			TestTrue(FString::Printf(TEXT("Asiento %d, semilla %d: elige una de las opciones"), Seat, Seed), Options.Contains(Choice));
+			TestEqual(FString::Printf(TEXT("Asiento %d, semilla %d: la que más acerca a la Fuente válida más cercana"), Seat, Seed), Steps.IsValidIndex(Choice) ? Steps[Choice] : MAX_int32, Best);
+		}
 	}
 	return true;
 }

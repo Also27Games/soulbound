@@ -19,10 +19,16 @@ namespace
 		return Soulbound::Rules::LoadMatchParamsFromFile(Soulbound::Tests::MatchParamsPath()).Params;
 	}
 
+	/** Los Elegidos del archivo de datos; si no cargan, StartMatch los rechaza y el test falla con el motivo. */
+	FElectsTable TestElects()
+	{
+		return Soulbound::Rules::LoadElectsFromFile(Soulbound::Tests::ElectsPath()).Table;
+	}
+
 	FMatchStartResult Start(const FBoardState& Board, int32 Players, int32 Seed)
 	{
 		FRandomStream Random(Seed);
-		return Soulbound::Rules::StartMatch(Board, TestMatchParams(), Players, Random);
+		return Soulbound::Rules::StartMatch(Board, TestMatchParams(), TestElects(), Players, Random);
 	}
 
 	/** Efectos de los Nodos en orden de casilla, como texto "casilla:efecto": "5:1,13:3,24:2". */
@@ -223,9 +229,17 @@ bool FMatchStartRejectsInvalidInputTest::RunTest(const FString& Parameters)
 	FMatchParams Zero = TestMatchParams();
 	Zero.TurnClockSeconds = 0.0;
 	FRandomStream Random(1);
-	const FMatchStartResult NoClock = Soulbound::Rules::StartMatch(Board, Zero, 4, Random);
+	const FMatchStartResult NoClock = Soulbound::Rules::StartMatch(Board, Zero, TestElects(), 4, Random);
 	TestEqual(TEXT("Parámetros inválidos: error de parámetros"), static_cast<int32>(NoClock.Error), static_cast<int32>(EMatchStartError::InvalidMatchParams));
 	TestFalse(TEXT("Parámetros inválidos: con un motivo legible"), NoClock.Message.IsEmpty());
+
+	// S-008: los Elegidos son obligatorios; una tabla vacía sería un modo degradado silencioso. No gasta el sorteo.
+	FRandomStream Untouched(1);
+	FRandomStream Used(1);
+	const FMatchStartResult NoElects = Soulbound::Rules::StartMatch(Board, TestMatchParams(), FElectsTable(), 4, Used);
+	TestEqual(TEXT("Sin Elegidos: error de Elegidos"), static_cast<int32>(NoElects.Error), static_cast<int32>(EMatchStartError::InvalidElects));
+	TestFalse(TEXT("Sin Elegidos: con un motivo legible"), NoElects.Message.IsEmpty());
+	TestEqual(TEXT("Sin Elegidos: no se toca el sorteo"), Used.GetCurrentSeed(), Untouched.GetCurrentSeed());
 	return true;
 }
 

@@ -2,19 +2,14 @@
 
 #include "Board/MovementRules.h"
 #include "Match/BondRaceRules.h"
+#include "Match/RuneRules.h"
+#include "Match/MatchEvents.h"
 #include "Math/RandomStream.h"
+
+using Soulbound::Rules::LogEvent;
 
 namespace
 {
-	void LogEvent(FMatchState& State, EMatchEventType Type, double NowSeconds, int32 Seat, int32 Value = INDEX_NONE)
-	{
-		FMatchEvent& Event = State.EventLog.AddDefaulted_GetRef();
-		Event.Type = Type;
-		Event.ClockSeconds = NowSeconds;
-		Event.Seat = Seat;
-		Event.Value = Value;
-	}
-
 	/** Asiento que sigue a Seat en el orden de turno (R-TUR-1). */
 	int32 NextInTurnOrder(const FMatchState& State, int32 Seat)
 	{
@@ -53,6 +48,8 @@ namespace
 		State.TurnDeadlineSeconds = NowSeconds + State.Params.TurnClockSeconds;
 		State.Roll = 0;
 		State.ReachableOptions.Reset();
+		// R-RUN-3: el turno que empieza aún no ha movido la ficha (los turnos extra también empiezan así).
+		State.bActiveSeatMoved = false;
 		LogEvent(State, EMatchEventType::TurnStarted, NowSeconds, State.ActiveSeat);
 	}
 
@@ -183,9 +180,19 @@ namespace Soulbound::Rules
 			// R-CAR-4: el Nicho se resuelve aquí. Sin movimiento (R-TAB-18) el asiento sigue donde terminó el anterior,
 			// que nunca es un Nicho Libre para un Eco: lo habría reclamado al llegar.
 			Soulbound::Rules::ResolveNicheLanding(State, State.ActiveSeat, NowSeconds, Random);
-			// TODO(R-TUR-2): resolución de Fuentes y Nodos, en las stories de runas y de Nodos.
+			// R-RUN-2: la Fuente se resuelve junto al Nicho, solo si el asiento se ha movido (R-RUN-3). Si un Elegido debe
+			// jugar el minijuego, la máquina espera su resultado como espera el destino (SubmitSkillTrialResult).
+			if (Soulbound::Rules::ResolvePowerSourceLanding(State, State.ActiveSeat, NowSeconds) == ERuneLanding::TrialPending)
+			{
+				State.TurnPhase = ETurnPhase::SkillTrial;
+				return true;
+			}
+			// TODO(R-TUR-2): resolución de los Nodos de Poder, en la story de Nodos.
 			EnterEnd(State, NowSeconds);
 			return true;
+		case ETurnPhase::SkillTrial:
+			// TODO(R-MIN): el minijuego espera sin plazo; su tiempo propio llega con su story.
+			return false;
 		case ETurnPhase::End:
 			LeaveEnd(State, NowSeconds, Random);
 			return true;
@@ -215,8 +222,25 @@ namespace Soulbound::Rules
 			return EIntentResult::Unreachable;
 		}
 		State.Seats[Seat].TileId = TileId;
+		State.bActiveSeatMoved = true;
 		LogEvent(State, EMatchEventType::Moved, NowSeconds, Seat, TileId);
 		State.TurnPhase = ETurnPhase::MoveAndResolve;
+		return EIntentResult::Accepted;
+	}
+
+	EIntentResult SubmitSkillTrialResult(FMatchState& State, int32 Seat, bool bPassed, double NowSeconds)
+	{
+		if (!HasTurnOrder(State) || Seat != State.ActiveSeat)
+		{
+			return EIntentResult::WrongSeat;
+		}
+		if (State.TurnPhase != ETurnPhase::SkillTrial || State.PendingTrial == ESkillTrial::None)
+		{
+			return EIntentResult::WrongPhase;
+		}
+		// TODO(R-MIN): sin plazo en S-008; el minijuego real tendrá su propio tiempo y su propio fallo por agotarlo.
+		Soulbound::Rules::ApplySkillTrialResult(State, Seat, bPassed, NowSeconds);
+		EnterEnd(State, NowSeconds);
 		return EIntentResult::Accepted;
 	}
 

@@ -1,0 +1,16 @@
+{
+  "elects": [
+    {"domain": 0, "name": "Shuten-dōji", "affinity": "duelAdvantage",
+     "powers": {"0": "haste", "1": "freePassage", "2": "expel", "3": "deflection", "4": "planarFlight", "5": "duel"}},
+    {"domain": 1, "name": "Fenrir", "affinity": "freePassage",
+     "powers": {"0": "duel", "1": "haste", "2": "freePassage", "3": "expel", "4": "deflection", "5": "planarFlight"}},
+    {"domain": 2, "name": "Apep", "affinity": "rerollOnce",
+     "powers": {"0": "planarFlight", "1": "duel", "2": "haste", "3": "freePassage", "4": "expel", "5": "deflection"}},
+    {"domain": 3, "name": "Mictlantecuhtli", "affinity": "voidEscape",
+     "powers": {"0": "deflection", "1": "planarFlight", "2": "duel", "3": "haste", "4": "freePassage", "5": "expel"}},
+    {"domain": 4, "name": "Tifón", "affinity": "refuseOracle",
+     "powers": {"0": "expel", "1": "deflection", "2": "planarFlight", "3": "duel", "4": "haste", "5": "freePassage"}},
+    {"domain": 5, "name": "Koschei", "affinity": "safeRune",
+     "powers": {"0": "freePassage", "1": "expel", "2": "deflection", "3": "planarFlight", "4": "duel", "5": "haste"}}
+  ]
+}

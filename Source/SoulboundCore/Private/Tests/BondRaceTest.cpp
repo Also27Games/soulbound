@@ -132,7 +132,8 @@ bool FBondRaceNicheStatesAtStartTest::RunTest(const FString& Parameters)
 	// 6 menos N Cerrados, sin dueño. Lo hace StartMatch desde S-002; aquí se fija. Semillas fijas 1 a 10.
 	FBoardState Board;
 	FMatchParams Params;
-	if (!Soulbound::Tests::LoadTestBoard(*this, Board) || !Soulbound::Tests::LoadTestMatchParams(*this, Params))
+	FElectsTable Elects;
+	if (!Soulbound::Tests::LoadTestBoard(*this, Board) || !Soulbound::Tests::LoadTestMatchParams(*this, Params) || !Soulbound::Tests::LoadTestElects(*this, Elects))
 	{
 		return false;
 	}
@@ -141,7 +142,7 @@ bool FBondRaceNicheStatesAtStartTest::RunTest(const FString& Parameters)
 		for (int32 Seed = 1; Seed <= 10; ++Seed)
 		{
 			FRandomStream Random(Seed);
-			const FMatchStartResult Start = Soulbound::Rules::StartMatch(Board, Params, Players, Random);
+			const FMatchStartResult Start = Soulbound::Rules::StartMatch(Board, Params, Elects, Players, Random);
 			if (!TestTrue(TEXT("La partida empieza"), Start.IsSuccess()))
 			{
 				return false;

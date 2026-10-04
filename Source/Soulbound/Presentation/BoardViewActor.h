@@ -124,6 +124,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
 	float NicheNumberSize = 60.f;
 
+	/** Color del contador de reserva de las Fuentes (S-008): azul claro, para que no se confunda con la etiqueta blanca. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
+	FColor SourceReserveColor = FColor(70, 170, 255);
+
 	/** Alto de la letra del nombre del Elegido en la etiqueta del Nicho, en cm. Valor inicial 30. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
 	float NicheNameSize = 30.f;
@@ -227,6 +231,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	float ForgottenDim = 0.3f;
 
+	/** Cuánto se apaga la cruz de una Fuente agotada (multiplica su color). Valor inicial 0,15 (S-008). */
+	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
+	float SourceDepletedDim = 0.15f;
+
 	/** Línea de crónica de las intervenciones del Warden. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	FLinearColor WardenLineColor = FLinearColor(1.f, 0.45f, 0.05f);
@@ -307,6 +315,10 @@ private:
 	/** Número del asiento sobre el cubo de cada Nicho reclamado (nulo en las demás casillas). */
 	UPROPERTY()
 	TArray<TObjectPtr<UTextRenderComponent>> NicheNumbers;
+
+	/** Contador de reserva sobre cada Fuente, en su propio color para distinguirlo de la etiqueta (S-008). Nulo en las demás casillas. */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTextRenderComponent>> SourceReserves;
 
 	/** Segmentos de los aros de los Nichos, seguidos: NicheRingFirst[casilla] es el primero de los de esa casilla. */
 	UPROPERTY()

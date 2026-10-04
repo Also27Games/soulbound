@@ -12,27 +12,27 @@
   "domains": [
     {
       "id": 0,
-      "name": "El Banquete (Shuten-dōji)"
+      "name": "El Banquete"
     },
     {
       "id": 1,
-      "name": "El Fiordo Encadenado (Fenrir)"
+      "name": "El Fiordo Encadenado"
     },
     {
       "id": 2,
-      "name": "El Río de la Noche (Apep)"
+      "name": "El Río de la Noche"
     },
     {
       "id": 3,
-      "name": "El Descenso (Mictlantecuhtli)"
+      "name": "El Descenso"
     },
     {
       "id": 4,
-      "name": "La Ruina Tormentosa (Tifón)"
+      "name": "La Ruina Tormentosa"
     },
     {
       "id": 5,
-      "name": "El Bosque Negro (Koschei)"
+      "name": "El Bosque Negro"
     }
   ],
   "tiles": [

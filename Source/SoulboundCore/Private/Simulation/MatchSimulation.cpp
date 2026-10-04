@@ -63,7 +63,7 @@ FSimulationResult FMatchSimulation::Run()
 	FRandomStream Rng(Params.Seed);
 	FRandomStream DeciderRng(Params.Seed + 1);
 	// En Fase 1 los bots rellenan los huecos: siempre juegan cuatro (R-TAB-6, decisión del autor del 25/09/2026).
-	FMatchStartResult Start = Soulbound::Rules::StartMatch(Params.Board, Params.MatchParams, Soulbound::Match::MaxPlayers, Rng);
+	FMatchStartResult Start = Soulbound::Rules::StartMatch(Params.Board, Params.MatchParams, Params.Elects, Soulbound::Match::MaxPlayers, Rng);
 	if (!Start.IsSuccess())
 	{
 		Result.Log.Add(FString::Printf(TEXT("error semilla=%d \"%s\""), Params.Seed, *Start.Message));
@@ -135,6 +135,23 @@ FSimulationResult FMatchSimulation::Run()
 			{
 				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d vuelve a su hogar, la %s"), *Stamp(Event.ClockSeconds), Event.Seat, *DescribeTile(State.Board, Event.Value)));
 			}
+			else if (Event.Type == EMatchEventType::RuneObtained)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d obtiene la runa %d"), *Stamp(Event.ClockSeconds), Event.Seat, Event.Value));
+			}
+			else if (Event.Type == EMatchEventType::SkillMinigamePassed || Event.Type == EMatchEventType::SkillMinigameFailed)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d %s el minijuego de la Fuente del Dominio %d"), *Stamp(Event.ClockSeconds), Event.Seat,
+					Event.Type == EMatchEventType::SkillMinigamePassed ? TEXT("supera") : TEXT("falla"), Event.Value));
+			}
+			else if (Event.Type == EMatchEventType::SourceDepleted)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d llega a la Fuente del Dominio %d, agotada: sin runa"), *Stamp(Event.ClockSeconds), Event.Seat, Event.Value));
+			}
+			else if (Event.Type == EMatchEventType::RuneReturned)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d devuelve la runa %d a su Fuente"), *Stamp(Event.ClockSeconds), Event.Seat, Event.Value));
+			}
 		}
 	};
 
@@ -180,6 +197,21 @@ FSimulationResult FMatchSimulation::Run()
 						*DescribeTile(State.Board, State.Seats[State.ActiveSeat].TileId)));
 				}
 				Pending.bPending = false;
+			}
+			if (State.TurnPhase == ETurnPhase::SkillTrial)
+			{
+				// Como con el destino: se pregunta al decisor y se entrega su resultado. Un dummy responde al instante, sin el
+				// retardo del destino: así la duración de un turno no depende de dónde caiga la ficha, y los dados de una
+				// semilla no cambian según quién ocupe cada asiento (S-003, revisión del autor).
+				const int32 Seat = State.ActiveSeat;
+				LogNewEvents();
+				const bool bPassed = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid()
+					&& Deciders[Seat]->PassSkillMinigame(State, Seat, State.PendingTrial, State.PendingDifficulty, DeciderRng);
+				if (Soulbound::Rules::SubmitSkillTrialResult(State, Seat, bPassed, Now) != EIntentResult::Accepted)
+				{
+					return TNumericLimits<double>::Max();
+				}
+				LogNewEvents();
 			}
 			if (!Soulbound::Rules::AdvanceTurn(State, Now, Rng) && State.TurnPhase != ETurnPhase::RollAndChoose)
 			{
@@ -233,7 +265,8 @@ FSimulationResult FMatchSimulation::Run()
 		const FString Role = SeatState.Role == ESeatRole::Elect
 			? FString::Printf(TEXT("Elegido del Dominio %d"), SeatState.DomainId)
 			: SeatState.DomainId == INDEX_NONE ? FString(TEXT("Eco")) : FString::Printf(TEXT("Eco, hogar en el Dominio %d"), SeatState.DomainId);
-		Result.Log.Add(FString::Printf(TEXT("    asiento %d, %s, en la %s | insolencia %d"), Seat, *Role, *DescribeTile(State.Board, SeatState.TileId), SeatState.Insolence));
+		Result.Log.Add(FString::Printf(TEXT("    asiento %d, %s, en la %s | insolencia %d | runas por tipo %s"), Seat, *Role, *DescribeTile(State.Board, SeatState.TileId),
+			SeatState.Insolence, *FString::JoinBy(SeatState.Runes, TEXT("/"), [](int32 Count) { return FString::FromInt(Count); })));
 	}
 	Result.FinalState = State;
 	Result.WallSeconds = FPlatformTime::Seconds() - WallStart;

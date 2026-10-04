@@ -3,6 +3,7 @@
 #include "../Presentation/BoardViewActor.h"
 #include "../Spike/SpikeOnlineGameMode.h"
 #include "Board/BoardLoader.h"
+#include "Elects/ElectsLoader.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/GameModeBase.h"
@@ -75,9 +76,10 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 
 	const FBoardLoadResult Board = Soulbound::Rules::LoadBoardFromFile(BoardPath);
 	const FMatchParamsLoadResult Params = Soulbound::Rules::LoadMatchParamsFromFile(ParamsPath);
-	if (!Board.IsSuccess() || !Params.IsSuccess())
+	const FElectsLoadResult Elects = Soulbound::Rules::LoadElectsFromFile(FPaths::Combine(FPaths::ProjectContentDir(), ElectsRelativePath));
+	if (!Board.IsSuccess() || !Params.IsSuccess() || !Elects.IsSuccess())
 	{
-		const FString Error = !Board.IsSuccess() ? Board.Message : Params.Message;
+		const FString Error = !Board.IsSuccess() ? Board.Message : !Params.IsSuccess() ? Params.Message : Elects.Message;
 		UE_LOG(LogSoulboundMatch, Error, TEXT("No se pudo iniciar la partida: %s"), *Error);
 		if (GEngine)
 		{
@@ -91,7 +93,7 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 	// Los decisores tienen su propio generador (semilla + 1), como en la simulación: no tocan los dados de la partida.
 	DeciderRng.Initialize(UsedSeed + 1);
 
-	FMatchStartResult Start = Soulbound::Rules::StartMatch(Board.Board, Params.Params, Soulbound::Match::MaxPlayers, MatchRng);
+	FMatchStartResult Start = Soulbound::Rules::StartMatch(Board.Board, Params.Params, Elects.Table, Soulbound::Match::MaxPlayers, MatchRng);
 	if (!Start.IsSuccess())
 	{
 		UE_LOG(LogSoulboundMatch, Error, TEXT("StartMatch rechaza la partida: %s"), *Start.Message);
@@ -162,6 +164,29 @@ void UMatchHostSubsystem::Advance()
 			if (Now >= Pending.ReadyAtSeconds && Pending.TileId != INDEX_NONE)
 			{
 				bChanged |= Soulbound::Rules::SubmitDestinationIntent(State, Seat, Pending.TileId, Now) == EIntentResult::Accepted;
+				Pending.bPending = false;
+			}
+		}
+		else if (State.TurnPhase == ETurnPhase::SkillTrial)
+		{
+			// El minijuego se resuelve como el destino: se pregunta a un decisor y se entrega su resultado. Mientras el
+			// minijuego real del humano no exista (su story), su prueba la responde un dummy, al azar con probabilidad 0,5 (S-008).
+			if (Pending.bPending && (Pending.Seat != Seat || Pending.TurnCount != State.TurnCount))
+			{
+				Pending.bPending = false;
+			}
+			if (!Pending.bPending)
+			{
+				IDecider& Decider = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid() ? *Deciders[Seat] : static_cast<IDecider&>(HumanTrialDecider);
+				Pending.bPending = true;
+				Pending.Seat = Seat;
+				Pending.TurnCount = State.TurnCount;
+				Pending.ReadyAtSeconds = Now + DummyResponseSeconds;
+				Pending.bPassedTrial = Decider.PassSkillMinigame(State, Seat, State.PendingTrial, State.PendingDifficulty, DeciderRng);
+			}
+			if (Now >= Pending.ReadyAtSeconds)
+			{
+				bChanged |= Soulbound::Rules::SubmitSkillTrialResult(State, Seat, Pending.bPassedTrial, Now) == EIntentResult::Accepted;
 				Pending.bPending = false;
 			}
 		}

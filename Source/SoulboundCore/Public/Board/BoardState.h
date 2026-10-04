@@ -101,6 +101,14 @@ struct SOULBOUNDCORE_API FTileState
 	UPROPERTY()
 	int32 DomainId = INDEX_NONE;
 
+	/**
+	 * Reserva de la Fuente de Poder: runas que quedan por obtener en ella (R-RUN-4, R-TAB-4b). 0 en cualquier otra casilla
+	 * y mientras el tablero es Primordial; al Despertar arranca con FBoardParams::RuneReservePerSource. Solo la escriben
+	 * las reglas de Match/BondRaceRules.h (Despertar) y Match/RuneRules.h. Nombre propuesto en S-008.
+	 */
+	UPROPERTY()
+	int32 RuneReserve = 0;
+
 	/** Efecto sorteado al iniciar la partida si la casilla es un Nodo de Poder (R-TAB-5); None si no. */
 	UPROPERTY()
 	EPowerNodeEffect PowerNodeEffect = EPowerNodeEffect::None;
@@ -139,7 +147,7 @@ struct SOULBOUNDCORE_API FDomainState
 	UPROPERTY()
 	int32 DomainId = INDEX_NONE;
 
-	/** Nombre del Elegido del Dominio, de los datos (domains[].name); solo vive en el archivo del tablero. */
+	/** Nombre del Dominio, de los datos (domains[].name). El nombre del Elegido vive en elegidos.json (S-008). */
 	UPROPERTY()
 	FString Name;
 
@@ -181,7 +189,7 @@ struct SOULBOUNDCORE_API FBoardParams
 	UPROPERTY()
 	int32 MaxSealedTiles = 0;
 
-	/** Runas en reserva por Fuente (R-TAB-4b), en datos. Solo se carga; lo usa el GDD de runas. */
+	/** Runas en reserva por Fuente (R-TAB-4b), en datos. Cada Fuente arranca con ellas al Despertar (S-008). */
 	UPROPERTY()
 	int32 RuneReservePerSource = 0;
 

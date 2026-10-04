@@ -24,7 +24,8 @@ bool FBoardFilesAllValidTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	FMatchParams Params;
-	if (!Soulbound::Tests::LoadTestMatchParams(*this, Params))
+	FElectsTable Elects;
+	if (!Soulbound::Tests::LoadTestMatchParams(*this, Params) || !Soulbound::Tests::LoadTestElects(*this, Elects))
 	{
 		return false;
 	}
@@ -36,7 +37,7 @@ bool FBoardFilesAllValidTest::RunTest(const FString& Parameters)
 			continue;
 		}
 		FRandomStream Random(1);
-		const FMatchStartResult Start = Soulbound::Rules::StartMatch(Board, Params, Soulbound::Match::MaxPlayers, Random);
+		const FMatchStartResult Start = Soulbound::Rules::StartMatch(Board, Params, Elects, Soulbound::Match::MaxPlayers, Random);
 		TestTrue(FString::Printf(TEXT("%s inicia una partida (%s)"), *File, *Start.Message), Start.IsSuccess());
 		AddInfo(FString::Printf(TEXT("%s: %d casillas"), *File, Board.Tiles.Num()));
 	}

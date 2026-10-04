@@ -1,9 +1,15 @@
 #include "Board/BoardLoader.h"
 
+#include "Board/DomainTouches.h"
+#include "Data/JsonFields.h"
 #include "Dom/JsonObject.h"
 #include "Misc/FileHelper.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+
+using Soulbound::BoardGraph::DomainTouches;
+using Soulbound::JsonFields::ReadIntegerField;
+using Soulbound::JsonFields::ReadIntegerValue;
 
 namespace
 {
@@ -13,24 +19,6 @@ namespace
 		Result.Error = Error;
 		Result.Message = Message;
 		return Result;
-	}
-
-	/** Lee un número entero de un valor JSON. Devuelve false si no es un número o tiene decimales. */
-	bool ReadInteger(const TSharedPtr<FJsonValue>& Value, int32& Out)
-	{
-		double Number = 0.0;
-		if (!Value.IsValid() || !Value->TryGetNumber(Number) || Number != FMath::FloorToDouble(Number) || Number < MIN_int32 || Number > MAX_int32)
-		{
-			return false;
-		}
-		Out = static_cast<int32>(Number);
-		return true;
-	}
-
-	/** Lee el campo entero Field de Object. Devuelve false si falta o no es entero. */
-	bool ReadIntegerField(const FJsonObject& Object, const TCHAR* Field, int32& Out)
-	{
-		return ReadInteger(Object.TryGetField(Field), Out);
 	}
 
 	bool ParseTileType(const FString& Text, ETileType& Out)
@@ -203,7 +191,7 @@ namespace
 			const TArray<TSharedPtr<FJsonValue>>* Pair = nullptr;
 			int32 A = INDEX_NONE;
 			int32 B = INDEX_NONE;
-			if (!(*Edges)[Index]->TryGetArray(Pair) || Pair->Num() != 2 || !ReadInteger((*Pair)[0], A) || !ReadInteger((*Pair)[1], B))
+			if (!(*Edges)[Index]->TryGetArray(Pair) || Pair->Num() != 2 || !ReadIntegerValue((*Pair)[0], A) || !ReadIntegerValue((*Pair)[1], B))
 			{
 				return Reject(EBoardError::MalformedData, FString::Printf(TEXT("La conexión en la posición %d de \"edges\" no es un par de identificadores."), Index));
 			}
@@ -226,19 +214,6 @@ namespace
 		return Count;
 	}
 
-	/** Si alguna casilla del Dominio DomainId tiene una conexión con una casilla que cumple Pred. */
-	template <typename PredType>
-	bool DomainTouches(const FBoardState& Board, int32 DomainId, PredType Pred)
-	{
-		for (const FTileState& Tile : Board.Tiles)
-		{
-			if (Tile.DomainId == DomainId && Tile.Neighbours.ContainsByPredicate([&](int32 Other) { return Pred(Board.Tiles[Other]); }))
-			{
-				return true;
-			}
-		}
-		return false;
-	}
 }
 
 namespace Soulbound::Rules
