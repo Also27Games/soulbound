@@ -3,8 +3,8 @@
     "powerSourcesPerDomain": 1,
     "powerNodeEffects": {
       "duel": 1,
-      "oracle": 1,
-      "planar": 1
+      "oracle": 0,
+      "planar": 2
     },
     "maxSealedTiles": 3,
     "runeReservePerSource": 4
