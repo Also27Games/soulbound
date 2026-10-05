@@ -157,35 +157,44 @@ bool FMatchSimulationDeterminismTest::RunTest(const FString& Parameters)
 	// no tocan el sorteo de la partida. Se cambia el decisor del asiento 2 por uno que gasta y elige distinto. Desde
 	// S-009 una tirada consume siempre los mismos valores del sorteo (decisión del autor del 04/10/2026), pero con
 	// Celeridad su resultado depende de cuántos dados se eligieron: se comparan las tiradas hechas con los mismos dados
-	// en las dos partidas.
+	// en las dos partidas. Desde S-010 un trilero dura tiempo de partida, así que con otro decisor caben otros turnos en
+	// 40 minutos: se comparan las tiradas de los turnos que juegan las dos (las primeras N, con N el menor de los dos
+	// recuentos), y deben coincidir todas. El Warden tiene su propio sorteo (Seed + 2, decisión del autor del 05/10/2026):
+	// el retraso de un trilero no cambia en qué punto del sorteo cae cada tirada.
 	TArray<TSharedPtr<IDecider>> Mixed = FourDummies();
 	Mixed[2] = MakeShared<FLastOptionDecider>();
 	const FSimulationResult Other = FMatchSimulation(Params, MoveTemp(Mixed)).Run();
 	const TArray<FLoggedRoll> RollsA = RollSequence(A);
 	const TArray<FLoggedRoll> RollsOther = RollSequence(Other);
 	TestTrue(TEXT("Hay tiradas"), RollsA.Num() > 0);
-	TestEqual(TEXT("Con otro decisor en un asiento, el mismo número de tiradas"), RollsOther.Num(), RollsA.Num());
+	const int32 Shared = FMath::Min(RollsA.Num(), RollsOther.Num());
+	AddInfo(FString::Printf(TEXT("Tiradas: %d con cuatro dummies, %d con otro decisor en el asiento 2; se comparan las %d primeras"), RollsA.Num(), RollsOther.Num(), Shared));
 	int32 Compared = 0;
-	for (int32 i = 0; i < FMath::Min(RollsA.Num(), RollsOther.Num()); ++i)
+	int32 Mismatches = 0;
+	for (int32 i = 0; i < Shared; ++i)
 	{
 		if (RollsA[i].Dice != RollsOther[i].Dice)
 		{
 			continue;
 		}
 		++Compared;
-		if (RollsA[i].Roll != RollsOther[i].Roll)
+		if (RollsA[i].Roll != RollsOther[i].Roll && Mismatches++ == 0)
 		{
 			AddError(FString::Printf(TEXT("Con otro decisor en el asiento 2, la tirada %d cambia: %d frente a %d"), i, RollsA[i].Roll, RollsOther[i].Roll));
-			break;
 		}
 	}
+	TestEqual(TEXT("Todas las tiradas comparables coinciden"), Mismatches, 0);
 	TestTrue(TEXT("Hay tiradas con los mismos dados que comparar"), Compared > 0);
 	TestFalse(TEXT("Y la partida es otra: el decisor distinto sí cambia los destinos"), Soulbound::Tests::SameState(A.FinalState, Other.FinalState));
 
 	// Los turnos no son una constante: salen de los parámetros. El dummy confirma a los DummyResponseSeconds de
 	// empezar su turno, antes del reloj de turno, así que caben duración entre respuesta (margen de uno por redondeo).
-	// Hasta S-003 aquí se exigían 80 turnos: el turno de mentira del spike duraba TurnPeriodSeconds (30 s).
-	const double ExpectedTurns = Params.DurationSeconds / Params.DummyResponseSeconds;
+	// Hasta S-003 aquí se exigían 80 turnos: el turno de mentira del spike duraba TurnPeriodSeconds (30 s). Desde S-010 se
+	// descuenta el tiempo de los trileros: cada uno alarga su turno la muestra y la mezcla (la esfera, el dummy la elige al
+	// instante).
+	const double ShellSeconds = Soulbound::Tests::EventsOfType(A.FinalState, EMatchEventType::ShellGameStarted).Num()
+		* (Params.MatchParams.ShellRevealSeconds + Params.MatchParams.ShellShuffleSeconds);
+	const double ExpectedTurns = (Params.DurationSeconds - ShellSeconds) / Params.DummyResponseSeconds;
 	TestTrue(TEXT("Se juegan turnos"), A.Turns > 0);
 	TestTrue(FString::Printf(TEXT("Turnos derivados de los parametros: %d frente a %.1f"), A.Turns, ExpectedTurns), FMath::Abs(A.Turns - ExpectedTurns) <= 1.0);
 	TestEqual(TEXT("Evaluaciones del Warden"), A.Evaluations, FMath::FloorToInt32(Params.DurationSeconds / Params.EvaluationPeriodSeconds));
@@ -309,6 +318,11 @@ bool FMatchSimulationChronicleTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Una línea de turno por cada turno empezado"), CountLines(TEXT("] Turno ")), Started);
 	TestEqual(TEXT("Cada movimiento del registro tiene su línea de crónica"), CountLines(TEXT(" va a la casilla ")), CountEvents(Result.FinalState, EMatchEventType::Moved));
 	TestEqual(TEXT("Cada turno terminado cuenta cómo acabó"), CountLines(TEXT(" va a la casilla ")) + CountLines(TEXT(" no puede moverse")) + CountLines(TEXT(" agota el reloj")), Result.Turns);
+	// S-010: con esta semilla, un salto rechazado abría la acción en el Nodo y la simulación se quedaba esperándola hasta
+	// el final (defecto de S-009). Al acabar, ninguna elección puede seguir abierta con su plazo vencido.
+	const FPendingChoice& Left = Result.FinalState.PendingChoice;
+	TestFalse(FString::Printf(TEXT("Ninguna elección queda sin contestar más allá de su plazo (tipo %d, plazo %.0f s)"), static_cast<int32>(Left.Kind), Left.DeadlineSeconds),
+		Left.IsOpen() && Left.DeadlineSeconds < Result.FinalState.ClockSeconds);
 	TestEqual(TEXT("Una línea por intervención del Warden"), CountLines(TEXT("] Warden ")), Result.Interventions);
 
 	TestEqual(TEXT("Cada Sello que cae por el tope tiene su línea"), CountLines(TEXT(" cae el Sello de la ")),

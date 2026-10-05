@@ -19,7 +19,8 @@ enum class ERuneLanding : uint8
 
 /**
  * Runas y poderes (GDD 04, con las reglas de Fuente de los GDD 01 y 03). Estado en FSeatState::Runes (el Brazal) y en
- * FTileState::RuneReserve (la reserva de cada Fuente). Solo estas reglas los escriben tras el Despertar.
+ * FTileState::RuneReserve (la reserva de cada Fuente). Solo estas reglas los escriben tras el Despertar; el trilero
+ * (Match/ShellGameRules.h) pasa runas de un Brazal a otro con TransferRune (S-010).
  */
 namespace Soulbound::Rules
 {

@@ -30,7 +30,9 @@ namespace
 		case EChoiceKind::DiceCount: return TEXT("dados");
 		case EChoiceKind::Reroll: return TEXT("repetir");
 		case EChoiceKind::PlanarJump: return TEXT("salto planar");
-		case EChoiceKind::PlayerAction: return TEXT("expulsión");
+		case EChoiceKind::PlayerAction: return TEXT("acción contra un jugador");
+		case EChoiceKind::SafeRune: return TEXT("runa a salvo de Koschei");
+		case EChoiceKind::ShellPick: return TEXT("esfera del trilero");
 		default: return TEXT("?");
 		}
 	}
@@ -71,10 +73,13 @@ FSimulationResult FMatchSimulation::Run()
 	const double WallStart = FPlatformTime::Seconds();
 
 	FSimulationResult Result;
-	// Sorteo de la partida: inicio, dados y cerebro del Warden. Los decisores tienen el suyo, con semilla Seed + 1,
-	// para que la misma semilla dé los mismos dados ocupe quien ocupe cada asiento (grabación y reproducción, GDD 08).
+	// Tres sorteos separados, como en el juego (decisión del autor del 05/10/2026): el de la partida (inicio y dados), el
+	// de los decisores (Seed + 1) y el del cerebro del Warden (Seed + 2, como WardenHostSubsystem). Así la misma semilla da
+	// los mismos dados ocupe quien ocupe cada asiento (grabación y reproducción, GDD 08), aunque un trilero retrase los
+	// turnos respecto a las evaluaciones del Warden (S-010).
 	FRandomStream Rng(Params.Seed);
 	FRandomStream DeciderRng(Params.Seed + 1);
+	FRandomStream WardenRng(Params.Seed + 2);
 	// En Fase 1 los bots rellenan los huecos: siempre juegan cuatro (R-TAB-6, decisión del autor del 25/09/2026).
 	FMatchStartResult Start = Soulbound::Rules::StartMatch(Params.Board, Params.MatchParams, Params.Elects, Soulbound::Match::MaxPlayers, Rng);
 	if (!Start.IsSuccess())
@@ -179,26 +184,53 @@ FSimulationResult FMatchSimulation::Run()
 			}
 			else if (Event.Type == EMatchEventType::Expelled)
 			{
-				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d manda al asiento %d a su hogar de una expulsión"), *Stamp(Event.ClockSeconds), Event.Seat, Event.Value));
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d manda al asiento %d a su hogar de una expulsión"), *Stamp(Event.ClockSeconds), Event.Seat, Event.OtherSeat));
 			}
 			else if (Event.Type == EMatchEventType::ChoiceExpired)
 			{
 				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d deja agotar la elección (%s)"), *Stamp(Event.ClockSeconds), Event.Seat, ChoiceName(Event.Value)));
 			}
+			// S-010: el robo del Eco y el trilero.
+			else if (Event.Type == EMatchEventType::ShellGameStarted)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d abre el trilero contra el asiento %d: %d esferas"), *Stamp(Event.ClockSeconds), Event.Seat, Event.OtherSeat, Event.Value));
+			}
+			else if (Event.Type == EMatchEventType::SafeRuneSetAside)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d (Koschei) aparta la runa %d antes del trilero"), *Stamp(Event.ClockSeconds), Event.Seat, Event.Value));
+			}
+			else if (Event.Type == EMatchEventType::RuneStolen)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d roba la runa %d al asiento %d"), *Stamp(Event.ClockSeconds), Event.Seat, Event.Value, Event.OtherSeat));
+			}
+			else if (Event.Type == EMatchEventType::ShellGameExpired)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d no elige esfera a tiempo: no roba nada"), *Stamp(Event.ClockSeconds), Event.Seat));
+			}
+			else if (Event.Type == EMatchEventType::StealNoRunes)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d intenta robar al asiento %d, que no tiene runas"), *Stamp(Event.ClockSeconds), Event.Seat, Event.OtherSeat));
+			}
+			else if (Event.Type == EMatchEventType::StealCancelled)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d intenta robar al asiento %d (Koschei), que solo tiene una runa: robo anulado"), *Stamp(Event.ClockSeconds),
+					Event.Seat, Event.OtherSeat));
+			}
 		}
 	};
 
-	// Contesta al instante la elección pendiente con el decisor del asiento (S-009), como el minijuego: así la duración
-	// de un turno no depende de lo que se elija, ni los dados de una semilla de quién ocupe cada asiento. Devuelve false
-	// si el motor rechaza la respuesta (no debería: el decisor elige entre las opciones).
+	// Contesta al instante la elección pendiente con el decisor del asiento al que se le pide (S-009; desde S-010 puede no
+	// tener el turno), como el minijuego: así la duración de un turno no depende de lo que se elija, ni los dados de una
+	// semilla de quién ocupe cada asiento. Devuelve false si el motor rechaza la respuesta (no debería: el decisor elige
+	// entre las opciones).
 	auto AnswerChoice = [&](double Now) -> bool
 	{
-		const int32 Seat = State.ActiveSeat;
+		const int32 Seat = State.PendingChoice.Seat;
 		const FPendingChoice Choice = State.PendingChoice;
 		LogNewEvents();
 		const bool bHasDecider = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid();
 		const int32 Option = bHasDecider ? Deciders[Seat]->ChooseOption(State, Seat, Choice, DeciderRng)
-			: Choice.CanDecline() || Choice.Options.IsEmpty() ? INDEX_NONE : Choice.Options[0];
+			: Choice.CanDecline() ? INDEX_NONE : Choice.AnswerAt(0);
 		const bool bAccepted = Soulbound::Rules::SubmitChoiceIntent(State, Seat, Choice.Kind, Option, Now, Rng) == EIntentResult::Accepted;
 		LogNewEvents();
 		return bAccepted;
@@ -211,10 +243,16 @@ FSimulationResult FMatchSimulation::Run()
 		const double Now = State.ClockSeconds;
 		while (true)
 		{
-			// Elecciones de dados, salto y acción (S-009): al instante. La repetición, en la tirada, tras la línea del turno.
-			if (State.PendingChoice.IsOpen() && State.PendingChoice.Kind != EChoiceKind::Reroll && !AnswerChoice(Now))
+			// Elecciones de dados, salto, acción y trilero (S-009, S-010): al instante. La repetición, en la tirada, tras la línea
+			// del turno. Contestada una, se vuelve a mirar: puede abrir otra en el acto (salto rechazado y acción en el Nodo,
+			// robo y runa de Koschei). Hasta S-010 se seguía hacia AdvanceTurn con la nueva abierta y la simulación se paraba.
+			if (State.PendingChoice.IsOpen() && State.PendingChoice.Kind != EChoiceKind::Reroll)
 			{
-				return TNumericLimits<double>::Max();
+				if (!AnswerChoice(Now))
+				{
+					return TNumericLimits<double>::Max();
+				}
+				continue;
 			}
 			if (State.TurnPhase == ETurnPhase::RollAndChoose)
 			{
@@ -273,6 +311,12 @@ FSimulationResult FMatchSimulation::Run()
 				// Tras el minijuego puede quedar abierta una elección (S-009, R-INT-1): se contesta al principio del bucle.
 				continue;
 			}
+			// Trilero (S-010): la muestra y la mezcla duran tiempo de partida, en datos; se vuelve al acabar la etapa. Sus
+			// elecciones (runa de Koschei, esfera) se contestan al instante al principio del bucle, como las demás.
+			if (State.TurnPhase == ETurnPhase::ShellGame && !State.PendingChoice.IsOpen() && Now < State.ShellGame.StageDeadlineSeconds)
+			{
+				return State.ShellGame.StageDeadlineSeconds;
+			}
 			if (!Soulbound::Rules::AdvanceTurn(State, Now, Rng) && State.TurnPhase != ETurnPhase::RollAndChoose)
 			{
 				// La máquina no avanza fuera de una espera: estado sin orden de turno. No se vuelve a llamar.
@@ -295,7 +339,7 @@ FSimulationResult FMatchSimulation::Run()
 
 		if (bEvaluationFirst)
 		{
-			const FWardenDecision Decision = Brain.Evaluate(State, Rng);
+			const FWardenDecision Decision = Brain.Evaluate(State, WardenRng);
 			FWardenBrain::Apply(State, Decision);
 			++Result.Evaluations;
 			if (Decision.IsIntervention())

@@ -137,14 +137,14 @@ bool FRaceDummyDecider::PassSkillMinigame(const FMatchState& State, int32 Seat, 
 
 int32 FDummyDecider::ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng)
 {
-	// Al azar entre las opciones y "no" (INDEX_NONE) si la elección lo admite, todas con la misma probabilidad.
-	const int32 Count = Choice.Options.Num() + (Choice.CanDecline() ? 1 : 0);
+	// Al azar entre las opciones y "no" (INDEX_NONE) si la elección lo admite, todas con la misma probabilidad. Las opciones
+	// se cuentan por posición (S-010): así la acción contra un jugador, que se contesta por índice, entra igual.
+	const int32 Count = Choice.AnswerCount() + (Choice.CanDecline() ? 1 : 0);
 	if (Count == 0)
 	{
 		return INDEX_NONE;
 	}
-	const int32 Pick = Rng.RandRange(0, Count - 1);
-	return Choice.Options.IsValidIndex(Pick) ? Choice.Options[Pick] : INDEX_NONE;
+	return Choice.AnswerAt(Rng.RandRange(0, Count - 1));
 }
 
 int32 FRaceDummyDecider::ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng)

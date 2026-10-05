@@ -9,8 +9,9 @@ class IDecider;
 struct SOULBOUNDCORE_API FSimulationParams
 {
 	/**
-	 * Semilla de la partida: inicio, dados y cerebro del Warden. Los decisores reciben otro generador con semilla
-	 * Seed + 1 y nunca el de la partida: la misma semilla da los mismos dados ocupe quien ocupe cada asiento.
+	 * Semilla de la partida: inicio y dados. Los decisores reciben otro generador con semilla Seed + 1 y el cerebro del
+	 * Warden otro con Seed + 2 (desde S-010, como en el juego), nunca el de la partida: la misma semilla da los mismos
+	 * dados ocupe quien ocupe cada asiento.
 	 */
 	int32 Seed = 1;
 	/** Duración de la partida en segundos virtuales (40 minutos). */
@@ -48,6 +49,10 @@ struct SOULBOUNDCORE_API FSimulationResult
  * StartMatch y juega los turnos con la máquina de turnos del motor (Match/TurnRules.h): la simulación consulta a
  * los decisores y avanza el reloj, pero no contiene reglas de turno. El cerebro del Warden sigue siendo el del spike.
  * La partida acaba al llegar a DurationSeconds o, antes, al terminar con victoria del Warden (R-CAR-8, S-006).
+ * Tres sorteos separados, en simulación y en juego (decisión del autor del 05/10/2026, S-010): partida (inicio, dados y
+ * sorteos de reglas) con Seed, decisores con Seed + 1 y Warden con Seed + 2, igual que UWardenHostSubsystem. Antes el
+ * Warden de la simulación compartía el sorteo de la partida: un trilero, que dura tiempo de partida, cambiaba en qué
+ * turno caía cada evaluación y con ello los dados.
  */
 class SOULBOUNDCORE_API FMatchSimulation
 {

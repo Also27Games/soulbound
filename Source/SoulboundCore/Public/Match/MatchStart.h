@@ -44,6 +44,8 @@ namespace Soulbound::Rules
 	 *  - R-TUR-1: se sortea el orden de turno, una permutación de los cuatro asientos; juega primero el primero.
 	 *    Se sortea después de lo anterior, así una misma semilla da los mismos Nodos y Olvidados que antes de S-003.
 	 *  - R-ELE-1: los seis Elegidos viajan en el estado (FMatchState::Elects).
+	 *  - R-ROB-6 (S-010): saca del sorteo, el último, el valor base de las semillas de mezcla del trilero
+	 *    (FMatchState::ShellSeedBase). Desde S-010 los dados de cada semilla no son los de antes.
 	 * Board: tablero válido (se comprueba con ValidateBoard). Params: parámetros de partida válidos (se comprueban con
 	 * ValidateMatchParams). Elects: los seis Elegidos, válidos (ValidateElects); no hay modo sin ellos. PlayerCount: asientos ocupados por humanos o bots, de 1 a 4; en Fase 1 los bots rellenan
 	 * los huecos y siempre es 4. Random: sorteo; misma semilla, mismo resultado.

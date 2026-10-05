@@ -45,6 +45,22 @@ namespace Soulbound::Rules
 		{
 			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("S-009: el reloj de elección debe ser mayor que cero (es %g)."), Params.ChoiceClockSeconds));
 		}
+		const TPair<const TCHAR*, double> ShellTimes[] = {
+			{TEXT("la muestra del trilero"), Params.ShellRevealSeconds},
+			{TEXT("la mezcla del trilero"), Params.ShellShuffleSeconds},
+			{TEXT("el tiempo de elección de esfera"), Params.ShellPickSeconds},
+		};
+		for (const TPair<const TCHAR*, double>& Time : ShellTimes)
+		{
+			if (!(Time.Value > 0.0))
+			{
+				return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-ROB-2: %s debe durar más de cero segundos (es %g)."), Time.Key, Time.Value));
+			}
+		}
+		if (Params.ShellSwapCount < 1)
+		{
+			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-ROB-2: la mezcla del trilero necesita al menos un intercambio (son %d)."), Params.ShellSwapCount));
+		}
 		return FMatchParamsLoadResult();
 	}
 
@@ -66,13 +82,23 @@ namespace Soulbound::Rules
 		{
 			return Reject(EMatchParamsError::MalformedData, TEXT("El parámetro \"raceDurationSeconds\" falta o no es un número."));
 		}
-		if (!ReadNumberField(*Root, TEXT("choiceClockSeconds"), Params.ChoiceClockSeconds))
+		const TPair<const TCHAR*, double*> Times[] = {
+			{TEXT("choiceClockSeconds"), &Params.ChoiceClockSeconds},
+			{TEXT("shellRevealSeconds"), &Params.ShellRevealSeconds},
+			{TEXT("shellShuffleSeconds"), &Params.ShellShuffleSeconds},
+			{TEXT("shellPickSeconds"), &Params.ShellPickSeconds},
+		};
+		for (const TPair<const TCHAR*, double*>& Time : Times)
 		{
-			return Reject(EMatchParamsError::MalformedData, TEXT("El parámetro \"choiceClockSeconds\" falta o no es un número."));
+			if (!ReadNumberField(*Root, Time.Key, *Time.Value))
+			{
+				return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("El parámetro \"%s\" falta o no es un número."), Time.Key));
+			}
 		}
 		const TPair<const TCHAR*, int32*> Caps[] = {
 			{TEXT("maxExtraTurns"), &Params.MaxExtraTurns},
 			{TEXT("maxLostTurns"), &Params.MaxLostTurns},
+			{TEXT("shellSwapCount"), &Params.ShellSwapCount},
 		};
 		for (const TPair<const TCHAR*, int32*>& Cap : Caps)
 		{

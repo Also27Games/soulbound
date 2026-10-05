@@ -35,16 +35,19 @@ public:
 	virtual bool PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng) = 0;
 
 	/**
-	 * Contesta la elección pendiente Choice del asiento Seat (S-009): una de Choice.Options, o INDEX_NONE para "no" si
-	 * la elección lo admite (FPendingChoice::CanDecline). Quien avanza la partida la pregunta cuando la máquina espera
-	 * una elección y entrega la respuesta con SubmitChoiceIntent, igual que el destino. Nombre propuesto en S-009.
+	 * Contesta la elección pendiente Choice del asiento Seat (S-009): una respuesta válida (FPendingChoice::AnswerAt, un
+	 * valor de Options o, en la acción contra un jugador, el índice de una opción), o INDEX_NONE para "no" si la elección
+	 * lo admite (FPendingChoice::CanDecline). Quien avanza la partida la pregunta cuando la máquina espera una elección y
+	 * entrega la respuesta con SubmitChoiceIntent, igual que el destino. Desde S-010 se pregunta al decisor del asiento al
+	 * que se le pide (Choice.Seat), que puede no tener el turno: Koschei víctima aparta una runa. Nombre propuesto en S-009.
 	 */
 	virtual int32 ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng) = 0;
 };
 
 /**
  * Dummy: elige al azar con el generador que le pasan, así la simulación sigue siendo determinista por semilla. En las
- * elecciones, al azar entre las opciones y "no" si la elección lo admite, todas con la misma probabilidad (S-009).
+ * elecciones, al azar entre las opciones y "no" si la elección lo admite, todas con la misma probabilidad (S-009): roba
+ * a cualquiera de los objetivos o a ninguno, elige cualquier esfera y, si es Koschei, aparta cualquier runa (S-010).
  */
 class SOULBOUNDCORE_API FDummyDecider : public IDecider
 {

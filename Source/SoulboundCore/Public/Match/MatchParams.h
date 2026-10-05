@@ -86,9 +86,10 @@ struct SOULBOUNDCORE_API FMatchParamsLoadResult
 namespace Soulbound::Rules
 {
 	/**
-	 * Comprueba que unos parámetros de partida tienen sentido: reloj de turno, duración de la carrera y reloj de
-	 * elección mayores que cero, y topes enteros mayores o iguales que cero. Params: los parámetros a comprobar. Devuelve None o MalformedData con el motivo;
-	 * el campo Params del resultado queda vacío.
+	 * Comprueba que unos parámetros de partida tienen sentido: reloj de turno, duración de la carrera, reloj de elección
+	 * y tiempos del trilero (muestra, mezcla y elección de esfera) mayores que cero, topes enteros mayores o iguales que
+	 * cero y al menos un intercambio en la mezcla. Params: los parámetros a comprobar. Devuelve None o MalformedData con el
+	 * motivo; el campo Params del resultado queda vacío.
 	 */
 	SOULBOUNDCORE_API FMatchParamsLoadResult ValidateMatchParams(const FMatchParams& Params);
 
