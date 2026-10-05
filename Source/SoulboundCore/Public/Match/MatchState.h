@@ -221,6 +221,9 @@ enum class EShellGameStage : uint8
  * esferas, FMatchParams::ShellSwapCount), una función pura que la interfaz podrá animar. Solo lo escriben las reglas de
  * Match/ShellGameRules.h. Las runas no salen del Brazal de la víctima mientras dura: las esferas son una copia.
  */
+// TODO(R-RED-1): Orbs y Seed permiten a un cliente calcular el resultado de la mezcla (qué runa acaba en cada esfera) antes
+// de elegir. Qué se replica del trilero y cuándo (por ejemplo, la secuencia de intercambios sin las runas, y la runa solo al
+// resolverse) se decide en la story de multijugador.
 USTRUCT()
 struct SOULBOUNDCORE_API FShellGameState
 {
