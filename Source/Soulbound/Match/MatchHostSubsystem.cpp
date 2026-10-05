@@ -147,28 +147,34 @@ void UMatchHostSubsystem::Advance()
 
 		const int32 Seat = State.ActiveSeat;
 		const bool bDummy = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid();
+		// Quien decide ahora: el asiento de la elección abierta, que puede no tener el turno (S-010: Koschei víctima aparta
+		// una runa); sin elección, el activo.
+		const int32 ChoiceSeat = State.PendingChoice.IsOpen() ? State.PendingChoice.Seat : Seat;
+		const bool bChoiceDummy = Deciders.IsValidIndex(ChoiceSeat) && Deciders[ChoiceSeat].IsValid();
 		// Una decisión pendiente de otro turno (otro asiento u otro TurnCount) o de otra cosa (otra elección, o el destino
 		// tras una elección) ya no vale: se descarta.
-		if (Pending.bPending && (Pending.Seat != Seat || Pending.TurnCount != State.TurnCount || Pending.ChoiceKind != State.PendingChoice.Kind))
+		if (Pending.bPending && (Pending.Seat != ChoiceSeat || Pending.TurnCount != State.TurnCount || Pending.ChoiceKind != State.PendingChoice.Kind))
 		{
 			Pending.bPending = false;
 		}
-		if (State.PendingChoice.IsOpen() && bDummy)
+		if (State.PendingChoice.IsOpen() && bChoiceDummy)
 		{
-			// Elecciones (S-009): dados, repetir, salto y acción. Se pregunta al decisor y se entrega su respuesta a su hora,
-			// como el destino; la repetición se contesta antes de elegir destino.
+			// Elecciones (S-009, S-010): dados, repetir, salto, acción, runa de Koschei y esfera. Se pregunta al decisor del
+			// asiento al que se le pide y se entrega su respuesta a su hora, como el destino; la repetición se contesta antes
+			// de elegir destino. La hora es el retardo del dummy o, si el plazo es más corto (la esfera del trilero), la mitad
+			// de lo que queda: un dummy nunca agota una elección.
 			if (!Pending.bPending)
 			{
 				Pending.bPending = true;
-				Pending.Seat = Seat;
+				Pending.Seat = ChoiceSeat;
 				Pending.TurnCount = State.TurnCount;
 				Pending.ChoiceKind = State.PendingChoice.Kind;
-				Pending.ReadyAtSeconds = Now + DummyResponseSeconds;
-				Pending.Option = Deciders[Seat]->ChooseOption(State, Seat, State.PendingChoice, DeciderRng);
+				Pending.ReadyAtSeconds = Now + FMath::Min(static_cast<double>(DummyResponseSeconds), 0.5 * (State.PendingChoice.DeadlineSeconds - Now));
+				Pending.Option = Deciders[ChoiceSeat]->ChooseOption(State, ChoiceSeat, State.PendingChoice, DeciderRng);
 			}
 			if (Now >= Pending.ReadyAtSeconds)
 			{
-				bChanged |= Soulbound::Rules::SubmitChoiceIntent(State, Seat, Pending.ChoiceKind, Pending.Option, Now, MatchRng) == EIntentResult::Accepted;
+				bChanged |= Soulbound::Rules::SubmitChoiceIntent(State, ChoiceSeat, Pending.ChoiceKind, Pending.Option, Now, MatchRng) == EIntentResult::Accepted;
 				Pending.bPending = false;
 				continue;
 			}

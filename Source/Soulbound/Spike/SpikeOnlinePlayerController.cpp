@@ -100,17 +100,19 @@ void ASpikeOnlinePlayerController::OnChoiceKey(int32 Number)
 	{
 		return;
 	}
-	// El número es la posición de la opción en la línea de petición de la vista; 0 es "no". Una posición que no existe se
-	// ignora: el humano no ha elegido ninguna opción. El tipo de elección es el pendiente; si cambia antes de llegar, el
-	// motor rechaza la respuesta por fase.
+	// El número es la posición de la opción en la línea de petición de la vista; 0 es "no" en las elecciones que lo admiten
+	// y la décima opción en las que no (la esfera del trilero, S-010). Una posición que no existe se ignora: el humano no ha
+	// elegido ninguna opción. El tipo de elección es el pendiente; si cambia antes de llegar, el motor rechaza la respuesta
+	// por fase, y si no es suya, por asiento.
 	const FPendingChoice& Choice = Match->GetState().PendingChoice;
-	if (Number == 0)
+	const int32 Position = Number == 0 ? (Choice.CanDecline() ? INDEX_NONE : 9) : Number - 1;
+	if (Position == INDEX_NONE)
 	{
 		Match->SubmitHumanChoice(Choice.Kind, INDEX_NONE);
 	}
-	else if (Choice.Options.IsValidIndex(Number - 1))
+	else if (Position < Choice.AnswerCount())
 	{
-		Match->SubmitHumanChoice(Choice.Kind, Choice.Options[Number - 1]);
+		Match->SubmitHumanChoice(Choice.Kind, Choice.AnswerAt(Position));
 	}
 }
 

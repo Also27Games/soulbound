@@ -55,6 +55,7 @@ namespace
 		case ETurnPhase::RollAndChoose: return TEXT("tirada y destino");
 		case ETurnPhase::MoveAndResolve: return TEXT("movimiento");
 		case ETurnPhase::SkillTrial: return TEXT("minijuego de la Fuente");
+		case ETurnPhase::ShellGame: return TEXT("trilero");
 		case ETurnPhase::End: return TEXT("fin de turno");
 		}
 		return TEXT("?");
@@ -101,10 +102,40 @@ namespace
 		}
 	}
 
+	/** Tecla de la opción en la posición Index (S-010): 1 a 9, y 0 para la décima si la elección no admite "no". Vacía si no tiene. */
+	FString OptionKey(const FPendingChoice& Choice, int32 Index)
+	{
+		if (Index < 9)
+		{
+			return FString::Printf(TEXT("[%d]"), Index + 1);
+		}
+		return Index == 9 && !Choice.CanDecline() ? FString(TEXT("[0]")) : FString(TEXT("[sin tecla]"));
+	}
+
+	/** Texto de la opción en la posición Index de la elección pendiente, para la línea de petición (S-009, S-010). */
+	FString OptionText(const FMatchState& State, int32 Index)
+	{
+		const FPendingChoice& Choice = State.PendingChoice;
+		switch (Choice.Kind)
+		{
+		case EChoiceKind::DiceCount: return Choice.Options[Index] > 1 ? TEXT("dos dados") : TEXT("un dado");
+		case EChoiceKind::PlanarJump: return Soulbound::Presentation::TileShortName(State.Board, Choice.Options[Index]);
+		case EChoiceKind::PlayerAction:
+		{
+			const FPlayerActionOption& Action = Choice.ActionOptions[Index];
+			return FString::Printf(TEXT("%s al asiento %d"), Action.Action == EPlayerAction::Steal ? TEXT("Robar") : TEXT("Expulsar"), Action.TargetSeat);
+		}
+		case EChoiceKind::SafeRune: return FString::Printf(TEXT("D%d"), Choice.Options[Index]);
+		case EChoiceKind::ShellPick: return FString::Printf(TEXT("esfera %d"), Index + 1);
+		default: return FString::FromInt(Choice.AnswerAt(Index));
+		}
+	}
+
 	/**
 	 * Línea de petición de la elección pendiente (S-009): qué se elige, las opciones numeradas como las contestan las
-	 * teclas (1 a 9, y 0 para "no") y el tiempo que queda. Para el humano, en imperativo y con sus teclas; para un dummy,
-	 * qué está decidiendo. Solo lee el estado.
+	 * teclas (1 a 9, y 0 para "no" o, si no se admite, la décima) y el tiempo que queda. Para el humano, en imperativo y con
+	 * sus teclas; para un dummy, qué está decidiendo. Desde S-010 la elección puede ser de un asiento sin turno (Koschei
+	 * víctima): bHuman es si se le pide al humano, tenga o no el turno. Solo lee el estado.
 	 */
 	FString ChoicePrompt(const FMatchState& State, bool bHuman)
 	{
@@ -113,18 +144,18 @@ namespace
 		if (Choice.Kind == EChoiceKind::Reroll)
 		{
 			return bHuman ? FString::Printf(TEXT("REPETIR: [R] repite la tirada (una vez por turno), o clic en una casilla blanca | %s"), *Left)
-				: FString::Printf(TEXT("el asiento %d decide si repite la tirada | %s"), State.ActiveSeat, *Left);
+				: FString::Printf(TEXT("el asiento %d decide si repite la tirada | %s"), Choice.Seat, *Left);
 		}
-		const TCHAR* What = Choice.Kind == EChoiceKind::DiceCount ? TEXT("dados") : Choice.Kind == EChoiceKind::PlanarJump ? TEXT("salto planar") : TEXT("expulsion");
-		const TCHAR* No = Choice.Kind == EChoiceKind::PlanarJump ? TEXT("no saltar") : TEXT("no expulsar");
+		const TCHAR* What = Choice.Kind == EChoiceKind::DiceCount ? TEXT("dados")
+			: Choice.Kind == EChoiceKind::PlanarJump ? TEXT("salto planar")
+			: Choice.Kind == EChoiceKind::SafeRune ? TEXT("la runa que Koschei pone a salvo del trilero")
+			: Choice.Kind == EChoiceKind::ShellPick ? TEXT("esfera")
+			: TEXT("accion contra un jugador");
+		const TCHAR* No = Choice.Kind == EChoiceKind::PlanarJump ? TEXT("no saltar") : TEXT("nada");
 		TArray<FString> Parts;
-		for (int32 Index = 0; Index < Choice.Options.Num(); ++Index)
+		for (int32 Index = 0; Index < Choice.AnswerCount(); ++Index)
 		{
-			const int32 Option = Choice.Options[Index];
-			const FString Text = Choice.Kind == EChoiceKind::DiceCount ? FString(Option > 1 ? TEXT("dos dados") : TEXT("un dado"))
-				: Choice.Kind == EChoiceKind::PlanarJump ? Soulbound::Presentation::TileShortName(State.Board, Option)
-				: FString::Printf(TEXT("asiento %d"), Option);
-			Parts.Add(FString::Printf(TEXT("[%d] %s"), Index + 1, *Text));
+			Parts.Add(FString::Printf(TEXT("%s %s"), *OptionKey(Choice, Index), *OptionText(State, Index)));
 		}
 		if (Choice.CanDecline())
 		{
@@ -132,7 +163,44 @@ namespace
 		}
 		const FString Hint = bHuman && Choice.Kind == EChoiceKind::PlanarJump ? TEXT(" (o clic en un Nodo con halo)") : TEXT("");
 		return bHuman ? FString::Printf(TEXT("ELIGE %s: %s%s | %s"), What, *FString::Join(Parts, TEXT(" ")), *Hint, *Left)
-			: FString::Printf(TEXT("el asiento %d elige %s: %s | %s"), State.ActiveSeat, What, *FString::Join(Parts, TEXT(" ")), *Left);
+			: FString::Printf(TEXT("el asiento %d elige %s: %s | %s"), Choice.Seat, What, *FString::Join(Parts, TEXT(" ")), *Left);
+	}
+
+	/**
+	 * Línea del trilero en curso (S-010), sin animación (decisión del autor del 05/10/2026): quién roba a quién; durante la
+	 * muestra, las runas de la víctima a la vista (y la que apartó Koschei); durante la mezcla, solo cuántas esferas; en la
+	 * elección, las esferas numeradas. Con el tiempo de cada etapa. Vacía si no hay trilero. Solo lee el estado.
+	 */
+	FString ShellGameLine(const FMatchState& State)
+	{
+		const FShellGameState& Game = State.ShellGame;
+		const FString Who = FString::Printf(TEXT("TRILERO: el asiento %d roba al asiento %d"), Game.Thief, Game.Victim);
+		const double StageLeft = FMath::Max(0.0, Game.StageDeadlineSeconds - State.ClockSeconds);
+		switch (Game.Stage)
+		{
+		case EShellGameStage::SafeRune:
+			return Who + TEXT(" (Koschei): antes aparta una runa, que no entra en la mezcla");
+		case EShellGameStage::Reveal:
+		{
+			const FString Runes = FString::JoinBy(Game.Orbs, TEXT(" "), [](int32 Rune) { return FString::Printf(TEXT("D%d"), Rune); });
+			const FString Aside = Game.SetAsideRune != INDEX_NONE ? FString::Printf(TEXT(" (a salvo: D%d)"), Game.SetAsideRune) : FString();
+			return FString::Printf(TEXT("%s | runas a la vista: %s%s | muestra: quedan %.0f s"), *Who, *Runes, *Aside, StageLeft);
+		}
+		case EShellGameStage::Shuffle:
+			return FString::Printf(TEXT("%s | mezclando %d esferas | quedan %.0f s"), *Who, Game.Orbs.Num(), StageLeft);
+		case EShellGameStage::Pick:
+		{
+			TArray<FString> Orbs;
+			for (int32 Index = 0; Index < Game.Orbs.Num(); ++Index)
+			{
+				Orbs.Add(FString::Printf(TEXT("(%d)"), Index + 1));
+			}
+			return FString::Printf(TEXT("%s | esferas: %s | el ladron elige a ciegas"), *Who, *FString::Join(Orbs, TEXT(" ")));
+		}
+		case EShellGameStage::None:
+		default:
+			return FString();
+		}
 	}
 
 	/** Nombre del Elegido del Dominio, de elegidos.json (S-008); vacío si el Dominio no tiene Elegido. */
@@ -990,11 +1058,18 @@ void ABoardViewActor::TickHud()
 		State.Roll, State.DiceCount > 1 ? TEXT(" (dos dados)") : TEXT(""), *Clock, bHumanTurn ? TEXT("  <- tu turno: clic en una casilla blanca") : TEXT("")));
 	}
 
-	// Elección pendiente (S-009): la línea de petición, en verde si es del humano (teclas 1 a 9 y 0; R para repetir).
+	// Elección pendiente (S-009): la línea de petición, en verde si es del humano (teclas 1 a 9 y 0; R para repetir). Desde
+	// S-010, también cuando se le pide al humano sin tener el turno (Koschei víctima).
 	if (State.PendingChoice.IsOpen() && !State.IsMatchOver())
 	{
-		const bool bHumanChoice = State.ActiveSeat == HostPtr->GetHumanSeat();
+		const bool bHumanChoice = State.PendingChoice.Seat == HostPtr->GetHumanSeat();
 		ShowText(8, bHumanChoice ? FColor::Green : FColor(190, 190, 190), ChoicePrompt(State, bHumanChoice));
+	}
+
+	// Trilero (S-010): quién roba a quién y qué se ve en cada etapa; las esferas, numeradas y sin animación.
+	if (State.ShellGame.IsActive() && !State.IsMatchOver())
+	{
+		ShowText(9, FColor::Magenta, ShellGameLine(State));
 	}
 
 	// Paso a paso (S-007): lo que espera, bien visible.

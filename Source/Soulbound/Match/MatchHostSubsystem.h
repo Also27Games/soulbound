@@ -61,9 +61,10 @@ public:
 	EIntentResult SubmitHumanIntent(int32 TileId);
 
 	/**
-	 * Respuesta del asiento humano a su elección pendiente (S-009): dados, repetir, salto o expulsión. Se entrega tal cual
-	 * a SubmitChoiceIntent, como el destino: el motor decide si vale. Kind: el tipo de elección que contesta. Option: una
-	 * de sus opciones, o INDEX_NONE para "no". Devuelve lo que dijo el motor.
+	 * Respuesta del asiento humano a su elección pendiente (S-009): dados, repetir, salto, acción contra un jugador, runa
+	 * de Koschei o esfera del trilero (S-010), también cuando no tiene el turno. Se entrega tal cual a SubmitChoiceIntent,
+	 * como el destino: el motor decide si vale. Kind: el tipo de elección que contesta. Option: una respuesta válida
+	 * (FPendingChoice::AnswerAt), o INDEX_NONE para "no". Devuelve lo que dijo el motor.
 	 */
 	EIntentResult SubmitHumanChoice(EChoiceKind Kind, int32 Option);
 
@@ -113,7 +114,8 @@ public:
 
 	/**
 	 * Segundos que tarda un dummy en confirmar su destino desde que tiene la tirada, y en contestar cada elección (S-009).
-	 * Valor inicial 5 (como en la simulación, S-003); menor que el reloj de elección, así un dummy nunca lo agota.
+	 * Valor inicial 5 (como en la simulación, S-003); menor que el reloj de elección, así un dummy nunca lo agota. Si el
+	 * plazo de una elección es más corto (la esfera del trilero, S-010), contesta a la mitad de lo que queda.
 	 */
 	UPROPERTY(Config)
 	float DummyResponseSeconds = 5.f;
