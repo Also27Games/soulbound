@@ -134,3 +134,20 @@ bool FRaceDummyDecider::PassSkillMinigame(const FMatchState& State, int32 Seat, 
 {
 	return FDummyDecider().PassSkillMinigame(State, Seat, Trial, Difficulty, Rng);
 }
+
+int32 FDummyDecider::ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng)
+{
+	// Al azar entre las opciones y "no" (INDEX_NONE) si la elección lo admite, todas con la misma probabilidad.
+	const int32 Count = Choice.Options.Num() + (Choice.CanDecline() ? 1 : 0);
+	if (Count == 0)
+	{
+		return INDEX_NONE;
+	}
+	const int32 Pick = Rng.RandRange(0, Count - 1);
+	return Choice.Options.IsValidIndex(Pick) ? Choice.Options[Pick] : INDEX_NONE;
+}
+
+int32 FRaceDummyDecider::ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng)
+{
+	return FDummyDecider().ChooseOption(State, Seat, Choice, Rng);
+}

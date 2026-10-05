@@ -3,7 +3,8 @@
 // Determinismo por semilla, coste por partida y uso de la máquina de turnos. Desde S-004, los Sellos de partidas
 // enteras cumplen R-TAB-22 y la crónica cuenta los que caen por el tope. Desde S-006, la carrera por el vínculo con
 // cuatro dummies de carrera: simulación y crónica sobre el tablero de 35 casillas, e informe de 50 semillas por cada
-// tablero de Content/Data/Boards. Los tests del motor no leen la configuración del juego.
+// tablero de Content/Data/Boards. Desde S-009, las elecciones de los dummies (dados, repetición, salto y expulsión) y
+// sus cifras en el informe. Los tests del motor no leen la configuración del juego.
 // Se lanzan con Scripts/test.ps1.
 
 #include "Decider/Decider.h"
@@ -59,17 +60,43 @@ namespace
 		{
 			return true;
 		}
+
+		/** S-009: también gasta tres valores y elige la última opción: dos dados, repetir, el último Nodo, el último asiento. */
+		virtual int32 ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng) override
+		{
+			for (int32 Draw = 0; Draw < 3; ++Draw)
+			{
+				Rng.GetFraction();
+			}
+			return Choice.Options.IsEmpty() ? INDEX_NONE : Choice.Options.Last();
+		}
 	};
 
-	/** Tiradas de la partida en orden, tal como las registró el motor. */
-	TArray<int32> RollSequence(const FSimulationResult& Result)
+	/** Una tirada del registro y con cuántos dados se hizo (S-009: dos si el asiento lo eligió con Celeridad). */
+	struct FLoggedRoll
 	{
-		TArray<int32> Rolls;
+		int32 Roll = 0;
+		int32 Dice = Soulbound::Dice::DefaultCount;
+	};
+
+	/** Tiradas de la partida en orden, tal como las registró el motor, con sus dados (DiceChosen del mismo turno). */
+	TArray<FLoggedRoll> RollSequence(const FSimulationResult& Result)
+	{
+		TArray<FLoggedRoll> Rolls;
+		int32 Dice = Soulbound::Dice::DefaultCount;
 		for (const FMatchEvent& Event : Result.FinalState.EventLog)
 		{
-			if (Event.Type == EMatchEventType::Rolled)
+			if (Event.Type == EMatchEventType::TurnStarted)
 			{
-				Rolls.Add(Event.Value);
+				Dice = Soulbound::Dice::DefaultCount;
+			}
+			else if (Event.Type == EMatchEventType::DiceChosen)
+			{
+				Dice = Event.Value;
+			}
+			else if (Event.Type == EMatchEventType::Rolled)
+			{
+				Rolls.Add({Event.Value, Dice});
 			}
 		}
 		return Rolls;
@@ -126,22 +153,32 @@ bool FMatchSimulationDeterminismTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Misma semilla, mismo estado final"), Soulbound::Tests::SameState(A.FinalState, B.FinalState));
 
 	// Misma semilla, mismos dados, ocupe quien ocupe cada asiento (grabación y reproducción, GDD 08): los decisores
-	// no tocan el sorteo de la partida. Se cambia el decisor del asiento 2 por uno que gasta y elige distinto.
+	// no tocan el sorteo de la partida. Se cambia el decisor del asiento 2 por uno que gasta y elige distinto. Desde
+	// S-009 una tirada consume siempre los mismos valores del sorteo (decisión del autor del 04/10/2026), pero con
+	// Celeridad su resultado depende de cuántos dados se eligieron: se comparan las tiradas hechas con los mismos dados
+	// en las dos partidas.
 	TArray<TSharedPtr<IDecider>> Mixed = FourDummies();
 	Mixed[2] = MakeShared<FLastOptionDecider>();
 	const FSimulationResult Other = FMatchSimulation(Params, MoveTemp(Mixed)).Run();
-	const TArray<int32> RollsA = RollSequence(A);
-	const TArray<int32> RollsOther = RollSequence(Other);
+	const TArray<FLoggedRoll> RollsA = RollSequence(A);
+	const TArray<FLoggedRoll> RollsOther = RollSequence(Other);
 	TestTrue(TEXT("Hay tiradas"), RollsA.Num() > 0);
 	TestEqual(TEXT("Con otro decisor en un asiento, el mismo número de tiradas"), RollsOther.Num(), RollsA.Num());
+	int32 Compared = 0;
 	for (int32 i = 0; i < FMath::Min(RollsA.Num(), RollsOther.Num()); ++i)
 	{
-		if (RollsA[i] != RollsOther[i])
+		if (RollsA[i].Dice != RollsOther[i].Dice)
 		{
-			AddError(FString::Printf(TEXT("Con otro decisor en el asiento 2, la tirada %d cambia: %d frente a %d"), i, RollsA[i], RollsOther[i]));
+			continue;
+		}
+		++Compared;
+		if (RollsA[i].Roll != RollsOther[i].Roll)
+		{
+			AddError(FString::Printf(TEXT("Con otro decisor en el asiento 2, la tirada %d cambia: %d frente a %d"), i, RollsA[i].Roll, RollsOther[i].Roll));
 			break;
 		}
 	}
+	TestTrue(TEXT("Hay tiradas con los mismos dados que comparar"), Compared > 0);
 	TestFalse(TEXT("Y la partida es otra: el decisor distinto sí cambia los destinos"), Soulbound::Tests::SameState(A.FinalState, Other.FinalState));
 
 	// Los turnos no son una constante: salen de los parámetros. El dummy confirma a los DummyResponseSeconds de
@@ -418,7 +455,8 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 	// Herramienta de lectura, no un criterio sobre cifras (criterio "Simulación" de S-006): por cada tablero de
 	// Content/Data/Boards, 50 partidas con cuatro dummies de carrera (semillas fijas 1 a 50). Imprime un bloque por
 	// tablero: % de partidas sin ningún vínculo, Elegidos por partida de media, % de asientos que quedan Eco y segundo
-	// medio de fin de carrera. Objetivo del GDD 03, para el autor: nadie vinculado < 5 %, Eco por jugador entre 15 y
+	// medio de fin de carrera; desde S-009, también el % de tiradas con dos dados y los saltos planares y expulsiones por
+	// partida. Objetivo del GDD 03, para el autor: nadie vinculado < 5 %, Eco por jugador entre 15 y
 	// 35 %. Solo comprueba que cada partida cierra su carrera. Imprime con SOULBOUND_INFORME=1 (Scripts/test.ps1
 	// -Informe); sin ella, una línea de resumen.
 	constexpr int32 Games = 50;
@@ -446,6 +484,10 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 		RunesPerSeat.Init(0, Soulbound::Match::SeatCount);
 		int32 SourcesTotal = 0;
 		int32 SourcesDepleted = 0;
+		int32 Rolls = 0;
+		int32 TwoDiceRolls = 0;
+		int32 Jumps = 0;
+		int32 Expulsions = 0;
 		for (int32 Seed = 1; Seed <= Games; ++Seed)
 		{
 			Params.Seed = Seed;
@@ -476,6 +518,11 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 				SourcesTotal += Tile.Type == ETileType::PowerSource ? 1 : 0;
 				SourcesDepleted += Tile.Type == ETileType::PowerSource && State.Board.Phase == EBoardPhase::Awakened && Tile.RuneReserve == 0 ? 1 : 0;
 			}
+			// S-009: turnos con dos dados (sobre las tiradas), saltos planares y expulsiones.
+			Rolls += CountEvents(State, EMatchEventType::Rolled);
+			TwoDiceRolls += Soulbound::Tests::EventsOfType(State, EMatchEventType::DiceChosen).FilterByPredicate([](const FMatchEvent& Event) { return Event.Value == 2; }).Num();
+			Jumps += CountEvents(State, EMatchEventType::PlanarJumped);
+			Expulsions += CountEvents(State, EMatchEventType::Expelled);
 		}
 
 		Lines.Add(FString::Printf(TEXT("Informe de carrera | %s | %d casillas | %d partidas | 4 dummies de carrera | carrera de %.0f s"),
@@ -487,6 +534,9 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 		Lines.Add(FString::Printf(TEXT("    runas obtenidas por asiento, de media por partida: %s"),
 			*FString::JoinBy(RunesPerSeat, TEXT(" | "), [](int32 Sum) { return FString::Printf(TEXT("%.2f"), static_cast<double>(Sum) / Games); })));
 		Lines.Add(FString::Printf(TEXT("    Fuentes agotadas al final: %.1f %%"), SourcesTotal > 0 ? 100.0 * SourcesDepleted / SourcesTotal : 0.0));
+		Lines.Add(FString::Printf(TEXT("    turnos con dos dados: %.1f %% de las tiradas"), Rolls > 0 ? 100.0 * TwoDiceRolls / Rolls : 0.0));
+		Lines.Add(FString::Printf(TEXT("    saltos planares por partida, de media: %.2f"), static_cast<double>(Jumps) / Games));
+		Lines.Add(FString::Printf(TEXT("    expulsiones por partida, de media: %.2f"), static_cast<double>(Expulsions) / Games));
 		Lines.Add(FString::Printf(TEXT("    tiempo real: %.3f s en total"), WallSum));
 	}
 
@@ -655,6 +705,78 @@ bool FRaceDummySeeksSourcesTest::RunTest(const FString& Parameters)
 			TestEqual(FString::Printf(TEXT("Asiento %d, semilla %d: la que más acerca a la Fuente válida más cercana"), Seat, Seed), Steps.IsValidIndex(Choice) ? Steps[Choice] : MAX_int32, Best);
 		}
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationChoicesTest,
+	"Soulbound.Core.Simulation.EleccionesConDummies",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationChoicesTest::RunTest(const FString& Parameters)
+{
+	// Criterio "Simulación" (S-009): los dummies eligen al azar entre las opciones de cada elección (incluida "no"), con su
+	// generador. Determinista por semilla y bajo el segundo. Y la crónica cuenta cada elección: una línea por evento.
+
+	// El dummy, con su generador: todas las opciones y "no" salen; "no" nunca en la elección de dados.
+	FPendingChoice Jump;
+	Jump.Kind = EChoiceKind::PlanarJump;
+	Jump.Options = {5, 7};
+	FPendingChoice Dice;
+	Dice.Kind = EChoiceKind::DiceCount;
+	Dice.Options = {1, 2};
+	TSet<int32> JumpAnswers;
+	TSet<int32> DiceAnswers;
+	FMatchState Empty;
+	for (int32 Seed = 1; Seed <= 100; ++Seed)
+	{
+		FRandomStream Rng(Seed);
+		JumpAnswers.Add(FDummyDecider().ChooseOption(Empty, 0, Jump, Rng));
+		DiceAnswers.Add(FRaceDummyDecider().ChooseOption(Empty, 0, Dice, Rng));
+	}
+	TestTrue(TEXT("El dummy elige cada opción y \"no\" en una elección que lo admite"), JumpAnswers.Num() == 3 && JumpAnswers.Contains(5) && JumpAnswers.Contains(7) && JumpAnswers.Contains(INDEX_NONE));
+	TestTrue(TEXT("En la elección de dados, uno o dos y nunca \"no\""), DiceAnswers.Num() == 2 && DiceAnswers.Contains(1) && DiceAnswers.Contains(2));
+
+	// Partidas enteras con dummies de carrera sobre el tablero de 35 casillas (dos Nodos Planares desde S-009), semillas 1 a 20.
+	FSimulationParams Params;
+	if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), 1, Params))
+	{
+		return false;
+	}
+	TSet<int32> DiceChosen;
+	int32 Rerolls = 0;
+	int32 Jumps = 0;
+	int32 Expulsions = 0;
+	for (int32 Seed = 1; Seed <= 20; ++Seed)
+	{
+		Params.Seed = Seed;
+		const FSimulationResult A = FMatchSimulation(Params, FourRaceDummies()).Run();
+		const FSimulationResult B = FMatchSimulation(Params, FourRaceDummies()).Run();
+		const FString Context = FString::Printf(TEXT("Semilla %d"), Seed);
+		TestTrue(Context + TEXT(": mismo registro"), A.Log == B.Log);
+		TestTrue(Context + TEXT(": mismo estado final"), Soulbound::Tests::SameState(A.FinalState, B.FinalState));
+		TestTrue(FString::Printf(TEXT("%s: baja del segundo (%.4f s)"), *Context, A.WallSeconds), A.WallSeconds < 1.0);
+
+		const FMatchState& State = A.FinalState;
+		for (const FMatchEvent& Event : Soulbound::Tests::EventsOfType(State, EMatchEventType::DiceChosen))
+		{
+			DiceChosen.Add(Event.Value);
+		}
+		Rerolls += CountEvents(State, EMatchEventType::Rerolled);
+		Jumps += CountEvents(State, EMatchEventType::PlanarJumped);
+		Expulsions += CountEvents(State, EMatchEventType::Expelled);
+
+		auto CountLines = [&A](const TCHAR* Fragment)
+		{
+			return A.Log.FilterByPredicate([Fragment](const FString& Line) { return Line.Contains(Fragment, ESearchCase::CaseSensitive); }).Num();
+		};
+		TestEqual(Context + TEXT(": cada elección de dados tiene su línea"), CountLines(TEXT(" dados para tirar")), CountEvents(State, EMatchEventType::DiceChosen));
+		TestEqual(Context + TEXT(": cada repetición tiene su línea"), CountLines(TEXT(" repite la tirada")), CountEvents(State, EMatchEventType::Rerolled));
+		TestEqual(Context + TEXT(": cada salto tiene su línea"), CountLines(TEXT(" salta a la casilla ")), CountEvents(State, EMatchEventType::PlanarJumped));
+		TestEqual(Context + TEXT(": cada expulsión tiene su línea"), CountLines(TEXT(" a su hogar de una expulsión")), CountEvents(State, EMatchEventType::Expelled));
+		TestEqual(Context + TEXT(": los dummies contestan al instante, ninguna elección se agota"), CountEvents(State, EMatchEventType::ChoiceExpired), 0);
+	}
+	TestTrue(TEXT("En 20 partidas se eligen uno y dos dados"), DiceChosen.Contains(1) && DiceChosen.Contains(2));
+	AddInfo(FString::Printf(TEXT("20 partidas: %d repeticiones, %d saltos planares, %d expulsiones"), Rerolls, Jumps, Expulsions));
 	return true;
 }
 

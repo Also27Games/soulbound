@@ -22,6 +22,19 @@ namespace
 		return FString::Printf(TEXT("[%02d:%02d]"), Seconds / 60, Seconds % 60);
 	}
 
+	/** Nombre de una elección para la crónica (S-009). */
+	const TCHAR* ChoiceName(int32 Kind)
+	{
+		switch (static_cast<EChoiceKind>(Kind))
+		{
+		case EChoiceKind::DiceCount: return TEXT("dados");
+		case EChoiceKind::Reroll: return TEXT("repetir");
+		case EChoiceKind::PlanarJump: return TEXT("salto planar");
+		case EChoiceKind::Expel: return TEXT("expulsión");
+		default: return TEXT("?");
+		}
+	}
+
 	/** "casilla 17 (Fuente de Poder, Dominio 3)": lo que hace falta para leer adónde va alguien. */
 	FString DescribeTile(const FBoardState& Board, int32 TileId)
 	{
@@ -152,7 +165,43 @@ FSimulationResult FMatchSimulation::Run()
 			{
 				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d devuelve la runa %d a su Fuente"), *Stamp(Event.ClockSeconds), Event.Seat, Event.Value));
 			}
+			else if (Event.Type == EMatchEventType::DiceChosen)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d elige %d dados para tirar"), *Stamp(Event.ClockSeconds), Event.Seat, Event.Value));
+			}
+			else if (Event.Type == EMatchEventType::Rerolled)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d repite la tirada: %d"), *Stamp(Event.ClockSeconds), Event.Seat, Event.Value));
+			}
+			else if (Event.Type == EMatchEventType::PlanarJumped)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d salta a la %s"), *Stamp(Event.ClockSeconds), Event.Seat, *DescribeTile(State.Board, Event.Value)));
+			}
+			else if (Event.Type == EMatchEventType::Expelled)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d manda al asiento %d a su hogar de una expulsión"), *Stamp(Event.ClockSeconds), Event.Seat, Event.Value));
+			}
+			else if (Event.Type == EMatchEventType::ChoiceExpired)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d deja agotar la elección (%s)"), *Stamp(Event.ClockSeconds), Event.Seat, ChoiceName(Event.Value)));
+			}
 		}
+	};
+
+	// Contesta al instante la elección pendiente con el decisor del asiento (S-009), como el minijuego: así la duración
+	// de un turno no depende de lo que se elija, ni los dados de una semilla de quién ocupe cada asiento. Devuelve false
+	// si el motor rechaza la respuesta (no debería: el decisor elige entre las opciones).
+	auto AnswerChoice = [&](double Now) -> bool
+	{
+		const int32 Seat = State.ActiveSeat;
+		const FPendingChoice Choice = State.PendingChoice;
+		LogNewEvents();
+		const bool bHasDecider = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid();
+		const int32 Option = bHasDecider ? Deciders[Seat]->ChooseOption(State, Seat, Choice, DeciderRng)
+			: Choice.CanDecline() || Choice.Options.IsEmpty() ? INDEX_NONE : Choice.Options[0];
+		const bool bAccepted = Soulbound::Rules::SubmitChoiceIntent(State, Seat, Choice.Kind, Option, Now, Rng) == EIntentResult::Accepted;
+		LogNewEvents();
+		return bAccepted;
 	};
 
 	// Juega el turno en el instante actual hasta que haya que esperar a alguien. Devuelve cuándo volver.
@@ -162,14 +211,23 @@ FSimulationResult FMatchSimulation::Run()
 		const double Now = State.ClockSeconds;
 		while (true)
 		{
+			// Elecciones de dados, salto y acción (S-009): al instante. La repetición, en la tirada, tras la línea del turno.
+			if (State.PendingChoice.IsOpen() && State.PendingChoice.Kind != EChoiceKind::Reroll && !AnswerChoice(Now))
+			{
+				return TNumericLimits<double>::Max();
+			}
 			if (State.TurnPhase == ETurnPhase::RollAndChoose)
 			{
 				if (!Pending.bPending)
 				{
 					const int32 Seat = State.ActiveSeat;
 					LogNewEvents();
-					Result.Log.Add(FString::Printf(TEXT("%s Turno %d | asiento %d | tira %d | %d opciones"),
-						*Stamp(Now), State.TurnCount + 1, Seat, State.Roll, State.ReachableOptions.Num()));
+					Result.Log.Add(FString::Printf(TEXT("%s Turno %d | asiento %d | tira %d%s | %d opciones"),
+						*Stamp(Now), State.TurnCount + 1, Seat, State.Roll, State.DiceCount > 1 ? TEXT(" con dos dados") : TEXT(""), State.ReachableOptions.Num()));
+					if (State.PendingChoice.Kind == EChoiceKind::Reroll && !AnswerChoice(Now))
+					{
+						return TNumericLimits<double>::Max();
+					}
 					Pending.bPending = true;
 					Pending.AtSeconds = Now + Params.DummyResponseSeconds;
 					Pending.TileId = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid()
@@ -212,6 +270,8 @@ FSimulationResult FMatchSimulation::Run()
 					return TNumericLimits<double>::Max();
 				}
 				LogNewEvents();
+				// Tras el minijuego puede quedar abierta una elección (S-009, R-INT-1): se contesta al principio del bucle.
+				continue;
 			}
 			if (!Soulbound::Rules::AdvanceTurn(State, Now, Rng) && State.TurnPhase != ETurnPhase::RollAndChoose)
 			{

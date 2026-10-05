@@ -112,8 +112,9 @@ namespace Soulbound::Tests
 	 * El asiento Seat termina su movimiento en TileId en el instante NowSeconds, por la máquina de turnos: se prepara
 	 * su turno en RollAndChoose con esa casilla como única opción (el montaje que el test necesita, sin depender del
 	 * dado), se entrega la intención y se avanza hasta BetweenTurns, que es donde se resuelve el destino. Solo para
-	 * tests. Se detiene también en SkillTrial, a la espera del minijuego (S-008). Devuelve false si la intención no se
-	 * acepta o el turno no llega a terminar ni a quedar en SkillTrial.
+	 * tests. Se detiene también en SkillTrial, a la espera del minijuego (S-008), y en MoveAndResolve con una elección
+	 * pendiente (salto planar o expulsión, S-009). Devuelve false si la intención no se acepta o el turno no llega a
+	 * terminar ni a quedar esperando.
 	 */
 	inline bool LandOn(FMatchState& State, FRandomStream& Random, int32 Seat, int32 TileId, double NowSeconds)
 	{
@@ -126,11 +127,16 @@ namespace Soulbound::Tests
 		{
 			return false;
 		}
-		for (int32 Step = 0; Step < 8 && State.TurnPhase != ETurnPhase::BetweenTurns && State.TurnPhase != ETurnPhase::SkillTrial; ++Step)
+		auto IsWaiting = [&State]()
+		{
+			return State.TurnPhase == ETurnPhase::BetweenTurns || State.TurnPhase == ETurnPhase::SkillTrial
+				|| (State.TurnPhase == ETurnPhase::MoveAndResolve && State.PendingChoice.IsOpen());
+		};
+		for (int32 Step = 0; Step < 8 && !IsWaiting(); ++Step)
 		{
 			Soulbound::Rules::AdvanceTurn(State, NowSeconds, Random);
 		}
-		return State.TurnPhase == ETurnPhase::BetweenTurns || State.TurnPhase == ETurnPhase::SkillTrial;
+		return IsWaiting();
 	}
 
 	/** Dominios con el Nicho en el estado pedido, en orden de identificador. */

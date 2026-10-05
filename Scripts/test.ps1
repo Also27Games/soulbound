@@ -15,7 +15,8 @@
   El test comprueba que la crónica está completa en los dos casos.
   -Informe pone SOULBOUND_INFORME=1 del mismo modo: Soulbound.Core.Simulation.InformeDeCarrera imprime, por cada
   tablero de Content/Data/Boards y sobre 50 partidas con dummies de carrera, el % de partidas sin ningún vínculo, los
-  Elegidos por partida de media, el % de asientos que quedan Eco y el segundo medio de fin de carrera (S-006). Son
+  Elegidos por partida de media, el % de asientos que quedan Eco y el segundo medio de fin de carrera (S-006), las runas
+  y Fuentes (S-008), y el % de tiradas con dos dados y los saltos planares y expulsiones por partida (S-009). Son
   cifras para el autor; el test no las juzga.
   Arranca el editor en modo comandlet (-nullrhi, sin ventana), ejecuta los tests y resume el resultado.
   Devuelve código 1 si algún test falla o si no se ejecutó ninguno. Compila antes con Scripts\build.ps1 -Que editor.

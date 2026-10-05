@@ -62,4 +62,39 @@ namespace Soulbound::Rules
 
 	/** Poderes activos del asiento Seat (IsPowerActive), sin repetir y en el orden de EPower. */
 	SOULBOUNDCORE_API TArray<EPower> GetActivePowers(const FMatchState& State, int32 Seat);
+
+	/**
+	 * Si el asiento Seat tiene la afinidad Affinity (glosario "Afinidad"): solo un Elegido, la de su Elegido, siempre
+	 * activa. Un Eco no tiene afinidad. Nombre propuesto en S-009.
+	 */
+	SOULBOUNDCORE_API bool HasAffinity(const FMatchState& State, int32 Seat, EAffinity Affinity);
+
+	/**
+	 * Nodos Planares a los que puede saltar el asiento Seat desde su casilla (R-POD-5, R-TAB-15): solo con el tablero
+	 * Despierto, si el asiento se ha movido este turno (bActiveSeatMoved), termina en un Nodo Planar y tiene Vuelo
+	 * Planar. Las opciones son los demás Nodos Planares transitables para él (IsPassable, R-TAB-21: uno sellado solo con
+	 * Paso Libre, decisión del autor del 04/10/2026), en orden ascendente. Vacío si no se ofrece el salto.
+	 * Nombre propuesto en S-009.
+	 */
+	SOULBOUNDCORE_API TArray<int32> PlanarJumpOptions(const FMatchState& State, int32 Seat);
+
+	/**
+	 * Asientos que puede expulsar el asiento Seat (R-POD-4): solo si tiene Expulsión y se ha movido este turno; los
+	 * demás asientos de su casilla que no estén ya en su hogar (HomeTile), en orden de asiento. Vacío si no hay a quién.
+	 * Nombre propuesto en S-009.
+	 */
+	SOULBOUNDCORE_API TArray<int32> ExpelTargets(const FMatchState& State, int32 Seat);
+
+	/**
+	 * El asiento Seat salta a la casilla TileId (R-POD-5) y se registra PlanarJumped. No valida: las opciones las da
+	 * PlanarJumpOptions y las valida SubmitChoiceIntent. Nombre propuesto en S-009.
+	 */
+	SOULBOUNDCORE_API void ApplyPlanarJump(FMatchState& State, int32 Seat, int32 TileId, double NowSeconds);
+
+	/**
+	 * El asiento Seat expulsa al asiento Target (R-POD-4): Target pasa a su hogar (HomeTile, R-TAB-13) y se registra
+	 * Expelled. No es un movimiento de Target: no resuelve casilla ni cambia sus turnos (R-INT-4). No valida: los
+	 * objetivos los da ExpelTargets. Nombre propuesto en S-009.
+	 */
+	SOULBOUNDCORE_API void ApplyExpel(FMatchState& State, int32 Seat, int32 Target, double NowSeconds);
 }

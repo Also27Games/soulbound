@@ -176,10 +176,7 @@ namespace Soulbound::Rules
 		// TODO(R-ECO-2): el permiso temporal de invasión (Noche de los Ecos) lo da un decreto del Warden, en su story.
 		Mover.bConfinedToForgotten = State.Seats[Seat].Role == ESeatRole::LostEcho && State.MatchPhase != EMatchPhase::BondRace;
 		// R-POD-2, R-ELE-2: Paso Libre por la runa que lo da según el mapa del Elegido, o siempre por la afinidad de Fenrir.
-		const FSeatState& SeatState = State.Seats[Seat];
-		const bool bFreePassageAffinity = SeatState.Role == ESeatRole::Elect && State.Elects.IsValidDomain(SeatState.DomainId)
-			&& State.Elects.Elects[SeatState.DomainId].Affinity == EAffinity::FreePassage;
-		Mover.bFreePassage = bFreePassageAffinity || IsPowerActive(State, Seat, EPower::FreePassage);
+		Mover.bFreePassage = HasAffinity(State, Seat, EAffinity::FreePassage) || IsPowerActive(State, Seat, EPower::FreePassage);
 		return Mover;
 	}
 }

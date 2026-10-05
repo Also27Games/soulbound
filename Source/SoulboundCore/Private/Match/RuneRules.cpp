@@ -1,4 +1,7 @@
 #include "Match/RuneRules.h"
+
+#include "Board/MovementRules.h"
+#include "Match/BondRaceRules.h"
 #include "Match/MatchEvents.h"
 
 using Soulbound::Rules::LogEvent;
@@ -136,5 +139,80 @@ namespace Soulbound::Rules
 			}
 		}
 		return Active;
+	}
+
+	bool HasAffinity(const FMatchState& State, int32 Seat, EAffinity Affinity)
+	{
+		// Glosario "Afinidad": la del Elegido, siempre activa; un Eco no tiene.
+		if (!State.Seats.IsValidIndex(Seat) || State.Seats[Seat].Role != ESeatRole::Elect)
+		{
+			return false;
+		}
+		const int32 DomainId = State.Seats[Seat].DomainId;
+		return State.Elects.IsValidDomain(DomainId) && State.Elects.Elects[DomainId].Affinity == Affinity;
+	}
+
+	TArray<int32> PlanarJumpOptions(const FMatchState& State, int32 Seat)
+	{
+		TArray<int32> Options;
+		// R-POD-5, R-TAB-15: termina su movimiento (R-RUN-3: quedarse sin moverse no cuenta) en un Nodo Planar del tablero
+		// Despierto y tiene Vuelo Planar. Pasar por el Nodo no cuenta: solo se mira la casilla final.
+		if (!State.Seats.IsValidIndex(Seat) || !State.bActiveSeatMoved || State.Board.Phase != EBoardPhase::Awakened
+			|| !IsPowerActive(State, Seat, EPower::PlanarFlight))
+		{
+			return Options;
+		}
+		const int32 From = State.Seats[Seat].TileId;
+		if (!State.Board.IsValidTile(From) || State.Board.Tiles[From].PowerNodeEffect != EPowerNodeEffect::Planar)
+		{
+			return Options;
+		}
+		// R-TAB-21: el mismo criterio de transitabilidad que el movimiento; un Nodo sellado solo con Paso Libre (decisión
+		// del autor del 04/10/2026). Las fichas no bloquean (R-TAB-19): un Nodo ocupado es una opción.
+		const FMoverTraits Mover = MakeMoverTraits(State, Seat);
+		for (const FTileState& Tile : State.Board.Tiles)
+		{
+			if (Tile.TileId != From && Tile.PowerNodeEffect == EPowerNodeEffect::Planar && IsPassable(State.Board, Tile.TileId, Mover))
+			{
+				Options.Add(Tile.TileId);
+			}
+		}
+		return Options;
+	}
+
+	TArray<int32> ExpelTargets(const FMatchState& State, int32 Seat)
+	{
+		TArray<int32> Targets;
+		// R-POD-4: termina su movimiento (o su salto) en una casilla ocupada y tiene Expulsión.
+		if (!State.Seats.IsValidIndex(Seat) || !State.bActiveSeatMoved || !IsPowerActive(State, Seat, EPower::Expel))
+		{
+			return Targets;
+		}
+		const int32 TileId = State.Seats[Seat].TileId;
+		for (int32 Other = 0; Other < State.Seats.Num(); ++Other)
+		{
+			// Quien ya está en su hogar no es objetivo válido.
+			if (Other != Seat && State.Seats[Other].TileId == TileId && TileId != HomeTile(State, Other))
+			{
+				Targets.Add(Other);
+			}
+		}
+		return Targets;
+	}
+
+	void ApplyPlanarJump(FMatchState& State, int32 Seat, int32 TileId, double NowSeconds)
+	{
+		// La llegada es un final de movimiento (glosario "Nodo Planar"): el destino es otro Nodo Planar, sin Nicho ni
+		// Fuente que resolver, y el salto ya se ha usado (un salto por movimiento, decisión del autor del 04/10/2026).
+		State.Seats[Seat].TileId = TileId;
+		LogEvent(State, EMatchEventType::PlanarJumped, NowSeconds, Seat, TileId);
+	}
+
+	void ApplyExpel(FMatchState& State, int32 Seat, int32 Target, double NowSeconds)
+	{
+		// R-POD-4, R-TAB-13: el objetivo vuelve a su hogar. No es un movimiento suyo: no resuelve casilla, no toca
+		// bActiveSeatMoved (que es del asiento activo) ni sus turnos (R-INT-4).
+		State.Seats[Target].TileId = HomeTile(State, Target);
+		LogEvent(State, EMatchEventType::Expelled, NowSeconds, Seat, Target);
 	}
 }

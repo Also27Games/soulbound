@@ -67,7 +67,23 @@ namespace
 		return FString::Printf(TEXT("%d:%02d"), Total / 60, Total % 60);
 	}
 
-	/** Etiqueta de una casilla: identificador y Dominio ("D3·41"), con el prefijo del tipo; el Altar, "ALTAR". */
+	/** Efecto de un Nodo de Poder para su etiqueta (S-009); vacío si no es un Nodo. */
+	const TCHAR* NodeEffectName(EPowerNodeEffect Effect)
+	{
+		switch (Effect)
+		{
+		case EPowerNodeEffect::Duel: return TEXT("DUELO");
+		case EPowerNodeEffect::Oracle: return TEXT("ORÁCULO");
+		case EPowerNodeEffect::Planar: return TEXT("PLANAR");
+		case EPowerNodeEffect::None:
+		default: return TEXT("");
+		}
+	}
+
+	/**
+	 * Etiqueta de una casilla: identificador y Dominio ("D3·41"), con el prefijo del tipo; el Altar, "ALTAR". Un Nodo de
+	 * Poder enseña su efecto debajo desde el Despertar (R-TAB-9, S-009); antes, no.
+	 */
 	FString TileLabelText(const FBoardState& Board, const FTileState& Tile)
 	{
 		const FString Plain = Soulbound::Presentation::TileShortName(Board, Tile.TileId);
@@ -77,11 +93,46 @@ namespace
 		case ETileType::PowerSource:
 			// La reserva no va en la etiqueta: tiene su propio contador azul sobre la Fuente (S-008).
 			return TEXT("F ") + Plain;
-		case ETileType::PowerNode: return TEXT("X ") + Plain;
+		case ETileType::PowerNode:
+			return Board.AreNodesRevealed() ? FString::Printf(TEXT("X %s\n%s"), *Plain, NodeEffectName(Tile.PowerNodeEffect)) : TEXT("X ") + Plain;
 		case ETileType::Altar:
 		case ETileType::Normal:
 		default: return Plain;
 		}
+	}
+
+	/**
+	 * Línea de petición de la elección pendiente (S-009): qué se elige, las opciones numeradas como las contestan las
+	 * teclas (1 a 9, y 0 para "no") y el tiempo que queda. Para el humano, en imperativo y con sus teclas; para un dummy,
+	 * qué está decidiendo. Solo lee el estado.
+	 */
+	FString ChoicePrompt(const FMatchState& State, bool bHuman)
+	{
+		const FPendingChoice& Choice = State.PendingChoice;
+		const FString Left = FString::Printf(TEXT("quedan %.0f s"), FMath::Max(0.0, Choice.DeadlineSeconds - State.ClockSeconds));
+		if (Choice.Kind == EChoiceKind::Reroll)
+		{
+			return bHuman ? FString::Printf(TEXT("REPETIR: [R] repite la tirada (una vez por turno), o clic en una casilla blanca | %s"), *Left)
+				: FString::Printf(TEXT("el asiento %d decide si repite la tirada | %s"), State.ActiveSeat, *Left);
+		}
+		const TCHAR* What = Choice.Kind == EChoiceKind::DiceCount ? TEXT("dados") : Choice.Kind == EChoiceKind::PlanarJump ? TEXT("salto planar") : TEXT("expulsion");
+		const TCHAR* No = Choice.Kind == EChoiceKind::PlanarJump ? TEXT("no saltar") : TEXT("no expulsar");
+		TArray<FString> Parts;
+		for (int32 Index = 0; Index < Choice.Options.Num(); ++Index)
+		{
+			const int32 Option = Choice.Options[Index];
+			const FString Text = Choice.Kind == EChoiceKind::DiceCount ? FString(Option > 1 ? TEXT("dos dados") : TEXT("un dado"))
+				: Choice.Kind == EChoiceKind::PlanarJump ? Soulbound::Presentation::TileShortName(State.Board, Option)
+				: FString::Printf(TEXT("asiento %d"), Option);
+			Parts.Add(FString::Printf(TEXT("[%d] %s"), Index + 1, *Text));
+		}
+		if (Choice.CanDecline())
+		{
+			Parts.Add(FString::Printf(TEXT("[0] %s"), No));
+		}
+		const FString Hint = bHuman && Choice.Kind == EChoiceKind::PlanarJump ? TEXT(" (o clic en un Nodo con halo)") : TEXT("");
+		return bHuman ? FString::Printf(TEXT("ELIGE %s: %s%s | %s"), What, *FString::Join(Parts, TEXT(" ")), *Hint, *Left)
+			: FString::Printf(TEXT("el asiento %d elige %s: %s | %s"), State.ActiveSeat, What, *FString::Join(Parts, TEXT(" ")), *Left);
 	}
 
 	/** Nombre del Elegido del Dominio, de elegidos.json (S-008); vacío si el Dominio no tiene Elegido. */
@@ -743,11 +794,15 @@ void ABoardViewActor::Refresh()
 	const FMatchState& State = HostPtr->GetState();
 
 	// Alcanzables: las que guarda el estado, calculadas por el motor (ReachableTiles) al tirar. Solo valen mientras
-	// se espera el destino.
+	// se espera el destino. Con un salto planar pendiente (S-009), el halo marca los Nodos a los que se puede saltar.
 	TSet<int32> Reachable;
 	if (State.TurnPhase == ETurnPhase::RollAndChoose)
 	{
 		Reachable.Append(State.ReachableOptions);
+	}
+	else if (State.PendingChoice.Kind == EChoiceKind::PlanarJump)
+	{
+		Reachable.Append(State.PendingChoice.Options);
 	}
 
 	for (const FTileState& Tile : State.Board.Tiles)
@@ -931,8 +986,15 @@ void ABoardViewActor::TickHud()
 	else
 	{
 	const FString Clock = bWaiting ? FString::Printf(TEXT("%.0f s"), FMath::Max(0.0, State.TurnDeadlineSeconds - State.ClockSeconds)) : FString(TEXT("-"));
-	ShowText(1, bHumanTurn ? FColor::Green : FColor::White, FString::Printf(TEXT("Tirada: %d | reloj de turno: %s%s"),
-		State.Roll, *Clock, bHumanTurn ? TEXT("  <- tu turno: clic en una casilla blanca") : TEXT("")));
+	ShowText(1, bHumanTurn ? FColor::Green : FColor::White, FString::Printf(TEXT("Tirada: %d%s | reloj de turno: %s%s"),
+		State.Roll, State.DiceCount > 1 ? TEXT(" (dos dados)") : TEXT(""), *Clock, bHumanTurn ? TEXT("  <- tu turno: clic en una casilla blanca") : TEXT("")));
+	}
+
+	// Elección pendiente (S-009): la línea de petición, en verde si es del humano (teclas 1 a 9 y 0; R para repetir).
+	if (State.PendingChoice.IsOpen() && !State.IsMatchOver())
+	{
+		const bool bHumanChoice = State.ActiveSeat == HostPtr->GetHumanSeat();
+		ShowText(8, bHumanChoice ? FColor::Green : FColor(190, 190, 190), ChoicePrompt(State, bHumanChoice));
 	}
 
 	// Paso a paso (S-007): lo que espera, bien visible.

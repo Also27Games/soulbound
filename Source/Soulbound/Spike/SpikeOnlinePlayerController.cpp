@@ -43,6 +43,15 @@ void ASpikeOnlinePlayerController::SetupInputComponent()
 		// Paso a paso (S-007): también sin assets de entrada.
 		InputComponent->BindKey(EKeys::SpaceBar, IE_Pressed, this, &ASpikeOnlinePlayerController::OnStepKey);
 		InputComponent->BindKey(EKeys::Gamepad_FaceButton_Bottom, IE_Pressed, this, &ASpikeOnlinePlayerController::OnStepKey);
+		// Elecciones (S-009): teclas numéricas y R, también sin assets de entrada. Cada número lleva su valor al manejador.
+		const FKey NumberKeys[] = {EKeys::Zero, EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine};
+		for (int32 Number = 0; Number < UE_ARRAY_COUNT(NumberKeys); ++Number)
+		{
+			FInputKeyBinding Binding(FInputChord(NumberKeys[Number]), IE_Pressed);
+			Binding.KeyDelegate.GetDelegateForManualSet().BindUObject(this, &ASpikeOnlinePlayerController::OnChoiceKey, Number);
+			InputComponent->KeyBindings.Emplace(MoveTemp(Binding));
+		}
+		InputComponent->BindKey(EKeys::R, IE_Pressed, this, &ASpikeOnlinePlayerController::OnRerollKey);
 	}
 }
 
@@ -70,8 +79,48 @@ void ASpikeOnlinePlayerController::OnPrimaryClick()
 	{
 		if (const ABoardTileActor* Tile = Cast<ABoardTileActor>(Hit.GetActor()))
 		{
-			Match->SubmitHumanIntent(Tile->GetTileId());
+			// Con un salto planar pendiente, el clic en una casilla es la respuesta a la elección (S-009).
+			if (Match->GetState().PendingChoice.Kind == EChoiceKind::PlanarJump)
+			{
+				Match->SubmitHumanChoice(EChoiceKind::PlanarJump, Tile->GetTileId());
+			}
+			else
+			{
+				Match->SubmitHumanIntent(Tile->GetTileId());
+			}
 		}
+	}
+}
+
+void ASpikeOnlinePlayerController::OnChoiceKey(int32 Number)
+{
+	UWorld* World = GetWorld();
+	UMatchHostSubsystem* Match = World ? World->GetSubsystem<UMatchHostSubsystem>() : nullptr;
+	if (IsPaused() || !Match || !Match->HasMatch())
+	{
+		return;
+	}
+	// El número es la posición de la opción en la línea de petición de la vista; 0 es "no". Una posición que no existe se
+	// ignora: el humano no ha elegido ninguna opción. El tipo de elección es el pendiente; si cambia antes de llegar, el
+	// motor rechaza la respuesta por fase.
+	const FPendingChoice& Choice = Match->GetState().PendingChoice;
+	if (Number == 0)
+	{
+		Match->SubmitHumanChoice(Choice.Kind, INDEX_NONE);
+	}
+	else if (Choice.Options.IsValidIndex(Number - 1))
+	{
+		Match->SubmitHumanChoice(Choice.Kind, Choice.Options[Number - 1]);
+	}
+}
+
+void ASpikeOnlinePlayerController::OnRerollKey()
+{
+	UWorld* World = GetWorld();
+	UMatchHostSubsystem* Match = World ? World->GetSubsystem<UMatchHostSubsystem>() : nullptr;
+	if (!IsPaused() && Match && Match->HasMatch())
+	{
+		Match->SubmitHumanChoice(EChoiceKind::Reroll, 1);
 	}
 }
 

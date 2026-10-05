@@ -31,6 +31,13 @@ struct SOULBOUNDCORE_API FMatchParams
 	 */
 	UPROPERTY()
 	double RaceDurationSeconds = 0.0;
+
+	/**
+	 * Reloj de elección (S-009, decisión del autor del 04/10/2026): segundos para contestar una elección tras mover
+	 * (salto planar, acción contra jugador). Agotarlo equivale a "no", sin castigo. En datos; valor inicial 10.
+	 */
+	UPROPERTY()
+	double ChoiceClockSeconds = 0.0;
 };
 
 /** Por qué se rechazaron unos parámetros de partida. */
@@ -60,8 +67,8 @@ struct SOULBOUNDCORE_API FMatchParamsLoadResult
 namespace Soulbound::Rules
 {
 	/**
-	 * Comprueba que unos parámetros de partida tienen sentido: reloj de turno y duración de la carrera mayores que
-	 * cero, y topes enteros mayores o iguales que cero. Params: los parámetros a comprobar. Devuelve None o MalformedData con el motivo;
+	 * Comprueba que unos parámetros de partida tienen sentido: reloj de turno, duración de la carrera y reloj de
+	 * elección mayores que cero, y topes enteros mayores o iguales que cero. Params: los parámetros a comprobar. Devuelve None o MalformedData con el motivo;
 	 * el campo Params del resultado queda vacío.
 	 */
 	SOULBOUNDCORE_API FMatchParamsLoadResult ValidateMatchParams(const FMatchParams& Params);

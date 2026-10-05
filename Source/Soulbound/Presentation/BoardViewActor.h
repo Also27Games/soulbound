@@ -29,6 +29,8 @@ class UTextRenderComponent;
  * colores salgan como se escriben, paleta separada por Dominio, el tipo de casilla por su forma, etiqueta con el
  * identificador y el Dominio en cada casilla (TileLabel), leyenda (Legend), asiento activo elevado y con aro
  * (SeatRing), y el panel de crónica (ChroniclePanel) con todos los sucesos.
+ * Desde S-009 enseña la elección pendiente: una línea de petición con las opciones numeradas y el tiempo que queda, el
+ * halo en los Nodos a los que se puede saltar, y el efecto de cada Nodo en su etiqueta tras el Despertar.
  * Sin arte: formas básicas del motor, texto del motor y Slate. Nada se coloca a mano en el mapa.
  */
 UCLASS(NotBlueprintable)
