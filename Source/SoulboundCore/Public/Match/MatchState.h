@@ -389,6 +389,11 @@ enum class EMatchEventType : uint8
 	 * runa. Nombre propuesto en S-010.
 	 */
 	StealCancelled,
+	/**
+	 * Edición de depuración aplicada (S-011): Value es el tipo (EDebugEditKind), Seat el asiento afectado o INDEX_NONE.
+	 * Va justo antes de los eventos de las reglas que la edición reutiliza. Nombre propuesto en S-011.
+	 */
+	DebugEdit,
 };
 
 /**
@@ -589,6 +594,21 @@ struct SOULBOUNDCORE_API FMatchState
 	 */
 	UPROPERTY()
 	bool bRerollValuesPending = false;
+
+	/**
+	 * Tirada fijada por una edición de depuración (S-011): la próxima tirada, sea de quien sea, vale esto en lugar de la
+	 * suma de los dados (el sorteo se consume igual). 0 si no hay. La limpia la tirada que la usa. Solo la escriben
+	 * Match/DebugEdits.h y la máquina de turnos. Nombre propuesto en S-011.
+	 */
+	UPROPERTY()
+	int32 ForcedRoll = 0;
+
+	/**
+	 * Asiento fijado para el siguiente turno por una edición de depuración (S-011): el próximo turno que empiece es suyo y
+	 * el orden sigue desde él. INDEX_NONE si no hay. Lo limpia el inicio de turno que lo usa. Nombre propuesto en S-011.
+	 */
+	UPROPERTY()
+	int32 ForcedNextSeat = INDEX_NONE;
 
 	/** Fase de la partida (S-006). Solo la escriben las reglas de Match/BondRaceRules.h. */
 	UPROPERTY()
