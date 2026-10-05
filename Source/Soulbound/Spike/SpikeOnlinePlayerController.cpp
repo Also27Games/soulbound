@@ -7,6 +7,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "InputCoreTypes.h"
+#include "Math/UnrealMathUtility.h"
 #include "Subsystem/A27OnlineSubsystem.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogSoulboundSpike, Log, All);
@@ -259,4 +260,202 @@ void ASpikeOnlinePlayerController::HandleJoined(bool bWasSuccessful)
 void ASpikeOnlinePlayerController::HandleLeft(bool bWasSuccessful)
 {
 	Say(bWasSuccessful ? TEXT("Sesion abandonada") : TEXT("Salir FALLIDO"));
+}
+
+// Herramientas de depuración (S-011). En la build de entrega, cada comando es un cuerpo vacío.
+
+#if !UE_BUILD_SHIPPING
+UMatchHostSubsystem* ASpikeOnlinePlayerController::GetDebugHost() const
+{
+	if (!HasAuthority())
+	{
+		Say(TEXT("[Depuración] Solo con autoridad: este proceso no es el anfitrión de la partida."));
+		return nullptr;
+	}
+	UWorld* World = GetWorld();
+	UMatchHostSubsystem* Match = World ? World->GetSubsystem<UMatchHostSubsystem>() : nullptr;
+	if (!Match || !Match->HasMatch())
+	{
+		Say(TEXT("[Depuración] Sin partida iniciada."));
+		return nullptr;
+	}
+	return Match;
+}
+
+bool ASpikeOnlinePlayerController::ParseDebugInt(const FString& Text, const TCHAR* Name, const TCHAR* Usage, int32& OutValue) const
+{
+	if (!LexTryParseString(OutValue, *Text))
+	{
+		Say(FString::Printf(TEXT("[Depuración] %s debe ser un número entero, no \"%s\". Uso: %s"), Name, *Text, Usage));
+		return false;
+	}
+	return true;
+}
+
+void ASpikeOnlinePlayerController::ReportDebugEdit(const FDebugEditOutcome& Outcome) const
+{
+	Say(FString::Printf(TEXT("[Depuración] %s%s"), Outcome.bApplied ? TEXT("") : TEXT("RECHAZADO: "), *Outcome.Message));
+}
+#endif
+
+void ASpikeOnlinePlayerController::SbGiveRune(FString Seat, FString RuneType, FString Count)
+{
+#if !UE_BUILD_SHIPPING
+	static const TCHAR* Usage = TEXT("SbGiveRune <asiento> <tipo> [n]");
+	int32 SeatId = 0;
+	int32 Type = 0;
+	int32 Amount = 1;
+	if (UMatchHostSubsystem* Host = GetDebugHost())
+	{
+		if (ParseDebugInt(Seat, TEXT("asiento"), Usage, SeatId) && ParseDebugInt(RuneType, TEXT("tipo"), Usage, Type) && (Count.IsEmpty() || ParseDebugInt(Count, TEXT("n"), Usage, Amount)))
+		{
+			ReportDebugEdit(Host->DebugGiveRune(SeatId, Type, Amount));
+		}
+	}
+#endif
+}
+
+void ASpikeOnlinePlayerController::SbTakeRune(FString Seat, FString RuneType, FString Count)
+{
+#if !UE_BUILD_SHIPPING
+	static const TCHAR* Usage = TEXT("SbTakeRune <asiento> <tipo> [n]");
+	int32 SeatId = 0;
+	int32 Type = 0;
+	int32 Amount = 1;
+	if (UMatchHostSubsystem* Host = GetDebugHost())
+	{
+		if (ParseDebugInt(Seat, TEXT("asiento"), Usage, SeatId) && ParseDebugInt(RuneType, TEXT("tipo"), Usage, Type) && (Count.IsEmpty() || ParseDebugInt(Count, TEXT("n"), Usage, Amount)))
+		{
+			ReportDebugEdit(Host->DebugTakeRune(SeatId, Type, Amount));
+		}
+	}
+#endif
+}
+
+void ASpikeOnlinePlayerController::SbMove(FString Seat, FString Tile)
+{
+#if !UE_BUILD_SHIPPING
+	static const TCHAR* Usage = TEXT("SbMove <asiento> <casilla>");
+	int32 SeatId = 0;
+	int32 TileId = 0;
+	if (UMatchHostSubsystem* Host = GetDebugHost())
+	{
+		if (ParseDebugInt(Seat, TEXT("asiento"), Usage, SeatId) && ParseDebugInt(Tile, TEXT("casilla"), Usage, TileId))
+		{
+			ReportDebugEdit(Host->DebugMove(SeatId, TileId));
+		}
+	}
+#endif
+}
+
+void ASpikeOnlinePlayerController::SbBond(FString Seat, FString Domain)
+{
+#if !UE_BUILD_SHIPPING
+	static const TCHAR* Usage = TEXT("SbBond <asiento> <dominio>");
+	int32 SeatId = 0;
+	int32 DomainId = 0;
+	if (UMatchHostSubsystem* Host = GetDebugHost())
+	{
+		if (ParseDebugInt(Seat, TEXT("asiento"), Usage, SeatId) && ParseDebugInt(Domain, TEXT("dominio"), Usage, DomainId))
+		{
+			ReportDebugEdit(Host->DebugBond(SeatId, DomainId));
+		}
+	}
+#endif
+}
+
+void ASpikeOnlinePlayerController::SbSeal(FString Tile)
+{
+#if !UE_BUILD_SHIPPING
+	int32 TileId = 0;
+	if (UMatchHostSubsystem* Host = GetDebugHost())
+	{
+		if (ParseDebugInt(Tile, TEXT("casilla"), TEXT("SbSeal <casilla>"), TileId))
+		{
+			ReportDebugEdit(Host->DebugSeal(TileId));
+		}
+	}
+#endif
+}
+
+void ASpikeOnlinePlayerController::SbUnseal(FString Tile)
+{
+#if !UE_BUILD_SHIPPING
+	int32 TileId = 0;
+	if (UMatchHostSubsystem* Host = GetDebugHost())
+	{
+		if (ParseDebugInt(Tile, TEXT("casilla"), TEXT("SbUnseal <casilla>"), TileId))
+		{
+			ReportDebugEdit(Host->DebugUnseal(TileId));
+		}
+	}
+#endif
+}
+
+void ASpikeOnlinePlayerController::SbEndRace()
+{
+#if !UE_BUILD_SHIPPING
+	if (UMatchHostSubsystem* Host = GetDebugHost())
+	{
+		ReportDebugEdit(Host->DebugEndRace());
+	}
+#endif
+}
+
+void ASpikeOnlinePlayerController::SbRoll(FString Value)
+{
+#if !UE_BUILD_SHIPPING
+	int32 Roll = 0;
+	if (UMatchHostSubsystem* Host = GetDebugHost())
+	{
+		if (ParseDebugInt(Value, TEXT("n"), TEXT("SbRoll <n>"), Roll))
+		{
+			ReportDebugEdit(Host->DebugFixRoll(Roll));
+		}
+	}
+#endif
+}
+
+void ASpikeOnlinePlayerController::SbTrial(FString Result)
+{
+#if !UE_BUILD_SHIPPING
+	if (UMatchHostSubsystem* Host = GetDebugHost())
+	{
+		if (Result.Equals(TEXT("pass"), ESearchCase::IgnoreCase))
+		{
+			ReportDebugEdit(Host->DebugFixTrial(true));
+		}
+		else if (Result.Equals(TEXT("fail"), ESearchCase::IgnoreCase))
+		{
+			ReportDebugEdit(Host->DebugFixTrial(false));
+		}
+		else
+		{
+			Say(FString::Printf(TEXT("[Depuración] El resultado debe ser pass o fail, no \"%s\". Uso: SbTrial pass|fail"), *Result));
+		}
+	}
+#endif
+}
+
+void ASpikeOnlinePlayerController::SbTurn(FString Seat)
+{
+#if !UE_BUILD_SHIPPING
+	int32 SeatId = 0;
+	if (UMatchHostSubsystem* Host = GetDebugHost())
+	{
+		if (ParseDebugInt(Seat, TEXT("asiento"), TEXT("SbTurn <asiento>"), SeatId))
+		{
+			ReportDebugEdit(Host->DebugFixNextSeat(SeatId));
+		}
+	}
+#endif
+}
+
+void ASpikeOnlinePlayerController::SbHelp()
+{
+#if !UE_BUILD_SHIPPING
+	Say(TEXT("[Depuración] Comandos: SbGiveRune <asiento> <tipo> [n] | SbTakeRune <asiento> <tipo> [n] | SbMove <asiento> <casilla> | "
+		"SbBond <asiento> <dominio> | SbSeal <casilla> | SbUnseal <casilla> | SbEndRace | SbRoll <n> | SbTrial pass|fail | "
+		"SbTurn <asiento> | SbHelp. Los asientos van de 0 a 3 y el tipo de runa es el Dominio de 0 a 5."));
+#endif
 }

@@ -12,6 +12,18 @@
 class ABoardViewActor;
 struct FWardenDecision;
 
+#if !UE_BUILD_SHIPPING
+/**
+ * Qué pasó con una edición de depuración pedida al anfitrión (S-011, nombre propuesto): si se aplicó y la frase que
+ * la describe (qué hizo, con todo el detalle, o por qué se rechazó). Solo existe fuera de la build de entrega.
+ */
+struct FDebugEditOutcome
+{
+	bool bApplied = false;
+	FString Message;
+};
+#endif
+
 /** Aviso de que el estado de la partida ha cambiado. Lo lanza solo el anfitrión de partida. */
 DECLARE_MULTICAST_DELEGATE(FOnMatchStateChanged);
 
@@ -89,6 +101,47 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Partida")
 	bool IsWaitingForStep() const { return StepClock.bHeld; }
 
+#if !UE_BUILD_SHIPPING
+	// Herramientas de depuración (S-011, glosario "DebugEdit"). Son las únicas vías por las que los comandos Sb… cambian
+	// el estado: cada una pide la edición al motor (Soulbound::Debug), avisa a la vista si se aplicó y deja el detalle en
+	// el log y en el resultado. No existen en la build de entrega (UE_BUILD_SHIPPING); los comandos de consola del
+	// controlador siguen declarados, pero su cuerpo no hace nada.
+
+	/** Da Count runas de tipo RuneType al asiento Seat, sacadas de la reserva de su Fuente. */
+	FDebugEditOutcome DebugGiveRune(int32 Seat, int32 RuneType, int32 Count);
+
+	/** Quita Count runas de tipo RuneType al asiento Seat y las devuelve a la reserva de su Fuente. */
+	FDebugEditOutcome DebugTakeRune(int32 Seat, int32 RuneType, int32 Count);
+
+	/** Coloca la ficha del asiento Seat en la casilla TileId, sin resolverla. */
+	FDebugEditOutcome DebugMove(int32 Seat, int32 TileId);
+
+	/** Vincula al asiento Seat con el Elegido del Dominio DomainId, como si hubiera reclamado su Nicho. */
+	FDebugEditOutcome DebugBond(int32 Seat, int32 DomainId);
+
+	/** Sella la casilla TileId con las reglas de Sello. */
+	FDebugEditOutcome DebugSeal(int32 TileId);
+
+	/** Libera el Sello de la casilla TileId. */
+	FDebugEditOutcome DebugUnseal(int32 TileId);
+
+	/** Termina la carrera por el vínculo ahora. */
+	FDebugEditOutcome DebugEndRace();
+
+	/** Fija la próxima tirada de la partida. */
+	FDebugEditOutcome DebugFixRoll(int32 Value);
+
+	/** Fija el asiento del siguiente turno que empiece. */
+	FDebugEditOutcome DebugFixNextSeat(int32 Seat);
+
+	/**
+	 * Fija el resultado del próximo minijuego de habilidad del humano (hoy lo resuelve un dummy al azar, S-008). Vive aquí
+	 * y no en el motor porque el anfitrión es quien responde por el humano. Solo deja rastro en el log: no es una edición
+	 * del estado, así que no hay evento en el registro de la partida.
+	 */
+	FDebugEditOutcome DebugFixTrial(bool bPass);
+#endif
+
 	/** Se lanza tras cada cambio del estado. */
 	FOnMatchStateChanged OnMatchStateChanged;
 
@@ -165,6 +218,13 @@ private:
 	/** Responde las pruebas de habilidad del asiento humano hasta que exista el minijuego real (S-008). */
 	FDummyDecider HumanTrialDecider;
 	FPendingDecision Pending;
+#if !UE_BUILD_SHIPPING
+	/** Resultado fijado del próximo minijuego del humano (S-011); sin valor, lo resuelve el dummy. Se gasta al usarlo. */
+	TOptional<bool> ForcedTrialResult;
+
+	/** Cierra una edición de depuración: la deja en el log, avisa a la vista si se aplicó y devuelve su resultado. */
+	FDebugEditOutcome FinishDebugEdit(bool bApplied, const FString& Message);
+#endif
 	FTimerHandle AdvanceTimer;
 	FString LastWardenLine;
 	FStepClock StepClock;

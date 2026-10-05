@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Board/BoardState.h"
+#include "Match/DebugEdits.h"
 #include "Match/MatchState.h"
 
 /**
@@ -17,6 +18,8 @@ namespace Soulbound::Presentation
 		Seat,
 		Warden,
 		Race,
+		/** Una edición de depuración (S-011): su línea lleva un color propio para que nunca pase por una partida normal. */
+		Debug,
 	};
 
 	/** Nombre corto de una casilla, el de su etiqueta: "D3·41" (Dominio e identificador) o "ALTAR". */
@@ -24,6 +27,15 @@ namespace Soulbound::Presentation
 
 	/** Frase del evento, en español, con el número de asiento y los datos del evento. Board da los nombres de casilla. */
 	FString DescribeEvent(const FMatchEvent& Event, const FBoardState& Board);
+
+	/** Nombre en español del tipo de una edición de depuración (EDebugEditKind en Event.Value), para la crónica. */
+	FString DebugKindName(int32 Kind);
+
+	/** Por qué se rechazó una edición de depuración (S-011), en español, para el mensaje en pantalla de los comandos. */
+	FString DescribeDebugResult(EDebugEditResult Result);
+
+	/** Por qué se rechazó un Sello de depuración (S-011): el motivo de CanSealTile, en español. */
+	FString DescribeSealResult(ESealResult Result);
 
 	/** Quién origina el evento: los Sellos son del Warden, los de vínculo y fin de carrera de la carrera, el resto del asiento. */
 	EEventSource EventSource(EMatchEventType Type);

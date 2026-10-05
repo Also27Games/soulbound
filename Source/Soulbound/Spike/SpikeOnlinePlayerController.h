@@ -5,6 +5,8 @@
 #include "SpikeOnlinePlayerController.generated.h"
 
 class UA27OnlineSubsystem;
+class UMatchHostSubsystem;
+struct FDebugEditOutcome;
 
 /**
  * Spike, paso 0.5: comandos de consola para probar sesiones por código sin interfaz.
@@ -45,6 +47,55 @@ public:
 	UFUNCTION(Exec)
 	void SbStep();
 
+	// Herramientas de depuración (S-011): llevan la partida al estado que se quiere probar. Solo con autoridad y con la
+	// partida iniciada; piden la edición al anfitrión de partida y contestan en pantalla qué hicieron o por qué no. Los
+	// argumentos son texto para poder decir qué argumento está mal. En la build de entrega (UE_BUILD_SHIPPING) los
+	// comandos siguen declarados, porque Unreal Header Tool no admite UFUNCTION dentro de #if, pero no hacen nada.
+
+	/** SbGiveRune <asiento> <tipo> [n]: da n runas (1 por defecto) de ese tipo, sacadas de la reserva de su Fuente. */
+	UFUNCTION(Exec)
+	void SbGiveRune(FString Seat, FString RuneType, FString Count);
+
+	/** SbTakeRune <asiento> <tipo> [n]: quita n runas (1 por defecto) y las devuelve a la reserva de su Fuente. */
+	UFUNCTION(Exec)
+	void SbTakeRune(FString Seat, FString RuneType, FString Count);
+
+	/** SbMove <asiento> <casilla>: coloca la ficha, sin resolver la casilla ni contar como movimiento. */
+	UFUNCTION(Exec)
+	void SbMove(FString Seat, FString Tile);
+
+	/** SbBond <asiento> <dominio>: vincula al Eco con el Elegido del Dominio, como si hubiera reclamado su Nicho. */
+	UFUNCTION(Exec)
+	void SbBond(FString Seat, FString Domain);
+
+	/** SbSeal <casilla>: sella con las reglas de Sello. */
+	UFUNCTION(Exec)
+	void SbSeal(FString Tile);
+
+	/** SbUnseal <casilla>: libera un Sello. */
+	UFUNCTION(Exec)
+	void SbUnseal(FString Tile);
+
+	/** SbEndRace: termina la carrera por el vínculo ahora. */
+	UFUNCTION(Exec)
+	void SbEndRace();
+
+	/** SbRoll <n>: fija la próxima tirada (de 1 al máximo de dos dados). */
+	UFUNCTION(Exec)
+	void SbRoll(FString Value);
+
+	/** SbTrial pass|fail: fija el resultado del próximo minijuego de habilidad del humano. */
+	UFUNCTION(Exec)
+	void SbTrial(FString Result);
+
+	/** SbTurn <asiento>: el siguiente turno que empiece es de ese asiento y el orden sigue desde él. */
+	UFUNCTION(Exec)
+	void SbTurn(FString Seat);
+
+	/** SbHelp: lista los comandos de depuración con su sintaxis. */
+	UFUNCTION(Exec)
+	void SbHelp();
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
@@ -73,6 +124,17 @@ private:
 
 	UA27OnlineSubsystem* GetOnline() const;
 	void Say(const FString& Text) const;
+
+#if !UE_BUILD_SHIPPING
+	/** El anfitrión de partida si se puede editar: con autoridad y con la partida iniciada. Si no, lo dice en pantalla y devuelve null. */
+	UMatchHostSubsystem* GetDebugHost() const;
+
+	/** Convierte un argumento en entero. Si no lo es, lo dice en pantalla con Usage y devuelve false. */
+	bool ParseDebugInt(const FString& Text, const TCHAR* Name, const TCHAR* Usage, int32& OutValue) const;
+
+	/** Dice en pantalla (y en el log) qué hizo una edición o por qué se rechazó. */
+	void ReportDebugEdit(const FDebugEditOutcome& Outcome) const;
+#endif
 
 	UFUNCTION()
 	void HandleLogin(bool bWasSuccessful, const FString& ErrorMessage);
