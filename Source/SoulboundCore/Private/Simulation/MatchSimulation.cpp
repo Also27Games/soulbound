@@ -30,7 +30,7 @@ namespace
 		case EChoiceKind::DiceCount: return TEXT("dados");
 		case EChoiceKind::Reroll: return TEXT("repetir");
 		case EChoiceKind::PlanarJump: return TEXT("salto planar");
-		case EChoiceKind::Expel: return TEXT("expulsión");
+		case EChoiceKind::PlayerAction: return TEXT("expulsión");
 		default: return TEXT("?");
 		}
 	}

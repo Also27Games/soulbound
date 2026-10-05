@@ -216,3 +216,22 @@ namespace Soulbound::Rules
 		LogEvent(State, EMatchEventType::Expelled, NowSeconds, Seat, Target);
 	}
 }
+
+// S-010: firmas sin implementar, para ver los tests en rojo.
+namespace Soulbound::Rules
+{
+	TArray<int32> StealTargets(const FMatchState& State, int32 Seat)
+	{
+		return {};
+	}
+
+	TArray<FPlayerActionOption> PlayerActionOptions(const FMatchState& State, int32 Seat)
+	{
+		return {};
+	}
+
+	bool TransferRune(FMatchState& State, int32 FromSeat, int32 ToSeat, int32 RuneType)
+	{
+		return false;
+	}
+}

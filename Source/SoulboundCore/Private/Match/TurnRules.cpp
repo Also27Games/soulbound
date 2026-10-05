@@ -46,9 +46,15 @@ namespace
 		State.ReachableOptions = Soulbound::Rules::ReachableTiles(State.Board, State.Seats[State.ActiveSeat].TileId, State.Roll, Mover);
 	}
 
-	void OpenChoice(FMatchState& State, EChoiceKind Kind, TArray<int32> Options, double DeadlineSeconds)
+	/**
+	 * Abre una elección pendiente para el asiento Seat (S-010: el que la contesta; INDEX_NONE, el activo) con sus opciones
+	 * y su plazo. Las de la acción contra un jugador van aparte, en ActionOptions.
+	 */
+	void OpenChoice(FMatchState& State, EChoiceKind Kind, TArray<int32> Options, double DeadlineSeconds, int32 Seat = INDEX_NONE)
 	{
+		State.PendingChoice = FPendingChoice();
 		State.PendingChoice.Kind = Kind;
+		State.PendingChoice.Seat = Seat == INDEX_NONE ? State.ActiveSeat : Seat;
 		State.PendingChoice.Options = MoveTemp(Options);
 		State.PendingChoice.DeadlineSeconds = DeadlineSeconds;
 	}
@@ -80,7 +86,7 @@ namespace
 		case EChoiceKind::DiceCount: return ETurnPhase::PreRoll;
 		case EChoiceKind::Reroll: return ETurnPhase::RollAndChoose;
 		case EChoiceKind::PlanarJump:
-		case EChoiceKind::Expel: return ETurnPhase::MoveAndResolve;
+		case EChoiceKind::PlayerAction: return ETurnPhase::MoveAndResolve;
 		case EChoiceKind::None:
 		default: return ETurnPhase::BetweenTurns;
 		}
@@ -195,14 +201,14 @@ namespace
 				OpenChoice(State, EChoiceKind::PlanarJump, MoveTemp(Jumps), Deadline);
 				return;
 			}
-			Step = EChoiceKind::Expel;
+			Step = EChoiceKind::PlayerAction;
 		}
-		if (Step == EChoiceKind::Expel)
+		if (Step == EChoiceKind::PlayerAction)
 		{
 			TArray<int32> Targets = Soulbound::Rules::ExpelTargets(State, Seat);
 			if (!Targets.IsEmpty())
 			{
-				OpenChoice(State, EChoiceKind::Expel, MoveTemp(Targets), Deadline);
+				OpenChoice(State, EChoiceKind::PlayerAction, MoveTemp(Targets), Deadline);
 				return;
 			}
 		}
@@ -212,7 +218,7 @@ namespace
 	/** El paso que sigue a cerrar una elección de MoveAndResolve: tras el salto, la acción; tras la acción, el fin. */
 	EChoiceKind StepAfter(EChoiceKind Closed)
 	{
-		return Closed == EChoiceKind::PlanarJump ? EChoiceKind::Expel : EChoiceKind::None;
+		return Closed == EChoiceKind::PlanarJump ? EChoiceKind::PlayerAction : EChoiceKind::None;
 	}
 
 	/**
@@ -386,6 +392,8 @@ namespace Soulbound::Rules
 		case ETurnPhase::SkillTrial:
 			// TODO(R-MIN): el minijuego espera sin plazo; su tiempo propio llega con su story.
 			return false;
+		case ETurnPhase::ShellGame:
+			return false;
 		case ETurnPhase::End:
 			LeaveEnd(State, NowSeconds, Random);
 			return true;
@@ -446,12 +454,13 @@ namespace Soulbound::Rules
 
 	EIntentResult SubmitChoiceIntent(FMatchState& State, int32 Seat, EChoiceKind Kind, int32 Option, double NowSeconds, FRandomStream& Random)
 	{
-		// Glosario "Intención": asiento, tipo de elección, plazo y opción; si no vale, se descarta sin castigo.
-		if (!HasTurnOrder(State) || Seat != State.ActiveSeat)
+		// Glosario "Intención": asiento, tipo de elección, plazo y opción; si no vale, se descarta sin castigo. El asiento es
+		// el de la elección abierta, que puede no tener el turno (S-010: Koschei víctima); sin elección, el activo.
+		const FPendingChoice& Choice = State.PendingChoice;
+		if (!HasTurnOrder(State) || Seat != (Choice.IsOpen() ? Choice.Seat : State.ActiveSeat))
 		{
 			return EIntentResult::WrongSeat;
 		}
-		const FPendingChoice& Choice = State.PendingChoice;
 		if (!Choice.IsOpen() || Choice.Kind != Kind || State.TurnPhase != PhaseOf(Kind))
 		{
 			return EIntentResult::WrongPhase;
@@ -460,7 +469,7 @@ namespace Soulbound::Rules
 		{
 			return EIntentResult::ClockExpired;
 		}
-		if (Option == INDEX_NONE ? !Choice.CanDecline() : !Choice.Options.Contains(Option))
+		if (Option == INDEX_NONE ? !Choice.CanDecline() : !Choice.IsValidAnswer(Option))
 		{
 			return EIntentResult::InvalidOption;
 		}
@@ -494,7 +503,7 @@ namespace Soulbound::Rules
 			}
 			OfferFrom(State, NowSeconds, StepAfter(Kind));
 			break;
-		case EChoiceKind::Expel:
+		case EChoiceKind::PlayerAction:
 			// R-POD-4, R-INT-2: a uno o a ninguno; después, el fin del turno.
 			if (Option != INDEX_NONE)
 			{
@@ -502,6 +511,8 @@ namespace Soulbound::Rules
 			}
 			OfferFrom(State, NowSeconds, StepAfter(Kind));
 			break;
+		case EChoiceKind::SafeRune:
+		case EChoiceKind::ShellPick:
 		case EChoiceKind::None:
 			break;
 		}

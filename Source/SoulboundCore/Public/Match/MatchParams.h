@@ -38,6 +38,25 @@ struct SOULBOUNDCORE_API FMatchParams
 	 */
 	UPROPERTY()
 	double ChoiceClockSeconds = 0.0;
+
+	/** Trilero (R-ROB-2, S-010): segundos de la muestra, con las runas de la víctima a la vista. En datos; valor inicial 2. */
+	UPROPERTY()
+	double ShellRevealSeconds = 0.0;
+
+	/** Trilero (R-ROB-2, S-010): segundos de la mezcla de las esferas. En datos; valor inicial 4. */
+	UPROPERTY()
+	double ShellShuffleSeconds = 0.0;
+
+	/** Trilero (R-ROB-2, R-ROB-6, S-010): intercambios de esferas de la mezcla. En datos; valor inicial 8. */
+	UPROPERTY()
+	int32 ShellSwapCount = 0;
+
+	/**
+	 * Trilero (R-ROB-2, R-ROB-3, S-010): segundos que tiene el ladrón para elegir esfera; agotados, no roba nada. En datos;
+	 * valor inicial 5.
+	 */
+	UPROPERTY()
+	double ShellPickSeconds = 0.0;
 };
 
 /** Por qué se rechazaron unos parámetros de partida. */

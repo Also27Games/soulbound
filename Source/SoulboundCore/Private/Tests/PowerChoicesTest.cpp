@@ -15,6 +15,7 @@
 #include "Match/TurnRules.h"
 #include "Math/RandomStream.h"
 #include "Misc/AutomationTest.h"
+#include "ChoiceFixture.h"
 #include "MatchTestSetup.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -32,185 +33,7 @@ namespace
 	int32 AsInt(EChoiceKind Kind) { return static_cast<int32>(Kind); }
 	int32 AsInt(ETurnPhase Phase) { return static_cast<int32>(Phase); }
 
-	/** Partida de cuatro sobre el tablero de 35 casillas, con los Elegidos del archivo de datos. */
-	struct FChoiceFixture
-	{
-		FMatchState State;
-		FRandomStream Random{1};
-		double Now = 1.0;
-
-		bool Start(FAutomationTestBase& Test)
-		{
-			FBoardState Board;
-			FMatchParams Params;
-			FElectsTable Elects;
-			if (!Soulbound::Tests::LoadBoardFile(Test, Soulbound::Tests::RaceBoardFileName(), Board) || !Soulbound::Tests::LoadTestMatchParams(Test, Params)
-				|| !Soulbound::Tests::LoadTestElects(Test, Elects))
-			{
-				return false;
-			}
-			FMatchStartResult Result = Soulbound::Rules::StartMatch(Board, Params, Elects, Soulbound::Match::MaxPlayers, Random);
-			State = MoveTemp(Result.State);
-			return Test.TestTrue(FString::Printf(TEXT("La partida empieza (%s)"), *Result.Message), Result.IsSuccess());
-		}
-
-		/** Seat reclama el Nicho de DomainId y se vincula a su Elegido; el primer vínculo despierta el tablero. */
-		bool Bond(FAutomationTestBase& Test, int32 Seat, int32 DomainId)
-		{
-			FDomainState& Domain = State.Board.Domains[DomainId];
-			if (Domain.State == EDomainState::Forgotten)
-			{
-				Domain.State = EDomainState::Owned;
-				Domain.NicheState = ENicheState::Free;
-			}
-			Now += 1.0;
-			return Test.TestTrue(FString::Printf(TEXT("El asiento %d se vincula al Dominio %d"), Seat, DomainId),
-				LandOn(State, Random, Seat, State.Board.FindNiche(DomainId), Now) && State.Seats[Seat].Role == ESeatRole::Elect);
-		}
-
-		/**
-		 * Seat se vincula al primer Dominio con dueño y Nicho Libre, sin tocar el sorteo de Olvidados: para los tests en
-		 * los que el Elegido concreto no importa. Devuelve el Dominio, o INDEX_NONE si no pudo.
-		 */
-		int32 BondAny(FAutomationTestBase& Test, int32 Seat)
-		{
-			const int32 DomainId = State.Board.Domains.IndexOfByPredicate([](const FDomainState& Domain)
-			{
-				return Domain.State == EDomainState::Owned && Domain.NicheState == ENicheState::Free;
-			});
-			return DomainId != INDEX_NONE && Bond(Test, Seat, DomainId) ? DomainId : INDEX_NONE;
-		}
-
-		/** Da a Seat una runa del tipo que le da Power: a un Elegido, según su mapa; a un Eco, la de Liberación (Celeridad). */
-		void GivePower(int32 Seat, EPower Power)
-		{
-			FSeatState& Seat_ = State.Seats[Seat];
-			if (Seat_.Role == ESeatRole::LostEcho)
-			{
-				Seat_.Runes[Seat_.DomainId] = 1;
-				return;
-			}
-			const TArray<EPower>& Map = State.Elects.Elects[Seat_.DomainId].RuneToPower;
-			Seat_.Runes[Map.IndexOfByKey(Power)] = 1;
-		}
-
-		/** El turno de Seat empieza y llega a PreRoll (BetweenTurns → Start → PreRoll), un segundo después del anterior. */
-		void BeginTurn(int32 Seat)
-		{
-			Now += 1.0;
-			State.ActiveSeat = Seat;
-			State.TurnPhase = ETurnPhase::BetweenTurns;
-			Advance();
-			Advance();
-		}
-
-		bool Advance() { return Soulbound::Rules::AdvanceTurn(State, Now, Random); }
-
-		EIntentResult Choose(int32 Seat, EChoiceKind Kind, int32 Option) { return Soulbound::Rules::SubmitChoiceIntent(State, Seat, Kind, Option, Now, Random); }
-
-		/** Termina el turno en curso: "no" a lo que lo admita, primer destino, minijuego fallado. */
-		void FinishTurn()
-		{
-			for (int32 Step = 0; Step < 32 && State.TurnPhase != ETurnPhase::BetweenTurns; ++Step)
-			{
-				if (State.TurnPhase == ETurnPhase::SkillTrial)
-				{
-					Soulbound::Rules::SubmitSkillTrialResult(State, State.ActiveSeat, false, Now);
-				}
-				else if (State.PendingChoice.IsOpen() && State.PendingChoice.CanDecline())
-				{
-					Choose(State.ActiveSeat, State.PendingChoice.Kind, INDEX_NONE);
-				}
-				else if (State.PendingChoice.Kind == EChoiceKind::DiceCount)
-				{
-					Choose(State.ActiveSeat, EChoiceKind::DiceCount, 1);
-				}
-				else if (State.TurnPhase == ETurnPhase::RollAndChoose && !State.ReachableOptions.IsEmpty())
-				{
-					Soulbound::Rules::SubmitDestinationIntent(State, State.ActiveSeat, State.ReachableOptions[0], Now);
-				}
-				Advance();
-			}
-		}
-
-		/** Seat termina su movimiento en TileId, un segundo después del anterior. Devuelve LandOn. */
-		bool Land(int32 Seat, int32 TileId)
-		{
-			Now += 1.0;
-			return LandOn(State, Random, Seat, TileId, Now);
-		}
-
-		/** Nodos Planares del tablero, en orden ascendente. */
-		TArray<int32> PlanarNodes() const
-		{
-			TArray<int32> Nodes;
-			for (const FTileState& Tile : State.Board.Tiles)
-			{
-				if (Tile.PowerNodeEffect == EPowerNodeEffect::Planar)
-				{
-					Nodes.Add(Tile.TileId);
-				}
-			}
-			return Nodes;
-		}
-
-		/** Todos los Nodos de Poder pasan a Planares: así "los demás" son más de uno. */
-		void MakeAllNodesPlanar()
-		{
-			for (FTileState& Tile : State.Board.Tiles)
-			{
-				if (Tile.Type == ETileType::PowerNode)
-				{
-					Tile.PowerNodeEffect = EPowerNodeEffect::Planar;
-				}
-			}
-		}
-
-		/** Casillas normales (sin tipo) del Dominio, en orden ascendente; de cualquier Dominio con INDEX_NONE. */
-		TArray<int32> NormalTiles(int32 DomainId = INDEX_NONE) const
-		{
-			TArray<int32> Tiles;
-			for (const FTileState& Tile : State.Board.Tiles)
-			{
-				if (Tile.Type == ETileType::Normal && (DomainId == INDEX_NONE || Tile.DomainId == DomainId))
-				{
-					Tiles.Add(Tile.TileId);
-				}
-			}
-			return Tiles;
-		}
-
-		int32 SourceOf(int32 DomainId) const
-		{
-			for (const FTileState& Tile : State.Board.Tiles)
-			{
-				if (Tile.Type == ETileType::PowerSource && Tile.DomainId == DomainId)
-				{
-					return Tile.TileId;
-				}
-			}
-			return INDEX_NONE;
-		}
-
-		int32 DomainOf(EDomainState DomainState, int32 Except = INDEX_NONE) const
-		{
-			for (const FDomainState& Domain : State.Board.Domains)
-			{
-				if (Domain.State == DomainState && Domain.DomainId != Except)
-				{
-					return Domain.DomainId;
-				}
-			}
-			return INDEX_NONE;
-		}
-
-		/** Sella TileId a mano (el test no comprueba las reglas de Sello). */
-		void Seal(int32 TileId)
-		{
-			State.Board.Tiles[TileId].bSealed = true;
-			State.Board.SealedTiles.Add(TileId);
-		}
-	};
+	using Soulbound::Tests::FChoiceFixture;
 
 	/** Los dos primeros valores de un dado que sacaría Random, sin tocarlo. */
 	TPair<int32, int32> PeekDice(const FRandomStream& Random)
@@ -219,6 +42,17 @@ namespace
 		const int32 First = Copy.RandRange(1, Soulbound::Dice::Faces);
 		const int32 Second = Copy.RandRange(1, Soulbound::Dice::Faces);
 		return {First, Second};
+	}
+
+	/** Opciones de expulsión contra los asientos Targets, en ese orden (S-010: la acción contra un jugador es un par). */
+	TArray<FPlayerActionOption> ExpelOptions(const TArray<int32>& Targets)
+	{
+		TArray<FPlayerActionOption> Options;
+		for (const int32 Target : Targets)
+		{
+			Options.Add({EPlayerAction::Expel, Target});
+		}
+		return Options;
 	}
 
 	/** Random tras sacar Count valores de un dado. */
@@ -650,7 +484,7 @@ bool FPowersPlanarJumpOfferTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("La máquina espera"), Soulbound::Rules::AdvanceTurn(F.State, F.Now + 1.0, F.Random));
 	TestEqual(TEXT("Su propio Nodo no es una opción"), AsInt(F.Choose(0, EChoiceKind::PlanarJump, Nodes[0])), AsInt(EIntentResult::InvalidOption));
 	TestEqual(TEXT("Otro asiento no puede contestar"), AsInt(F.Choose(1, EChoiceKind::PlanarJump, Nodes[1])), AsInt(EIntentResult::WrongSeat));
-	TestEqual(TEXT("Otro tipo de elección se rechaza por fase"), AsInt(F.Choose(0, EChoiceKind::Expel, 1)), AsInt(EIntentResult::WrongPhase));
+	TestEqual(TEXT("Otro tipo de elección se rechaza por fase"), AsInt(F.Choose(0, EChoiceKind::PlayerAction, 0)), AsInt(EIntentResult::WrongPhase));
 	TestTrue(TEXT("Los rechazos no cambian nada"), SameState(Waiting, F.State));
 
 	F.Now += 1.0;
@@ -758,10 +592,10 @@ bool FPowersExpelHomeTest::RunTest(const FString& Parameters)
 	// Elegido → su Nicho.
 	F.State.Seats[1].TileId = Normal[0];
 	TestTrue(TEXT("Termina donde está el Elegido del asiento 1"), F.Land(0, Normal[0]));
-	TestEqual(TEXT("Se le ofrece expulsar"), AsInt(F.State.PendingChoice.Kind), AsInt(EChoiceKind::Expel));
-	TestTrue(TEXT("... al asiento 1"), F.State.PendingChoice.Options == TArray<int32>{1});
+	TestEqual(TEXT("Se le ofrece expulsar"), AsInt(F.State.PendingChoice.Kind), AsInt(EChoiceKind::PlayerAction));
+	TestTrue(TEXT("... al asiento 1"), F.State.PendingChoice.ActionOptions == ExpelOptions({1}));
 	TestEqual(TEXT("... con el reloj de elección"), F.State.PendingChoice.DeadlineSeconds, F.Now + F.State.Params.ChoiceClockSeconds);
-	TestEqual(TEXT("Expulsa al Elegido: aceptado"), AsInt(F.Choose(0, EChoiceKind::Expel, 1)), AsInt(EIntentResult::Accepted));
+	TestEqual(TEXT("Expulsa al Elegido: aceptado"), AsInt(F.Act(0, EPlayerAction::Expel, 1)), AsInt(EIntentResult::Accepted));
 	TestEqual(TEXT("El Elegido está en su Nicho"), F.State.Seats[1].TileId, F.State.Board.FindNiche(Other));
 	TestEqual(TEXT("Quien expulsa sigue en su casilla"), F.State.Seats[0].TileId, Normal[0]);
 	TestEqual(TEXT("El turno termina"), AsInt(F.State.TurnPhase), AsInt(ETurnPhase::End));
@@ -770,15 +604,15 @@ bool FPowersExpelHomeTest::RunTest(const FString& Parameters)
 	// Eco en carrera → el Altar.
 	F.State.Seats[2].TileId = Normal[1];
 	TestTrue(TEXT("Termina donde está el Eco en carrera"), F.Land(0, Normal[1]));
-	TestTrue(TEXT("Se le ofrece expulsar al asiento 2"), F.State.PendingChoice.Options == TArray<int32>{2});
-	TestEqual(TEXT("Expulsa al Eco en carrera"), AsInt(F.Choose(0, EChoiceKind::Expel, 2)), AsInt(EIntentResult::Accepted));
+	TestTrue(TEXT("Se le ofrece expulsar al asiento 2"), F.State.PendingChoice.ActionOptions == ExpelOptions({2}));
+	TestEqual(TEXT("Expulsa al Eco en carrera"), AsInt(F.Act(0, EPlayerAction::Expel, 2)), AsInt(EIntentResult::Accepted));
 	TestEqual(TEXT("El Eco en carrera está en el Altar"), F.State.Seats[2].TileId, Altar);
 	F.FinishTurn();
 
 	// Quien ya está en su hogar no es objetivo: en el Altar, el Eco en carrera (su hogar) y el Elegido 1 (no lo es).
 	F.State.Seats[1].TileId = Altar;
 	TestTrue(TEXT("Termina en el Altar"), F.Land(0, Altar));
-	TestTrue(TEXT("Solo se ofrece al que no está en su hogar"), F.State.PendingChoice.Options == TArray<int32>{1});
+	TestTrue(TEXT("Solo se ofrece al que no está en su hogar"), F.State.PendingChoice.ActionOptions == ExpelOptions({1}));
 	F.FinishTurn();
 
 	// Eco tras la carrera → el Nicho Cerrado de su Dominio asignado.
@@ -787,8 +621,8 @@ bool FPowersExpelHomeTest::RunTest(const FString& Parameters)
 	const int32 EchoHome = F.State.Board.FindNiche(F.State.Seats[Echo].DomainId);
 	F.State.Seats[Echo].TileId = Normal[2];
 	TestTrue(TEXT("Termina donde está el Eco tras la carrera"), F.Land(0, Normal[2]));
-	TestTrue(TEXT("Se le ofrece expulsar al asiento 3"), F.State.PendingChoice.Options == TArray<int32>{Echo});
-	TestEqual(TEXT("Expulsa al Eco"), AsInt(F.Choose(0, EChoiceKind::Expel, Echo)), AsInt(EIntentResult::Accepted));
+	TestTrue(TEXT("Se le ofrece expulsar al asiento 3"), F.State.PendingChoice.ActionOptions == ExpelOptions({Echo}));
+	TestEqual(TEXT("Expulsa al Eco"), AsInt(F.Act(0, EPlayerAction::Expel, Echo)), AsInt(EIntentResult::Accepted));
 	TestEqual(TEXT("El Eco está en el Nicho Cerrado de su Dominio asignado"), F.State.Seats[Echo].TileId, EchoHome);
 	TestEqual(TEXT("... que es su hogar"), F.State.Seats[Echo].TileId, Soulbound::Rules::HomeTile(F.State, Echo));
 	F.FinishTurn();
@@ -821,22 +655,22 @@ bool FPowersExpelOneOrNoneTest::RunTest(const FString& Parameters)
 	F.State.Seats[1].TileId = Tile;
 	F.State.Seats[2].TileId = Tile;
 	TestTrue(TEXT("Termina con dos ocupantes"), F.Land(0, Tile));
-	TestTrue(TEXT("Se le ofrecen los dos"), F.State.PendingChoice.Options == TArray<int32>{1, 2});
+	TestTrue(TEXT("Se le ofrecen los dos"), F.State.PendingChoice.ActionOptions == ExpelOptions({1, 2}));
 	TestTrue(TEXT("... y \"ninguno\""), F.State.PendingChoice.CanDecline());
 	const FChoiceFixture Waiting = F;
 
-	TestEqual(TEXT("Ninguno: aceptado"), AsInt(F.Choose(0, EChoiceKind::Expel, INDEX_NONE)), AsInt(EIntentResult::Accepted));
+	TestEqual(TEXT("Ninguno: aceptado"), AsInt(F.Choose(0, EChoiceKind::PlayerAction, INDEX_NONE)), AsInt(EIntentResult::Accepted));
 	TestTrue(TEXT("Ninguno: los dos siguen ahí"), F.State.Seats[1].TileId == Tile && F.State.Seats[2].TileId == Tile);
 	TestEqual(TEXT("Ninguno: el turno termina"), AsInt(F.State.TurnPhase), AsInt(ETurnPhase::End));
 	TestEqual(TEXT("Ninguno: nadie expulsado"), EventsOfType(F.State, EMatchEventType::Expelled).Num(), 0);
 
 	F = Waiting;
-	TestEqual(TEXT("Uno: aceptado"), AsInt(F.Choose(0, EChoiceKind::Expel, 2)), AsInt(EIntentResult::Accepted));
+	TestEqual(TEXT("Uno: aceptado"), AsInt(F.Act(0, EPlayerAction::Expel, 2)), AsInt(EIntentResult::Accepted));
 	TestEqual(TEXT("Uno: el asiento 2 está en su hogar"), F.State.Seats[2].TileId, Soulbound::Rules::HomeTile(F.State, 2));
 	TestEqual(TEXT("Uno: el asiento 1 sigue ahí"), F.State.Seats[1].TileId, Tile);
 	TestFalse(TEXT("Uno: no se ofrece otra expulsión"), F.State.PendingChoice.IsOpen());
 	TestEqual(TEXT("Uno: el turno termina"), AsInt(F.State.TurnPhase), AsInt(ETurnPhase::End));
-	TestEqual(TEXT("Uno: el segundo intento se rechaza"), AsInt(F.Choose(0, EChoiceKind::Expel, 1)), AsInt(EIntentResult::WrongPhase));
+	TestEqual(TEXT("Uno: el segundo intento se rechaza"), AsInt(F.Act(0, EPlayerAction::Expel, 1)), AsInt(EIntentResult::WrongPhase));
 	return true;
 }
 
@@ -864,7 +698,7 @@ bool FPowersTileThenActionTest::RunTest(const FString& Parameters)
 	const int32 RuneBefore = F.State.Seats[0].RuneCountOf(Other);
 	TestTrue(TEXT("Termina en una Fuente con dueño ocupada"), F.Land(0, OwnedSource));
 	TestEqual(TEXT("Ya ha obtenido la runa"), F.State.Seats[0].RuneCountOf(Other), RuneBefore + 1);
-	TestEqual(TEXT("... y después se le ofrece la acción"), AsInt(F.State.PendingChoice.Kind), AsInt(EChoiceKind::Expel));
+	TestEqual(TEXT("... y después se le ofrece la acción"), AsInt(F.State.PendingChoice.Kind), AsInt(EChoiceKind::PlayerAction));
 	const TArray<FMatchEvent>& Log = F.State.EventLog;
 	TestTrue(TEXT("El último evento es la runa obtenida"), Log.Num() > 0 && Log.Last().Type == EMatchEventType::RuneObtained);
 	F.FinishTurn();
@@ -883,8 +717,8 @@ bool FPowersTileThenActionTest::RunTest(const FString& Parameters)
 	F.Now += 1.0;
 	TestEqual(TEXT("Supera el minijuego"), AsInt(Soulbound::Rules::SubmitSkillTrialResult(F.State, 0, true, F.Now)), AsInt(EIntentResult::Accepted));
 	TestEqual(TEXT("Obtiene la runa"), F.State.Seats[0].RuneCountOf(Forgotten), 1);
-	TestEqual(TEXT("Después se le ofrece la acción"), AsInt(F.State.PendingChoice.Kind), AsInt(EChoiceKind::Expel));
-	TestTrue(TEXT("... contra el asiento 2"), F.State.PendingChoice.Options == TArray<int32>{2});
+	TestEqual(TEXT("Después se le ofrece la acción"), AsInt(F.State.PendingChoice.Kind), AsInt(EChoiceKind::PlayerAction));
+	TestTrue(TEXT("... contra el asiento 2"), F.State.PendingChoice.ActionOptions == ExpelOptions({2}));
 	TestEqual(TEXT("... y la máquina la espera en MoveAndResolve"), AsInt(F.State.TurnPhase), AsInt(ETurnPhase::MoveAndResolve));
 	F.FinishTurn();
 
@@ -898,13 +732,13 @@ bool FPowersTileThenActionTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Primero se ofrece el salto"), AsInt(F.State.PendingChoice.Kind), AsInt(EChoiceKind::PlanarJump));
 	F.Now += 1.0;
 	TestEqual(TEXT("Salta al otro Nodo, ocupado"), AsInt(F.Choose(0, EChoiceKind::PlanarJump, Nodes[1])), AsInt(EIntentResult::Accepted));
-	TestEqual(TEXT("Tras el salto, se le ofrece la acción"), AsInt(F.State.PendingChoice.Kind), AsInt(EChoiceKind::Expel));
-	TestTrue(TEXT("... contra quien está en el destino"), F.State.PendingChoice.Options == TArray<int32>{1});
+	TestEqual(TEXT("Tras el salto, se le ofrece la acción"), AsInt(F.State.PendingChoice.Kind), AsInt(EChoiceKind::PlayerAction));
+	TestTrue(TEXT("... contra quien está en el destino"), F.State.PendingChoice.ActionOptions == ExpelOptions({1}));
 
 	F = BeforeLanding;
 	TestTrue(TEXT("Otra vez en el Nodo ocupado"), F.Land(0, Nodes[0]));
 	TestEqual(TEXT("No salta"), AsInt(F.Choose(0, EChoiceKind::PlanarJump, INDEX_NONE)), AsInt(EIntentResult::Accepted));
-	TestTrue(TEXT("Sin salto, la acción es contra quien está en su Nodo"), F.State.PendingChoice.Kind == EChoiceKind::Expel && F.State.PendingChoice.Options == TArray<int32>{2});
+	TestTrue(TEXT("Sin salto, la acción es contra quien está en su Nodo"), F.State.PendingChoice.Kind == EChoiceKind::PlayerAction && F.State.PendingChoice.ActionOptions == ExpelOptions({2}));
 	return true;
 }
 
@@ -931,14 +765,14 @@ bool FPowersExpelTurnsTest::RunTest(const FString& Parameters)
 
 	F.State.Seats[2].TileId = Normal[0];
 	TestTrue(TEXT("Termina con el asiento 2"), F.Land(0, Normal[0]));
-	TestEqual(TEXT("Expulsa al asiento 2"), AsInt(F.Choose(0, EChoiceKind::Expel, 2)), AsInt(EIntentResult::Accepted));
+	TestEqual(TEXT("Expulsa al asiento 2"), AsInt(F.Act(0, EPlayerAction::Expel, 2)), AsInt(EIntentResult::Accepted));
 	TestEqual(TEXT("El asiento 2 conserva su turno perdido"), F.State.Seats[2].LostTurns, 1);
 	TestEqual(TEXT("... y no gana extra"), F.State.Seats[2].ExtraTurns, 0);
 	F.FinishTurn();
 
 	F.State.Seats[1].TileId = Normal[1];
 	TestTrue(TEXT("Termina con el asiento 1"), F.Land(0, Normal[1]));
-	TestEqual(TEXT("Expulsa al asiento 1"), AsInt(F.Choose(0, EChoiceKind::Expel, 1)), AsInt(EIntentResult::Accepted));
+	TestEqual(TEXT("Expulsa al asiento 1"), AsInt(F.Act(0, EPlayerAction::Expel, 1)), AsInt(EIntentResult::Accepted));
 	TestEqual(TEXT("El asiento 1 conserva su turno extra"), F.State.Seats[1].ExtraTurns, 1);
 	TestEqual(TEXT("... y no gana perdidos"), F.State.Seats[1].LostTurns, 0);
 	TestEqual(TEXT("Quien expulsa no gana turnos"), F.State.Seats[0].ExtraTurns + F.State.Seats[0].LostTurns, 0);
@@ -981,7 +815,7 @@ bool FPowersChoiceClockTest::RunTest(const FString& Parameters)
 
 	TestTrue(TEXT("En el plazo, la máquina avanza"), Soulbound::Rules::AdvanceTurn(F.State, JumpDeadline, F.Random));
 	TestEqual(TEXT("Salto agotado: no salta"), F.State.Seats[0].TileId, Nodes[0]);
-	TestEqual(TEXT("... y el turno sigue con la acción"), AsInt(F.State.PendingChoice.Kind), AsInt(EChoiceKind::Expel));
+	TestEqual(TEXT("... y el turno sigue con la acción"), AsInt(F.State.PendingChoice.Kind), AsInt(EChoiceKind::PlayerAction));
 	const double ExpelDeadline = JumpDeadline + F.State.Params.ChoiceClockSeconds;
 	TestEqual(TEXT("... con su propio reloj de elección"), F.State.PendingChoice.DeadlineSeconds, ExpelDeadline);
 
@@ -994,7 +828,7 @@ bool FPowersChoiceClockTest::RunTest(const FString& Parameters)
 	if (TestEqual(TEXT("Dos elecciones agotadas en el registro"), Expired.Num(), 2))
 	{
 		TestTrue(TEXT("La del salto, con su asiento y su plazo"), Expired[0].Seat == 0 && Expired[0].Value == AsInt(EChoiceKind::PlanarJump) && Expired[0].ClockSeconds == JumpDeadline);
-		TestTrue(TEXT("La de la acción, con su asiento y su plazo"), Expired[1].Seat == 0 && Expired[1].Value == AsInt(EChoiceKind::Expel) && Expired[1].ClockSeconds == ExpelDeadline);
+		TestTrue(TEXT("La de la acción, con su asiento y su plazo"), Expired[1].Seat == 0 && Expired[1].Value == AsInt(EChoiceKind::PlayerAction) && Expired[1].ClockSeconds == ExpelDeadline);
 	}
 	return true;
 }
@@ -1012,13 +846,14 @@ bool FPowersEventLogTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	auto Expect = [this, &F](EMatchEventType Type, const TCHAR* Name, int32 Seat, int32 Value, double At)
+	auto Expect = [this, &F](EMatchEventType Type, const TCHAR* Name, int32 Seat, int32 Value, double At, int32 OtherSeat = INDEX_NONE)
 	{
 		const TArray<FMatchEvent> Events = EventsOfType(F.State, Type);
 		if (TestEqual(FString::Printf(TEXT("%s: un evento"), Name), Events.Num(), 1))
 		{
 			TestEqual(FString::Printf(TEXT("%s: asiento"), Name), Events[0].Seat, Seat);
 			TestEqual(FString::Printf(TEXT("%s: dato"), Name), Events[0].Value, Value);
+			TestEqual(FString::Printf(TEXT("%s: segundo asiento"), Name), Events[0].OtherSeat, OtherSeat);
 			TestEqual(FString::Printf(TEXT("%s: marca de tiempo"), Name), Events[0].ClockSeconds, At);
 		}
 	};
@@ -1050,10 +885,10 @@ bool FPowersEventLogTest::RunTest(const FString& Parameters)
 	F.Choose(0, EChoiceKind::PlanarJump, Nodes[1]);
 	Expect(EMatchEventType::PlanarJumped, TEXT("PlanarJumped"), 0, Nodes[1], F.Now);
 
-	// Expulsión: asiento de quien expulsa, dato el expulsado.
+	// Expulsión: asiento de quien expulsa y, desde S-010, el expulsado en OtherSeat; sin dato.
 	F.Now += 1.0;
-	F.Choose(0, EChoiceKind::Expel, 1);
-	Expect(EMatchEventType::Expelled, TEXT("Expelled"), 0, 1, F.Now);
+	F.Act(0, EPlayerAction::Expel, 1);
+	Expect(EMatchEventType::Expelled, TEXT("Expelled"), 0, INDEX_NONE, F.Now, 1);
 	F.FinishTurn();
 
 	// Elección agotada: dato el tipo de elección, marca el plazo.

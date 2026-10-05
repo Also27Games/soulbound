@@ -52,6 +52,12 @@ enum class ETurnPhase : uint8
 	 * Nombre propuesto en S-008.
 	 */
 	SkillTrial,
+	/**
+	 * Trilero (glosario `ShellGame`, R-ROB-1, R-ROB-2): un asiento roba a otro. La máquina espera mientras dura, como espera
+	 * cualquier elección: Koschei aparta una runa (elección SafeRune), muestra, mezcla y elección de esfera (ShellPick),
+	 * con los plazos del reloj de partida (FShellGameState). Nombre propuesto en S-010.
+	 */
+	ShellGame,
 	/** Fin de turno. */
 	End,
 };
@@ -81,14 +87,59 @@ enum class EChoiceKind : uint8
 	Reroll,
 	/** Vuelo Planar (R-POD-5, R-TAB-15): saltar a otro Nodo Planar; las opciones son casillas. Con el reloj de elección. */
 	PlanarJump,
-	/** Expulsión (R-POD-4, R-INT-2): a quién mandar a su hogar; las opciones son asientos. Con el reloj de elección. */
-	Expel,
+	/**
+	 * Acción contra un jugador (R-INT-2, S-010; sustituye a Expel de S-009): qué hacer y a quién, en una sola decisión. Las
+	 * opciones son pares (acción, asiento objetivo) en FPendingChoice::ActionOptions y la intención contesta con el índice
+	 * de la opción. Expulsión (R-POD-4) y robo del Eco (R-ECO-4). Con el reloj de elección.
+	 */
+	PlayerAction,
+	/**
+	 * Afinidad de Koschei (R-ROB-5, R-ELE-2): qué runa aparta antes del trilero; las opciones son los tipos de runa de su
+	 * Brazal. La contesta la víctima, no el asiento activo. Obligatoria: no admite "no"; agotada, se juega con todas. Con el
+	 * reloj de elección. S-010.
+	 */
+	SafeRune,
+	/**
+	 * Elección de esfera del trilero (R-ROB-2, R-ROB-3): las opciones son las posiciones finales de las esferas, de 0 en
+	 * adelante. La contesta el ladrón. Obligatoria: no admite "no"; agotada, no roba nada. Con el tiempo de elección del
+	 * trilero (FMatchParams::ShellPickSeconds). S-010.
+	 */
+	ShellPick,
 };
 
 /**
- * Elección pendiente del asiento activo (S-009, nombre propuesto): tipo, opciones y plazo. La máquina de turnos la abre
- * y espera la intención (SubmitChoiceIntent), como espera el destino; agotado el plazo, la resuelve ella. Solo la
- * escriben las reglas de Match/TurnRules.h.
+ * Acción contra un jugador (R-INT-2, S-010, nombre propuesto): lo que un asiento puede hacer a otro al terminar su
+ * movimiento. Duelo y reto de duelo llegarán en S-011.
+ */
+UENUM()
+enum class EPlayerAction : uint8
+{
+	/** Expulsión (glosario `PowerExpel`, R-POD-4): el objetivo vuelve a su hogar. */
+	Expel,
+	/** Robo del Eco (R-ECO-4): el objetivo es la víctima de un trilero. */
+	Steal,
+};
+
+/** Una opción de la acción contra un jugador (S-010, nombre propuesto): qué acción y contra qué asiento. */
+USTRUCT()
+struct SOULBOUNDCORE_API FPlayerActionOption
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	EPlayerAction Action = EPlayerAction::Expel;
+
+	UPROPERTY()
+	int32 TargetSeat = INDEX_NONE;
+
+	bool operator==(const FPlayerActionOption& Other) const { return Action == Other.Action && TargetSeat == Other.TargetSeat; }
+};
+
+/**
+ * Elección pendiente (S-009, nombre propuesto): a qué asiento se le pide, tipo, opciones y plazo. La máquina de turnos la
+ * abre y espera la intención (SubmitChoiceIntent), como espera el destino; agotado el plazo, la resuelve ella. Desde S-010
+ * puede pedírsele a un asiento que no tiene el turno (Koschei víctima aparta una runa). Solo la escriben las reglas de
+ * Match/TurnRules.h.
  */
 USTRUCT()
 struct SOULBOUNDCORE_API FPendingChoice
@@ -98,18 +149,114 @@ struct SOULBOUNDCORE_API FPendingChoice
 	UPROPERTY()
 	EChoiceKind Kind = EChoiceKind::None;
 
-	/** Opciones válidas; su significado depende de Kind (dados, 1 para repetir, casillas o asientos). */
+	/**
+	 * Asiento al que se le pide la elección (S-010): el activo en todas menos SafeRune, que es de la víctima, y ShellPick,
+	 * que es del ladrón. SubmitChoiceIntent valida este asiento, no el activo. INDEX_NONE si no hay elección.
+	 */
+	UPROPERTY()
+	int32 Seat = INDEX_NONE;
+
+	/**
+	 * Opciones válidas en todas menos PlayerAction; su significado depende de Kind (dados, 1 para repetir, casillas, tipos
+	 * de runa o posiciones de esfera). La intención contesta con una de ellas.
+	 */
 	UPROPERTY()
 	TArray<int32> Options;
 
-	/** Plazo en segundos del reloj de partida: el del reloj de turno (DiceCount, Reroll) o el del reloj de elección. */
+	/** Opciones de PlayerAction (S-010): pares (acción, asiento objetivo). La intención contesta con el índice de una. */
+	UPROPERTY()
+	TArray<FPlayerActionOption> ActionOptions;
+
+	/**
+	 * Plazo en segundos del reloj de partida: el del reloj de turno (DiceCount, Reroll), el del reloj de elección
+	 * (PlanarJump, PlayerAction, SafeRune) o el tiempo de elección del trilero (ShellPick).
+	 */
 	UPROPERTY()
 	double DeadlineSeconds = 0.0;
 
 	bool IsOpen() const { return Kind != EChoiceKind::None; }
 
-	/** Si admite "no" (INDEX_NONE): todas menos la elección de dados. */
-	bool CanDecline() const { return Kind != EChoiceKind::DiceCount; }
+	/** Si admite "no" (INDEX_NONE): todas menos la elección de dados, la runa de Koschei y la esfera del trilero. */
+	bool CanDecline() const { return Kind != EChoiceKind::DiceCount && Kind != EChoiceKind::SafeRune && Kind != EChoiceKind::ShellPick; }
+
+	/** Cuántas respuestas distintas de "no" admite (S-010): las de ActionOptions en PlayerAction, las de Options en el resto. */
+	int32 AnswerCount() const { return Kind == EChoiceKind::PlayerAction ? ActionOptions.Num() : Options.Num(); }
+
+	/**
+	 * Respuesta que se entrega por la opción en la posición Index (de 0 a AnswerCount - 1), la que numera la vista: en
+	 * PlayerAction el propio índice, en el resto el valor de Options. INDEX_NONE si la posición no existe.
+	 */
+	int32 AnswerAt(int32 Index) const
+	{
+		if (Index < 0 || Index >= AnswerCount())
+		{
+			return INDEX_NONE;
+		}
+		return Kind == EChoiceKind::PlayerAction ? Index : Options[Index];
+	}
+
+	/** Si Answer es una respuesta válida distinta de "no". */
+	bool IsValidAnswer(int32 Answer) const { return Kind == EChoiceKind::PlayerAction ? ActionOptions.IsValidIndex(Answer) : Options.Contains(Answer); }
+};
+
+/** Etapa del trilero (R-ROB-2, S-010, nombre propuesto), en el orden en que se recorren. */
+UENUM()
+enum class EShellGameStage : uint8
+{
+	/** No hay trilero. */
+	None,
+	/** Koschei víctima elige qué runa aparta (R-ROB-5), con la elección SafeRune. */
+	SafeRune,
+	/** Muestra: las runas de la víctima, a la vista hasta StageDeadlineSeconds (FMatchParams::ShellRevealSeconds). */
+	Reveal,
+	/** Mezcla: las esferas se intercambian hasta StageDeadlineSeconds (FMatchParams::ShellShuffleSeconds). */
+	Shuffle,
+	/** El ladrón elige una esfera, con la elección ShellPick. */
+	Pick,
+};
+
+/**
+ * Trilero en curso (glosario `ShellGame`, R-ROB-1 a R-ROB-6, S-010, nombre propuesto): quién roba a quién, qué runas van en
+ * las esferas y con qué semilla se mezclan. La secuencia de intercambios no se guarda: es ShellGameSwaps(Seed, número de
+ * esferas, FMatchParams::ShellSwapCount), una función pura que la interfaz podrá animar. Solo lo escriben las reglas de
+ * Match/ShellGameRules.h. Las runas no salen del Brazal de la víctima mientras dura: las esferas son una copia.
+ */
+USTRUCT()
+struct SOULBOUNDCORE_API FShellGameState
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	EShellGameStage Stage = EShellGameStage::None;
+
+	/** Asiento que roba (el ladrón). */
+	UPROPERTY()
+	int32 Thief = INDEX_NONE;
+
+	/** Asiento al que se roba (la víctima). */
+	UPROPERTY()
+	int32 Victim = INDEX_NONE;
+
+	/**
+	 * Tipo de runa de cada esfera, en el orden de la muestra (la esfera i empieza en la posición i): todas las de la víctima,
+	 * duplicados incluidos, en orden de tipo, menos la que aparta Koschei (R-ROB-2, R-ROB-5). Vacío antes de la muestra.
+	 */
+	UPROPERTY()
+	TArray<int32> Orbs;
+
+	/** Tipo de runa que apartó Koschei (R-ROB-5); INDEX_NONE si no apartó ninguna. */
+	UPROPERTY()
+	int32 SetAsideRune = INDEX_NONE;
+
+	/** Semilla de la mezcla (R-ROB-6): sale de FMatchState::ShellSeedBase y del número de trilero, no del sorteo de los dados. */
+	UPROPERTY()
+	int32 Seed = 0;
+
+	/** Fin de la etapa Reveal o Shuffle, en segundos del reloj de partida; las etapas con elección usan el plazo de la elección. */
+	UPROPERTY()
+	double StageDeadlineSeconds = 0.0;
+
+	bool IsActive() const { return Stage != EShellGameStage::None; }
 };
 
 /** Dificultad de una prueba (glosario "Minijuego de habilidad"). Nombre propuesto en S-008; hoy solo se usa Easy. */
@@ -212,8 +359,8 @@ enum class EMatchEventType : uint8
 	/** Un asiento salta de un Nodo Planar a otro (R-POD-5); Value es la casilla de destino. Nombre propuesto en S-009. */
 	PlanarJumped,
 	/**
-	 * Un asiento expulsa a otro a su hogar (R-POD-4); Seat es quien expulsa y Value el asiento expulsado. La casilla de
-	 * llegada es el hogar del expulsado (HomeTile). Nombre propuesto en S-009.
+	 * Un asiento expulsa a otro a su hogar (R-POD-4); Seat es quien expulsa y OtherSeat el expulsado (desde S-010; antes,
+	 * Value), sin Value. La casilla de llegada es el hogar del expulsado (HomeTile). Nombre propuesto en S-009.
 	 */
 	Expelled,
 	/**
@@ -221,6 +368,24 @@ enum class EMatchEventType : uint8
 	 * elección (EChoiceKind). La elección de dados no lo deja: su agotamiento es TurnClockExpired. Nombre propuesto en S-009.
 	 */
 	ChoiceExpired,
+	/**
+	 * Empieza el trilero: las runas salen a la vista (R-ROB-2); Seat es el ladrón, OtherSeat la víctima y Value el número de
+	 * esferas. Va después de la runa que aparta Koschei, si la hay. Nombre propuesto en S-010.
+	 */
+	ShellGameStarted,
+	/** Koschei aparta una runa antes del trilero (R-ROB-5); Seat es Koschei, OtherSeat el ladrón, Value el tipo. S-010. */
+	SafeRuneSetAside,
+	/** El ladrón se queda la runa de la esfera que eligió (R-ROB-3); Seat el ladrón, OtherSeat la víctima, Value el tipo. S-010. */
+	RuneStolen,
+	/** El ladrón no elige esfera a tiempo y no roba nada (R-ROB-3); Seat el ladrón, OtherSeat la víctima. S-010. */
+	ShellGameExpired,
+	/** Robo a quien no tiene runas: no hay trilero (R-ROB-4); Seat el ladrón, OtherSeat la víctima. S-010. */
+	StealNoRunes,
+	/**
+	 * Robo anulado: Koschei víctima con una sola runa (R-ROB-5); Seat el ladrón, OtherSeat Koschei y Value el tipo de esa
+	 * runa. Nombre propuesto en S-010.
+	 */
+	StealCancelled,
 };
 
 /**
@@ -244,8 +409,16 @@ struct SOULBOUNDCORE_API FMatchEvent
 	int32 Seat = INDEX_NONE;
 
 	/**
+	 * Segundo asiento implicado (S-010): el afectado, cuando Seat es quien actúa (víctima del robo, expulsado). INDEX_NONE
+	 * en los eventos de un solo asiento.
+	 */
+	UPROPERTY()
+	int32 OtherSeat = INDEX_NONE;
+
+	/**
 	 * Dato del evento: la tirada en Rolled; la casilla en SealPlaced, SealReleased y ReturnedHome; el Dominio en Bonded
-	 * y HomeAssigned; los Elegidos en BondRaceEnded; los de los eventos de S-008 y S-009, en su tipo; INDEX_NONE en el resto.
+	 * y HomeAssigned; los Elegidos en BondRaceEnded; los de los eventos de S-008, S-009 y S-010, en su tipo; INDEX_NONE en el
+	 * resto. Nunca un asiento: el segundo asiento va en OtherSeat (S-010).
 	 */
 	UPROPERTY()
 	int32 Value = INDEX_NONE;
@@ -385,9 +558,25 @@ struct SOULBOUNDCORE_API FMatchState
 	UPROPERTY()
 	ESkillDifficulty PendingDifficulty = ESkillDifficulty::Easy;
 
-	/** Elección pendiente del asiento activo (S-009); Kind None si no hay. */
+	/** Elección pendiente (S-009); Kind None si no hay. Desde S-010 puede ser de un asiento sin turno (PendingChoice.Seat). */
 	UPROPERTY()
 	FPendingChoice PendingChoice;
+
+	/** Trilero en curso (S-010); Stage None fuera de la fase ShellGame. */
+	UPROPERTY()
+	FShellGameState ShellGame;
+
+	/**
+	 * Valor base de las semillas de mezcla del trilero (R-ROB-6, S-010): se saca una vez del sorteo de la partida al final
+	 * de StartMatch. La semilla de cada trilero lo combina con ShellGameCount; así ningún robo consume el sorteo de los dados
+	 * (consumo fijo de S-009). No es la semilla del sorteo de la partida, que nunca va al estado.
+	 */
+	UPROPERTY()
+	int32 ShellSeedBase = 0;
+
+	/** Trileros jugados en la partida (S-010): el contador que se combina con ShellSeedBase. */
+	UPROPERTY()
+	int32 ShellGameCount = 0;
 
 	/**
 	 * Si faltan por sacar del sorteo de la partida los dos valores reservados para la repetición del turno en curso
