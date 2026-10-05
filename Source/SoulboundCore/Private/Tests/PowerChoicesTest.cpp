@@ -6,7 +6,9 @@
 // Montaje: tablero de 35 casillas (dos Nodos Planares desde S-009), cuatro asientos y los Elegidos del archivo de datos.
 // Los vínculos pasan por ResolveNicheLanding (LandOn en el Nicho); si el Dominio pedido salió Olvidado en el sorteo, el
 // montaje lo devuelve a "con dueño" antes. Las runas y las posiciones de las fichas se fijan a mano: es lo que el test
-// necesita, no lo que comprueba. Los turnos se juegan con la máquina de turnos (AdvanceTurn y las intenciones).
+// necesita, no lo que comprueba. Los turnos se juegan con la máquina de turnos (AdvanceTurn y las intenciones). El
+// montaje (FChoiceFixture) vive desde S-010 en ChoiceFixture.h, compartido con los tests del trilero. Desde S-010 la
+// expulsión es una opción de la acción contra un jugador (PlayerAction), contestada por su índice.
 
 #include "Board/MovementRules.h"
 #include "Match/BondRaceRules.h"
