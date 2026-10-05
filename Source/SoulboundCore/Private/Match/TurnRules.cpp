@@ -4,6 +4,7 @@
 #include "Match/BondRaceRules.h"
 #include "Match/RuneRules.h"
 #include "Match/MatchEvents.h"
+#include "Match/ShellGameRules.h"
 #include "Math/RandomStream.h"
 
 using Soulbound::Rules::LogEvent;
@@ -46,9 +47,15 @@ namespace
 		State.ReachableOptions = Soulbound::Rules::ReachableTiles(State.Board, State.Seats[State.ActiveSeat].TileId, State.Roll, Mover);
 	}
 
-	void OpenChoice(FMatchState& State, EChoiceKind Kind, TArray<int32> Options, double DeadlineSeconds)
+	/**
+	 * Abre una elección pendiente para el asiento Seat (S-010: el que la contesta; INDEX_NONE, el activo) con sus opciones
+	 * y su plazo. Las de la acción contra un jugador van aparte, en ActionOptions.
+	 */
+	void OpenChoice(FMatchState& State, EChoiceKind Kind, TArray<int32> Options, double DeadlineSeconds, int32 Seat = INDEX_NONE)
 	{
+		State.PendingChoice = FPendingChoice();
 		State.PendingChoice.Kind = Kind;
+		State.PendingChoice.Seat = Seat == INDEX_NONE ? State.ActiveSeat : Seat;
 		State.PendingChoice.Options = MoveTemp(Options);
 		State.PendingChoice.DeadlineSeconds = DeadlineSeconds;
 	}
@@ -80,7 +87,9 @@ namespace
 		case EChoiceKind::DiceCount: return ETurnPhase::PreRoll;
 		case EChoiceKind::Reroll: return ETurnPhase::RollAndChoose;
 		case EChoiceKind::PlanarJump:
-		case EChoiceKind::Expel: return ETurnPhase::MoveAndResolve;
+		case EChoiceKind::PlayerAction: return ETurnPhase::MoveAndResolve;
+		case EChoiceKind::SafeRune:
+		case EChoiceKind::ShellPick: return ETurnPhase::ShellGame;
 		case EChoiceKind::None:
 		default: return ETurnPhase::BetweenTurns;
 		}
@@ -180,8 +189,8 @@ namespace
 
 	/**
 	 * Lo que sigue al efecto de la casilla en MoveAndResolve (R-INT-1), desde el paso Step: el salto planar (PlanarJump),
-	 * después como mucho una acción contra un jugador (Expel; en S-009 la única) y después el fin del turno. Abre la
-	 * primera elección que tenga opciones, con el reloj de elección; si no queda ninguna, termina el turno.
+	 * después como mucho una acción contra un jugador (PlayerAction: expulsar o robar, S-010) y después el fin del turno.
+	 * Abre la primera elección que tenga opciones, con el reloj de elección; si no queda ninguna, termina el turno.
 	 */
 	void OfferFrom(FMatchState& State, double NowSeconds, EChoiceKind Step)
 	{
@@ -195,24 +204,110 @@ namespace
 				OpenChoice(State, EChoiceKind::PlanarJump, MoveTemp(Jumps), Deadline);
 				return;
 			}
-			Step = EChoiceKind::Expel;
+			Step = EChoiceKind::PlayerAction;
 		}
-		if (Step == EChoiceKind::Expel)
+		if (Step == EChoiceKind::PlayerAction)
 		{
-			TArray<int32> Targets = Soulbound::Rules::ExpelTargets(State, Seat);
-			if (!Targets.IsEmpty())
+			// R-INT-2: qué y a quién, en una sola elección con un solo reloj; la intención contesta con el índice de la opción.
+			TArray<FPlayerActionOption> Actions = Soulbound::Rules::PlayerActionOptions(State, Seat);
+			if (!Actions.IsEmpty())
 			{
-				OpenChoice(State, EChoiceKind::Expel, MoveTemp(Targets), Deadline);
+				OpenChoice(State, EChoiceKind::PlayerAction, {}, Deadline);
+				State.PendingChoice.ActionOptions = MoveTemp(Actions);
 				return;
 			}
 		}
 		EnterEnd(State, NowSeconds);
 	}
 
+	/**
+	 * El asiento activo roba al asiento Victim (R-ECO-4, R-ROB-1): sin runas o con el robo anulado, termina el turno; si
+	 * no, la máquina pasa al trilero (fase ShellGame), con la elección de Koschei abierta para la víctima si toca (R-ROB-5),
+	 * con el reloj de elección.
+	 */
+	void BeginStealAction(FMatchState& State, int32 Victim, double NowSeconds)
+	{
+		switch (Soulbound::Rules::BeginSteal(State, State.ActiveSeat, Victim, NowSeconds))
+		{
+		case EStealStart::NoRunes:
+		case EStealStart::Cancelled:
+			EnterEnd(State, NowSeconds);
+			break;
+		case EStealStart::SafeRunePending:
+			State.TurnPhase = ETurnPhase::ShellGame;
+			// Elección de un asiento sin turno (S-010): la contesta Koschei, no el ladrón.
+			OpenChoice(State, EChoiceKind::SafeRune, Soulbound::Rules::SafeRuneOptions(State), NowSeconds + State.Params.ChoiceClockSeconds, Victim);
+			break;
+		case EStealStart::Started:
+			State.TurnPhase = ETurnPhase::ShellGame;
+			break;
+		}
+	}
+
+	/**
+	 * Avanza el trilero en curso (fase ShellGame, R-ROB-2) si su etapa ha vencido: la runa de Koschei sin elegir (se juega
+	 * con todas), el fin de la muestra, el fin de la mezcla (abre la elección de esfera para el ladrón, con el tiempo de
+	 * elección del trilero) o la esfera sin elegir (no roba y termina el turno). Devuelve false si todavía espera.
+	 */
+	bool AdvanceShellGame(FMatchState& State, double NowSeconds)
+	{
+		const FShellGameState& Game = State.ShellGame;
+		switch (Game.Stage)
+		{
+		case EShellGameStage::SafeRune:
+			if (NowSeconds < State.PendingChoice.DeadlineSeconds)
+			{
+				return false;
+			}
+			// Koschei no elige a tiempo: no aparta ninguna (decisión del autor del 05/10/2026) y queda registrado.
+			LogEvent(State, EMatchEventType::ChoiceExpired, NowSeconds, State.PendingChoice.Seat, static_cast<int32>(EChoiceKind::SafeRune));
+			CloseChoice(State);
+			Soulbound::Rules::SetAsideSafeRune(State, INDEX_NONE, NowSeconds);
+			return true;
+		case EShellGameStage::Reveal:
+			if (NowSeconds < Game.StageDeadlineSeconds)
+			{
+				return false;
+			}
+			Soulbound::Rules::StartShellShuffle(State, NowSeconds);
+			return true;
+		case EShellGameStage::Shuffle:
+		{
+			if (NowSeconds < Game.StageDeadlineSeconds)
+			{
+				return false;
+			}
+			TArray<int32> Positions;
+			for (int32 Position = 0; Position < Game.Orbs.Num(); ++Position)
+			{
+				Positions.Add(Position);
+			}
+			const int32 Thief = Game.Thief;
+			Soulbound::Rules::StartShellPick(State);
+			OpenChoice(State, EChoiceKind::ShellPick, MoveTemp(Positions), NowSeconds + State.Params.ShellPickSeconds, Thief);
+			return true;
+		}
+		case EShellGameStage::Pick:
+			if (NowSeconds < State.PendingChoice.DeadlineSeconds)
+			{
+				return false;
+			}
+			CloseChoice(State);
+			Soulbound::Rules::ExpireShellPick(State, NowSeconds);
+			EnterEnd(State, NowSeconds);
+			return true;
+		case EShellGameStage::None:
+		default:
+			// Fase ShellGame sin trilero: no debería pasar; el turno sigue para no quedarse esperando.
+			EnterEnd(State, NowSeconds);
+			return true;
+		}
+	}
+
 	/** El paso que sigue a cerrar una elección de MoveAndResolve: tras el salto, la acción; tras la acción, el fin. */
 	EChoiceKind StepAfter(EChoiceKind Closed)
 	{
-		return Closed == EChoiceKind::PlanarJump ? EChoiceKind::Expel : EChoiceKind::None;
+		return Closed == EChoiceKind::PlanarJump ? EChoiceKind::PlayerAction : EChoiceKind::None;
 	}
 
 	/**
@@ -386,6 +481,9 @@ namespace Soulbound::Rules
 		case ETurnPhase::SkillTrial:
 			// TODO(R-MIN): el minijuego espera sin plazo; su tiempo propio llega con su story.
 			return false;
+		case ETurnPhase::ShellGame:
+			// R-ROB-2: el trilero espera sus plazos (muestra, mezcla) y sus elecciones (runa de Koschei, esfera).
+			return AdvanceShellGame(State, NowSeconds);
 		case ETurnPhase::End:
 			LeaveEnd(State, NowSeconds, Random);
 			return true;
@@ -446,12 +544,13 @@ namespace Soulbound::Rules
 
 	EIntentResult SubmitChoiceIntent(FMatchState& State, int32 Seat, EChoiceKind Kind, int32 Option, double NowSeconds, FRandomStream& Random)
 	{
-		// Glosario "Intención": asiento, tipo de elección, plazo y opción; si no vale, se descarta sin castigo.
-		if (!HasTurnOrder(State) || Seat != State.ActiveSeat)
+		// Glosario "Intención": asiento, tipo de elección, plazo y opción; si no vale, se descarta sin castigo. El asiento es
+		// el de la elección abierta, que puede no tener el turno (S-010: Koschei víctima); sin elección, el activo.
+		const FPendingChoice& Choice = State.PendingChoice;
+		if (!HasTurnOrder(State) || Seat != (Choice.IsOpen() ? Choice.Seat : State.ActiveSeat))
 		{
 			return EIntentResult::WrongSeat;
 		}
-		const FPendingChoice& Choice = State.PendingChoice;
 		if (!Choice.IsOpen() || Choice.Kind != Kind || State.TurnPhase != PhaseOf(Kind))
 		{
 			return EIntentResult::WrongPhase;
@@ -460,11 +559,13 @@ namespace Soulbound::Rules
 		{
 			return EIntentResult::ClockExpired;
 		}
-		if (Option == INDEX_NONE ? !Choice.CanDecline() : !Choice.Options.Contains(Option))
+		if (Option == INDEX_NONE ? !Choice.CanDecline() : !Choice.IsValidAnswer(Option))
 		{
 			return EIntentResult::InvalidOption;
 		}
 
+		// Las opciones de la acción contra un jugador se leen después de cerrar la elección: se copian antes.
+		const TArray<FPlayerActionOption> Actions = Choice.ActionOptions;
 		CloseChoice(State);
 		switch (Kind)
 		{
@@ -494,13 +595,31 @@ namespace Soulbound::Rules
 			}
 			OfferFrom(State, NowSeconds, StepAfter(Kind));
 			break;
-		case EChoiceKind::Expel:
-			// R-POD-4, R-INT-2: a uno o a ninguno; después, el fin del turno.
-			if (Option != INDEX_NONE)
+		case EChoiceKind::PlayerAction:
+		{
+			// R-INT-2: como mucho una acción, contra uno o contra ninguno. Expulsar (R-POD-4) y después el fin del turno; robar
+			// (R-ECO-4) abre el trilero, que termina el turno al resolverse.
+			const FPlayerActionOption* Action = Option != INDEX_NONE ? &Actions[Option] : nullptr;
+			if (Action && Action->Action == EPlayerAction::Steal)
 			{
-				ApplyExpel(State, Seat, Option, NowSeconds);
+				BeginStealAction(State, Action->TargetSeat, NowSeconds);
+				break;
+			}
+			if (Action && Action->Action == EPlayerAction::Expel)
+			{
+				ApplyExpel(State, Seat, Action->TargetSeat, NowSeconds);
 			}
 			OfferFrom(State, NowSeconds, StepAfter(Kind));
+			break;
+		}
+		case EChoiceKind::SafeRune:
+			// R-ROB-5: Koschei aparta la runa y empieza la muestra.
+			Soulbound::Rules::SetAsideSafeRune(State, Option, NowSeconds);
+			break;
+		case EChoiceKind::ShellPick:
+			// R-ROB-3: la runa de la esfera elegida pasa al ladrón; el robo es la acción del turno, que termina.
+			Soulbound::Rules::ResolveShellPick(State, Option, NowSeconds);
+			EnterEnd(State, NowSeconds);
 			break;
 		case EChoiceKind::None:
 			break;

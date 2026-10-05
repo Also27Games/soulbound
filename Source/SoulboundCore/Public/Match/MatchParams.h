@@ -38,6 +38,25 @@ struct SOULBOUNDCORE_API FMatchParams
 	 */
 	UPROPERTY()
 	double ChoiceClockSeconds = 0.0;
+
+	/** Trilero (R-ROB-2, S-010): segundos de la muestra, con las runas de la víctima a la vista. En datos; valor inicial 2. */
+	UPROPERTY()
+	double ShellRevealSeconds = 0.0;
+
+	/** Trilero (R-ROB-2, S-010): segundos de la mezcla de las esferas. En datos; valor inicial 4. */
+	UPROPERTY()
+	double ShellShuffleSeconds = 0.0;
+
+	/** Trilero (R-ROB-2, R-ROB-6, S-010): intercambios de esferas de la mezcla. En datos; valor inicial 8. */
+	UPROPERTY()
+	int32 ShellSwapCount = 0;
+
+	/**
+	 * Trilero (R-ROB-2, R-ROB-3, S-010): segundos que tiene el ladrón para elegir esfera; agotados, no roba nada. En datos;
+	 * valor inicial 5.
+	 */
+	UPROPERTY()
+	double ShellPickSeconds = 0.0;
 };
 
 /** Por qué se rechazaron unos parámetros de partida. */
@@ -67,9 +86,10 @@ struct SOULBOUNDCORE_API FMatchParamsLoadResult
 namespace Soulbound::Rules
 {
 	/**
-	 * Comprueba que unos parámetros de partida tienen sentido: reloj de turno, duración de la carrera y reloj de
-	 * elección mayores que cero, y topes enteros mayores o iguales que cero. Params: los parámetros a comprobar. Devuelve None o MalformedData con el motivo;
-	 * el campo Params del resultado queda vacío.
+	 * Comprueba que unos parámetros de partida tienen sentido: reloj de turno, duración de la carrera, reloj de elección
+	 * y tiempos del trilero (muestra, mezcla y elección de esfera) mayores que cero, topes enteros mayores o iguales que
+	 * cero y al menos un intercambio en la mezcla. Params: los parámetros a comprobar. Devuelve None o MalformedData con el
+	 * motivo; el campo Params del resultado queda vacío.
 	 */
 	SOULBOUNDCORE_API FMatchParamsLoadResult ValidateMatchParams(const FMatchParams& Params);
 

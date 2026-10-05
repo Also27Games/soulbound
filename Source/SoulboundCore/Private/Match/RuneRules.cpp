@@ -200,6 +200,59 @@ namespace Soulbound::Rules
 		return Targets;
 	}
 
+	TArray<int32> StealTargets(const FMatchState& State, int32 Seat)
+	{
+		TArray<int32> Targets;
+		// R-ECO-4: un Eco tras la carrera (con hogar asignado) que termina su movimiento; durante la carrera no tiene Dominio.
+		// Sin moverse no hay robo (decisión del autor del 05/10/2026, el mismo criterio que Expulsión, salto y Fuente).
+		if (!State.Seats.IsValidIndex(Seat) || !State.bActiveSeatMoved || State.MatchPhase == EMatchPhase::BondRace
+			|| State.Seats[Seat].Role != ESeatRole::LostEcho || State.Seats[Seat].DomainId == INDEX_NONE)
+		{
+			return Targets;
+		}
+		// TODO(R-INT-3): quien está en el Vacío es inmune; llega con la story del Vacío (hoy nadie está fuera del tablero).
+		const int32 TileId = State.Seats[Seat].TileId;
+		for (int32 Other = 0; Other < State.Seats.Num(); ++Other)
+		{
+			// Elegido o Eco, tenga runas o no: el ladrón no ve el Brazal ajeno, y robar a quien no tiene es R-ROB-4.
+			if (Other != Seat && State.Seats[Other].TileId == TileId)
+			{
+				Targets.Add(Other);
+			}
+		}
+		return Targets;
+	}
+
+	TArray<FPlayerActionOption> PlayerActionOptions(const FMatchState& State, int32 Seat)
+	{
+		// R-INT-2: una sola decisión, qué y a quién. Hoy un asiento solo tiene una de las dos (Expulsión es de Elegidos y el
+		// robo, de Ecos); en S-011 un Elegido podrá tener Duelo y Expulsión a la vez y se añadirán aquí.
+		TArray<FPlayerActionOption> Options;
+		for (const int32 Target : ExpelTargets(State, Seat))
+		{
+			Options.Add({EPlayerAction::Expel, Target});
+		}
+		for (const int32 Target : StealTargets(State, Seat))
+		{
+			Options.Add({EPlayerAction::Steal, Target});
+		}
+		return Options;
+	}
+
+	bool TransferRune(FMatchState& State, int32 FromSeat, int32 ToSeat, int32 RuneType)
+	{
+		if (!State.Seats.IsValidIndex(FromSeat) || !State.Seats.IsValidIndex(ToSeat) || FromSeat == ToSeat
+			|| State.Seats[FromSeat].RuneCountOf(RuneType) <= 0 || !State.Seats[ToSeat].Runes.IsValidIndex(RuneType))
+		{
+			return false;
+		}
+		// R-ROB-3: pasa al Brazal del ladrón aunque ya tenga de ese tipo. Si era la última del tipo, la víctima pierde el
+		// poder en el acto (R-ELE-5): IsPowerActive lo calcula del Brazal, sin nada más que actualizar.
+		--State.Seats[FromSeat].Runes[RuneType];
+		++State.Seats[ToSeat].Runes[RuneType];
+		return true;
+	}
+
 	void ApplyPlanarJump(FMatchState& State, int32 Seat, int32 TileId, double NowSeconds)
 	{
 		// La llegada es un final de movimiento (glosario "Nodo Planar"): el destino es otro Nodo Planar, sin Nicho ni
@@ -213,6 +266,7 @@ namespace Soulbound::Rules
 		// R-POD-4, R-TAB-13: el objetivo vuelve a su hogar. No es un movimiento suyo: no resuelve casilla, no toca
 		// bActiveSeatMoved (que es del asiento activo) ni sus turnos (R-INT-4).
 		State.Seats[Target].TileId = HomeTile(State, Target);
-		LogEvent(State, EMatchEventType::Expelled, NowSeconds, Seat, Target);
+		// Seat expulsa y Target es el afectado, en OtherSeat; Value nunca lleva un asiento (decisión del autor del 05/10/2026).
+		LogEvent(State, EMatchEventType::Expelled, NowSeconds, Seat, INDEX_NONE, Target);
 	}
 }

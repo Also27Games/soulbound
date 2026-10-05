@@ -39,13 +39,29 @@ namespace Soulbound::Presentation
 		case EMatchEventType::DiceChosen: return FString::Printf(TEXT("el asiento %d elige tirar %s"), Event.Seat, Event.Value > 1 ? TEXT("DOS dados") : TEXT("un dado"));
 		case EMatchEventType::Rerolled: return FString::Printf(TEXT("el asiento %d REPITE la tirada: %d"), Event.Seat, Event.Value);
 		case EMatchEventType::PlanarJumped: return FString::Printf(TEXT("el asiento %d SALTA por Vuelo Planar a %s"), Event.Seat, *TileShortName(Board, Event.Value));
-		case EMatchEventType::Expelled: return FString::Printf(TEXT("el asiento %d EXPULSA al asiento %d a su hogar"), Event.Seat, Event.Value);
+		case EMatchEventType::Expelled: return FString::Printf(TEXT("el asiento %d EXPULSA al asiento %d a su hogar"), Event.Seat, Event.OtherSeat);
 		case EMatchEventType::ChoiceExpired:
 		{
 			const EChoiceKind Kind = static_cast<EChoiceKind>(Event.Value);
-			const TCHAR* What = Kind == EChoiceKind::Reroll ? TEXT("repetir") : Kind == EChoiceKind::PlanarJump ? TEXT("el salto planar") : TEXT("la expulsión");
+			const TCHAR* What = Kind == EChoiceKind::Reroll ? TEXT("repetir")
+				: Kind == EChoiceKind::PlanarJump ? TEXT("el salto planar")
+				: Kind == EChoiceKind::SafeRune ? TEXT("apartar una runa: el trilero se juega con todas")
+				: TEXT("la acción contra un jugador");
 			return FString::Printf(TEXT("el asiento %d deja pasar %s: se agota su elección"), Event.Seat, What);
 		}
+		// S-010: el robo del Eco y el trilero.
+		case EMatchEventType::ShellGameStarted:
+			return FString::Printf(TEXT("TRILERO: el asiento %d roba al asiento %d; sus runas salen a la vista en %d esferas"), Event.Seat, Event.OtherSeat, Event.Value);
+		case EMatchEventType::SafeRuneSetAside:
+			return FString::Printf(TEXT("el asiento %d (Koschei) pone a salvo la runa del Dominio %d: no entra en la mezcla"), Event.Seat, Event.Value);
+		case EMatchEventType::RuneStolen:
+			return FString::Printf(TEXT("el asiento %d ROBA la runa del Dominio %d al asiento %d"), Event.Seat, Event.Value, Event.OtherSeat);
+		case EMatchEventType::ShellGameExpired:
+			return FString::Printf(TEXT("el asiento %d no elige esfera a tiempo: no roba nada al asiento %d"), Event.Seat, Event.OtherSeat);
+		case EMatchEventType::StealNoRunes:
+			return FString::Printf(TEXT("el asiento %d intenta robar al asiento %d, que no tiene runas: no hay trilero"), Event.Seat, Event.OtherSeat);
+		case EMatchEventType::StealCancelled:
+			return FString::Printf(TEXT("el asiento %d intenta robar a Koschei (asiento %d), que solo tiene una runa: robo anulado"), Event.Seat, Event.OtherSeat);
 		}
 		return FString();
 	}

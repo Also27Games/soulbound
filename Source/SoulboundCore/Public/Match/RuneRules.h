@@ -19,7 +19,8 @@ enum class ERuneLanding : uint8
 
 /**
  * Runas y poderes (GDD 04, con las reglas de Fuente de los GDD 01 y 03). Estado en FSeatState::Runes (el Brazal) y en
- * FTileState::RuneReserve (la reserva de cada Fuente). Solo estas reglas los escriben tras el Despertar.
+ * FTileState::RuneReserve (la reserva de cada Fuente). Solo estas reglas los escriben tras el Despertar; el trilero
+ * (Match/ShellGameRules.h) pasa runas de un Brazal a otro con TransferRune (S-010).
  */
 namespace Soulbound::Rules
 {
@@ -86,6 +87,29 @@ namespace Soulbound::Rules
 	SOULBOUNDCORE_API TArray<int32> ExpelTargets(const FMatchState& State, int32 Seat);
 
 	/**
+	 * Asientos a los que puede robar el asiento Seat (R-ECO-4, R-INT-2): solo un Eco tras la carrera que se ha movido este
+	 * turno (R-RUN-3, decisión del autor del 05/10/2026: sin casillas alcanzables no hay robo); los demás asientos de su
+	 * casilla, Elegidos o Ecos, tengan runas o no, en orden de asiento. Vacío durante la carrera, para un Elegido o si no hay
+	 * a quién. Nombre propuesto en S-010.
+	 */
+	SOULBOUNDCORE_API TArray<int32> StealTargets(const FMatchState& State, int32 Seat);
+
+	/**
+	 * Opciones de la acción contra un jugador del asiento Seat (R-INT-2, S-010): las expulsiones (ExpelTargets) y después
+	 * los robos (StealTargets), cada una con su objetivo, en ese orden. Vacío si no tiene ninguna. Duelo, en S-011.
+	 * Nombre propuesto en S-010.
+	 */
+	SOULBOUNDCORE_API TArray<FPlayerActionOption> PlayerActionOptions(const FMatchState& State, int32 Seat);
+
+	/**
+	 * Pasa una runa del tipo RuneType del Brazal de FromSeat al de ToSeat (R-ROB-3): uno menos en uno, uno más en el otro,
+	 * aunque ToSeat ya tenga de ese tipo. Las reservas no cambian. Sin evento: lo deja quien la usa (RuneStolen).
+	 * Devuelve false, sin cambiar nada, si algún asiento no existe, son el mismo o FromSeat no tiene runas de ese tipo.
+	 * Nombre propuesto en S-010.
+	 */
+	SOULBOUNDCORE_API bool TransferRune(FMatchState& State, int32 FromSeat, int32 ToSeat, int32 RuneType);
+
+	/**
 	 * El asiento Seat salta a la casilla TileId (R-POD-5) y se registra PlanarJumped. No valida: las opciones las da
 	 * PlanarJumpOptions y las valida SubmitChoiceIntent. Nombre propuesto en S-009.
 	 */
@@ -93,8 +117,8 @@ namespace Soulbound::Rules
 
 	/**
 	 * El asiento Seat expulsa al asiento Target (R-POD-4): Target pasa a su hogar (HomeTile, R-TAB-13) y se registra
-	 * Expelled. No es un movimiento de Target: no resuelve casilla ni cambia sus turnos (R-INT-4). No valida: los
-	 * objetivos los da ExpelTargets. Nombre propuesto en S-009.
+	 * Expelled (Seat quien expulsa, OtherSeat el expulsado, desde S-010). No es un movimiento de Target: no resuelve casilla
+	 * ni cambia sus turnos (R-INT-4). No valida: los objetivos los da ExpelTargets. Nombre propuesto en S-009.
 	 */
 	SOULBOUNDCORE_API void ApplyExpel(FMatchState& State, int32 Seat, int32 Target, double NowSeconds);
 }

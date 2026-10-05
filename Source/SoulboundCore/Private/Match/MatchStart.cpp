@@ -120,6 +120,13 @@ namespace Soulbound::Rules
 		}
 		Shuffle(State.TurnOrder, Random);
 		State.ActiveSeat = State.TurnOrder[0];
+
+		// R-ROB-6 (S-010): el valor base de las semillas de mezcla del trilero, una sola vez y el último, para que los Nodos,
+		// los Olvidados y el orden de turno sigan dando lo mismo con la misma semilla. Desplaza un valor los dados de toda
+		// semilla respecto a S-009 (decisión del autor del 05/10/2026: no hay partidas grabadas). Los robos no vuelven a
+		// tocar el sorteo de la partida.
+		State.ShellSeedBase = Random.RandRange(0, MAX_int32 - 1);
+		State.ShellGameCount = 0;
 		return Result;
 	}
 }

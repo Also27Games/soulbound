@@ -4,7 +4,8 @@
 // enteras cumplen R-TAB-22 y la crónica cuenta los que caen por el tope. Desde S-006, la carrera por el vínculo con
 // cuatro dummies de carrera: simulación y crónica sobre el tablero de 35 casillas, e informe de 50 semillas por cada
 // tablero de Content/Data/Boards. Desde S-009, las elecciones de los dummies (dados, repetición, salto y expulsión) y
-// sus cifras en el informe. Los tests del motor no leen la configuración del juego.
+// sus cifras en el informe. Desde S-010, los robos de los dummies (trilero) y sus cifras en el informe. Los tests del motor
+// no leen la configuración del juego.
 // Se lanzan con Scripts/test.ps1.
 
 #include "Decider/Decider.h"
@@ -61,14 +62,14 @@ namespace
 			return true;
 		}
 
-		/** S-009: también gasta tres valores y elige la última opción: dos dados, repetir, el último Nodo, el último asiento. */
+		/** S-009: también gasta tres valores y elige la última opción: dos dados, repetir, el último Nodo, la última acción (S-010), la última esfera. */
 		virtual int32 ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng) override
 		{
 			for (int32 Draw = 0; Draw < 3; ++Draw)
 			{
 				Rng.GetFraction();
 			}
-			return Choice.Options.IsEmpty() ? INDEX_NONE : Choice.Options.Last();
+			return Choice.AnswerAt(Choice.AnswerCount() - 1);
 		}
 	};
 
@@ -156,35 +157,44 @@ bool FMatchSimulationDeterminismTest::RunTest(const FString& Parameters)
 	// no tocan el sorteo de la partida. Se cambia el decisor del asiento 2 por uno que gasta y elige distinto. Desde
 	// S-009 una tirada consume siempre los mismos valores del sorteo (decisión del autor del 04/10/2026), pero con
 	// Celeridad su resultado depende de cuántos dados se eligieron: se comparan las tiradas hechas con los mismos dados
-	// en las dos partidas.
+	// en las dos partidas. Desde S-010 un trilero dura tiempo de partida, así que con otro decisor caben otros turnos en
+	// 40 minutos: se comparan las tiradas de los turnos que juegan las dos (las primeras N, con N el menor de los dos
+	// recuentos), y deben coincidir todas. El Warden tiene su propio sorteo (Seed + 2, decisión del autor del 05/10/2026):
+	// el retraso de un trilero no cambia en qué punto del sorteo cae cada tirada.
 	TArray<TSharedPtr<IDecider>> Mixed = FourDummies();
 	Mixed[2] = MakeShared<FLastOptionDecider>();
 	const FSimulationResult Other = FMatchSimulation(Params, MoveTemp(Mixed)).Run();
 	const TArray<FLoggedRoll> RollsA = RollSequence(A);
 	const TArray<FLoggedRoll> RollsOther = RollSequence(Other);
 	TestTrue(TEXT("Hay tiradas"), RollsA.Num() > 0);
-	TestEqual(TEXT("Con otro decisor en un asiento, el mismo número de tiradas"), RollsOther.Num(), RollsA.Num());
+	const int32 Shared = FMath::Min(RollsA.Num(), RollsOther.Num());
+	AddInfo(FString::Printf(TEXT("Tiradas: %d con cuatro dummies, %d con otro decisor en el asiento 2; se comparan las %d primeras"), RollsA.Num(), RollsOther.Num(), Shared));
 	int32 Compared = 0;
-	for (int32 i = 0; i < FMath::Min(RollsA.Num(), RollsOther.Num()); ++i)
+	int32 Mismatches = 0;
+	for (int32 i = 0; i < Shared; ++i)
 	{
 		if (RollsA[i].Dice != RollsOther[i].Dice)
 		{
 			continue;
 		}
 		++Compared;
-		if (RollsA[i].Roll != RollsOther[i].Roll)
+		if (RollsA[i].Roll != RollsOther[i].Roll && Mismatches++ == 0)
 		{
 			AddError(FString::Printf(TEXT("Con otro decisor en el asiento 2, la tirada %d cambia: %d frente a %d"), i, RollsA[i].Roll, RollsOther[i].Roll));
-			break;
 		}
 	}
+	TestEqual(TEXT("Todas las tiradas comparables coinciden"), Mismatches, 0);
 	TestTrue(TEXT("Hay tiradas con los mismos dados que comparar"), Compared > 0);
 	TestFalse(TEXT("Y la partida es otra: el decisor distinto sí cambia los destinos"), Soulbound::Tests::SameState(A.FinalState, Other.FinalState));
 
 	// Los turnos no son una constante: salen de los parámetros. El dummy confirma a los DummyResponseSeconds de
 	// empezar su turno, antes del reloj de turno, así que caben duración entre respuesta (margen de uno por redondeo).
-	// Hasta S-003 aquí se exigían 80 turnos: el turno de mentira del spike duraba TurnPeriodSeconds (30 s).
-	const double ExpectedTurns = Params.DurationSeconds / Params.DummyResponseSeconds;
+	// Hasta S-003 aquí se exigían 80 turnos: el turno de mentira del spike duraba TurnPeriodSeconds (30 s). Desde S-010 se
+	// descuenta el tiempo de los trileros: cada uno alarga su turno la muestra y la mezcla (la esfera, el dummy la elige al
+	// instante).
+	const double ShellSeconds = Soulbound::Tests::EventsOfType(A.FinalState, EMatchEventType::ShellGameStarted).Num()
+		* (Params.MatchParams.ShellRevealSeconds + Params.MatchParams.ShellShuffleSeconds);
+	const double ExpectedTurns = (Params.DurationSeconds - ShellSeconds) / Params.DummyResponseSeconds;
 	TestTrue(TEXT("Se juegan turnos"), A.Turns > 0);
 	TestTrue(FString::Printf(TEXT("Turnos derivados de los parametros: %d frente a %.1f"), A.Turns, ExpectedTurns), FMath::Abs(A.Turns - ExpectedTurns) <= 1.0);
 	TestEqual(TEXT("Evaluaciones del Warden"), A.Evaluations, FMath::FloorToInt32(Params.DurationSeconds / Params.EvaluationPeriodSeconds));
@@ -308,6 +318,11 @@ bool FMatchSimulationChronicleTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Una línea de turno por cada turno empezado"), CountLines(TEXT("] Turno ")), Started);
 	TestEqual(TEXT("Cada movimiento del registro tiene su línea de crónica"), CountLines(TEXT(" va a la casilla ")), CountEvents(Result.FinalState, EMatchEventType::Moved));
 	TestEqual(TEXT("Cada turno terminado cuenta cómo acabó"), CountLines(TEXT(" va a la casilla ")) + CountLines(TEXT(" no puede moverse")) + CountLines(TEXT(" agota el reloj")), Result.Turns);
+	// S-010: con esta semilla, un salto rechazado abría la acción en el Nodo y la simulación se quedaba esperándola hasta
+	// el final (defecto de S-009). Al acabar, ninguna elección puede seguir abierta con su plazo vencido.
+	const FPendingChoice& Left = Result.FinalState.PendingChoice;
+	TestFalse(FString::Printf(TEXT("Ninguna elección queda sin contestar más allá de su plazo (tipo %d, plazo %.0f s)"), static_cast<int32>(Left.Kind), Left.DeadlineSeconds),
+		Left.IsOpen() && Left.DeadlineSeconds < Result.FinalState.ClockSeconds);
 	TestEqual(TEXT("Una línea por intervención del Warden"), CountLines(TEXT("] Warden ")), Result.Interventions);
 
 	TestEqual(TEXT("Cada Sello que cae por el tope tiene su línea"), CountLines(TEXT(" cae el Sello de la ")),
@@ -456,7 +471,7 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 	// Content/Data/Boards, 50 partidas con cuatro dummies de carrera (semillas fijas 1 a 50). Imprime un bloque por
 	// tablero: % de partidas sin ningún vínculo, Elegidos por partida de media, % de asientos que quedan Eco y segundo
 	// medio de fin de carrera; desde S-009, también el % de tiradas con dos dados y los saltos planares y expulsiones por
-	// partida. Objetivo del GDD 03, para el autor: nadie vinculado < 5 %, Eco por jugador entre 15 y
+	// partida; desde S-010, los robos y las runas que cambian de mano por partida. Objetivo del GDD 03, para el autor: nadie vinculado < 5 %, Eco por jugador entre 15 y
 	// 35 %. Solo comprueba que cada partida cierra su carrera. Imprime con SOULBOUND_INFORME=1 (Scripts/test.ps1
 	// -Informe); sin ella, una línea de resumen.
 	constexpr int32 Games = 50;
@@ -488,6 +503,8 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 		int32 TwoDiceRolls = 0;
 		int32 Jumps = 0;
 		int32 Expulsions = 0;
+		int32 Thefts = 0;
+		int32 StolenRunes = 0;
 		for (int32 Seed = 1; Seed <= Games; ++Seed)
 		{
 			Params.Seed = Seed;
@@ -523,6 +540,10 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 			TwoDiceRolls += Soulbound::Tests::EventsOfType(State, EMatchEventType::DiceChosen).FilterByPredicate([](const FMatchEvent& Event) { return Event.Value == 2; }).Num();
 			Jumps += CountEvents(State, EMatchEventType::PlanarJumped);
 			Expulsions += CountEvents(State, EMatchEventType::Expelled);
+			// S-010: robos (todo intento: con trilero, a quien no tiene runas o anulado por Koschei) y runas que cambian de mano.
+			Thefts += CountEvents(State, EMatchEventType::ShellGameStarted) + CountEvents(State, EMatchEventType::StealNoRunes)
+				+ CountEvents(State, EMatchEventType::StealCancelled);
+			StolenRunes += CountEvents(State, EMatchEventType::RuneStolen);
 		}
 
 		Lines.Add(FString::Printf(TEXT("Informe de carrera | %s | %d casillas | %d partidas | 4 dummies de carrera | carrera de %.0f s"),
@@ -537,6 +558,8 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 		Lines.Add(FString::Printf(TEXT("    turnos con dos dados: %.1f %% de las tiradas"), Rolls > 0 ? 100.0 * TwoDiceRolls / Rolls : 0.0));
 		Lines.Add(FString::Printf(TEXT("    saltos planares por partida, de media: %.2f"), static_cast<double>(Jumps) / Games));
 		Lines.Add(FString::Printf(TEXT("    expulsiones por partida, de media: %.2f"), static_cast<double>(Expulsions) / Games));
+		Lines.Add(FString::Printf(TEXT("    robos por partida, de media: %.2f"), static_cast<double>(Thefts) / Games));
+		Lines.Add(FString::Printf(TEXT("    runas que cambian de mano por partida, de media: %.2f"), static_cast<double>(StolenRunes) / Games));
 		Lines.Add(FString::Printf(TEXT("    tiempo real: %.3f s en total"), WallSum));
 	}
 
@@ -777,6 +800,105 @@ bool FMatchSimulationChoicesTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("En 20 partidas se eligen uno y dos dados"), DiceChosen.Contains(1) && DiceChosen.Contains(2));
 	AddInfo(FString::Printf(TEXT("20 partidas: %d repeticiones, %d saltos planares, %d expulsiones"), Rerolls, Jumps, Expulsions));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationTheftsTest,
+	"Soulbound.Core.Simulation.RobosConDummies",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationTheftsTest::RunTest(const FString& Parameters)
+{
+	// Criterio "Simulación" (S-010): los dummies roban y eligen esfera al azar con su generador (y Koschei aparta al azar).
+	// Determinista por semilla y bajo el segundo. Cada robo tiene su línea en la crónica y ninguna runa se crea ni se pierde.
+
+	// El dummy, con su generador: roba a cualquiera de los objetivos o a ninguno; elige cualquier esfera, nunca "no".
+	FPendingChoice Action;
+	Action.Kind = EChoiceKind::PlayerAction;
+	Action.ActionOptions = {{EPlayerAction::Steal, 1}, {EPlayerAction::Steal, 3}};
+	FPendingChoice Pick;
+	Pick.Kind = EChoiceKind::ShellPick;
+	Pick.Options = {0, 1, 2};
+	FPendingChoice Safe;
+	Safe.Kind = EChoiceKind::SafeRune;
+	Safe.Options = {2, 4};
+	TSet<int32> ActionAnswers;
+	TSet<int32> PickAnswers;
+	TSet<int32> SafeAnswers;
+	FMatchState Empty;
+	for (int32 Seed = 1; Seed <= 100; ++Seed)
+	{
+		FRandomStream Rng(Seed);
+		ActionAnswers.Add(FDummyDecider().ChooseOption(Empty, 0, Action, Rng));
+		PickAnswers.Add(FRaceDummyDecider().ChooseOption(Empty, 0, Pick, Rng));
+		SafeAnswers.Add(FDummyDecider().ChooseOption(Empty, 0, Safe, Rng));
+	}
+	TestTrue(TEXT("El dummy roba a cada objetivo (por su índice) o a ninguno"), ActionAnswers.Num() == 3 && ActionAnswers.Contains(0) && ActionAnswers.Contains(1) && ActionAnswers.Contains(INDEX_NONE));
+	TestTrue(TEXT("Elige cualquier esfera y nunca \"no\""), PickAnswers.Num() == 3 && !PickAnswers.Contains(INDEX_NONE));
+	TestTrue(TEXT("Koschei aparta cualquiera de sus runas y nunca \"no\""), SafeAnswers.Num() == 2 && !SafeAnswers.Contains(INDEX_NONE));
+
+	// Partidas enteras sobre el tablero de 35 casillas: dos dummies de carrera y dos dummies al azar, que casi nunca se
+	// vinculan y quedan Ecos (con cuatro dummies de carrera los Ecos son muy pocos, S-008). Semillas 1 a 20.
+	FSimulationParams Params;
+	if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), 1, Params))
+	{
+		return false;
+	}
+	auto MixedDeciders = []()
+	{
+		TArray<TSharedPtr<IDecider>> Deciders = {MakeShared<FRaceDummyDecider>(), MakeShared<FRaceDummyDecider>(), MakeShared<FDummyDecider>(), MakeShared<FDummyDecider>()};
+		return Deciders;
+	};
+	int32 Thefts = 0;
+	int32 Stolen = 0;
+	for (int32 Seed = 1; Seed <= 20; ++Seed)
+	{
+		Params.Seed = Seed;
+		const FSimulationResult A = FMatchSimulation(Params, MixedDeciders()).Run();
+		const FSimulationResult B = FMatchSimulation(Params, MixedDeciders()).Run();
+		const FString Context = FString::Printf(TEXT("Semilla %d"), Seed);
+		TestTrue(Context + TEXT(": mismo registro"), A.Log == B.Log);
+		TestTrue(Context + TEXT(": mismo estado final"), Soulbound::Tests::SameState(A.FinalState, B.FinalState));
+		TestTrue(FString::Printf(TEXT("%s: baja del segundo (%.4f s)"), *Context, A.WallSeconds), A.WallSeconds < 1.0);
+
+		const FMatchState& State = A.FinalState;
+		Thefts += CountEvents(State, EMatchEventType::ShellGameStarted) + CountEvents(State, EMatchEventType::StealNoRunes) + CountEvents(State, EMatchEventType::StealCancelled);
+		Stolen += CountEvents(State, EMatchEventType::RuneStolen);
+
+		// Ninguna runa se crea ni se pierde: las de los Brazales más las reservas son las que había al Despertar.
+		if (State.Board.Phase == EBoardPhase::Awakened)
+		{
+			int32 InPlay = 0;
+			int32 Sources = 0;
+			for (const FSeatState& Seat : State.Seats)
+			{
+				for (const int32 Count : Seat.Runes)
+				{
+					InPlay += Count;
+				}
+			}
+			for (const FTileState& Tile : State.Board.Tiles)
+			{
+				InPlay += Tile.RuneReserve;
+				Sources += Tile.Type == ETileType::PowerSource ? 1 : 0;
+			}
+			TestEqual(Context + TEXT(": las runas en juego no cambian"), InPlay, Sources * State.Board.Params.RuneReservePerSource);
+		}
+
+		auto CountLines = [&A](const TCHAR* Fragment)
+		{
+			return A.Log.FilterByPredicate([Fragment](const FString& Line) { return Line.Contains(Fragment, ESearchCase::CaseSensitive); }).Num();
+		};
+		TestEqual(Context + TEXT(": cada trilero tiene su línea"), CountLines(TEXT(" abre el trilero contra ")), CountEvents(State, EMatchEventType::ShellGameStarted));
+		TestEqual(Context + TEXT(": cada runa apartada tiene su línea"), CountLines(TEXT(" aparta la runa ")), CountEvents(State, EMatchEventType::SafeRuneSetAside));
+		TestEqual(Context + TEXT(": cada runa robada tiene su línea"), CountLines(TEXT(" roba la runa ")), CountEvents(State, EMatchEventType::RuneStolen));
+		TestEqual(Context + TEXT(": cada robo sin runas tiene su línea"), CountLines(TEXT(", que no tiene runas")), CountEvents(State, EMatchEventType::StealNoRunes));
+		TestEqual(Context + TEXT(": cada robo anulado tiene su línea"), CountLines(TEXT("robo anulado")), CountEvents(State, EMatchEventType::StealCancelled));
+		TestEqual(Context + TEXT(": los dummies eligen esfera al instante, ninguna se agota"), CountEvents(State, EMatchEventType::ShellGameExpired), 0);
+		TestEqual(Context + TEXT(": ninguna elección se agota"), CountEvents(State, EMatchEventType::ChoiceExpired), 0);
+	}
+	TestTrue(TEXT("En 20 partidas, los dummies roban runas"), Stolen > 0);
+	AddInfo(FString::Printf(TEXT("20 partidas: %d robos, %d runas cambian de mano"), Thefts, Stolen));
 	return true;
 }
 

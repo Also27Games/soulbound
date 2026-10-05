@@ -68,9 +68,13 @@ namespace Soulbound::Rules
 	 *  - MoveAndResolve: resuelve el Nicho de destino (R-CAR-4, ResolveNicheLanding) y la Fuente (R-RUN-2,
 	 *    ResolvePowerSourceLanding, solo si el asiento se ha movido). Si un Elegido llega a la Fuente de un Dominio
 	 *    Olvidado, pasa a SkillTrial. Después (R-INT-1) ofrece el salto planar (PlanarJump) y, como mucho, una acción
-	 *    contra un jugador (Expel), cada uno con el reloj de elección; sin nada que ofrecer, pasa a End y registra
-	 *    TurnEnded. Con una elección abierta, la espera; agotado su plazo, registra ChoiceExpired y la resuelve como "no".
+	 *    contra un jugador (PlayerAction: expulsar o robar, S-010), cada uno con el reloj de elección; sin nada que
+	 *    ofrecer, pasa a End y registra TurnEnded. Con una elección abierta, la espera; agotado su plazo, registra
+	 *    ChoiceExpired y la resuelve como "no".
 	 *  - SkillTrial: espera el resultado del minijuego (SubmitSkillTrialResult); no avanza ni cambia nada.
+	 *  - ShellGame (S-010, R-ROB-2): el trilero. Espera la runa de Koschei (agotada, ChoiceExpired y se juega con todas,
+	 *    R-ROB-5), el fin de la muestra y el de la mezcla, y la elección de esfera del ladrón (agotada, ShellGameExpired y
+	 *    no roba, R-ROB-3); después pasa a End. El trilero no toca el sorteo de la partida (R-ROB-6).
 	 * Todo turno que llega a PreRoll consume del sorteo cuatro valores de dado, dos de la tirada y dos de la repetición,
 	 * se elijan uno o dos dados, se repita o no y aunque el reloj se agote antes de tirar (decisión del autor del
 	 * 04/10/2026): así los dados de una semilla no dependen de los decisores.
@@ -107,15 +111,21 @@ namespace Soulbound::Rules
 
 	/**
 	 * Intención que contesta la elección pendiente del asiento Seat (S-009; glosario "Intención"): la única forma de
-	 * elegir dados, repetir, saltar o expulsar. Se valida asiento, tipo de elección (Kind debe ser el de la pendiente:
+	 * elegir dados, repetir, saltar, expulsar, robar, apartar la runa de Koschei o elegir esfera. Se valida asiento (el de
+	 * FPendingChoice::Seat, que desde S-010 puede no tener el turno), tipo de elección (Kind debe ser el de la pendiente:
 	 * una respuesta tardía no contesta otra elección), plazo y opción; si no es válida se descarta sin castigo y sin
-	 * tocar el estado. Option: una de FPendingChoice::Options, o INDEX_NONE para "no" si la elección lo admite.
+	 * tocar el estado. Option: una respuesta válida (FPendingChoice::IsValidAnswer: un valor de Options, o en PlayerAction
+	 * el índice de una de ActionOptions), o INDEX_NONE para "no" si la elección lo admite.
 	 * Efectos al aceptarla:
 	 *  - DiceCount: fija los dados del turno y registra DiceChosen; la tirada la hace AdvanceTurn.
 	 *  - Reroll: tira de nuevo con los mismos dados, recalcula las alcanzables y registra Rerolled (R-TUR-6); "no" cierra
 	 *    la oferta. En los dos casos se sacan del sorteo los dos valores de la repetición.
 	 *  - PlanarJump: la ficha salta a la casilla y se registra PlanarJumped (R-POD-5); después se ofrece la acción.
-	 *  - Expel: el asiento elegido vuelve a su hogar y se registra Expelled (R-POD-4); después termina el turno.
+	 *  - PlayerAction (S-010): expulsar manda al objetivo a su hogar y registra Expelled (R-POD-4), y termina el turno;
+	 *    robar empieza el robo (R-ECO-4, BeginSteal): sin runas o anulado termina el turno, y si no la máquina pasa a la
+	 *    fase ShellGame, con la elección de Koschei abierta para la víctima si toca (R-ROB-5).
+	 *  - SafeRune (S-010): Koschei aparta la runa y empieza la muestra del trilero.
+	 *  - ShellPick (S-010): la runa de la esfera elegida pasa al ladrón (RuneStolen, R-ROB-3) y termina el turno.
 	 * NowSeconds: instante en que llega. Random: el sorteo de la partida (solo lo usa la repetición).
 	 * Devuelve Accepted, WrongSeat, WrongPhase (no hay elección pendiente de ese tipo), ClockExpired o InvalidOption.
 	 * Nombre propuesto en S-009.

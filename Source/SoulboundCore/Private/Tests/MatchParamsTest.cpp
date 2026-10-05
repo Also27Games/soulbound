@@ -1,12 +1,41 @@
 // Tests de los parámetros de partida (S-003, criterio "Parámetros"): el reloj de turno (R-TUR-8), los topes de
-// turnos extra y perdidos (R-TUR-9, R-TUR-10), desde S-006 la duración de la carrera (R-CAR-1) y desde S-009 el reloj de
-// elección salen de Content/Data/Match/partida.json; un archivo mal formado se rechaza con motivo, igual que el tablero. Filtro: "Soulbound.Core.Match.Params".
+// turnos extra y perdidos (R-TUR-9, R-TUR-10), desde S-006 la duración de la carrera (R-CAR-1), desde S-009 el reloj de
+// elección y desde S-010 los del trilero (R-ROB-2) salen de Content/Data/Match/partida.json; un archivo mal formado se
+// rechaza con motivo, igual que el tablero. Filtro: "Soulbound.Core.Match.Params".
 
 #include "Match/MatchParams.h"
 #include "Misc/AutomationTest.h"
 #include "MatchTestSetup.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
+
+namespace
+{
+	/** Los cuatro parámetros del trilero (S-010) con valores válidos, para añadir a un JSON de parámetros. */
+	const TCHAR* const ShellFields = TEXT("\"shellRevealSeconds\": 2, \"shellShuffleSeconds\": 4, \"shellSwapCount\": 8, \"shellPickSeconds\": 5");
+
+	/**
+	 * El JSON Json con los parámetros del trilero válidos añadidos antes de la última llave (S-010): así los casos de S-003
+	 * a S-009 siguen probando solo lo que probaban. Un texto sin llave de cierre se devuelve tal cual.
+	 */
+	FString WithShell(const TCHAR* Json)
+	{
+		FString Text(Json);
+		const int32 Close = Text.Find(TEXT("}"), ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+		if (Close == INDEX_NONE)
+		{
+			return Text;
+		}
+		return Text.Left(Close).TrimEnd() + TEXT(", ") + ShellFields + TEXT(" }");
+	}
+
+	/** Parámetros válidos de S-009 sin los del trilero, para construir los casos de S-010. */
+	FString BaseWith(const TCHAR* ShellPart)
+	{
+		return FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10%s%s }"),
+			*ShellPart ? TEXT(", ") : TEXT(""), ShellPart);
+	}
+}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchParamsLoadTest,
 	"Soulbound.Core.Match.Params.SalenDelArchivo",
@@ -23,10 +52,16 @@ bool FMatchParamsLoadTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("El reloj de turno del archivo es positivo"), FromFile.TurnClockSeconds > 0.0);
 	TestTrue(TEXT("La duración de la carrera del archivo es positiva (R-CAR-1)"), FromFile.RaceDurationSeconds > 0.0);
 	TestTrue(TEXT("El reloj de elección del archivo es positivo (S-009)"), FromFile.ChoiceClockSeconds > 0.0);
+	// S-010 (R-ROB-2): los del trilero, con sus valores iniciales de la story.
+	TestEqual(TEXT("Muestra del trilero: 2 s"), FromFile.ShellRevealSeconds, 2.0);
+	TestEqual(TEXT("Mezcla del trilero: 4 s"), FromFile.ShellShuffleSeconds, 4.0);
+	TestEqual(TEXT("Intercambios de la mezcla: 8"), FromFile.ShellSwapCount, 8);
+	TestEqual(TEXT("Tiempo de elección de esfera: 5 s"), FromFile.ShellPickSeconds, 5.0);
 
 	// Los valores salen del texto, no del código: con otros valores en el JSON, otros parámetros.
 	const FMatchParamsLoadResult Other = Soulbound::Rules::LoadMatchParamsFromJsonString(
-		TEXT("{ \"turnClockSeconds\": 12.5, \"maxExtraTurns\": 3, \"maxLostTurns\": 0, \"raceDurationSeconds\": 45, \"choiceClockSeconds\": 7.5 }"));
+		TEXT("{ \"turnClockSeconds\": 12.5, \"maxExtraTurns\": 3, \"maxLostTurns\": 0, \"raceDurationSeconds\": 45, \"choiceClockSeconds\": 7.5, ")
+		TEXT("\"shellRevealSeconds\": 1.5, \"shellShuffleSeconds\": 3, \"shellSwapCount\": 11, \"shellPickSeconds\": 6.5 }"));
 	if (TestTrue(FString::Printf(TEXT("Otros valores cargan (%s)"), *Other.Message), Other.IsSuccess()))
 	{
 		TestEqual(TEXT("Reloj de turno leído del texto"), Other.Params.TurnClockSeconds, 12.5);
@@ -34,6 +69,10 @@ bool FMatchParamsLoadTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Tope de perdidos leído del texto"), Other.Params.MaxLostTurns, 0);
 		TestEqual(TEXT("Duración de la carrera leída del texto"), Other.Params.RaceDurationSeconds, 45.0);
 		TestEqual(TEXT("Reloj de elección leído del texto"), Other.Params.ChoiceClockSeconds, 7.5);
+		TestEqual(TEXT("Muestra leída del texto"), Other.Params.ShellRevealSeconds, 1.5);
+		TestEqual(TEXT("Mezcla leída del texto"), Other.Params.ShellShuffleSeconds, 3.0);
+		TestEqual(TEXT("Intercambios leídos del texto"), Other.Params.ShellSwapCount, 11);
+		TestEqual(TEXT("Tiempo de elección de esfera leído del texto"), Other.Params.ShellPickSeconds, 6.5);
 	}
 	return true;
 }
@@ -46,29 +85,45 @@ bool FMatchParamsRejectTest::RunTest(const FString& Parameters)
 {
 	// Criterio "Parámetros": un archivo mal formado se rechaza entero, con MalformedData y un motivo legible. Desde S-009
 	// todos los casos llevan un reloj de elección válido, salvo los tres que lo prueban (choiceClockSeconds, con su validación).
-	const TPair<const TCHAR*, const TCHAR*> Cases[] = {
+	// Desde S-010 los casos anteriores llevan los parámetros del trilero válidos (WithShell), y los nuevos prueban cada uno.
+	TArray<TPair<FString, FString>> Cases = {
 		{TEXT("no es JSON"), TEXT("reloj: 30")},
-		{TEXT("falta el reloj"), TEXT("{ \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10 }")},
-		{TEXT("falta el tope de extra"), TEXT("{ \"turnClockSeconds\": 30, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10 }")},
-		{TEXT("falta el tope de perdidos"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10 }")},
-		{TEXT("reloj como texto"), TEXT("{ \"turnClockSeconds\": \"30\", \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10 }")},
-		{TEXT("reloj a cero"), TEXT("{ \"turnClockSeconds\": 0, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10 }")},
-		{TEXT("reloj negativo"), TEXT("{ \"turnClockSeconds\": -5, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10 }")},
-		{TEXT("tope de extra negativo"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": -1, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10 }")},
-		{TEXT("tope de perdidos con decimales"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 1.5, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10 }")},
-		{TEXT("falta la duración de la carrera"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"choiceClockSeconds\": 10 }")},
-		{TEXT("duración de la carrera a cero"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 0, \"choiceClockSeconds\": 10 }")},
-		{TEXT("duración de la carrera como texto"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": \"300\", \"choiceClockSeconds\": 10 }")},
-		{TEXT("falta el reloj de elección"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300 }")},
-		{TEXT("reloj de elección a cero"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 0 }")},
-		{TEXT("reloj de elección como texto"), TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": \"10\" }")},
+		{TEXT("falta el reloj"), WithShell(TEXT("{ \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10 }"))},
+		{TEXT("falta el tope de extra"), WithShell(TEXT("{ \"turnClockSeconds\": 30, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10 }"))},
+		{TEXT("falta el tope de perdidos"), WithShell(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10 }"))},
+		{TEXT("reloj como texto"), WithShell(TEXT("{ \"turnClockSeconds\": \"30\", \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10 }"))},
+		{TEXT("reloj a cero"), WithShell(TEXT("{ \"turnClockSeconds\": 0, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10 }"))},
+		{TEXT("reloj negativo"), WithShell(TEXT("{ \"turnClockSeconds\": -5, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10 }"))},
+		{TEXT("tope de extra negativo"), WithShell(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": -1, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10 }"))},
+		{TEXT("tope de perdidos con decimales"), WithShell(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 1.5, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10 }"))},
+		{TEXT("falta la duración de la carrera"), WithShell(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"choiceClockSeconds\": 10 }"))},
+		{TEXT("duración de la carrera a cero"), WithShell(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 0, \"choiceClockSeconds\": 10 }"))},
+		{TEXT("duración de la carrera como texto"), WithShell(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": \"300\", \"choiceClockSeconds\": 10 }"))},
+		{TEXT("falta el reloj de elección"), WithShell(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300 }"))},
+		{TEXT("reloj de elección a cero"), WithShell(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 0 }"))},
+		{TEXT("reloj de elección como texto"), WithShell(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": \"10\" }"))},
+		// S-010 (R-ROB-2): los cuatro del trilero, obligatorios; tiempos mayores que cero e intercambios enteros desde uno.
+		{TEXT("faltan los del trilero"), BaseWith(TEXT(""))},
+		{TEXT("falta la muestra"), BaseWith(TEXT("\"shellShuffleSeconds\": 4, \"shellSwapCount\": 8, \"shellPickSeconds\": 5"))},
+		{TEXT("falta la mezcla"), BaseWith(TEXT("\"shellRevealSeconds\": 2, \"shellSwapCount\": 8, \"shellPickSeconds\": 5"))},
+		{TEXT("faltan los intercambios"), BaseWith(TEXT("\"shellRevealSeconds\": 2, \"shellShuffleSeconds\": 4, \"shellPickSeconds\": 5"))},
+		{TEXT("falta el tiempo de elección de esfera"), BaseWith(TEXT("\"shellRevealSeconds\": 2, \"shellShuffleSeconds\": 4, \"shellSwapCount\": 8"))},
+		{TEXT("muestra a cero"), BaseWith(TEXT("\"shellRevealSeconds\": 0, \"shellShuffleSeconds\": 4, \"shellSwapCount\": 8, \"shellPickSeconds\": 5"))},
+		{TEXT("mezcla negativa"), BaseWith(TEXT("\"shellRevealSeconds\": 2, \"shellShuffleSeconds\": -4, \"shellSwapCount\": 8, \"shellPickSeconds\": 5"))},
+		{TEXT("intercambios a cero"), BaseWith(TEXT("\"shellRevealSeconds\": 2, \"shellShuffleSeconds\": 4, \"shellSwapCount\": 0, \"shellPickSeconds\": 5"))},
+		{TEXT("intercambios con decimales"), BaseWith(TEXT("\"shellRevealSeconds\": 2, \"shellShuffleSeconds\": 4, \"shellSwapCount\": 8.5, \"shellPickSeconds\": 5"))},
+		{TEXT("tiempo de elección de esfera a cero"), BaseWith(TEXT("\"shellRevealSeconds\": 2, \"shellShuffleSeconds\": 4, \"shellSwapCount\": 8, \"shellPickSeconds\": 0"))},
+		{TEXT("muestra como texto"), BaseWith(TEXT("\"shellRevealSeconds\": \"2\", \"shellShuffleSeconds\": 4, \"shellSwapCount\": 8, \"shellPickSeconds\": 5"))},
 	};
-	for (const TPair<const TCHAR*, const TCHAR*>& Case : Cases)
+	for (const TPair<FString, FString>& Case : Cases)
 	{
 		const FMatchParamsLoadResult Result = Soulbound::Rules::LoadMatchParamsFromJsonString(Case.Value);
-		TestEqual(FString::Printf(TEXT("%s: se rechaza por datos mal formados"), Case.Key), static_cast<int32>(Result.Error), static_cast<int32>(EMatchParamsError::MalformedData));
-		TestFalse(FString::Printf(TEXT("%s: con un motivo legible"), Case.Key), Result.Message.IsEmpty());
+		TestEqual(FString::Printf(TEXT("%s: se rechaza por datos mal formados"), *Case.Key), static_cast<int32>(Result.Error), static_cast<int32>(EMatchParamsError::MalformedData));
+		TestFalse(FString::Printf(TEXT("%s: con un motivo legible"), *Case.Key), Result.Message.IsEmpty());
 	}
+	// Control: la base con los del trilero válidos carga; así cada rechazo de arriba es por el campo que cambia.
+	const FMatchParamsLoadResult Valid = Soulbound::Rules::LoadMatchParamsFromJsonString(BaseWith(ShellFields));
+	TestTrue(FString::Printf(TEXT("La base con los del trilero carga (%s)"), *Valid.Message), Valid.IsSuccess());
 
 	const FMatchParamsLoadResult Missing = Soulbound::Rules::LoadMatchParamsFromFile(
 		FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data/Match/no_existe.json")));
