@@ -112,7 +112,7 @@ namespace Soulbound::Rules
 
 	/**
 	 * Intención que contesta la elección pendiente del asiento Seat (S-009; glosario "Intención"): la única forma de
-	 * elegir dados, repetir, saltar, expulsar, robar, apartar la runa de Koschei o elegir esfera. Se valida asiento (el de
+	 * elegir dados, repetir, saltar, retar a duelo, expulsar, robar, apartar la runa de Koschei o elegir esfera. Se valida asiento (el de
 	 * FPendingChoice::Seat, que desde S-010 puede no tener el turno), tipo de elección (Kind debe ser el de la pendiente:
 	 * una respuesta tardía no contesta otra elección), plazo y opción; si no es válida se descarta sin castigo y sin
 	 * tocar el estado. Option: una respuesta válida (FPendingChoice::IsValidAnswer: un valor de Options, o en PlayerAction
