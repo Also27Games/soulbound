@@ -216,6 +216,26 @@ FSimulationResult FMatchSimulation::Run()
 				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d intenta robar al asiento %d (Koschei), que solo tiene una runa: robo anulado"), *Stamp(Event.ClockSeconds),
 					Event.Seat, Event.OtherSeat));
 			}
+			// S-012: el duelo.
+			else if (Event.Type == EMatchEventType::DuelChallenged)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d reta al asiento %d a duelo %s"), *Stamp(Event.ClockSeconds), Event.Seat, Event.OtherSeat,
+					Event.Value == 1 ? TEXT("desde un Nodo de Duelo") : TEXT("con el poder Duelo")));
+			}
+			else if (Event.Type == EMatchEventType::DuelNoRunes)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d reta al asiento %d, sin runas: no hay duelo"), *Stamp(Event.ClockSeconds), Event.Seat, Event.OtherSeat));
+			}
+			else if (Event.Type == EMatchEventType::DuelWon)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d gana el duelo al asiento %d (%s, rendimiento al azar)"), *Stamp(Event.ClockSeconds), Event.Seat, Event.OtherSeat,
+					Event.Value == 1 ? TEXT("el retado") : TEXT("el retador")));
+			}
+			else if (Event.Type == EMatchEventType::DuelLoserSentHome)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d pierde el duelo sin runas y vuelve a su hogar, la %s"), *Stamp(Event.ClockSeconds), Event.OtherSeat,
+					*DescribeTile(State.Board, Event.Value)));
+			}
 		}
 	};
 
@@ -309,6 +329,25 @@ FSimulationResult FMatchSimulation::Run()
 				}
 				LogNewEvents();
 				// Tras el minijuego puede quedar abierta una elección (S-009, R-INT-1): se contesta al principio del bucle.
+				continue;
+			}
+			if (State.TurnPhase == ETurnPhase::Duel)
+			{
+				// Duelo (S-012): como el minijuego, cada participante rinde al instante con su decisor, primero el retador y
+				// después el retado; con los dos, el motor lo resuelve y puede abrir el trilero del botín.
+				LogNewEvents();
+				for (const int32 Seat : {State.Duel.Challenger, State.Duel.Challenged})
+				{
+					if (State.Duel.IsActive() && !State.Duel.HasPerformed(Seat))
+					{
+						const double Performance = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid() ? Deciders[Seat]->DuelPerformance(State, Seat, DeciderRng) : 0.0;
+						if (Soulbound::Rules::SubmitDuelPerformance(State, Seat, Performance, Now) != EIntentResult::Accepted)
+						{
+							return TNumericLimits<double>::Max();
+						}
+					}
+				}
+				LogNewEvents();
 				continue;
 			}
 			// Trilero (S-010): la muestra y la mezcla duran tiempo de partida, en datos; se vuelve al acabar la etapa. Sus

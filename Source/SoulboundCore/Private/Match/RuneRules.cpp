@@ -2,6 +2,7 @@
 
 #include "Board/MovementRules.h"
 #include "Match/BondRaceRules.h"
+#include "Match/DuelRules.h"
 #include "Match/MatchEvents.h"
 
 using Soulbound::Rules::LogEvent;
@@ -225,9 +226,13 @@ namespace Soulbound::Rules
 
 	TArray<FPlayerActionOption> PlayerActionOptions(const FMatchState& State, int32 Seat)
 	{
-		// R-INT-2: una sola decisión, qué y a quién. Hoy un asiento solo tiene una de las dos (Expulsión es de Elegidos y el
-		// robo, de Ecos); en S-011 un Elegido podrá tener Duelo y Expulsión a la vez y se añadirán aquí.
+		// R-INT-2: una sola decisión, qué y a quién. Un Elegido puede tener Duelo y Expulsión a la vez (S-012), y un Eco en un
+		// Nodo de Duelo, reto y robo. Primero los duelos, como en la vista de la story (decisión del autor del 06/10/2026).
 		TArray<FPlayerActionOption> Options;
+		for (const int32 Target : DuelTargets(State, Seat))
+		{
+			Options.Add({EPlayerAction::Duel, Target});
+		}
 		for (const int32 Target : ExpelTargets(State, Seat))
 		{
 			Options.Add({EPlayerAction::Expel, Target});

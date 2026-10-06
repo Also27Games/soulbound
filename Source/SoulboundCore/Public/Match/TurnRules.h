@@ -68,10 +68,11 @@ namespace Soulbound::Rules
 	 *  - MoveAndResolve: resuelve el Nicho de destino (R-CAR-4, ResolveNicheLanding) y la Fuente (R-RUN-2,
 	 *    ResolvePowerSourceLanding, solo si el asiento se ha movido). Si un Elegido llega a la Fuente de un Dominio
 	 *    Olvidado, pasa a SkillTrial. Después (R-INT-1) ofrece el salto planar (PlanarJump) y, como mucho, una acción
-	 *    contra un jugador (PlayerAction: expulsar o robar, S-010), cada uno con el reloj de elección; sin nada que
-	 *    ofrecer, pasa a End y registra TurnEnded. Con una elección abierta, la espera; agotado su plazo, registra
-	 *    ChoiceExpired y la resuelve como "no".
+	 *    contra un jugador (PlayerAction: retar a duelo, expulsar o robar; S-010, S-012), cada uno con el reloj de
+	 *    elección; sin nada que ofrecer, pasa a End y registra TurnEnded. Con una elección abierta, la espera; agotado su
+	 *    plazo, registra ChoiceExpired y la resuelve como "no".
 	 *  - SkillTrial: espera el resultado del minijuego (SubmitSkillTrialResult); no avanza ni cambia nada.
+	 *  - Duel (S-012): espera el rendimiento de los dos participantes (SubmitDuelPerformance); no avanza ni cambia nada.
 	 *  - ShellGame (S-010, R-ROB-2): el trilero. Espera la runa de Koschei (agotada, ChoiceExpired y se juega con todas,
 	 *    R-ROB-5), el fin de la muestra y el de la mezcla, y la elección de esfera del ladrón (agotada, ShellGameExpired y
 	 *    no roba, R-ROB-3); después pasa a End. El trilero no toca el sorteo de la partida (R-ROB-6).
@@ -123,7 +124,8 @@ namespace Soulbound::Rules
 	 *  - PlanarJump: la ficha salta a la casilla y se registra PlanarJumped (R-POD-5); después se ofrece la acción.
 	 *  - PlayerAction (S-010): expulsar manda al objetivo a su hogar y registra Expelled (R-POD-4), y termina el turno;
 	 *    robar empieza el robo (R-ECO-4, BeginSteal): sin runas o anulado termina el turno, y si no la máquina pasa a la
-	 *    fase ShellGame, con la elección de Koschei abierta para la víctima si toca (R-ROB-5).
+	 *    fase ShellGame, con la elección de Koschei abierta para la víctima si toca (R-ROB-5). Retar (S-012) empieza el
+	 *    duelo (BeginDuel): sin runas el retado, termina el turno (R-DUE-4); si no, la máquina pasa a la fase Duel.
 	 *  - SafeRune (S-010): Koschei aparta la runa y empieza la muestra del trilero.
 	 *  - ShellPick (S-010): la runa de la esfera elegida pasa al ladrón (RuneStolen, R-ROB-3) y termina el turno.
 	 * NowSeconds: instante en que llega. Random: el sorteo de la partida (solo lo usa la repetición).

@@ -216,7 +216,11 @@ namespace Soulbound::Debug
 
 	EDebugEditResult FixDuel(FMatchState& State, int32 Seat, double NowSeconds)
 	{
-		// Esqueleto de S-012.
-		return EDebugEditResult::InvalidSeat;
+		if (!State.Seats.IsValidIndex(Seat))
+		{
+			return EDebugEditResult::InvalidSeat;
+		}
+		LogEdit(State, EDebugEditKind::FixDuel, NowSeconds, Seat);
+		return EDebugEditResult::Applied;
 	}
 }

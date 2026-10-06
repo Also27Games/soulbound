@@ -577,7 +577,7 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 		Lines.Add(FString::Printf(TEXT("    turnos con dos dados: %.1f %% de las tiradas"), Rolls > 0 ? 100.0 * TwoDiceRolls / Rolls : 0.0));
 		Lines.Add(FString::Printf(TEXT("    saltos planares por partida, de media: %.2f"), static_cast<double>(Jumps) / Games));
 		Lines.Add(FString::Printf(TEXT("    expulsiones por partida, de media: %.2f"), static_cast<double>(Expulsions) / Games));
-		Lines.Add(FString::Printf(TEXT("    robos por partida, de media: %.2f"), static_cast<double>(Thefts) / Games));
+		Lines.Add(FString::Printf(TEXT("    robos por partida, de media: %.2f (desde S-012, también el botín de los duelos)"), static_cast<double>(Thefts) / Games));
 		Lines.Add(FString::Printf(TEXT("    runas que cambian de mano por partida, de media: %.2f"), static_cast<double>(StolenRunes) / Games));
 		Lines.Add(FString::Printf(TEXT("    duelos por partida, de media: %.2f (objetivo del GDD 04: de 3 a 8)"), static_cast<double>(Duels) / Games));
 		Lines.Add(FString::Printf(TEXT("    duelos que gana el retado: %d de %d (%.1f %%)"), DuelsWonByChallenged, DuelsWon,

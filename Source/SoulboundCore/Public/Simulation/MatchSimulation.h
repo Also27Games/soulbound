@@ -49,6 +49,7 @@ struct SOULBOUNDCORE_API FSimulationResult
  * StartMatch y juega los turnos con la máquina de turnos del motor (Match/TurnRules.h): la simulación consulta a
  * los decisores y avanza el reloj, pero no contiene reglas de turno. El cerebro del Warden sigue siendo el del spike.
  * La partida acaba al llegar a DurationSeconds o, antes, al terminar con victoria del Warden (R-CAR-8, S-006).
+ * Los duelos (S-012) se resuelven al instante: los dos participantes rinden con su decisor y el botín es un trilero.
  * Tres sorteos separados, en simulación y en juego (decisión del autor del 05/10/2026, S-010): partida (inicio, dados y
  * sorteos de reglas) con Seed, decisores con Seed + 1 y Warden con Seed + 2, igual que UWardenHostSubsystem. Antes el
  * Warden de la simulación compartía el sorteo de la partida: un trilero, que dura tiempo de partida, cambiaba en qué

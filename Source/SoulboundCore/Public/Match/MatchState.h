@@ -96,7 +96,8 @@ enum class EChoiceKind : uint8
 	/**
 	 * Acción contra un jugador (R-INT-2, S-010; sustituye a Expel de S-009): qué hacer y a quién, en una sola decisión. Las
 	 * opciones son pares (acción, asiento objetivo) en FPendingChoice::ActionOptions y la intención contesta con el índice
-	 * de la opción. Expulsión (R-POD-4) y robo del Eco (R-ECO-4). Con el reloj de elección.
+	 * de la opción. Expulsión (R-POD-4), robo del Eco (R-ECO-4) y, desde S-012, duelo (R-POD-3, R-DUE-2). Con el reloj de
+	 * elección.
 	 */
 	PlayerAction,
 	/**

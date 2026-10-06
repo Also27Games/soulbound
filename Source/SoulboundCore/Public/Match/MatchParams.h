@@ -96,7 +96,7 @@ namespace Soulbound::Rules
 	/**
 	 * Comprueba que unos parámetros de partida tienen sentido: reloj de turno, duración de la carrera, reloj de elección
 	 * y tiempos del trilero (muestra, mezcla y elección de esfera) mayores que cero, topes enteros mayores o iguales que
-	 * cero y al menos un intercambio en la mezcla. Params: los parámetros a comprobar. Devuelve None o MalformedData con el
+	 * cero, al menos un intercambio en la mezcla y el margen del duelo entre 0 y 1, el 1 excluido (S-012). Params: los parámetros a comprobar. Devuelve None o MalformedData con el
 	 * motivo; el campo Params del resultado queda vacío.
 	 */
 	SOULBOUNDCORE_API FMatchParamsLoadResult ValidateMatchParams(const FMatchParams& Params);
