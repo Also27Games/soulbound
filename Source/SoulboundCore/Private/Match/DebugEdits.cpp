@@ -213,4 +213,10 @@ namespace Soulbound::Debug
 		LogEdit(State, EDebugEditKind::FixTrial, NowSeconds, Seat);
 		return EDebugEditResult::Applied;
 	}
+
+	EDebugEditResult FixDuel(FMatchState& State, int32 Seat, double NowSeconds)
+	{
+		// Esqueleto de S-012.
+		return EDebugEditResult::InvalidSeat;
+	}
 }

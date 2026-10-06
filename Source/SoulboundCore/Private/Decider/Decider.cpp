@@ -151,3 +151,14 @@ int32 FRaceDummyDecider::ChooseOption(const FMatchState& State, int32 Seat, cons
 {
 	return FDummyDecider().ChooseOption(State, Seat, Choice, Rng);
 }
+
+double FDummyDecider::DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng)
+{
+	// Esqueleto de S-012.
+	return 0.0;
+}
+
+double FRaceDummyDecider::DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng)
+{
+	return FDummyDecider().DuelPerformance(State, Seat, Rng);
+}

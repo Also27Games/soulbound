@@ -3,7 +3,7 @@
 // Montaje de los tests de elecciones (S-009) y del trilero (S-010): una partida de cuatro sobre el tablero de 35 casillas,
 // con ayudantes para vincular asientos, dar poderes, dejar una ficha en una casilla y contestar elecciones por la máquina
 // de turnos. Las runas y las posiciones de las fichas se fijan a mano: es lo que el test necesita, no lo que comprueba.
-// Solo para tests. Sacado de PowerChoicesTest.cpp en S-010 para no duplicarlo.
+// Solo para tests. Sacado de PowerChoicesTest.cpp en S-010 para no duplicarlo. Desde S-012, también los duelos.
 
 #include "Match/BondRaceRules.h"
 #include "Match/MatchStart.h"
@@ -92,6 +92,9 @@ namespace Soulbound::Tests
 
 		EIntentResult Choose(int32 Seat, EChoiceKind Kind, int32 Option) { return Soulbound::Rules::SubmitChoiceIntent(State, Seat, Kind, Option, Now, Random); }
 
+		/** Seat entrega su rendimiento en el duelo en curso (S-012). */
+		EIntentResult Perform(int32 Seat, double Performance) { return Soulbound::Rules::SubmitDuelPerformance(State, Seat, Performance, Now); }
+
 		/**
 		 * Seat contesta la acción contra un jugador con Action contra Target (S-010): por el índice de esa opción. Si no está
 		 * entre las opciones, entrega un índice que no existe, que el motor rechaza.
@@ -105,8 +108,8 @@ namespace Soulbound::Tests
 
 		/**
 		 * Termina el turno en curso: "no" a lo que lo admita, la primera opción en lo que no (dados, runa de Koschei, esfera),
-		 * siempre por el asiento al que se le pide (S-010); primer destino, minijuego fallado, y la muestra y la mezcla del
-		 * trilero dejando pasar su tiempo.
+		 * siempre por el asiento al que se le pide (S-010); primer destino, minijuego fallado, la muestra y la mezcla del
+		 * trilero dejando pasar su tiempo y, en un duelo (S-012), rendimiento 0 de quien falte.
 		 */
 		void FinishTurn()
 		{
@@ -115,6 +118,11 @@ namespace Soulbound::Tests
 				if (State.TurnPhase == ETurnPhase::SkillTrial)
 				{
 					Soulbound::Rules::SubmitSkillTrialResult(State, State.ActiveSeat, false, Now);
+				}
+				else if (State.TurnPhase == ETurnPhase::Duel)
+				{
+					const int32 Seat = State.Duel.HasPerformed(State.Duel.Challenger) ? State.Duel.Challenged : State.Duel.Challenger;
+					Perform(Seat, 0.0);
 				}
 				else if (State.PendingChoice.IsOpen())
 				{

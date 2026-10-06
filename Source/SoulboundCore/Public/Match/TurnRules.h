@@ -133,6 +133,18 @@ namespace Soulbound::Rules
 	SOULBOUNDCORE_API EIntentResult SubmitChoiceIntent(FMatchState& State, int32 Seat, EChoiceKind Kind, int32 Option, double NowSeconds, FRandomStream& Random);
 
 	/**
+	 * Rendimiento del asiento Seat en el duelo en curso (S-012, R-DUE-1): la única forma de salir de la fase Duel, como el
+	 * resultado del minijuego lo es de SkillTrial. Cada participante entrega el suyo una vez, en cualquier orden; con los dos,
+	 * el duelo se resuelve (ResolveDuel): el perdedor sin runas vuelve a su hogar y el turno termina (R-DUE-6); si no, el
+	 * ganador le roba con el trilero (R-DUE-5, fase ShellGame), sea retador o retado, y al acabar termina el turno del
+	 * retador. Sin plazo en S-012 (TODO(R-MIN) en TurnRules.cpp).
+	 * Performance: de 0 a 1. NowSeconds: marca de tiempo de los eventos.
+	 * Devuelve Accepted; WrongPhase si no hay duelo en curso o el asiento ya entregó el suyo; WrongSeat si no participa;
+	 * InvalidOption si Performance no está entre 0 y 1. Si no es Accepted, no toca el estado. Nombre propuesto en S-012.
+	 */
+	SOULBOUNDCORE_API EIntentResult SubmitDuelPerformance(FMatchState& State, int32 Seat, double Performance, double NowSeconds);
+
+	/**
 	 * Concede Count turnos extra al asiento Seat (R-TUR-9), sin pasar del tope de los parámetros de partida.
 	 * Devuelve false, sin cambiar nada, si el asiento no existe o Count no es positivo.
 	 */

@@ -4,8 +4,8 @@
 // enteras cumplen R-TAB-22 y la crónica cuenta los que caen por el tope. Desde S-006, la carrera por el vínculo con
 // cuatro dummies de carrera: simulación y crónica sobre el tablero de 35 casillas, e informe de 50 semillas por cada
 // tablero de Content/Data/Boards. Desde S-009, las elecciones de los dummies (dados, repetición, salto y expulsión) y
-// sus cifras en el informe. Desde S-010, los robos de los dummies (trilero) y sus cifras en el informe. Los tests del motor
-// no leen la configuración del juego.
+// sus cifras en el informe. Desde S-010, los robos de los dummies (trilero) y sus cifras en el informe. Desde S-012, los
+// duelos de los dummies y sus cifras en el informe. Los tests del motor no leen la configuración del juego.
 // Se lanzan con Scripts/test.ps1.
 
 #include "Decider/Decider.h"
@@ -70,6 +70,16 @@ namespace
 				Rng.GetFraction();
 			}
 			return Choice.AnswerAt(Choice.AnswerCount() - 1);
+		}
+
+		/** S-012: también gasta tres valores y rinde lo máximo. */
+		virtual double DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng) override
+		{
+			for (int32 Draw = 0; Draw < 3; ++Draw)
+			{
+				Rng.GetFraction();
+			}
+			return 1.0;
 		}
 	};
 
@@ -471,7 +481,8 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 	// Content/Data/Boards, 50 partidas con cuatro dummies de carrera (semillas fijas 1 a 50). Imprime un bloque por
 	// tablero: % de partidas sin ningún vínculo, Elegidos por partida de media, % de asientos que quedan Eco y segundo
 	// medio de fin de carrera; desde S-009, también el % de tiradas con dos dados y los saltos planares y expulsiones por
-	// partida; desde S-010, los robos y las runas que cambian de mano por partida. Objetivo del GDD 03, para el autor: nadie vinculado < 5 %, Eco por jugador entre 15 y
+	// partida; desde S-010, los robos y las runas que cambian de mano por partida; desde S-012, los duelos por partida
+	// (objetivo del GDD 04: de 3 a 8) y cuántos gana el retado. Objetivo del GDD 03, para el autor: nadie vinculado < 5 %, Eco por jugador entre 15 y
 	// 35 %. Solo comprueba que cada partida cierra su carrera. Imprime con SOULBOUND_INFORME=1 (Scripts/test.ps1
 	// -Informe); sin ella, una línea de resumen.
 	constexpr int32 Games = 50;
@@ -505,6 +516,9 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 		int32 Expulsions = 0;
 		int32 Thefts = 0;
 		int32 StolenRunes = 0;
+		int32 Duels = 0;
+		int32 DuelsWon = 0;
+		int32 DuelsWonByChallenged = 0;
 		for (int32 Seed = 1; Seed <= Games; ++Seed)
 		{
 			Params.Seed = Seed;
@@ -544,6 +558,11 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 			Thefts += CountEvents(State, EMatchEventType::ShellGameStarted) + CountEvents(State, EMatchEventType::StealNoRunes)
 				+ CountEvents(State, EMatchEventType::StealCancelled);
 			StolenRunes += CountEvents(State, EMatchEventType::RuneStolen);
+			// S-012: duelos (todo reto: con duelo o a quien no tiene runas) y cuántos se resuelven a favor del retado.
+			Duels += CountEvents(State, EMatchEventType::DuelChallenged) + CountEvents(State, EMatchEventType::DuelNoRunes);
+			const TArray<FMatchEvent> Won = Soulbound::Tests::EventsOfType(State, EMatchEventType::DuelWon);
+			DuelsWon += Won.Num();
+			DuelsWonByChallenged += Won.FilterByPredicate([](const FMatchEvent& Event) { return Event.Value == 1; }).Num();
 		}
 
 		Lines.Add(FString::Printf(TEXT("Informe de carrera | %s | %d casillas | %d partidas | 4 dummies de carrera | carrera de %.0f s"),
@@ -560,6 +579,9 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 		Lines.Add(FString::Printf(TEXT("    expulsiones por partida, de media: %.2f"), static_cast<double>(Expulsions) / Games));
 		Lines.Add(FString::Printf(TEXT("    robos por partida, de media: %.2f"), static_cast<double>(Thefts) / Games));
 		Lines.Add(FString::Printf(TEXT("    runas que cambian de mano por partida, de media: %.2f"), static_cast<double>(StolenRunes) / Games));
+		Lines.Add(FString::Printf(TEXT("    duelos por partida, de media: %.2f (objetivo del GDD 04: de 3 a 8)"), static_cast<double>(Duels) / Games));
+		Lines.Add(FString::Printf(TEXT("    duelos que gana el retado: %d de %d (%.1f %%)"), DuelsWonByChallenged, DuelsWon,
+			DuelsWon > 0 ? 100.0 * DuelsWonByChallenged / DuelsWon : 0.0));
 		Lines.Add(FString::Printf(TEXT("    tiempo real: %.3f s en total"), WallSum));
 	}
 
@@ -899,6 +921,104 @@ bool FMatchSimulationTheftsTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("En 20 partidas, los dummies roban runas"), Stolen > 0);
 	AddInfo(FString::Printf(TEXT("20 partidas: %d robos, %d runas cambian de mano"), Thefts, Stolen));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationDuelsTest,
+	"Soulbound.Core.Simulation.DuelosConDummies",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationDuelsTest::RunTest(const FString& Parameters)
+{
+	// Criterio "Simulación" (S-012): los dummies retan al azar entre sus opciones y rinden al azar con su generador.
+	// Determinista por semilla y bajo el segundo. Cada reto acaba en duelo resuelto o sin runas, cada evento de duelo tiene
+	// su línea en la crónica y ninguna runa se crea ni se pierde.
+
+	// El dummy, con su generador: reta a cualquiera de los objetivos (por índice) o a ninguno, y rinde de 0 a 1, variado.
+	FPendingChoice Action;
+	Action.Kind = EChoiceKind::PlayerAction;
+	Action.ActionOptions = {{EPlayerAction::Duel, 1}, {EPlayerAction::Duel, 2}, {EPlayerAction::Expel, 1}};
+	TSet<int32> ActionAnswers;
+	TSet<int32> Tenths;
+	bool bInRange = true;
+	FMatchState Empty;
+	for (int32 Seed = 1; Seed <= 100; ++Seed)
+	{
+		FRandomStream Rng(Seed);
+		ActionAnswers.Add(FDummyDecider().ChooseOption(Empty, 0, Action, Rng));
+		const double Performance = FRaceDummyDecider().DuelPerformance(Empty, 0, Rng);
+		bInRange &= Performance >= 0.0 && Performance <= 1.0;
+		Tenths.Add(FMath::FloorToInt32(Performance * 10.0));
+	}
+	TestTrue(TEXT("El dummy reta a cada objetivo, expulsa o no hace nada"), ActionAnswers.Num() == 4 && ActionAnswers.Contains(0) && ActionAnswers.Contains(1) && ActionAnswers.Contains(INDEX_NONE));
+	TestTrue(TEXT("Rinde entre 0 y 1"), bInRange);
+	TestTrue(TEXT("... al azar: en 100 sorteos, al menos cinco décimas distintas"), Tenths.Num() >= 5);
+	FRandomStream SameA(7);
+	FRandomStream SameB(7);
+	TestEqual(TEXT("Con el mismo generador, el mismo rendimiento"), FDummyDecider().DuelPerformance(Empty, 0, SameA), FDummyDecider().DuelPerformance(Empty, 0, SameB));
+
+	// Partidas enteras sobre el tablero de 35 casillas: dos dummies de carrera y dos al azar, como en RobosConDummies (S-010).
+	FSimulationParams Params;
+	if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), 1, Params))
+	{
+		return false;
+	}
+	auto MixedDeciders = []()
+	{
+		TArray<TSharedPtr<IDecider>> Deciders = {MakeShared<FRaceDummyDecider>(), MakeShared<FRaceDummyDecider>(), MakeShared<FDummyDecider>(), MakeShared<FDummyDecider>()};
+		return Deciders;
+	};
+	int32 Duels = 0;
+	int32 Won = 0;
+	for (int32 Seed = 1; Seed <= 20; ++Seed)
+	{
+		Params.Seed = Seed;
+		const FSimulationResult A = FMatchSimulation(Params, MixedDeciders()).Run();
+		const FSimulationResult B = FMatchSimulation(Params, MixedDeciders()).Run();
+		const FString Context = FString::Printf(TEXT("Semilla %d"), Seed);
+		TestTrue(Context + TEXT(": mismo registro"), A.Log == B.Log);
+		TestTrue(Context + TEXT(": mismo estado final"), Soulbound::Tests::SameState(A.FinalState, B.FinalState));
+		TestTrue(FString::Printf(TEXT("%s: baja del segundo (%.4f s)"), *Context, A.WallSeconds), A.WallSeconds < 1.0);
+
+		const FMatchState& State = A.FinalState;
+		const int32 Challenged = CountEvents(State, EMatchEventType::DuelChallenged);
+		const int32 Resolved = CountEvents(State, EMatchEventType::DuelWon);
+		Duels += Challenged + CountEvents(State, EMatchEventType::DuelNoRunes);
+		Won += Resolved;
+		// Un duelo en curso al acabar el tiempo de la simulación es el único que puede quedar sin resolver.
+		TestTrue(Context + TEXT(": cada duelo se resuelve"), Resolved == Challenged || (Resolved == Challenged - 1 && State.Duel.IsActive()));
+
+		if (State.Board.Phase == EBoardPhase::Awakened)
+		{
+			int32 InPlay = 0;
+			int32 Sources = 0;
+			for (const FSeatState& Seat : State.Seats)
+			{
+				for (const int32 Count : Seat.Runes)
+				{
+					InPlay += Count;
+				}
+			}
+			for (const FTileState& Tile : State.Board.Tiles)
+			{
+				InPlay += Tile.RuneReserve;
+				Sources += Tile.Type == ETileType::PowerSource ? 1 : 0;
+			}
+			TestEqual(Context + TEXT(": las runas en juego no cambian"), InPlay, Sources * State.Board.Params.RuneReservePerSource);
+		}
+
+		auto CountLines = [&A](const TCHAR* Fragment)
+		{
+			return A.Log.FilterByPredicate([Fragment](const FString& Line) { return Line.Contains(Fragment, ESearchCase::CaseSensitive); }).Num();
+		};
+		TestEqual(Context + TEXT(": cada reto tiene su línea"), CountLines(TEXT(" a duelo")), Challenged);
+		TestEqual(Context + TEXT(": cada reto sin runas tiene su línea"), CountLines(TEXT(" sin runas: no hay duelo")), CountEvents(State, EMatchEventType::DuelNoRunes));
+		TestEqual(Context + TEXT(": cada duelo resuelto tiene su línea"), CountLines(TEXT(" gana el duelo ")), Resolved);
+		TestEqual(Context + TEXT(": cada perdedor enviado a su hogar tiene su línea"), CountLines(TEXT(" pierde el duelo sin runas")), CountEvents(State, EMatchEventType::DuelLoserSentHome));
+		TestEqual(Context + TEXT(": ninguna elección se agota"), CountEvents(State, EMatchEventType::ChoiceExpired), 0);
+	}
+	TestTrue(TEXT("En 20 partidas, los dummies se baten en duelo"), Won > 0);
+	AddInfo(FString::Printf(TEXT("20 partidas: %d retos, %d duelos resueltos"), Duels, Won));
 	return true;
 }
 

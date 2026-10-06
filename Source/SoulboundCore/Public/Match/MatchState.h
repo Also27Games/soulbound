@@ -58,6 +58,12 @@ enum class ETurnPhase : uint8
 	 * con los plazos del reloj de partida (FShellGameState). Nombre propuesto en S-010.
 	 */
 	ShellGame,
+	/**
+	 * Duelo (glosario "Duelo", R-DUE-1, S-012): retador y retado rinden y gana el mayor. La máquina espera el rendimiento de
+	 * los dos (SubmitDuelPerformance, uno por participante y en cualquier orden), como espera el minijuego; sin plazo en
+	 * S-012. Después, el botín con el trilero (fase ShellGame) o el fin del turno. Nombre propuesto en S-012.
+	 */
+	Duel,
 	/** Fin de turno. */
 	End,
 };
@@ -109,7 +115,7 @@ enum class EChoiceKind : uint8
 
 /**
  * Acción contra un jugador (R-INT-2, S-010, nombre propuesto): lo que un asiento puede hacer a otro al terminar su
- * movimiento. Duelo y reto de duelo llegarán en S-011.
+ * movimiento. Desde S-012 también el duelo.
  */
 UENUM()
 enum class EPlayerAction : uint8
@@ -118,6 +124,11 @@ enum class EPlayerAction : uint8
 	Expel,
 	/** Robo del Eco (R-ECO-4): el objetivo es la víctima de un trilero. */
 	Steal,
+	/**
+	 * Duelo (S-012): el objetivo es el retado. Una sola acción para el duelo portátil (poder Duelo, R-POD-3) y el reto desde
+	 * un Nodo de Duelo (R-DUE-2); de dónde sale el reto lo dice el registro (DuelChallenged). Decisión del autor del 06/10/2026.
+	 */
+	Duel,
 };
 
 /** Una opción de la acción contra un jugador (S-010, nombre propuesto): qué acción y contra qué asiento. */
@@ -262,6 +273,51 @@ struct SOULBOUNDCORE_API FShellGameState
 	bool IsActive() const { return Stage != EShellGameStage::None; }
 };
 
+/**
+ * Duelo en curso (glosario "Duelo", R-DUE-1, S-012, nombre propuesto): quién reta a quién, de dónde salió el reto y el
+ * rendimiento de cada uno, que llega por su intención (SubmitDuelPerformance) en cualquier orden. Solo lo escriben las
+ * reglas de Match/DuelRules.h. Termina al resolverse (ResolveDuel), antes del trilero del botín.
+ */
+USTRUCT()
+struct SOULBOUNDCORE_API FDuelState
+{
+	GENERATED_BODY()
+
+	/** Rendimiento que aún no ha llegado: los válidos van de 0 a 1. */
+	static constexpr double NoPerformance = -1.0;
+
+	/** Asiento que reta (el activo). INDEX_NONE si no hay duelo. */
+	UPROPERTY()
+	int32 Challenger = INDEX_NONE;
+
+	/** Asiento retado: no elige nada (R-DUE-3). */
+	UPROPERTY()
+	int32 Challenged = INDEX_NONE;
+
+	/** Si el reto salió de un Nodo de Duelo (R-DUE-2), aunque el retador tenga además el poder Duelo. */
+	UPROPERTY()
+	bool bFromDuelNode = false;
+
+	/** Rendimiento del retador, de 0 a 1; NoPerformance mientras no llega. */
+	UPROPERTY()
+	double ChallengerPerformance = NoPerformance;
+
+	/** Rendimiento del retado, de 0 a 1; NoPerformance mientras no llega. */
+	UPROPERTY()
+	double ChallengedPerformance = NoPerformance;
+
+	bool IsActive() const { return Challenger != INDEX_NONE; }
+
+	/** Si Seat participa en el duelo en curso. */
+	bool IsParticipant(int32 Seat) const { return IsActive() && (Seat == Challenger || Seat == Challenged); }
+
+	/** Si ya llegó el rendimiento de Seat. Falso si no participa. */
+	bool HasPerformed(int32 Seat) const
+	{
+		return (Seat == Challenger && ChallengerPerformance != NoPerformance) || (Seat == Challenged && ChallengedPerformance != NoPerformance);
+	}
+};
+
 /** Dificultad de una prueba (glosario "Minijuego de habilidad"). Nombre propuesto en S-008; hoy solo se usa Easy. */
 UENUM()
 enum class ESkillDifficulty : uint8
@@ -394,6 +450,23 @@ enum class EMatchEventType : uint8
 	 * Va justo antes de los eventos de las reglas que la edición reutiliza. Nombre propuesto en S-011.
 	 */
 	DebugEdit,
+	/**
+	 * Un asiento reta a otro a duelo (R-POD-3, R-DUE-2); Seat el retador, OtherSeat el retado, Value 1 si el reto sale de un
+	 * Nodo de Duelo (aunque el retador tenga además el poder) y 0 si sale del poder Duelo. Nombre propuesto en S-012.
+	 */
+	DuelChallenged,
+	/** Reto a quien no tiene runas: no hay duelo y la acción se pierde (R-DUE-4); Seat el retador, OtherSeat el retado. S-012. */
+	DuelNoRunes,
+	/**
+	 * Se resuelve un duelo (R-DUE-1); Seat el ganador, OtherSeat el perdedor, Value 1 si gana el retado y 0 si gana el
+	 * retador. Va antes del botín (trilero) o de la vuelta al hogar del perdedor. Nombre propuesto en S-012.
+	 */
+	DuelWon,
+	/**
+	 * El perdedor de un duelo no tiene runas y vuelve a su hogar (R-DUE-6): Seat el ganador, OtherSeat el perdedor, Value la
+	 * casilla del hogar. Nombre propuesto en S-012.
+	 */
+	DuelLoserSentHome,
 };
 
 /**
@@ -425,7 +498,7 @@ struct SOULBOUNDCORE_API FMatchEvent
 
 	/**
 	 * Dato del evento: la tirada en Rolled; la casilla en SealPlaced, SealReleased y ReturnedHome; el Dominio en Bonded
-	 * y HomeAssigned; los Elegidos en BondRaceEnded; los de los eventos de S-008, S-009 y S-010, en su tipo; INDEX_NONE en el
+	 * y HomeAssigned; los Elegidos en BondRaceEnded; los de los eventos de S-008 a S-012, en su tipo; INDEX_NONE en el
 	 * resto. Nunca un asiento: el segundo asiento va en OtherSeat (S-010).
 	 */
 	UPROPERTY()
@@ -573,6 +646,10 @@ struct SOULBOUNDCORE_API FMatchState
 	/** Trilero en curso (S-010); Stage None fuera de la fase ShellGame. */
 	UPROPERTY()
 	FShellGameState ShellGame;
+
+	/** Duelo en curso (S-012); sin retador fuera de la fase Duel. */
+	UPROPERTY()
+	FDuelState Duel;
 
 	/**
 	 * Valor base de las semillas de mezcla del trilero (R-ROB-6, S-010): se saca una vez del sorteo de la partida al final

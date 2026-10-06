@@ -640,6 +640,12 @@ namespace Soulbound::Rules
 		return EIntentResult::Accepted;
 	}
 
+	EIntentResult SubmitDuelPerformance(FMatchState& State, int32 Seat, double Performance, double NowSeconds)
+	{
+		// Esqueleto de S-012.
+		return EIntentResult::WrongPhase;
+	}
+
 	bool GrantExtraTurns(FMatchState& State, int32 Seat, int32 Count)
 	{
 		return GrantCapped(State, Seat, Count, &FSeatState::ExtraTurns, State.Params.MaxExtraTurns);
