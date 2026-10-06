@@ -245,6 +245,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	FLinearColor RaceLineColor = FLinearColor(0.f, 0.85f, 1.f);
 
+	/** Línea de crónica de las ediciones de depuración (S-011): un color que no usa nada más. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
+	FLinearColor DebugLineColor = FLinearColor(1.f, 0.f, 1.f);
+
 private:
 	/** Posición en el mundo de cada casilla: la del archivo escalada, o un anillo por Dominio si falta alguna. */
 	TArray<FVector> ComputeTilePositions() const;

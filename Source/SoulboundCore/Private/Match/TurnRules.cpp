@@ -113,6 +113,16 @@ namespace
 	/** BetweenTurns → Start: salta los turnos perdidos (R-TUR-10) y empieza el turno del asiento al que le toca. */
 	void EnterStart(FMatchState& State, double NowSeconds)
 	{
+		// S-011: una edición de depuración pidió el asiento de este turno; el orden sigue desde él. Un turno extra pendiente
+		// del asiento anterior ya se consumió al terminar su turno y se pierde. Los turnos perdidos del pedido se respetan.
+		if (State.ForcedNextSeat != INDEX_NONE)
+		{
+			if (State.TurnOrder.Contains(State.ForcedNextSeat))
+			{
+				State.ActiveSeat = State.ForcedNextSeat;
+			}
+			State.ForcedNextSeat = INDEX_NONE;
+		}
 		// Termina: cada salto descuenta un turno perdido, y los contadores son finitos.
 		while (true)
 		{
@@ -165,7 +175,10 @@ namespace
 	void EnterRollAndChoose(FMatchState& State, double NowSeconds, FRandomStream& Random)
 	{
 		State.TurnPhase = ETurnPhase::RollAndChoose;
-		State.Roll = SumDice(DrawDice(Random), State.DiceCount);
+		// S-011: con una tirada fijada por una edición de depuración, el sorteo se consume igual (DrawDice) y solo cambia la suma.
+		const int32 Drawn = SumDice(DrawDice(Random), State.DiceCount);
+		State.Roll = State.ForcedRoll > 0 ? State.ForcedRoll : Drawn;
+		State.ForcedRoll = 0;
 		ComputeReachable(State);
 		LogEvent(State, EMatchEventType::Rolled, NowSeconds, State.ActiveSeat, State.Roll);
 		State.bRerollValuesPending = true;

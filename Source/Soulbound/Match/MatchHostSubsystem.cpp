@@ -1,6 +1,7 @@
 #include "MatchHostSubsystem.h"
 
 #include "../Presentation/BoardViewActor.h"
+#include "../Presentation/EventText.h"
 #include "../Spike/SpikeOnlineGameMode.h"
 #include "Board/BoardLoader.h"
 #include "Elects/ElectsLoader.h"
@@ -8,6 +9,7 @@
 #include "Engine/World.h"
 #include "GameFramework/GameModeBase.h"
 #include "Match/MatchParams.h"
+#include "Match/DebugEdits.h"
 #include "Match/MatchStart.h"
 #include "Misc/DateTime.h"
 #include "Misc/Paths.h"
@@ -209,6 +211,14 @@ void UMatchHostSubsystem::Advance()
 				Pending.ChoiceKind = EChoiceKind::None;
 				Pending.ReadyAtSeconds = Now + DummyResponseSeconds;
 				Pending.bPassedTrial = Decider.PassSkillMinigame(State, Seat, State.PendingTrial, State.PendingDifficulty, DeciderRng);
+#if !UE_BUILD_SHIPPING
+				// S-011: el resultado fijado sustituye a la respuesta del dummy del humano; el decisor ya consumió su sorteo.
+				if (!bDummy && ForcedTrialResult.IsSet())
+				{
+					Pending.bPassedTrial = ForcedTrialResult.GetValue();
+					ForcedTrialResult.Reset();
+				}
+#endif
 			}
 			if (Now >= Pending.ReadyAtSeconds)
 			{
@@ -317,3 +327,140 @@ void UMatchHostSubsystem::ApplyWardenDecision(const FWardenDecision& Decision)
 		OnMatchStateChanged.Broadcast();
 	}
 }
+
+#if !UE_BUILD_SHIPPING
+FDebugEditOutcome UMatchHostSubsystem::FinishDebugEdit(bool bApplied, const FString& Message)
+{
+	UE_LOG(LogSoulboundMatch, Log, TEXT("Depuración: %s%s"), bApplied ? TEXT("") : TEXT("RECHAZADA, "), *Message);
+	if (bApplied)
+	{
+		OnMatchStateChanged.Broadcast();
+	}
+	return {bApplied, Message};
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugGiveRune(int32 Seat, int32 RuneType, int32 Count)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	const EDebugEditResult Result = Soulbound::Debug::GiveRune(State, Seat, RuneType, Count, State.ClockSeconds);
+	const bool bApplied = Result == EDebugEditResult::Applied;
+	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("%d runas de tipo %d al asiento %d"), Count, RuneType, Seat) : Soulbound::Presentation::DescribeDebugResult(Result));
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugTakeRune(int32 Seat, int32 RuneType, int32 Count)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	const EDebugEditResult Result = Soulbound::Debug::TakeRune(State, Seat, RuneType, Count, State.ClockSeconds);
+	const bool bApplied = Result == EDebugEditResult::Applied;
+	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("%d runas de tipo %d quitadas al asiento %d y devueltas a su Fuente"), Count, RuneType, Seat) : Soulbound::Presentation::DescribeDebugResult(Result));
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugMove(int32 Seat, int32 TileId)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	const EDebugEditResult Result = Soulbound::Debug::PlaceToken(State, Seat, TileId, State.ClockSeconds);
+	const bool bApplied = Result == EDebugEditResult::Applied;
+	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("asiento %d a la casilla %d, sin resolverla"), Seat, TileId) : Soulbound::Presentation::DescribeDebugResult(Result));
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugBond(int32 Seat, int32 DomainId)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	const EDebugEditResult Result = Soulbound::Debug::BondSeat(State, Seat, DomainId, State.ClockSeconds, MatchRng);
+	const bool bApplied = Result == EDebugEditResult::Applied;
+	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("asiento %d vinculado al Elegido del Dominio %d"), Seat, DomainId) : Soulbound::Presentation::DescribeDebugResult(Result));
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugSeal(int32 TileId)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	const ESealResult Result = Soulbound::Debug::SealTileEdit(State, TileId, State.ClockSeconds);
+	const bool bApplied = Result == ESealResult::Accepted;
+	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("casilla %d sellada"), TileId) : Soulbound::Presentation::DescribeSealResult(Result));
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugUnseal(int32 TileId)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	const EDebugEditResult Result = Soulbound::Debug::UnsealTile(State, TileId, State.ClockSeconds);
+	const bool bApplied = Result == EDebugEditResult::Applied;
+	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("Sello de la casilla %d liberado"), TileId) : Soulbound::Presentation::DescribeDebugResult(Result));
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugEndRace()
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	const EDebugEditResult Result = Soulbound::Debug::EndRace(State, State.ClockSeconds, MatchRng);
+	const bool bApplied = Result == EDebugEditResult::Applied;
+	return FinishDebugEdit(bApplied, bApplied ? FString(TEXT("carrera terminada")) : Soulbound::Presentation::DescribeDebugResult(Result));
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugFixRoll(int32 Value)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	const EDebugEditResult Result = Soulbound::Debug::FixNextRoll(State, Value, State.ClockSeconds);
+	const bool bApplied = Result == EDebugEditResult::Applied;
+	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("la próxima tirada será %d"), Value) : Soulbound::Presentation::DescribeDebugResult(Result));
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugFixNextSeat(int32 Seat)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	const EDebugEditResult Result = Soulbound::Debug::FixNextSeat(State, Seat, State.ClockSeconds);
+	const bool bApplied = Result == EDebugEditResult::Applied;
+	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("el siguiente turno que empiece será del asiento %d"), Seat) : Soulbound::Presentation::DescribeDebugResult(Result));
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugFixTrial(bool bPass)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	// El resultado vive aquí; el motor solo deja el evento de la edición en el registro, y con él la vista se refresca.
+	const EDebugEditResult Result = Soulbound::Debug::FixTrial(State, HumanSeat, State.ClockSeconds);
+	const bool bApplied = Result == EDebugEditResult::Applied;
+	if (bApplied)
+	{
+		ForcedTrialResult = bPass;
+	}
+	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("el próximo minijuego del humano se %s"), bPass ? TEXT("supera") : TEXT("falla")) : Soulbound::Presentation::DescribeDebugResult(Result));
+}
+#endif

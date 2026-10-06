@@ -28,6 +28,16 @@ namespace Soulbound::Rules
 	SOULBOUNDCORE_API bool ResolveNicheLanding(FMatchState& State, int32 Seat, double NowSeconds, FRandomStream& Random);
 
 	/**
+	 * El asiento Seat reclama el Nicho del Dominio DomainId y se vincula a su Elegido (R-CAR-4, R-CAR-5): lo que sigue a
+	 * llegar a un Nicho Libre, sin mirar dónde está la ficha. Lo usan ResolveNicheLanding y la edición de depuración
+	 * BondSeat (S-011), así que las dos dejan el mismo estado por construcción: Nicho Reclamado, dueño, rol, Dominio del
+	 * asiento y evento Bonded; el Despertar si es el primer vínculo (R-TAB-9) y el fin de carrera si era el último Nicho
+	 * Libre (R-CAR-1). No valida: quien llama comprueba que la partida está en la carrera, que el asiento es un Eco y que
+	 * el Nicho está Libre. Nombre propuesto en S-011.
+	 */
+	SOULBOUNDCORE_API void ClaimNiche(FMatchState& State, int32 Seat, int32 DomainId, double NowSeconds, FRandomStream& Random);
+
+	/**
 	 * Termina la carrera (R-CAR-8, R-TAB-10 a 12), en este orden:
 	 *  - Sin ningún Elegido: la partida termina con victoria del Warden (evento WardenVictory) y nada más cambia.
 	 *  - Si no, todo Dominio sin dueño pasa a Olvidado con su Nicho Cerrado; cada Eco recibe al azar un Dominio
