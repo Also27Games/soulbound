@@ -845,6 +845,7 @@ void ABoardViewActor::RefreshChronicle(const FMatchState& State)
 		{
 		case Soulbound::Presentation::EEventSource::Warden: Color = WardenLineColor; break;
 		case Soulbound::Presentation::EEventSource::Race: Color = RaceLineColor; break;
+		case Soulbound::Presentation::EEventSource::Debug: Color = DebugLineColor; break;
 		case Soulbound::Presentation::EEventSource::Seat: break;
 		}
 		Lines.Add({FString::Printf(TEXT("[%s] %s"), *Stamp(Event.ClockSeconds), *Soulbound::Presentation::DescribeEvent(Event, State.Board)), Color});

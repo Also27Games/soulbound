@@ -36,30 +36,10 @@ namespace
 
 namespace Soulbound::Rules
 {
-	bool ResolveNicheLanding(FMatchState& State, int32 Seat, double NowSeconds, FRandomStream& Random)
+	void ClaimNiche(FMatchState& State, int32 Seat, int32 DomainId, double NowSeconds, FRandomStream& Random)
 	{
-		if (State.MatchPhase != EMatchPhase::BondRace || !State.Seats.IsValidIndex(Seat))
-		{
-			return false;
-		}
+		FDomainState& Domain = State.Board.Domains[DomainId];
 		FSeatState& SeatState = State.Seats[Seat];
-		// R-CAR-6: un Elegido no cambia de rol ni de Nicho.
-		if (SeatState.Role != ESeatRole::LostEcho || !State.Board.IsValidTile(SeatState.TileId))
-		{
-			return false;
-		}
-		const FTileState& Tile = State.Board.Tiles[SeatState.TileId];
-		if (Tile.Type != ETileType::Niche || !State.Board.Domains.IsValidIndex(Tile.DomainId))
-		{
-			return false;
-		}
-		FDomainState& Domain = State.Board.Domains[Tile.DomainId];
-		// R-CAR-4: solo un Nicho Libre se reclama; Reclamado o Cerrado no cambia nada.
-		if (Domain.NicheState != ENicheState::Free)
-		{
-			return false;
-		}
-
 		// R-CAR-4, R-CAR-5: el Nicho pasa a Reclamado, el Dominio tiene dueño y el asiento es su Elegido.
 		Domain.NicheState = ENicheState::Claimed;
 		Domain.OwnerSeat = Seat;
@@ -84,6 +64,33 @@ namespace Soulbound::Rules
 		{
 			EndBondRace(State, NowSeconds, Random);
 		}
+	}
+
+	bool ResolveNicheLanding(FMatchState& State, int32 Seat, double NowSeconds, FRandomStream& Random)
+	{
+		if (State.MatchPhase != EMatchPhase::BondRace || !State.Seats.IsValidIndex(Seat))
+		{
+			return false;
+		}
+		FSeatState& SeatState = State.Seats[Seat];
+		// R-CAR-6: un Elegido no cambia de rol ni de Nicho.
+		if (SeatState.Role != ESeatRole::LostEcho || !State.Board.IsValidTile(SeatState.TileId))
+		{
+			return false;
+		}
+		const FTileState& Tile = State.Board.Tiles[SeatState.TileId];
+		if (Tile.Type != ETileType::Niche || !State.Board.Domains.IsValidIndex(Tile.DomainId))
+		{
+			return false;
+		}
+		FDomainState& Domain = State.Board.Domains[Tile.DomainId];
+		// R-CAR-4: solo un Nicho Libre se reclama; Reclamado o Cerrado no cambia nada.
+		if (Domain.NicheState != ENicheState::Free)
+		{
+			return false;
+		}
+
+		ClaimNiche(State, Seat, Domain.DomainId, NowSeconds, Random);
 		return true;
 	}
 
