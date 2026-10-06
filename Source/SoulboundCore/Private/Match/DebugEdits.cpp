@@ -203,4 +203,14 @@ namespace Soulbound::Debug
 		State.ForcedNextSeat = Seat;
 		return EDebugEditResult::Applied;
 	}
+
+	EDebugEditResult FixTrial(FMatchState& State, int32 Seat, double NowSeconds)
+	{
+		if (!State.Seats.IsValidIndex(Seat))
+		{
+			return EDebugEditResult::InvalidSeat;
+		}
+		LogEdit(State, EDebugEditKind::FixTrial, NowSeconds, Seat);
+		return EDebugEditResult::Applied;
+	}
 }

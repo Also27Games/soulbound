@@ -82,6 +82,7 @@ namespace Soulbound::Presentation
 		case EDebugEditKind::EndRace: return TEXT("terminar la carrera");
 		case EDebugEditKind::FixRoll: return TEXT("fijar la tirada");
 		case EDebugEditKind::FixNextSeat: return TEXT("fijar el siguiente asiento");
+		case EDebugEditKind::FixTrial: return TEXT("fijar el resultado del minijuego");
 		}
 		return TEXT("edición desconocida");
 	}

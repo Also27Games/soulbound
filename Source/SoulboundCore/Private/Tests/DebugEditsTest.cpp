@@ -558,4 +558,34 @@ bool FDebugEventLogTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDebugFixTrialTest,
+	"Soulbound.Core.Debug.FijarMinijuego",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FDebugFixTrialTest::RunTest(const FString& Parameters)
+{
+	// CA-DEP-8 (registro) para SbTrial: fijar el resultado del minijuego deja su evento de depuración, con tipo, asiento
+	// y marca de tiempo, y no cambia nada más del estado; un asiento inexistente se rechaza sin dejar nada. R-TUR-15.
+	FDebugFixture F;
+	if (!F.Start(*this))
+	{
+		return false;
+	}
+	const FMatchState Before = F.State;
+	TestEqual(TEXT("Fijar el minijuego se aplica"), Soulbound::Debug::FixTrial(F.State, 0, 21.0), EDebugEditResult::Applied);
+	const TArray<FMatchEvent> Events = EventsOfType(F.State, EMatchEventType::DebugEdit);
+	if (TestEqual(TEXT("Deja un evento de depuración"), Events.Num(), 1))
+	{
+		TestEqual(TEXT("Tipo"), Events[0].Value, static_cast<int32>(EDebugEditKind::FixTrial));
+		TestEqual(TEXT("Asiento"), Events[0].Seat, 0);
+		TestEqual(TEXT("Marca de tiempo"), Events[0].ClockSeconds, 21.0);
+	}
+	TestTrue(TEXT("Nada más cambia"), SameState(Before, WithoutDebugEvents(F.State)));
+
+	const FMatchState Mid = F.State;
+	TestEqual(TEXT("Asiento inexistente"), Soulbound::Debug::FixTrial(F.State, 4, 22.0), EDebugEditResult::InvalidSeat);
+	TestTrue(TEXT("Un rechazo no deja nada"), SameState(Mid, F.State));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

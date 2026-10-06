@@ -453,10 +453,14 @@ FDebugEditOutcome UMatchHostSubsystem::DebugFixTrial(bool bPass)
 	{
 		return FinishDebugEdit(false, TEXT("sin partida"));
 	}
-	ForcedTrialResult = bPass;
-	// No cambia el estado de la partida: no hay nada que avisar a la vista, solo el log.
-	const FString Message = FString::Printf(TEXT("el próximo minijuego del humano se %s"), bPass ? TEXT("supera") : TEXT("falla"));
-	UE_LOG(LogSoulboundMatch, Log, TEXT("Depuración: %s"), *Message);
-	return {true, Message};
+	State.ClockSeconds = MatchSeconds();
+	// El resultado vive aquí; el motor solo deja el evento de la edición en el registro, y con él la vista se refresca.
+	const EDebugEditResult Result = Soulbound::Debug::FixTrial(State, HumanSeat, State.ClockSeconds);
+	const bool bApplied = Result == EDebugEditResult::Applied;
+	if (bApplied)
+	{
+		ForcedTrialResult = bPass;
+	}
+	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("el próximo minijuego del humano se %s"), bPass ? TEXT("supera") : TEXT("falla")) : Soulbound::Presentation::DescribeDebugResult(Result));
 }
 #endif

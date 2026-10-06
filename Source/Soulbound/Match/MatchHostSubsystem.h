@@ -136,8 +136,8 @@ public:
 
 	/**
 	 * Fija el resultado del próximo minijuego de habilidad del humano (hoy lo resuelve un dummy al azar, S-008). Vive aquí
-	 * y no en el motor porque el anfitrión es quien responde por el humano. Solo deja rastro en el log: no es una edición
-	 * del estado, así que no hay evento en el registro de la partida.
+	 * y no en el motor porque el anfitrión es quien responde por el humano. El motor solo deja el evento de la edición
+	 * (Soulbound::Debug::FixTrial).
 	 */
 	FDebugEditOutcome DebugFixTrial(bool bPass);
 #endif

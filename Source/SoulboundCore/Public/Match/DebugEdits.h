@@ -18,6 +18,7 @@ enum class EDebugEditKind : uint8
 	EndRace,
 	FixRoll,
 	FixNextSeat,
+	FixTrial,
 };
 
 /** Resultado de una edición de depuración (S-011, nombre propuesto). Solo Applied cambia el estado. */
@@ -113,4 +114,11 @@ namespace Soulbound::Debug
 	 * Rechaza un asiento inexistente.
 	 */
 	SOULBOUNDCORE_API EDebugEditResult FixNextSeat(FMatchState& State, int32 Seat, double NowSeconds);
+
+	/**
+	 * Deja en el registro que se fijó el resultado del próximo minijuego del asiento Seat (el humano), y nada más: el
+	 * resultado vive en el anfitrión de partida, que es quien responde por el humano, no en el estado. Rechaza un
+	 * asiento inexistente.
+	 */
+	SOULBOUNDCORE_API EDebugEditResult FixTrial(FMatchState& State, int32 Seat, double NowSeconds);
 }
