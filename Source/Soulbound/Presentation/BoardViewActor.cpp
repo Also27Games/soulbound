@@ -56,6 +56,7 @@ namespace
 		case ETurnPhase::MoveAndResolve: return TEXT("movimiento");
 		case ETurnPhase::SkillTrial: return TEXT("minijuego de la Fuente");
 		case ETurnPhase::ShellGame: return TEXT("trilero");
+		case ETurnPhase::Duel: return TEXT("duelo");
 		case ETurnPhase::End: return TEXT("fin de turno");
 		}
 		return TEXT("?");
@@ -123,6 +124,13 @@ namespace
 		case EChoiceKind::PlayerAction:
 		{
 			const FPlayerActionOption& Action = Choice.ActionOptions[Index];
+			if (Action.Action == EPlayerAction::Duel)
+			{
+				// S-012: con quien comparte casilla, duelo; con alguien de otra casilla, solo desde un Nodo de Duelo.
+				const bool bSameTile = State.Seats.IsValidIndex(Choice.Seat) && State.Seats.IsValidIndex(Action.TargetSeat)
+					&& State.Seats[Choice.Seat].TileId == State.Seats[Action.TargetSeat].TileId;
+				return bSameTile ? FString::Printf(TEXT("Duelo con el asiento %d"), Action.TargetSeat) : FString::Printf(TEXT("Retar al asiento %d (Nodo)"), Action.TargetSeat);
+			}
 			return FString::Printf(TEXT("%s al asiento %d"), Action.Action == EPlayerAction::Steal ? TEXT("Robar") : TEXT("Expulsar"), Action.TargetSeat);
 		}
 		case EChoiceKind::SafeRune: return FString::Printf(TEXT("D%d"), Choice.Options[Index]);
@@ -201,6 +209,42 @@ namespace
 		default:
 			return FString();
 		}
+	}
+
+	/**
+	 * Línea del duelo (S-012): mientras dura, quién reta a quién, de dónde sale el reto y quién ha rendido ya; resuelto, el
+	 * resultado del último duelo del turno en curso, hasta que acabe. Vacía si el turno no tiene duelo. Solo lee el estado.
+	 */
+	FString DuelLine(const FMatchState& State, int32 HumanSeat)
+	{
+		const FDuelState& Duel = State.Duel;
+		auto Who = [HumanSeat](int32 Seat) { return Seat == HumanSeat ? FString::Printf(TEXT("%d (tú)"), Seat) : FString::FromInt(Seat); };
+		if (Duel.IsActive())
+		{
+			auto Status = [&Duel](int32 Seat) { return Duel.HasPerformed(Seat) ? TEXT("ha rendido") : TEXT("rindiendo"); };
+			return FString::Printf(TEXT("DUELO: el asiento %s reta al asiento %s%s | retador %s, retado %s | resuelto al azar (sin minijuego aún)"),
+				*Who(Duel.Challenger), *Who(Duel.Challenged), Duel.bFromDuelNode ? TEXT(" desde un Nodo de Duelo") : TEXT(""),
+				Status(Duel.Challenger), Status(Duel.Challenged));
+		}
+		if (State.TurnPhase == ETurnPhase::BetweenTurns)
+		{
+			return FString();
+		}
+		// El último resultado, si es de este turno: nada desde el último TurnStarted.
+		for (int32 Index = State.EventLog.Num() - 1; Index >= 0; --Index)
+		{
+			const FMatchEvent& Event = State.EventLog[Index];
+			if (Event.Type == EMatchEventType::TurnStarted)
+			{
+				break;
+			}
+			if (Event.Type == EMatchEventType::DuelWon)
+			{
+				return FString::Printf(TEXT("DUELO: gana el asiento %s al asiento %s, siendo el %s (resuelto al azar)"), *Who(Event.Seat), *Who(Event.OtherSeat),
+					Event.Value == 1 ? TEXT("retado") : TEXT("retador"));
+			}
+		}
+		return FString();
 	}
 
 	/** Nombre del Elegido del Dominio, de elegidos.json (S-008); vacío si el Dominio no tiene Elegido. */
@@ -1071,6 +1115,13 @@ void ABoardViewActor::TickHud()
 	if (State.ShellGame.IsActive() && !State.IsMatchOver())
 	{
 		ShowText(9, FColor::Magenta, ShellGameLine(State));
+	}
+
+	// Duelo (S-012): el duelo en curso y, resuelto, su resultado mientras dura el turno.
+	const FString DuelText = State.IsMatchOver() ? FString() : DuelLine(State, HostPtr->GetHumanSeat());
+	if (!DuelText.IsEmpty())
+	{
+		ShowText(10, FColor::Orange, DuelText);
 	}
 
 	// Paso a paso (S-007): lo que espera, bien visible.

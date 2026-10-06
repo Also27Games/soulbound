@@ -437,6 +437,27 @@ void ASpikeOnlinePlayerController::SbTrial(FString Result)
 #endif
 }
 
+void ASpikeOnlinePlayerController::SbDuel(FString Result)
+{
+#if !UE_BUILD_SHIPPING
+	if (UMatchHostSubsystem* Host = GetDebugHost())
+	{
+		if (Result.Equals(TEXT("win"), ESearchCase::IgnoreCase))
+		{
+			ReportDebugEdit(Host->DebugFixDuel(true));
+		}
+		else if (Result.Equals(TEXT("lose"), ESearchCase::IgnoreCase))
+		{
+			ReportDebugEdit(Host->DebugFixDuel(false));
+		}
+		else
+		{
+			Say(FString::Printf(TEXT("[Depuración] El resultado debe ser win o lose, no \"%s\". Uso: SbDuel win|lose"), *Result));
+		}
+	}
+#endif
+}
+
 void ASpikeOnlinePlayerController::SbTurn(FString Seat)
 {
 #if !UE_BUILD_SHIPPING
@@ -456,6 +477,6 @@ void ASpikeOnlinePlayerController::SbHelp()
 #if !UE_BUILD_SHIPPING
 	Say(TEXT("[Depuración] Comandos: SbGiveRune <asiento> <tipo> [n] | SbTakeRune <asiento> <tipo> [n] | SbMove <asiento> <casilla> | "
 		"SbBond <asiento> <dominio> | SbSeal <casilla> | SbUnseal <casilla> | SbEndRace | SbRoll <n> | SbTrial pass|fail | "
-		"SbTurn <asiento> | SbHelp. Los asientos van de 0 a 3 y el tipo de runa es el Dominio de 0 a 5."));
+		"SbDuel win|lose | SbTurn <asiento> | SbHelp. Los asientos van de 0 a 3 y el tipo de runa es el Dominio de 0 a 5."));
 #endif
 }

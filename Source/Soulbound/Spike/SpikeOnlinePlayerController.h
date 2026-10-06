@@ -88,6 +88,10 @@ public:
 	UFUNCTION(Exec)
 	void SbTrial(FString Result);
 
+	/** SbDuel win|lose: fija el resultado del próximo duelo en que participe el humano (S-012). */
+	UFUNCTION(Exec)
+	void SbDuel(FString Result);
+
 	/** SbTurn <asiento>: el siguiente turno que empiece es de ese asiento y el orden sigue desde él. */
 	UFUNCTION(Exec)
 	void SbTurn(FString Seat);
