@@ -151,3 +151,14 @@ int32 FRaceDummyDecider::ChooseOption(const FMatchState& State, int32 Seat, cons
 {
 	return FDummyDecider().ChooseOption(State, Seat, Choice, Rng);
 }
+
+double FDummyDecider::DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng)
+{
+	// Doble de prueba del minijuego de duelo (S-012): al azar con el generador que le pasan, de 0 a 1.
+	return Rng.FRand();
+}
+
+double FRaceDummyDecider::DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng)
+{
+	return FDummyDecider().DuelPerformance(State, Seat, Rng);
+}

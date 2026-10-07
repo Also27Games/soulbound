@@ -95,9 +95,9 @@ namespace Soulbound::Rules
 	SOULBOUNDCORE_API TArray<int32> StealTargets(const FMatchState& State, int32 Seat);
 
 	/**
-	 * Opciones de la acción contra un jugador del asiento Seat (R-INT-2, S-010): las expulsiones (ExpelTargets) y después
-	 * los robos (StealTargets), cada una con su objetivo, en ese orden. Vacío si no tiene ninguna. Duelo, en S-011.
-	 * Nombre propuesto en S-010.
+	 * Opciones de la acción contra un jugador del asiento Seat (R-INT-2, S-010): los duelos (DuelTargets, S-012), las
+	 * expulsiones (ExpelTargets) y los robos (StealTargets), cada una con su objetivo, en ese orden. Vacío si no tiene
+	 * ninguna. Nombre propuesto en S-010.
 	 */
 	SOULBOUNDCORE_API TArray<FPlayerActionOption> PlayerActionOptions(const FMatchState& State, int32 Seat);
 

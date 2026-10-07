@@ -61,6 +61,11 @@ namespace Soulbound::Rules
 		{
 			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-ROB-2: la mezcla del trilero necesita al menos un intercambio (son %d)."), Params.ShellSwapCount));
 		}
+		// R-ELE-2 (S-012): un margen de 1 o más sería ganar siempre, otra regla (decisión del autor del 06/10/2026).
+		if (!(Params.DuelAdvantageMargin >= 0.0 && Params.DuelAdvantageMargin < 1.0))
+		{
+			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-ELE-2: el margen de Shuten-dōji en el duelo debe estar entre 0 y 1, el 1 excluido (es %g)."), Params.DuelAdvantageMargin));
+		}
 		return FMatchParamsLoadResult();
 	}
 
@@ -87,6 +92,7 @@ namespace Soulbound::Rules
 			{TEXT("shellRevealSeconds"), &Params.ShellRevealSeconds},
 			{TEXT("shellShuffleSeconds"), &Params.ShellShuffleSeconds},
 			{TEXT("shellPickSeconds"), &Params.ShellPickSeconds},
+			{TEXT("duelAdvantageMargin"), &Params.DuelAdvantageMargin},
 		};
 		for (const TPair<const TCHAR*, double*>& Time : Times)
 		{

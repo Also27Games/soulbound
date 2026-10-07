@@ -19,6 +19,8 @@ enum class EDebugEditKind : uint8
 	FixRoll,
 	FixNextSeat,
 	FixTrial,
+	/** Fijar el resultado del próximo duelo del humano (S-012, SbDuel). */
+	FixDuel,
 };
 
 /** Resultado de una edición de depuración (S-011, nombre propuesto). Solo Applied cambia el estado. */
@@ -121,4 +123,10 @@ namespace Soulbound::Debug
 	 * asiento inexistente.
 	 */
 	SOULBOUNDCORE_API EDebugEditResult FixTrial(FMatchState& State, int32 Seat, double NowSeconds);
+
+	/**
+	 * Deja en el registro que se fijó el resultado del próximo duelo en que participe el asiento Seat (el humano), y nada
+	 * más: como FixTrial, el resultado vive en el anfitrión de partida (S-012). Rechaza un asiento inexistente.
+	 */
+	SOULBOUNDCORE_API EDebugEditResult FixDuel(FMatchState& State, int32 Seat, double NowSeconds);
 }

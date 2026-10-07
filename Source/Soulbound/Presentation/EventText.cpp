@@ -62,6 +62,17 @@ namespace Soulbound::Presentation
 			return FString::Printf(TEXT("el asiento %d intenta robar al asiento %d, que no tiene runas: no hay trilero"), Event.Seat, Event.OtherSeat);
 		case EMatchEventType::StealCancelled:
 			return FString::Printf(TEXT("el asiento %d intenta robar a Koschei (asiento %d), que solo tiene una runa: robo anulado"), Event.Seat, Event.OtherSeat);
+		// S-012: el duelo. El minijuego de duelo no existe aún: el rendimiento de cada uno lo da su decisor al azar.
+		case EMatchEventType::DuelChallenged:
+			return FString::Printf(TEXT("DUELO: el asiento %d reta al asiento %d %s"), Event.Seat, Event.OtherSeat,
+				Event.Value == 1 ? TEXT("desde un Nodo de Duelo") : TEXT("con el poder Duelo"));
+		case EMatchEventType::DuelNoRunes:
+			return FString::Printf(TEXT("el asiento %d reta al asiento %d, que no tiene runas: no hay duelo y la acción se pierde"), Event.Seat, Event.OtherSeat);
+		case EMatchEventType::DuelWon:
+			return FString::Printf(TEXT("el asiento %d GANA el duelo al asiento %d, siendo el %s (resuelto al azar)"), Event.Seat, Event.OtherSeat,
+				Event.Value == 1 ? TEXT("retado") : TEXT("retador"));
+		case EMatchEventType::DuelLoserSentHome:
+			return FString::Printf(TEXT("el asiento %d pierde el duelo sin runas y vuelve a su hogar, %s"), Event.OtherSeat, *TileShortName(Board, Event.Value));
 		case EMatchEventType::DebugEdit:
 			return Event.Seat == INDEX_NONE ? FString::Printf(TEXT("EDICIÓN DE DEPURACIÓN: %s"), *DebugKindName(Event.Value))
 				: FString::Printf(TEXT("EDICIÓN DE DEPURACIÓN: %s (asiento %d)"), *DebugKindName(Event.Value), Event.Seat);
@@ -83,6 +94,7 @@ namespace Soulbound::Presentation
 		case EDebugEditKind::FixRoll: return TEXT("fijar la tirada");
 		case EDebugEditKind::FixNextSeat: return TEXT("fijar el siguiente asiento");
 		case EDebugEditKind::FixTrial: return TEXT("fijar el resultado del minijuego");
+		case EDebugEditKind::FixDuel: return TEXT("fijar el resultado del duelo");
 		}
 		return TEXT("edición desconocida");
 	}

@@ -2,6 +2,7 @@
 
 #include "Board/MovementRules.h"
 #include "Match/BondRaceRules.h"
+#include "Match/DuelRules.h"
 #include "Match/RuneRules.h"
 #include "Match/MatchEvents.h"
 #include "Match/ShellGameRules.h"
@@ -234,13 +235,14 @@ namespace
 	}
 
 	/**
-	 * El asiento activo roba al asiento Victim (R-ECO-4, R-ROB-1): sin runas o con el robo anulado, termina el turno; si
-	 * no, la máquina pasa al trilero (fase ShellGame), con la elección de Koschei abierta para la víctima si toca (R-ROB-5),
-	 * con el reloj de elección.
+	 * El asiento Thief roba al asiento Victim (R-ECO-4, R-ROB-1; desde S-012 también el ganador de un duelo, R-DUE-5, que
+	 * puede no tener el turno): sin runas o con el robo anulado, termina el turno; si no, la máquina pasa al trilero (fase
+	 * ShellGame), con la elección de Koschei abierta para la víctima si toca (R-ROB-5), con el reloj de elección. El
+	 * trilero termina el turno del asiento activo.
 	 */
-	void BeginStealAction(FMatchState& State, int32 Victim, double NowSeconds)
+	void BeginStealAction(FMatchState& State, int32 Thief, int32 Victim, double NowSeconds)
 	{
-		switch (Soulbound::Rules::BeginSteal(State, State.ActiveSeat, Victim, NowSeconds))
+		switch (Soulbound::Rules::BeginSteal(State, Thief, Victim, NowSeconds))
 		{
 		case EStealStart::NoRunes:
 		case EStealStart::Cancelled:
@@ -315,6 +317,20 @@ namespace
 			EnterEnd(State, NowSeconds);
 			return true;
 		}
+	}
+
+	/**
+	 * El asiento activo reta al asiento Challenged (R-POD-3, R-DUE-2): sin runas el retado, la acción se pierde y el turno
+	 * termina (R-DUE-4); si no, la máquina pasa a la fase Duel y espera los dos rendimientos (R-DUE-3: el retado no elige).
+	 */
+	void BeginDuelAction(FMatchState& State, int32 Challenged, double NowSeconds)
+	{
+		if (Soulbound::Rules::BeginDuel(State, State.ActiveSeat, Challenged, NowSeconds) == EDuelStart::NoRunes)
+		{
+			EnterEnd(State, NowSeconds);
+			return;
+		}
+		State.TurnPhase = ETurnPhase::Duel;
 	}
 
 	/** El paso que sigue a cerrar una elección de MoveAndResolve: tras el salto, la acción; tras la acción, el fin. */
@@ -487,12 +503,16 @@ namespace Soulbound::Rules
 				State.TurnPhase = ETurnPhase::SkillTrial;
 				return true;
 			}
-			// TODO(R-TUR-2): Nodos de Duelo y del Oráculo, en S-010 y en la story del Warden.
+			// TODO(R-TUR-2): Nodo del Oráculo, en la story del Warden. El Nodo de Duelo entra en la acción contra un jugador (S-012).
 			// R-INT-1: después de la casilla, el salto planar y, como mucho, una acción contra un jugador.
 			OfferFrom(State, NowSeconds, EChoiceKind::PlanarJump);
 			return true;
 		case ETurnPhase::SkillTrial:
 			// TODO(R-MIN): el minijuego espera sin plazo; su tiempo propio llega con su story.
+			return false;
+		case ETurnPhase::Duel:
+			// TODO(R-MIN): el duelo espera los dos rendimientos sin plazo (SubmitDuelPerformance); el tiempo del minijuego de
+			// duelo, y qué pasa si un participante no responde, llegan con su story.
 			return false;
 		case ETurnPhase::ShellGame:
 			// R-ROB-2: el trilero espera sus plazos (muestra, mezcla) y sus elecciones (runa de Koschei, esfera).
@@ -611,11 +631,16 @@ namespace Soulbound::Rules
 		case EChoiceKind::PlayerAction:
 		{
 			// R-INT-2: como mucho una acción, contra uno o contra ninguno. Expulsar (R-POD-4) y después el fin del turno; robar
-			// (R-ECO-4) abre el trilero, que termina el turno al resolverse.
+			// (R-ECO-4) abre el trilero, que termina el turno al resolverse; retar (S-012) abre el duelo, con su botín.
 			const FPlayerActionOption* Action = Option != INDEX_NONE ? &Actions[Option] : nullptr;
 			if (Action && Action->Action == EPlayerAction::Steal)
 			{
-				BeginStealAction(State, Action->TargetSeat, NowSeconds);
+				BeginStealAction(State, Seat, Action->TargetSeat, NowSeconds);
+				break;
+			}
+			if (Action && Action->Action == EPlayerAction::Duel)
+			{
+				BeginDuelAction(State, Action->TargetSeat, NowSeconds);
 				break;
 			}
 			if (Action && Action->Action == EPlayerAction::Expel)
@@ -636,6 +661,47 @@ namespace Soulbound::Rules
 			break;
 		case EChoiceKind::None:
 			break;
+		}
+		return EIntentResult::Accepted;
+	}
+
+	EIntentResult SubmitDuelPerformance(FMatchState& State, int32 Seat, double Performance, double NowSeconds)
+	{
+		// Glosario "Intención": fase, asiento y valor; si no vale, se descarta sin castigo y sin tocar el estado.
+		const FDuelState& Duel = State.Duel;
+		if (!HasTurnOrder(State) || State.TurnPhase != ETurnPhase::Duel || !Duel.IsActive())
+		{
+			return EIntentResult::WrongPhase;
+		}
+		if (!Duel.IsParticipant(Seat))
+		{
+			return EIntentResult::WrongSeat;
+		}
+		if (!(Performance >= 0.0 && Performance <= 1.0))
+		{
+			return EIntentResult::InvalidOption;
+		}
+		// Cada participante rinde una vez; una segunda intención no contesta nada.
+		if (Duel.HasPerformed(Seat))
+		{
+			return EIntentResult::WrongPhase;
+		}
+		// TODO(R-MIN): sin plazo en S-012; el minijuego de duelo tendrá su propio tiempo.
+		if (!Soulbound::Rules::RecordDuelPerformance(State, Seat, Performance))
+		{
+			return EIntentResult::Accepted;
+		}
+		// R-DUE-1: con los dos rendimientos, el duelo se resuelve. R-DUE-6: el perdedor sin runas ya está en su hogar y la
+		// acción termina. R-DUE-5: si no, el ganador le roba con el trilero, sea retador o retado; el trilero termina el turno
+		// del retador, que es el activo.
+		const FDuelResult Result = Soulbound::Rules::ResolveDuel(State, NowSeconds);
+		if (Result.bLoserSentHome)
+		{
+			EnterEnd(State, NowSeconds);
+		}
+		else
+		{
+			BeginStealAction(State, Result.Winner, Result.Loser, NowSeconds);
 		}
 		return EIntentResult::Accepted;
 	}

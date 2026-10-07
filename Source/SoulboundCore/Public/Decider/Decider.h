@@ -42,12 +42,21 @@ public:
 	 * que se le pide (Choice.Seat), que puede no tener el turno: Koschei víctima aparta una runa. Nombre propuesto en S-009.
 	 */
 	virtual int32 ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng) = 0;
+
+	/**
+	 * Rendimiento del asiento Seat en el duelo en curso (S-012, R-DUE-1; FMatchState::Duel), de 0 a 1: gana el mayor, con el
+	 * margen de Shuten-dōji. Lo pregunta quien avanza la partida a cada participante cuando el motor espera en la fase Duel
+	 * y lo entrega con SubmitDuelPerformance, como el minijuego. Es el doble de prueba del minijuego de duelo, que llegará
+	 * con su story; hasta entonces los dummies rinden al azar con el generador que les pasan. Nombre propuesto en S-012.
+	 */
+	virtual double DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng) = 0;
 };
 
 /**
  * Dummy: elige al azar con el generador que le pasan, así la simulación sigue siendo determinista por semilla. En las
  * elecciones, al azar entre las opciones y "no" si la elección lo admite, todas con la misma probabilidad (S-009): roba
- * a cualquiera de los objetivos o a ninguno, elige cualquier esfera y, si es Koschei, aparta cualquier runa (S-010).
+ * a cualquiera de los objetivos o a ninguno, elige cualquier esfera y, si es Koschei, aparta cualquier runa (S-010). Reta a
+ * duelo como cualquier otra acción y rinde un número al azar de 0 a 1 (S-012).
  */
 class SOULBOUNDCORE_API FDummyDecider : public IDecider
 {
@@ -55,6 +64,7 @@ public:
 	virtual int32 ChooseDestination(const FMatchState& State, int32 Seat, const TArray<int32>& Options, FRandomStream& Rng) override;
 	virtual bool PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng) override;
 	virtual int32 ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng) override;
+	virtual double DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng) override;
 };
 
 /**
@@ -62,7 +72,7 @@ public:
  * básico del GDD 08. Si es Eco y la carrera sigue, elige la opción que deja más cerca, en pasos del grafo (sin mirar
  * Sellos ni el Altar), el Nicho Libre más cercano; los empates, al azar. Si es Elegido, la carrera acabó o no queda
  * ningún Nicho Libre al que llegar, elige al azar como FDummyDecider. Siempre con el generador que le pasan. Las
- * elecciones (S-009), como FDummyDecider.
+ * elecciones (S-009) y el rendimiento del duelo (S-012), como FDummyDecider.
  */
 class SOULBOUNDCORE_API FRaceDummyDecider : public IDecider
 {
@@ -70,4 +80,5 @@ public:
 	virtual int32 ChooseDestination(const FMatchState& State, int32 Seat, const TArray<int32>& Options, FRandomStream& Rng) override;
 	virtual bool PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng) override;
 	virtual int32 ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng) override;
+	virtual double DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng) override;
 };

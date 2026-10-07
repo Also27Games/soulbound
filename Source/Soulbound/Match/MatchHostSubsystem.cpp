@@ -155,7 +155,8 @@ void UMatchHostSubsystem::Advance()
 		const bool bChoiceDummy = Deciders.IsValidIndex(ChoiceSeat) && Deciders[ChoiceSeat].IsValid();
 		// Una decisión pendiente de otro turno (otro asiento u otro TurnCount) o de otra cosa (otra elección, o el destino
 		// tras una elección) ya no vale: se descarta.
-		if (Pending.bPending && (Pending.Seat != ChoiceSeat || Pending.TurnCount != State.TurnCount || Pending.ChoiceKind != State.PendingChoice.Kind))
+		if (Pending.bPending && (Pending.Seat != ChoiceSeat || Pending.TurnCount != State.TurnCount || Pending.ChoiceKind != State.PendingChoice.Kind
+			|| Pending.bDuel != (State.TurnPhase == ETurnPhase::Duel)))
 		{
 			Pending.bPending = false;
 		}
@@ -171,6 +172,7 @@ void UMatchHostSubsystem::Advance()
 				Pending.Seat = ChoiceSeat;
 				Pending.TurnCount = State.TurnCount;
 				Pending.ChoiceKind = State.PendingChoice.Kind;
+				Pending.bDuel = false;
 				Pending.ReadyAtSeconds = Now + FMath::Min(static_cast<double>(DummyResponseSeconds), 0.5 * (State.PendingChoice.DeadlineSeconds - Now));
 				Pending.Option = Deciders[ChoiceSeat]->ChooseOption(State, ChoiceSeat, State.PendingChoice, DeciderRng);
 			}
@@ -189,6 +191,7 @@ void UMatchHostSubsystem::Advance()
 				Pending.Seat = Seat;
 				Pending.TurnCount = State.TurnCount;
 				Pending.ChoiceKind = EChoiceKind::None;
+				Pending.bDuel = false;
 				Pending.ReadyAtSeconds = Now + DummyResponseSeconds;
 				Pending.TileId = Deciders[Seat]->ChooseDestination(State, Seat, State.ReachableOptions, DeciderRng);
 			}
@@ -209,6 +212,7 @@ void UMatchHostSubsystem::Advance()
 				Pending.Seat = Seat;
 				Pending.TurnCount = State.TurnCount;
 				Pending.ChoiceKind = EChoiceKind::None;
+				Pending.bDuel = false;
 				Pending.ReadyAtSeconds = Now + DummyResponseSeconds;
 				Pending.bPassedTrial = Decider.PassSkillMinigame(State, Seat, State.PendingTrial, State.PendingDifficulty, DeciderRng);
 #if !UE_BUILD_SHIPPING
@@ -225,6 +229,52 @@ void UMatchHostSubsystem::Advance()
 				bChanged |= Soulbound::Rules::SubmitSkillTrialResult(State, Seat, Pending.bPassedTrial, Now) == EIntentResult::Accepted;
 				Pending.bPending = false;
 				// Tras el minijuego puede quedar abierta una elección (S-009, R-INT-1): se atiende en la vuelta siguiente.
+				continue;
+			}
+		}
+		else if (State.TurnPhase == ETurnPhase::Duel && State.Duel.IsActive())
+		{
+			// Duelo (S-012): cada participante rinde con su decisor; por el humano, mientras no exista el minijuego de duelo, un
+			// dummy al azar (como el minijuego de la Fuente, S-008). Los dos rendimientos se deciden a la vez, primero el del
+			// retador, y se entregan juntos tras el retardo del dummy: una sola espera por duelo.
+			if (!Pending.bPending)
+			{
+				const int32 Challenger = State.Duel.Challenger;
+				const int32 Challenged = State.Duel.Challenged;
+				auto Perform = [this](int32 DuelSeat) -> double
+				{
+					IDecider& Decider = Deciders.IsValidIndex(DuelSeat) && Deciders[DuelSeat].IsValid() ? *Deciders[DuelSeat] : static_cast<IDecider&>(HumanTrialDecider);
+					return Decider.DuelPerformance(State, DuelSeat, DeciderRng);
+				};
+				Pending.bPending = true;
+				Pending.Seat = Seat;
+				Pending.TurnCount = State.TurnCount;
+				Pending.ChoiceKind = EChoiceKind::None;
+				Pending.bDuel = true;
+				Pending.ReadyAtSeconds = Now + DummyResponseSeconds;
+				Pending.ChallengerPerformance = Perform(Challenger);
+				Pending.ChallengedPerformance = Perform(Challenged);
+#if !UE_BUILD_SHIPPING
+				// SbDuel: el resultado fijado sustituye a los dos rendimientos; los decisores ya consumieron su sorteo. Con un
+				// margen menor que 1 (validado en partida.json), 1 contra 0 gana siempre y 0 contra 1 pierde siempre.
+				if (ForcedDuelResult.IsSet() && State.Duel.IsParticipant(HumanSeat))
+				{
+					const bool bHumanWins = ForcedDuelResult.GetValue();
+					const bool bHumanChallenges = Challenger == HumanSeat;
+					Pending.ChallengerPerformance = bHumanChallenges == bHumanWins ? 1.0 : 0.0;
+					Pending.ChallengedPerformance = 1.0 - Pending.ChallengerPerformance;
+					ForcedDuelResult.Reset();
+				}
+#endif
+			}
+			if (Now >= Pending.ReadyAtSeconds)
+			{
+				const int32 Challenger = State.Duel.Challenger;
+				const int32 Challenged = State.Duel.Challenged;
+				bChanged |= Soulbound::Rules::SubmitDuelPerformance(State, Challenger, Pending.ChallengerPerformance, Now) == EIntentResult::Accepted;
+				bChanged |= Soulbound::Rules::SubmitDuelPerformance(State, Challenged, Pending.ChallengedPerformance, Now) == EIntentResult::Accepted;
+				Pending.bPending = false;
+				// Tras el duelo puede abrirse el trilero del botín, con sus elecciones: se atienden en la vuelta siguiente.
 				continue;
 			}
 		}
@@ -462,5 +512,22 @@ FDebugEditOutcome UMatchHostSubsystem::DebugFixTrial(bool bPass)
 		ForcedTrialResult = bPass;
 	}
 	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("el próximo minijuego del humano se %s"), bPass ? TEXT("supera") : TEXT("falla")) : Soulbound::Presentation::DescribeDebugResult(Result));
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugFixDuel(bool bWin)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	// Como SbTrial: el resultado vive aquí; el motor solo deja el evento de la edición.
+	const EDebugEditResult Result = Soulbound::Debug::FixDuel(State, HumanSeat, State.ClockSeconds);
+	const bool bApplied = Result == EDebugEditResult::Applied;
+	if (bApplied)
+	{
+		ForcedDuelResult = bWin;
+	}
+	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("el humano %s el próximo duelo en que participe"), bWin ? TEXT("gana") : TEXT("pierde")) : Soulbound::Presentation::DescribeDebugResult(Result));
 }
 #endif

@@ -213,4 +213,14 @@ namespace Soulbound::Debug
 		LogEdit(State, EDebugEditKind::FixTrial, NowSeconds, Seat);
 		return EDebugEditResult::Applied;
 	}
+
+	EDebugEditResult FixDuel(FMatchState& State, int32 Seat, double NowSeconds)
+	{
+		if (!State.Seats.IsValidIndex(Seat))
+		{
+			return EDebugEditResult::InvalidSeat;
+		}
+		LogEdit(State, EDebugEditKind::FixDuel, NowSeconds, Seat);
+		return EDebugEditResult::Applied;
+	}
 }

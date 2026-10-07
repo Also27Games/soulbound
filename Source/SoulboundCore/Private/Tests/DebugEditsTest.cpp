@@ -588,4 +588,35 @@ bool FDebugFixTrialTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDebugFixDuelTest,
+	"Soulbound.Core.Debug.FijarDuelo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FDebugFixDuelTest::RunTest(const FString& Parameters)
+{
+	// S-012, herramienta SbDuel (con el patrón de SbTrial, CA-DEP-8): fijar el resultado del próximo duelo del humano deja
+	// su evento de depuración, con tipo, asiento y marca de tiempo, y no cambia nada más del estado; el resultado vive en el
+	// anfitrión. Un asiento inexistente se rechaza sin dejar nada. R-TUR-15.
+	FDebugFixture F;
+	if (!F.Start(*this))
+	{
+		return false;
+	}
+	const FMatchState Before = F.State;
+	TestEqual(TEXT("Fijar el duelo se aplica"), Soulbound::Debug::FixDuel(F.State, 0, 23.0), EDebugEditResult::Applied);
+	const TArray<FMatchEvent> Events = EventsOfType(F.State, EMatchEventType::DebugEdit);
+	if (TestEqual(TEXT("Deja un evento de depuración"), Events.Num(), 1))
+	{
+		TestEqual(TEXT("Tipo"), Events[0].Value, static_cast<int32>(EDebugEditKind::FixDuel));
+		TestEqual(TEXT("Asiento"), Events[0].Seat, 0);
+		TestEqual(TEXT("Marca de tiempo"), Events[0].ClockSeconds, 23.0);
+	}
+	TestTrue(TEXT("Nada más cambia"), SameState(Before, WithoutDebugEvents(F.State)));
+
+	const FMatchState Mid = F.State;
+	TestEqual(TEXT("Asiento inexistente"), Soulbound::Debug::FixDuel(F.State, 4, 24.0), EDebugEditResult::InvalidSeat);
+	TestTrue(TEXT("Un rechazo no deja nada"), SameState(Mid, F.State));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

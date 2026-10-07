@@ -140,6 +140,13 @@ public:
 	 * (Soulbound::Debug::FixTrial).
 	 */
 	FDebugEditOutcome DebugFixTrial(bool bPass);
+
+	/**
+	 * Fija el resultado del próximo duelo en que participe el humano (S-012): al resolverse, el humano rinde 1 y su rival 0
+	 * para ganar, o al revés para perder, sea quien sea Shuten-dōji (el margen es menor que 1). Como DebugFixTrial, vive
+	 * aquí y el motor solo deja el evento de la edición (Soulbound::Debug::FixDuel).
+	 */
+	FDebugEditOutcome DebugFixDuel(bool bWin);
 #endif
 
 	/** Se lanza tras cada cambio del estado. */
@@ -205,22 +212,33 @@ private:
 		int32 TileId = INDEX_NONE;
 		/** Resultado del minijuego que confirmará, si lo que espera es la prueba de una Fuente (S-008). */
 		bool bPassedTrial = false;
-		/** Elección que contesta (S-009), o None si es el destino o el minijuego. */
+		/** Elección que contesta (S-009), o None si es el destino, el minijuego o el duelo. */
 		EChoiceKind ChoiceKind = EChoiceKind::None;
 		/** Opción que entregará, si contesta una elección (S-009). */
 		int32 Option = INDEX_NONE;
+		/** Si lo que espera son los rendimientos de un duelo (S-012): entonces los dos se entregan juntos, a la misma hora. */
+		bool bDuel = false;
+		/** Rendimientos del retador y del retado que entregará, si espera un duelo (S-012). */
+		double ChallengerPerformance = 0.0;
+		double ChallengedPerformance = 0.0;
 	};
 
 	FMatchState State;
 	FRandomStream MatchRng;
 	FRandomStream DeciderRng;
 	TArray<TSharedPtr<IDecider>> Deciders;
-	/** Responde las pruebas de habilidad del asiento humano hasta que exista el minijuego real (S-008). */
+	/**
+	 * Responde por el asiento humano lo que aún no tiene interfaz: las pruebas de habilidad (S-008) y el rendimiento en un
+	 * duelo (S-012), al azar, hasta que exista el minijuego real.
+	 */
 	FDummyDecider HumanTrialDecider;
 	FPendingDecision Pending;
 #if !UE_BUILD_SHIPPING
 	/** Resultado fijado del próximo minijuego del humano (S-011); sin valor, lo resuelve el dummy. Se gasta al usarlo. */
 	TOptional<bool> ForcedTrialResult;
+
+	/** Resultado fijado del próximo duelo del humano (S-012): true gana, false pierde. Se gasta al usarlo. */
+	TOptional<bool> ForcedDuelResult;
 
 	/** Cierra una edición de depuración: la deja en el log, avisa a la vista si se aplicó y devuelve su resultado. */
 	FDebugEditOutcome FinishDebugEdit(bool bApplied, const FString& Message);

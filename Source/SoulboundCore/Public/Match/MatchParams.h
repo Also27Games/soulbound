@@ -57,6 +57,14 @@ struct SOULBOUNDCORE_API FMatchParams
 	 */
 	UPROPERTY()
 	double ShellPickSeconds = 0.0;
+
+	/**
+	 * Duelo (R-ELE-2, S-012): ventaja de Shuten-dōji (afinidad DuelAdvantage), que se suma a su rendimiento en el duelo. Entre
+	 * 0 y 1, el 1 excluido: un margen de 1 sería ganar siempre, otra regla (decisión del autor del 06/10/2026). Es cómo aplica
+	 * la afinidad el doble de prueba; el minijuego real la aplicará como margen de acierto. En datos; valor inicial 0,15.
+	 */
+	UPROPERTY()
+	double DuelAdvantageMargin = 0.0;
 };
 
 /** Por qué se rechazaron unos parámetros de partida. */
@@ -88,7 +96,7 @@ namespace Soulbound::Rules
 	/**
 	 * Comprueba que unos parámetros de partida tienen sentido: reloj de turno, duración de la carrera, reloj de elección
 	 * y tiempos del trilero (muestra, mezcla y elección de esfera) mayores que cero, topes enteros mayores o iguales que
-	 * cero y al menos un intercambio en la mezcla. Params: los parámetros a comprobar. Devuelve None o MalformedData con el
+	 * cero, al menos un intercambio en la mezcla y el margen del duelo entre 0 y 1, el 1 excluido (S-012). Params: los parámetros a comprobar. Devuelve None o MalformedData con el
 	 * motivo; el campo Params del resultado queda vacío.
 	 */
 	SOULBOUNDCORE_API FMatchParamsLoadResult ValidateMatchParams(const FMatchParams& Params);
