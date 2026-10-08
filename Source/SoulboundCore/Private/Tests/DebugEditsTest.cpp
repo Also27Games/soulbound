@@ -7,6 +7,7 @@
 #include "Board/SealRules.h"
 #include "Match/BondRaceRules.h"
 #include "Match/DebugEdits.h"
+#include "Match/EffectRules.h"
 #include "Match/MatchStart.h"
 #include "Match/RuneRules.h"
 #include "Match/TurnRules.h"
@@ -616,6 +617,74 @@ bool FDebugFixDuelTest::RunTest(const FString& Parameters)
 	const FMatchState Mid = F.State;
 	TestEqual(TEXT("Asiento inexistente"), Soulbound::Debug::FixDuel(F.State, 4, 24.0), EDebugEditResult::InvalidSeat);
 	TestTrue(TEXT("Un rechazo no deja nada"), SameState(Mid, F.State));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDebugVoidEffectsTest,
+	"Soulbound.Core.Debug.DesterrarLiberarMandarACasa",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FDebugVoidEffectsTest::RunTest(const FString& Parameters)
+{
+	// S-013, herramientas SbBanish, SbRelease y SbSendHome (patrón de S-011): cada edición reutiliza la regla del efecto
+	// (Banish sin la Furia, ReleaseVoid, SendHome) y deja el mismo estado que ella, con su evento de depuración justo antes de
+	// los de la regla; un rechazo devuelve el motivo de la regla y no deja nada. R-EFE-14, R-EFE-17, R-EFE-4, R-CAR-7.
+	FDebugFixture F;
+	if (F.Awaken(*this) == INDEX_NONE)
+	{
+		return false;
+	}
+	// Durante la carrera, el destierro sin la Furia se rechaza con el motivo de la regla.
+	const FMatchState InRace = F.State;
+	TestEqual(TEXT("En la carrera: el motivo de la regla"), Soulbound::Debug::BanishSeat(F.State, 1, 30.0), EEffectResult::BondRace);
+	TestTrue(TEXT("... y no deja nada"), SameState(InRace, F.State));
+	TestEqual(TEXT("Termina la carrera"), Soulbound::Debug::EndRace(F.State, 31.0, F.Random), EDebugEditResult::Applied);
+
+	// Desterrar: lo mismo que la regla, con el evento de depuración delante.
+	FMatchState Mirror = F.State;
+	TestEqual(TEXT("La regla destierra en el espejo"), Soulbound::Rules::Banish(Mirror, 1, false, 32.0), EEffectResult::Applied);
+	const int32 Before = F.State.EventLog.Num();
+	TestEqual(TEXT("Desterrar se aplica"), Soulbound::Debug::BanishSeat(F.State, 1, 32.0), EEffectResult::Applied);
+	TestTrue(TEXT("Desterrar deja el estado de la regla"), SameState(Mirror, WithoutDebugEvents(F.State)));
+	if (TestTrue(TEXT("Deja dos eventos"), F.State.EventLog.Num() == Before + 2))
+	{
+		const FMatchEvent& Edit = F.State.EventLog[Before];
+		TestTrue(TEXT("Primero el de depuración: tipo, asiento y marca"), Edit.Type == EMatchEventType::DebugEdit && Edit.Value == static_cast<int32>(EDebugEditKind::Banish)
+			&& Edit.Seat == 1 && Edit.ClockSeconds == 32.0);
+		TestTrue(TEXT("Después el destierro"), F.State.EventLog[Before + 1].Type == EMatchEventType::Banished);
+	}
+
+	// Rechazos con el motivo de la regla, sin dejar nada.
+	const FMatchState Mid = F.State;
+	TestEqual(TEXT("Desterrar a quien ya está dentro: InVoid"), Soulbound::Debug::BanishSeat(F.State, 1, 33.0), EEffectResult::InVoid);
+	TestEqual(TEXT("Mandar a casa a quien está dentro: InVoid"), Soulbound::Debug::SendHomeEdit(F.State, 1, 33.0), EEffectResult::InVoid);
+	TestEqual(TEXT("Asiento inexistente"), Soulbound::Debug::BanishSeat(F.State, 4, 33.0), EEffectResult::InvalidSeat);
+	TestTrue(TEXT("Los rechazos no dejan nada"), SameState(Mid, F.State));
+
+	// Liberación: el evento de depuración, sin asiento, y después la salida.
+	const int32 BeforeRelease = F.State.EventLog.Num();
+	TestEqual(TEXT("Liberar se aplica"), Soulbound::Debug::ReleaseVoidEdit(F.State, 34.0), EEffectResult::Applied);
+	TestEqual(TEXT("El asiento 1 está en su hogar"), F.State.Seats[1].TileId, Soulbound::Rules::HomeTile(F.State, 1));
+	if (TestTrue(TEXT("Liberar deja dos eventos"), F.State.EventLog.Num() == BeforeRelease + 2))
+	{
+		const FMatchEvent& Edit = F.State.EventLog[BeforeRelease];
+		TestTrue(TEXT("Primero el de depuración, sin asiento"), Edit.Type == EMatchEventType::DebugEdit && Edit.Value == static_cast<int32>(EDebugEditKind::ReleaseVoid)
+			&& Edit.Seat == INDEX_NONE);
+		TestTrue(TEXT("Después la salida"), F.State.EventLog[BeforeRelease + 1].Type == EMatchEventType::LeftVoid);
+	}
+	const FMatchState Empty = F.State;
+	TestEqual(TEXT("Liberar sin nadie dentro: NobodyInVoid"), Soulbound::Debug::ReleaseVoidEdit(F.State, 35.0), EEffectResult::NobodyInVoid);
+	TestTrue(TEXT("... y no deja nada"), SameState(Empty, F.State));
+
+	// Vuelta al hogar: lo mismo que la regla.
+	const int32 Away = F.State.Board.Tiles.IndexOfByPredicate([](const FTileState& Tile) { return Tile.Type == ETileType::Normal; });
+	F.State.Seats[2].TileId = Away;
+	FMatchState HomeMirror = F.State;
+	TestEqual(TEXT("La regla manda a casa en el espejo"), Soulbound::Rules::SendHome(HomeMirror, 2, 36.0), EEffectResult::Applied);
+	TestEqual(TEXT("Mandar a casa se aplica"), Soulbound::Debug::SendHomeEdit(F.State, 2, 36.0), EEffectResult::Applied);
+	TestTrue(TEXT("Mandar a casa deja el estado de la regla"), SameState(WithoutDebugEvents(HomeMirror), WithoutDebugEvents(F.State)));
+	TestEqual(TEXT("El último de depuración es la Vuelta al hogar"), EventsOfType(F.State, EMatchEventType::DebugEdit).Last().Value, static_cast<int32>(EDebugEditKind::SendHome));
+	TestEqual(TEXT("Mandar a casa a quien ya está en ella: AlreadyHome"), Soulbound::Debug::SendHomeEdit(F.State, 2, 37.0), EEffectResult::AlreadyHome);
 	return true;
 }
 

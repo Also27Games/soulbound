@@ -223,4 +223,20 @@ namespace Soulbound::Debug
 		LogEdit(State, EDebugEditKind::FixDuel, NowSeconds, Seat);
 		return EDebugEditResult::Applied;
 	}
+
+	// S-013: firmas sin implementar, para ver los tests en rojo.
+	EEffectResult BanishSeat(FMatchState& State, int32 Seat, double NowSeconds)
+	{
+		return EEffectResult::InvalidSeat;
+	}
+
+	EEffectResult ReleaseVoidEdit(FMatchState& State, double NowSeconds)
+	{
+		return EEffectResult::InvalidSeat;
+	}
+
+	EEffectResult SendHomeEdit(FMatchState& State, int32 Seat, double NowSeconds)
+	{
+		return EEffectResult::InvalidSeat;
+	}
 }

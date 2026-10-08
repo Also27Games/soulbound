@@ -41,3 +41,12 @@ int32 FBoardState::FindNiche(int32 DomainId) const
 	});
 	return Niche ? Niche->TileId : INDEX_NONE;
 }
+
+int32 FBoardState::FindPowerSource(int32 DomainId) const
+{
+	const FTileState* Source = Tiles.FindByPredicate([DomainId](const FTileState& Tile)
+	{
+		return Tile.Type == ETileType::PowerSource && Tile.DomainId == DomainId;
+	});
+	return Source ? Source->TileId : INDEX_NONE;
+}

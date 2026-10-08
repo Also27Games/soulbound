@@ -3,6 +3,27 @@
 #include "CoreMinimal.h"
 #include "MatchParams.generated.h"
 
+namespace Soulbound::Match
+{
+	/**
+	 * Peldaños máximos de la escalera de escape del Vacío (R-VAC-6, decisión del autor del 08/10/2026): con tres, el cuarto
+	 * turno dentro sale sin jugar, así que nadie pasa del cuarto. Es la regla que acota los datos, no un valor de ajuste.
+	 */
+	inline constexpr int32 MaxVoidEscapeSteps = 3;
+}
+
+/**
+ * Dificultad de una prueba (glosario "Minijuego de habilidad"). Nombre propuesto en S-008. Desde S-013 vive aquí porque la
+ * escalera de escape del Vacío, que está en los parámetros de partida, es una lista de dificultades.
+ */
+UENUM()
+enum class ESkillDifficulty : uint8
+{
+	Easy,
+	Normal,
+	Hard,
+};
+
 /**
  * Parámetros de partida: valores de ajuste que no dependen del tablero. Se cargan de Content/Data/Match/partida.json;
  * ningún valor vive en el código. Lo que el GDD fija como regla (caras del dado, tope de insolencia) no está aquí:
@@ -65,6 +86,21 @@ struct SOULBOUNDCORE_API FMatchParams
 	 */
 	UPROPERTY()
 	double DuelAdvantageMargin = 0.0;
+
+	/**
+	 * Escalera de escape del Vacío (R-VAC-2, S-013): dificultad del minijuego en el primer turno propio dentro, en el
+	 * segundo y así; el turno siguiente al último peldaño sale sin jugar. De 1 a Soulbound::Match::MaxVoidEscapeSteps
+	 * peldaños (R-VAC-6). En datos (voidEscapeLadder); valor inicial difícil, normal, fácil.
+	 */
+	UPROPERTY()
+	TArray<ESkillDifficulty> VoidEscapeLadder;
+
+	/**
+	 * Escalera de escape de Mictlantecuhtli (afinidad VoidEscape, R-ELE-2, S-013): la misma regla con menos peldaños; de 1 a
+	 * los de VoidEscapeLadder. En datos (voidEscapeAffinityLadder); valor inicial fácil.
+	 */
+	UPROPERTY()
+	TArray<ESkillDifficulty> VoidEscapeAffinityLadder;
 };
 
 /** Por qué se rechazaron unos parámetros de partida. */
@@ -96,14 +132,17 @@ namespace Soulbound::Rules
 	/**
 	 * Comprueba que unos parámetros de partida tienen sentido: reloj de turno, duración de la carrera, reloj de elección
 	 * y tiempos del trilero (muestra, mezcla y elección de esfera) mayores que cero, topes enteros mayores o iguales que
-	 * cero, al menos un intercambio en la mezcla y el margen del duelo entre 0 y 1, el 1 excluido (S-012). Params: los parámetros a comprobar. Devuelve None o MalformedData con el
-	 * motivo; el campo Params del resultado queda vacío.
+	 * cero, al menos un intercambio en la mezcla, el margen del duelo entre 0 y 1, el 1 excluido (S-012), y las escaleras de
+	 * escape del Vacío (S-013): la principal de 1 a Soulbound::Match::MaxVoidEscapeSteps peldaños, la de la afinidad de 1 a
+	 * los de la principal, todas con dificultades conocidas. Params: los parámetros a comprobar. Devuelve None o
+	 * MalformedData con el motivo; el campo Params del resultado queda vacío.
 	 */
 	SOULBOUNDCORE_API FMatchParamsLoadResult ValidateMatchParams(const FMatchParams& Params);
 
 	/**
 	 * Lee parámetros de partida de un texto JSON y los valida. Se leen enteros o se rechazan enteros.
-	 * Json: el contenido del archivo (esquema en Content/Data/Match/partida.json).
+	 * Json: el contenido del archivo (esquema en Content/Data/Match/partida.json). Las escaleras del Vacío son listas de
+	 * textos "easy", "normal" y "hard"; otro texto es MalformedData.
 	 * Devuelve los parámetros, o MalformedData con su motivo.
 	 */
 	SOULBOUNDCORE_API FMatchParamsLoadResult LoadMatchParamsFromJsonString(const FString& Json);
