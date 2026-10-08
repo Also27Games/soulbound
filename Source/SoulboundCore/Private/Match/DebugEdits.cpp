@@ -17,13 +17,6 @@ namespace
 		LogEvent(State, EMatchEventType::DebugEdit, NowSeconds, Seat, static_cast<int32>(Kind));
 	}
 
-	/** Primera Fuente de Poder del Dominio DomainId, o INDEX_NONE si no tiene. */
-	int32 FindSource(const FBoardState& Board, int32 DomainId)
-	{
-		const FTileState* Found = Board.Tiles.FindByPredicate([DomainId](const FTileState& Tile) { return Tile.Type == ETileType::PowerSource && Tile.DomainId == DomainId; });
-		return Found ? Found->TileId : INDEX_NONE;
-	}
-
 	bool IsValidRuneType(int32 RuneType)
 	{
 		return RuneType >= 0 && RuneType < Soulbound::Board::DomainCount;
@@ -55,7 +48,7 @@ namespace Soulbound::Debug
 		{
 			return EDebugEditResult::BoardPrimordial;
 		}
-		const int32 Source = FindSource(State.Board, RuneType);
+		const int32 Source = State.Board.FindPowerSource(RuneType);
 		if (Source == INDEX_NONE)
 		{
 			return EDebugEditResult::NoSource;
@@ -90,7 +83,7 @@ namespace Soulbound::Debug
 		{
 			return EDebugEditResult::NotEnoughRunes;
 		}
-		const int32 Source = FindSource(State.Board, RuneType);
+		const int32 Source = State.Board.FindPowerSource(RuneType);
 		if (Source == INDEX_NONE)
 		{
 			return EDebugEditResult::NoSource;
@@ -224,19 +217,38 @@ namespace Soulbound::Debug
 		return EDebugEditResult::Applied;
 	}
 
-	// S-013: firmas sin implementar, para ver los tests en rojo.
 	EEffectResult BanishSeat(FMatchState& State, int32 Seat, double NowSeconds)
 	{
-		return EEffectResult::InvalidSeat;
+		// Como el Sello: la comprobación de la regla decide; aplicada, el evento de depuración va antes que el de la regla. Los
+		// comandos no destierran con la Furia (S-013): durante la carrera, la regla los rechaza.
+		const EEffectResult Check = Soulbound::Rules::CanBanish(State, Seat, false);
+		if (Check != EEffectResult::Applied)
+		{
+			return Check;
+		}
+		LogEdit(State, EDebugEditKind::Banish, NowSeconds, Seat);
+		return Soulbound::Rules::Banish(State, Seat, false, NowSeconds);
 	}
 
 	EEffectResult ReleaseVoidEdit(FMatchState& State, double NowSeconds)
 	{
-		return EEffectResult::InvalidSeat;
+		const EEffectResult Check = Soulbound::Rules::CanReleaseVoid(State);
+		if (Check != EEffectResult::Applied)
+		{
+			return Check;
+		}
+		LogEdit(State, EDebugEditKind::ReleaseVoid, NowSeconds, INDEX_NONE);
+		return Soulbound::Rules::ReleaseVoid(State, NowSeconds);
 	}
 
 	EEffectResult SendHomeEdit(FMatchState& State, int32 Seat, double NowSeconds)
 	{
-		return EEffectResult::InvalidSeat;
+		const EEffectResult Check = Soulbound::Rules::CanSendHome(State, Seat);
+		if (Check != EEffectResult::Applied)
+		{
+			return Check;
+		}
+		LogEdit(State, EDebugEditKind::SendHome, NowSeconds, Seat);
+		return Soulbound::Rules::SendHome(State, Seat, NowSeconds);
 	}
 }

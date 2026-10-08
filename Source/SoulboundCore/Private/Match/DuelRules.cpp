@@ -36,15 +36,15 @@ namespace Soulbound::Rules
 		{
 			return Targets;
 		}
-		// TODO(R-INT-3): quien está en el Vacío es inmune; llega con la story del Vacío (hoy nadie está fuera del tablero).
 		const bool bFromNode = ChallengesFromDuelNode(State, Seat);
 		const bool bPortable = IsPowerActive(State, Seat, EPower::Duel);
 		const int32 TileId = State.Seats[Seat].TileId;
 		for (int32 Other = 0; Other < State.Seats.Num(); ++Other)
 		{
 			// R-DUE-2: desde el Nodo, cualquiera, esté donde esté; R-POD-3: con el poder, quien comparte casilla. Cada objetivo
-			// una sola vez, aunque valgan las dos. Tenga runas o no: retar a quien no tiene es R-DUE-4.
-			if (Other != Seat && (bFromNode || (bPortable && State.Seats[Other].TileId == TileId)))
+			// una sola vez, aunque valgan las dos. Tenga runas o no: retar a quien no tiene es R-DUE-4. R-INT-3 (S-013): quien
+			// está en el Vacío no puede ser retado, tampoco desde el Nodo.
+			if (Other != Seat && !State.Seats[Other].IsInVoid() && (bFromNode || (bPortable && State.Seats[Other].TileId == TileId)))
 			{
 				Targets.Add(Other);
 			}

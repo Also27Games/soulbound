@@ -645,7 +645,7 @@ bool FDebugVoidEffectsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("La regla destierra en el espejo"), Soulbound::Rules::Banish(Mirror, 1, false, 32.0), EEffectResult::Applied);
 	const int32 Before = F.State.EventLog.Num();
 	TestEqual(TEXT("Desterrar se aplica"), Soulbound::Debug::BanishSeat(F.State, 1, 32.0), EEffectResult::Applied);
-	TestTrue(TEXT("Desterrar deja el estado de la regla"), SameState(Mirror, WithoutDebugEvents(F.State)));
+	TestTrue(TEXT("Desterrar deja el estado de la regla"), SameState(WithoutDebugEvents(Mirror), WithoutDebugEvents(F.State)));
 	if (TestTrue(TEXT("Deja dos eventos"), F.State.EventLog.Num() == Before + 2))
 	{
 		const FMatchEvent& Edit = F.State.EventLog[Before];

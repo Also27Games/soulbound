@@ -19,6 +19,48 @@ namespace
 		return Result;
 	}
 
+	/** Nombres de las dificultades en el JSON, en el orden de ESkillDifficulty (S-013). */
+	const TCHAR* const DifficultyNames[] = {TEXT("easy"), TEXT("normal"), TEXT("hard")};
+	constexpr int32 DifficultyCount = UE_ARRAY_COUNT(DifficultyNames);
+
+	/** Si Difficulty es uno de los valores de ESkillDifficulty. */
+	bool IsKnownDifficulty(ESkillDifficulty Difficulty)
+	{
+		return static_cast<int32>(Difficulty) < DifficultyCount;
+	}
+
+	/**
+	 * Lee la escalera Field del Vacío: una lista de textos "easy", "normal" o "hard" (S-013). Devuelve false si falta, no es
+	 * una lista o tiene un elemento que no es una de esas dificultades; la longitud la comprueba ValidateMatchParams.
+	 */
+	bool ReadLadder(const FJsonObject& Root, const TCHAR* Field, TArray<ESkillDifficulty>& OutLadder)
+	{
+		const TArray<TSharedPtr<FJsonValue>>* Values = nullptr;
+		if (!Root.TryGetArrayField(Field, Values) || !Values)
+		{
+			return false;
+		}
+		OutLadder.Reset();
+		for (const TSharedPtr<FJsonValue>& Value : *Values)
+		{
+			FString Name;
+			if (!Value.IsValid() || !Value->TryGetString(Name))
+			{
+				return false;
+			}
+			int32 Index = INDEX_NONE;
+			for (int32 Candidate = 0; Candidate < DifficultyCount; ++Candidate)
+			{
+				Index = Name == DifficultyNames[Candidate] ? Candidate : Index;
+			}
+			if (Index == INDEX_NONE)
+			{
+				return false;
+			}
+			OutLadder.Add(static_cast<ESkillDifficulty>(Index));
+		}
+		return true;
+	}
 }
 
 namespace Soulbound::Rules
@@ -66,6 +108,26 @@ namespace Soulbound::Rules
 		{
 			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-ELE-2: el margen de Shuten-dōji en el duelo debe estar entre 0 y 1, el 1 excluido (es %g)."), Params.DuelAdvantageMargin));
 		}
+		// R-VAC-2, R-VAC-6 (S-013, decisión del autor del 08/10/2026): la principal de 1 a 3 peldaños, así nadie pasa del
+		// cuarto turno dentro; la de la afinidad, de 1 a los de la principal. Todas con dificultades conocidas.
+		const int32 Steps = Params.VoidEscapeLadder.Num();
+		if (Steps < 1 || Steps > Soulbound::Match::MaxVoidEscapeSteps)
+		{
+			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-VAC-6: la escalera de escape del Vacío debe tener de 1 a %d peldaños (tiene %d)."),
+				Soulbound::Match::MaxVoidEscapeSteps, Steps));
+		}
+		const int32 AffinitySteps = Params.VoidEscapeAffinityLadder.Num();
+		if (AffinitySteps < 1 || AffinitySteps > Steps)
+		{
+			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-ELE-2: la escalera de escape de Mictlantecuhtli debe tener de 1 a %d peldaños, los de la principal (tiene %d)."),
+				Steps, AffinitySteps));
+		}
+		const bool bKnown = Params.VoidEscapeLadder.FindByPredicate([](ESkillDifficulty Difficulty) { return !IsKnownDifficulty(Difficulty); }) == nullptr
+			&& Params.VoidEscapeAffinityLadder.FindByPredicate([](ESkillDifficulty Difficulty) { return !IsKnownDifficulty(Difficulty); }) == nullptr;
+		if (!bKnown)
+		{
+			return Reject(EMatchParamsError::MalformedData, TEXT("R-VAC-2: las escaleras de escape del Vacío solo admiten las dificultades fácil, normal y difícil."));
+		}
 		return FMatchParamsLoadResult();
 	}
 
@@ -111,6 +173,18 @@ namespace Soulbound::Rules
 			if (!ReadIntegerField(*Root, Cap.Key, *Cap.Value))
 			{
 				return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("El parámetro \"%s\" falta o no es un entero."), Cap.Key));
+			}
+		}
+
+		const TPair<const TCHAR*, TArray<ESkillDifficulty>*> Ladders[] = {
+			{TEXT("voidEscapeLadder"), &Params.VoidEscapeLadder},
+			{TEXT("voidEscapeAffinityLadder"), &Params.VoidEscapeAffinityLadder},
+		};
+		for (const TPair<const TCHAR*, TArray<ESkillDifficulty>*>& Ladder : Ladders)
+		{
+			if (!ReadLadder(*Root, Ladder.Key, *Ladder.Value))
+			{
+				return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("El parámetro \"%s\" falta o no es una lista de dificultades (\"easy\", \"normal\", \"hard\")."), Ladder.Key));
 			}
 		}
 

@@ -42,7 +42,8 @@ namespace Soulbound::Rules
 	 * Asientos a los que puede retar a duelo el asiento Seat, sin repetir y en orden de asiento (R-POD-3, R-DUE-2, R-INT-2):
 	 * desde un Nodo de Duelo (ChallengesFromDuelNode), todos los demás, estén donde estén; con el poder Duelo y movido este
 	 * turno, los demás de su casilla. Elegidos o Ecos, tengan runas o no: el retador no ve el Brazal ajeno, y retar a quien
-	 * no tiene es R-DUE-4. Vacío si no puede retar a nadie. Nombre propuesto en S-012.
+	 * no tiene es R-DUE-4. Nunca quien está en el Vacío (R-INT-3, S-013), tampoco desde el Nodo. Vacío si no puede retar a
+	 * nadie. Nombre propuesto en S-012.
 	 */
 	SOULBOUNDCORE_API TArray<int32> DuelTargets(const FMatchState& State, int32 Seat);
 

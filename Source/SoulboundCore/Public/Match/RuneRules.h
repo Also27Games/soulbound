@@ -46,8 +46,8 @@ namespace Soulbound::Rules
 
 	/**
 	 * Devuelve una runa del asiento Seat a la reserva de la Fuente SourceTile (R-RUN-6, R-TAB-4b): el Brazal baja uno en
-	 * RuneType, la reserva de la Fuente sube uno y se registra RuneReturned. Lo usarán Desvío, el desafío final y el
-	 * Warden; en S-008, solo los tests.
+	 * RuneType, la reserva de la Fuente sube uno y se registra RuneReturned. La usan Desvío (S-013, UseDeflection) y
+	 * las ediciones de depuración; la usarán el desafío final y el Warden.
 	 * RuneType: tipo de runa, de 0 a 5. SourceTile: Fuente de ese Dominio. NowSeconds: marca del evento.
 	 * Devuelve false, sin cambiar nada, si el asiento no tiene runas de ese tipo o la casilla no es una Fuente de ese Dominio.
 	 */
@@ -81,16 +81,16 @@ namespace Soulbound::Rules
 
 	/**
 	 * Asientos que puede expulsar el asiento Seat (R-POD-4): solo si tiene Expulsión y se ha movido este turno; los
-	 * demás asientos de su casilla que no estén ya en su hogar (HomeTile), en orden de asiento. Vacío si no hay a quién.
-	 * Nombre propuesto en S-009.
+	 * demás asientos de su casilla que no estén ya en su hogar (HomeTile), en orden de asiento; nunca quien está en el Vacío
+	 * (R-INT-3, S-013). Vacío si no hay a quién. Nombre propuesto en S-009.
 	 */
 	SOULBOUNDCORE_API TArray<int32> ExpelTargets(const FMatchState& State, int32 Seat);
 
 	/**
 	 * Asientos a los que puede robar el asiento Seat (R-ECO-4, R-INT-2): solo un Eco tras la carrera que se ha movido este
 	 * turno (R-RUN-3, decisión del autor del 05/10/2026: sin casillas alcanzables no hay robo); los demás asientos de su
-	 * casilla, Elegidos o Ecos, tengan runas o no, en orden de asiento. Vacío durante la carrera, para un Elegido o si no hay
-	 * a quién. Nombre propuesto en S-010.
+	 * casilla, Elegidos o Ecos, tengan runas o no, en orden de asiento; nunca quien está en el Vacío (R-INT-3, S-013). Vacío
+	 * durante la carrera, para un Elegido o si no hay a quién. Nombre propuesto en S-010.
 	 */
 	SOULBOUNDCORE_API TArray<int32> StealTargets(const FMatchState& State, int32 Seat);
 

@@ -53,7 +53,7 @@ enum class ETurnPhase : uint8
 	/**
 	 * Un Elegido en la Fuente de un Dominio Olvidado juega el minijuego de habilidad (R-RUN-2, R-TAB-7): la máquina espera
 	 * el resultado, como espera el destino, y AdvanceTurn no avanza hasta SubmitSkillTrialResult. Sin plazo en S-008.
-	 * Nombre propuesto en S-008.
+	 * Desde S-013 también el escape del Vacío al empezar el turno (PendingTrial VoidEscape). Nombre propuesto en S-008.
 	 */
 	SkillTrial,
 	/**
