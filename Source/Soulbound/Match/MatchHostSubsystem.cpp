@@ -530,4 +530,40 @@ FDebugEditOutcome UMatchHostSubsystem::DebugFixDuel(bool bWin)
 	}
 	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("el humano %s el próximo duelo en que participe"), bWin ? TEXT("gana") : TEXT("pierde")) : Soulbound::Presentation::DescribeDebugResult(Result));
 }
+
+FDebugEditOutcome UMatchHostSubsystem::DebugBanish(int32 Seat)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	const EEffectResult Result = Soulbound::Debug::BanishSeat(State, Seat, State.ClockSeconds);
+	const bool bApplied = Result == EEffectResult::Applied;
+	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("asiento %d desterrado al Vacío"), Seat) : Soulbound::Presentation::DescribeEffectResult(Result));
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugRelease()
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	const EEffectResult Result = Soulbound::Debug::ReleaseVoidEdit(State, State.ClockSeconds);
+	const bool bApplied = Result == EEffectResult::Applied;
+	return FinishDebugEdit(bApplied, bApplied ? FString(TEXT("Liberación: todos los del Vacío vuelven a su hogar")) : Soulbound::Presentation::DescribeEffectResult(Result));
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugSendHome(int32 Seat)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	const EEffectResult Result = Soulbound::Debug::SendHomeEdit(State, Seat, State.ClockSeconds);
+	const bool bApplied = Result == EEffectResult::Applied;
+	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("asiento %d vuelve a su hogar"), Seat) : Soulbound::Presentation::DescribeEffectResult(Result));
+}
 #endif

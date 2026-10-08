@@ -54,7 +54,7 @@ namespace
 		case ETurnPhase::PreRoll: return TEXT("antes de tirar");
 		case ETurnPhase::RollAndChoose: return TEXT("tirada y destino");
 		case ETurnPhase::MoveAndResolve: return TEXT("movimiento");
-		case ETurnPhase::SkillTrial: return TEXT("minijuego de la Fuente");
+		case ETurnPhase::SkillTrial: return TEXT("minijuego (Fuente o escape del Vacío)");
 		case ETurnPhase::ShellGame: return TEXT("trilero");
 		case ETurnPhase::Duel: return TEXT("duelo");
 		case ETurnPhase::End: return TEXT("fin de turno");
@@ -135,8 +135,24 @@ namespace
 		}
 		case EChoiceKind::SafeRune: return FString::Printf(TEXT("D%d"), Choice.Options[Index]);
 		case EChoiceKind::ShellPick: return FString::Printf(TEXT("esfera %d"), Index + 1);
+		case EChoiceKind::Deflection: return TEXT("usar Desvío");
 		default: return FString::FromInt(Choice.AnswerAt(Index));
 		}
+	}
+
+	/**
+	 * Estado del Vacío del asiento Seat para la vista (S-013): "EN EL VACÍO, turno n", con n el turno dentro que juega o, si
+	 * no lo está jugando, el siguiente. Vacío si no está en el Vacío. Solo lee el estado.
+	 */
+	FString VoidText(const FMatchState& State, int32 Seat)
+	{
+		if (!State.Seats.IsValidIndex(Seat) || !State.Seats[Seat].IsInVoid())
+		{
+			return FString();
+		}
+		const bool bPlayingVoidTurn = Seat == State.ActiveSeat && (State.TurnPhase == ETurnPhase::Start || State.TurnPhase == ETurnPhase::SkillTrial)
+			&& State.Seats[Seat].VoidTurns > 0;
+		return FString::Printf(TEXT("EN EL VACÍO, turno %d"), State.Seats[Seat].VoidTurns + (bPlayingVoidTurn ? 0 : 1));
 	}
 
 	/**
@@ -158,8 +174,9 @@ namespace
 			: Choice.Kind == EChoiceKind::PlanarJump ? TEXT("salto planar")
 			: Choice.Kind == EChoiceKind::SafeRune ? TEXT("la runa que Koschei pone a salvo del trilero")
 			: Choice.Kind == EChoiceKind::ShellPick ? TEXT("esfera")
+			: Choice.Kind == EChoiceKind::Deflection ? TEXT("si sales del Vacío con Desvío (la runa vuelve a su Fuente y juegas el turno)")
 			: TEXT("accion contra un jugador");
-		const TCHAR* No = Choice.Kind == EChoiceKind::PlanarJump ? TEXT("no saltar") : TEXT("nada");
+		const TCHAR* No = Choice.Kind == EChoiceKind::PlanarJump ? TEXT("no saltar") : Choice.Kind == EChoiceKind::Deflection ? TEXT("no") : TEXT("nada");
 		TArray<FString> Parts;
 		for (int32 Index = 0; Index < Choice.AnswerCount(); ++Index)
 		{
@@ -815,13 +832,16 @@ void ABoardViewActor::BuildOverlay()
 			const FSeatState& SeatState = HostPtr->GetState().Seats[Seat];
 			const TCHAR* Who = Seat == HostPtr->GetHumanSeat() ? TEXT("humano") : TEXT("dummy");
 			const FString DomainName = DomainTitle(HostPtr->GetState(), SeatState.DomainId);
+			// S-013: la ficha desterrada no está en el tablero; aquí se dice dónde está.
+			const FString Void = VoidText(HostPtr->GetState(), Seat);
+			const FString InVoid = Void.IsEmpty() ? FString() : TEXT(" | ") + Void;
 			if (SeatState.Role == ESeatRole::Elect)
 			{
-				return FString::Printf(TEXT("%d (%s): ELEGIDO, D%d %s"), Seat, Who, SeatState.DomainId, *DomainName);
+				return FString::Printf(TEXT("%d (%s): ELEGIDO, D%d %s%s"), Seat, Who, SeatState.DomainId, *DomainName, *InVoid);
 			}
 			return SeatState.DomainId == INDEX_NONE
-				? FString::Printf(TEXT("%d (%s): ECO"), Seat, Who)
-				: FString::Printf(TEXT("%d (%s): ECO, hogar en D%d %s"), Seat, Who, SeatState.DomainId, *DomainName);
+				? FString::Printf(TEXT("%d (%s): ECO%s"), Seat, Who, *InVoid)
+				: FString::Printf(TEXT("%d (%s): ECO, hogar en D%d %s%s"), Seat, Who, SeatState.DomainId, *DomainName, *InVoid);
 		};
 		Seats.Chips.Add(Chip);
 	}
@@ -1010,7 +1030,13 @@ void ABoardViewActor::Refresh()
 	{
 		ASeatTokenActor* Token = TokenActors[Seat];
 		const int32 TileId = State.Seats[Seat].TileId;
-		if (!Token || !TilePositions.IsValidIndex(TileId))
+		if (!Token)
+		{
+			continue;
+		}
+		// S-013 (R-TAB-24): en el Vacío la ficha sale del tablero; se oculta y reaparece en su hogar al salir.
+		Token->SetActorHiddenInGame(State.Seats[Seat].IsInVoid());
+		if (!TilePositions.IsValidIndex(TileId))
 		{
 			continue;
 		}
@@ -1091,7 +1117,13 @@ void ABoardViewActor::TickHud()
 		FString::Printf(TEXT("Turno %d | juega: asiento %d (%s) | fase: %s"), TurnNumber, State.ActiveSeat,
 			State.ActiveSeat == HostPtr->GetHumanSeat() ? TEXT("humano") : TEXT("dummy"), PhaseName(State.TurnPhase)));
 
-	if (State.TurnPhase == ETurnPhase::SkillTrial)
+	if (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::VoidEscape)
+	{
+		// Escape del Vacío (S-013): el minijuego aún no existe; el humano lo resuelve al azar, o como fije SbTrial.
+		ShowText(1, FColor::Yellow, FString::Printf(TEXT("Escape del Vacío: el asiento %d juega en %s (%s) y espera el resultado (resuelto al azar, o con SbTrial)"),
+			State.ActiveSeat, *Soulbound::Presentation::DifficultyText(static_cast<int32>(State.PendingDifficulty)), *VoidText(State, State.ActiveSeat)));
+	}
+	else if (State.TurnPhase == ETurnPhase::SkillTrial)
 	{
 		// Minijuego de la Fuente de un Olvidado (S-008): aún no existe; el decisor del asiento responde al azar.
 		ShowText(1, FColor::Yellow, FString::Printf(TEXT("Minijuego de la Fuente: el asiento %d espera el resultado (resuelto al azar, probabilidad 0,5)"), State.ActiveSeat));
@@ -1171,11 +1203,13 @@ void ABoardViewActor::TickHud()
 	for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
 	{
 		const FSeatState& SeatState = State.Seats[Seat];
-		Roles.Add(SeatState.Role == ESeatRole::Elect
+		const FString Void = VoidText(State, Seat);
+		Roles.Add((SeatState.Role == ESeatRole::Elect
 			? FString::Printf(TEXT("%d Elegido (Dominio %d)"), Seat, SeatState.DomainId)
 			: SeatState.DomainId == INDEX_NONE
 				? FString::Printf(TEXT("%d Eco"), Seat)
-				: FString::Printf(TEXT("%d Eco, hogar: Nicho del Dominio %d"), Seat, SeatState.DomainId));
+				: FString::Printf(TEXT("%d Eco, hogar: Nicho del Dominio %d"), Seat, SeatState.DomainId))
+			+ (Void.IsEmpty() ? FString() : TEXT(", ") + Void));
 	}
 	ShowText(7, FColor::Cyan, FString::Printf(TEXT("Asientos: %s"), *FString::Join(Roles, TEXT(" | "))));
 }

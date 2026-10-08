@@ -472,11 +472,50 @@ void ASpikeOnlinePlayerController::SbTurn(FString Seat)
 #endif
 }
 
+void ASpikeOnlinePlayerController::SbBanish(FString Seat)
+{
+#if !UE_BUILD_SHIPPING
+	int32 SeatId = 0;
+	if (UMatchHostSubsystem* Host = GetDebugHost())
+	{
+		if (ParseDebugInt(Seat, TEXT("asiento"), TEXT("SbBanish <asiento>"), SeatId))
+		{
+			ReportDebugEdit(Host->DebugBanish(SeatId));
+		}
+	}
+#endif
+}
+
+void ASpikeOnlinePlayerController::SbRelease()
+{
+#if !UE_BUILD_SHIPPING
+	if (UMatchHostSubsystem* Host = GetDebugHost())
+	{
+		ReportDebugEdit(Host->DebugRelease());
+	}
+#endif
+}
+
+void ASpikeOnlinePlayerController::SbSendHome(FString Seat)
+{
+#if !UE_BUILD_SHIPPING
+	int32 SeatId = 0;
+	if (UMatchHostSubsystem* Host = GetDebugHost())
+	{
+		if (ParseDebugInt(Seat, TEXT("asiento"), TEXT("SbSendHome <asiento>"), SeatId))
+		{
+			ReportDebugEdit(Host->DebugSendHome(SeatId));
+		}
+	}
+#endif
+}
+
 void ASpikeOnlinePlayerController::SbHelp()
 {
 #if !UE_BUILD_SHIPPING
 	Say(TEXT("[Depuración] Comandos: SbGiveRune <asiento> <tipo> [n] | SbTakeRune <asiento> <tipo> [n] | SbMove <asiento> <casilla> | "
 		"SbBond <asiento> <dominio> | SbSeal <casilla> | SbUnseal <casilla> | SbEndRace | SbRoll <n> | SbTrial pass|fail | "
-		"SbDuel win|lose | SbTurn <asiento> | SbHelp. Los asientos van de 0 a 3 y el tipo de runa es el Dominio de 0 a 5."));
+		"SbDuel win|lose | SbTurn <asiento> | SbBanish <asiento> | SbRelease | SbSendHome <asiento> | SbHelp. Los asientos van de 0 a 3 "
+		"y el tipo de runa es el Dominio de 0 a 5. SbBanish y SbSendHome no valen con quien está jugando su turno: entre turnos, con SbStepMode 1."));
 #endif
 }

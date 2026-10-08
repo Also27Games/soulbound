@@ -147,6 +147,15 @@ public:
 	 * aquí y el motor solo deja el evento de la edición (Soulbound::Debug::FixDuel).
 	 */
 	FDebugEditOutcome DebugFixDuel(bool bWin);
+
+	/** Destierra al asiento Seat al Vacío, sin la Furia (S-013, Soulbound::Debug::BanishSeat). */
+	FDebugEditOutcome DebugBanish(int32 Seat);
+
+	/** Liberación: todos los del Vacío salen a su hogar (S-013). */
+	FDebugEditOutcome DebugRelease();
+
+	/** Vuelta al hogar del asiento Seat (S-013). */
+	FDebugEditOutcome DebugSendHome(int32 Seat);
 #endif
 
 	/** Se lanza tras cada cambio del estado. */
