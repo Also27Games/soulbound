@@ -31,7 +31,11 @@ enum class ETurnPhase : uint8
 {
 	/** Nadie juega: antes del primer turno o después de terminar uno. El siguiente empieza al avanzar. */
 	BetweenTurns,
-	/** Inicio de turno: arranca el reloj de turno. Salida del Vacío (R-TUR-3), en su story. */
+	/**
+	 * Inicio de turno: arranca el reloj de turno. Si el asiento está en el Vacío (S-013, R-TUR-3, R-VAC-2), aquí se decide
+	 * su salida antes de nada: un Eco sale sin jugar; quien tiene Desvío elige si lo usa (elección Deflection, bajo el reloj
+	 * de turno); si no, el minijuego de escape (fase SkillTrial) o, pasada la escalera, la salida sin jugar.
+	 */
 	Start,
 	/**
 	 * Decisiones previas a la tirada: con Celeridad, el asiento elige uno o dos dados (R-TUR-4, elección pendiente
@@ -49,7 +53,7 @@ enum class ETurnPhase : uint8
 	/**
 	 * Un Elegido en la Fuente de un Dominio Olvidado juega el minijuego de habilidad (R-RUN-2, R-TAB-7): la máquina espera
 	 * el resultado, como espera el destino, y AdvanceTurn no avanza hasta SubmitSkillTrialResult. Sin plazo en S-008.
-	 * Nombre propuesto en S-008.
+	 * Desde S-013 también el escape del Vacío al empezar el turno (PendingTrial VoidEscape). Nombre propuesto en S-008.
 	 */
 	SkillTrial,
 	/**
@@ -76,6 +80,11 @@ enum class ESkillTrial : uint8
 	None,
 	/** Fuente de Olvidado (R-TAB-7): la prueba de un Elegido para obtener una runa. */
 	ForgottenSource,
+	/**
+	 * Escape del Vacío (glosario `VoidEscape`, R-VAC-2, S-013): la prueba de un asiento desterrado al empezar su turno, con la
+	 * dificultad del peldaño de su escalera. Superada, vuelve a su hogar; en los dos casos su turno termina sin tirar.
+	 */
+	VoidEscape,
 };
 
 /**
@@ -112,6 +121,12 @@ enum class EChoiceKind : uint8
 	 * trilero (FMatchParams::ShellPickSeconds). S-010.
 	 */
 	ShellPick,
+	/**
+	 * Desvío (glosario `PowerDeflection`, R-POD-6, S-013): un Elegido en el Vacío con el poder Desvío, al empezar su turno,
+	 * elige si sacrifica la runa que se lo da para salir y jugar el turno; opción 1, "usar". Admite "no"; agotada, es "no",
+	 * sin castigo. Bajo el reloj de turno, en la fase Start.
+	 */
+	Deflection,
 };
 
 /**
@@ -180,7 +195,7 @@ struct SOULBOUNDCORE_API FPendingChoice
 	TArray<FPlayerActionOption> ActionOptions;
 
 	/**
-	 * Plazo en segundos del reloj de partida: el del reloj de turno (DiceCount, Reroll), el del reloj de elección
+	 * Plazo en segundos del reloj de partida: el del reloj de turno (DiceCount, Reroll, Deflection), el del reloj de elección
 	 * (PlanarJump, PlayerAction, SafeRune) o el tiempo de elección del trilero (ShellPick).
 	 */
 	UPROPERTY()
@@ -188,7 +203,7 @@ struct SOULBOUNDCORE_API FPendingChoice
 
 	bool IsOpen() const { return Kind != EChoiceKind::None; }
 
-	/** Si admite "no" (INDEX_NONE): todas menos la elección de dados, la runa de Koschei y la esfera del trilero. */
+	/** Si admite "no" (INDEX_NONE): todas menos la elección de dados, la runa de Koschei y la esfera del trilero (Desvío lo admite). */
 	bool CanDecline() const { return Kind != EChoiceKind::DiceCount && Kind != EChoiceKind::SafeRune && Kind != EChoiceKind::ShellPick; }
 
 	/** Cuántas respuestas distintas de "no" admite (S-010): las de ActionOptions en PlayerAction, las de Options en el resto. */
@@ -319,15 +334,6 @@ struct SOULBOUNDCORE_API FDuelState
 	}
 };
 
-/** Dificultad de una prueba (glosario "Minijuego de habilidad"). Nombre propuesto en S-008; hoy solo se usa Easy. */
-UENUM()
-enum class ESkillDifficulty : uint8
-{
-	Easy,
-	Normal,
-	Hard,
-};
-
 /** Rol de un asiento (R-CAR-2, R-CAR-5): todos empiezan Eco Perdido; quien reclama un Nicho es Elegido para siempre. Nombre propuesto en S-006. */
 UENUM()
 enum class ESeatRole : uint8
@@ -358,6 +364,22 @@ enum class EMatchOutcome : uint8
 	Undecided,
 	/** Victoria del Warden (glosario `WardenVictory`): derrota colectiva; en S-006, nadie se vinculó en la carrera (R-CAR-8). */
 	WardenVictory,
+};
+
+/** Por qué sale un asiento del Vacío (R-VAC-3, S-013, nombre propuesto): es el Value del evento LeftVoid. */
+UENUM()
+enum class EVoidExit : uint8
+{
+	/** Supera el minijuego de escape (R-VAC-2): su turno termina sin tirar. */
+	Escaped,
+	/** Usa Desvío (R-POD-6): sacrifica la runa y juega el turno. */
+	Deflected,
+	/** Pasa el último peldaño de su escalera (el cuarto turno; el segundo de Mictlantecuhtli): sale sin jugar. */
+	TurnLimit,
+	/** Es un Eco (R-ECO-5): sale en su primer turno sin jugar. */
+	Echo,
+	/** Liberación (R-VAC-5, R-EFE-17): todos los del Vacío salen a la vez, sin esperar su turno. */
+	Released,
 };
 
 /** Tipo de un evento del registro de partida (R-TUR-15). Nombre propuesto en S-003 para el glosario. */
@@ -468,6 +490,22 @@ enum class EMatchEventType : uint8
 	 * casilla del hogar. Nombre propuesto en S-012.
 	 */
 	DuelLoserSentHome,
+	/**
+	 * Un asiento es desterrado al Vacío (R-VAC-1, R-EFE-14): su ficha sale del tablero. Seat el desterrado, Value 1 si lo
+	 * destierra la Furia y 0 si no. Nombre propuesto en S-013.
+	 */
+	Banished,
+	/** Un asiento supera el minijuego de escape del Vacío (R-VAC-2); Value es la dificultad (ESkillDifficulty). S-013. */
+	VoidEscapePassed,
+	/** Un asiento falla el minijuego de escape del Vacío (R-VAC-2) y sigue dentro; Value es la dificultad. S-013. */
+	VoidEscapeFailed,
+	/**
+	 * Un asiento sale del Vacío y reaparece en su hogar (R-VAC-3); Value es el motivo (EVoidExit). Con Desvío va después del
+	 * RuneReturned de la runa sacrificada. Nombre propuesto en S-013.
+	 */
+	LeftVoid,
+	/** Vuelta al hogar (glosario `SendHome`, R-EFE-4): la ficha del asiento va a su hogar; Value es la casilla. S-013. */
+	SentHome,
 };
 
 /**
@@ -512,9 +550,23 @@ struct SOULBOUNDCORE_API FSeatState
 {
 	GENERATED_BODY()
 
-	/** Casilla en la que está la ficha. INDEX_NONE si no está en el tablero (Vacío). */
+	/**
+	 * Casilla en la que está la ficha. INDEX_NONE mientras está en el Vacío (R-TAB-24, S-013): no ocupa casilla. Solo las
+	 * reglas del Vacío (Match/VoidRules.h, Match/EffectRules.h) la ponen y la quitan de INDEX_NONE.
+	 */
 	UPROPERTY()
 	int32 TileId = 0;
+
+	/**
+	 * Turnos propios empezados en el Vacío desde el último destierro (R-VAC-2, R-VAC-4, S-013): el destierro la pone a 0 y
+	 * cada inicio de turno dentro la sube uno antes de decidir la salida, así que es el número del turno en curso. Un turno
+	 * saltado por turno perdido no cuenta (decisión del autor del 08/10/2026). 0 fuera del Vacío. Nombre propuesto en S-013.
+	 */
+	UPROPERTY()
+	int32 VoidTurns = 0;
+
+	/** Si el asiento está en el Vacío (glosario "El Vacío"): fuera del tablero. */
+	bool IsInVoid() const { return TileId == INDEX_NONE; }
 
 	/**
 	 * Brazal (glosario "Brazal Arcano"): runas por tipo, seis contadores indexados por el Dominio de la runa (R-RUN-1),

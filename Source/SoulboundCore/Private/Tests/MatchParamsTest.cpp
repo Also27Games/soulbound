@@ -1,7 +1,8 @@
 // Tests de los parámetros de partida (S-003, criterio "Parámetros"): el reloj de turno (R-TUR-8), los topes de
 // turnos extra y perdidos (R-TUR-9, R-TUR-10), desde S-006 la duración de la carrera (R-CAR-1), desde S-009 el reloj de
-// elección, desde S-010 los del trilero (R-ROB-2) y desde S-012 el margen de Shuten-dōji en el duelo (R-ELE-2) salen de
-// Content/Data/Match/partida.json; un archivo mal formado se rechaza con motivo, igual que el tablero.
+// elección, desde S-010 los del trilero (R-ROB-2), desde S-012 el margen de Shuten-dōji en el duelo (R-ELE-2) y desde S-013
+// las escaleras de escape del Vacío (R-VAC-2, R-VAC-6) salen de Content/Data/Match/partida.json; un archivo mal formado se
+// rechaza con motivo, igual que el tablero.
 // Filtro: "Soulbound.Core.Match.Params".
 
 #include "Match/MatchParams.h"
@@ -18,6 +19,9 @@ namespace
 	/** El margen de Shuten-dōji (S-012) con un valor válido, para añadir a un JSON de parámetros. */
 	const TCHAR* const DuelField = TEXT("\"duelAdvantageMargin\": 0.15");
 
+	/** Las dos escaleras del Vacío (S-013) con valores válidos, para añadir a un JSON de parámetros. */
+	const TCHAR* const VoidFields = TEXT("\"voidEscapeLadder\": [\"hard\", \"normal\", \"easy\"], \"voidEscapeAffinityLadder\": [\"easy\"]");
+
 	/** El JSON Json con Fields añadidos antes de la última llave. Un texto sin llave de cierre se devuelve tal cual. */
 	FString Append(const FString& Json, const TCHAR* Fields)
 	{
@@ -30,26 +34,33 @@ namespace
 	}
 
 	/**
-	 * El JSON Json con los parámetros del trilero (S-010) y el margen del duelo (S-012) válidos añadidos antes de la última
-	 * llave: así los casos de S-003 a S-009 siguen probando solo lo que probaban.
+	 * El JSON Json con los parámetros del trilero (S-010), el margen del duelo (S-012) y las escaleras del Vacío (S-013)
+	 * válidos añadidos antes de la última llave: así los casos de S-003 a S-009 siguen probando solo lo que probaban.
 	 */
 	FString WithShell(const TCHAR* Json)
 	{
-		return Append(Append(FString(Json), ShellFields), DuelField);
+		return Append(Append(Append(FString(Json), ShellFields), DuelField), VoidFields);
 	}
 
-	/** Parámetros válidos de S-009, con el margen del duelo y sin los del trilero, para construir los casos de S-010. */
+	/** Parámetros válidos de S-009, con el margen del duelo y las escaleras y sin los del trilero, para los casos de S-010. */
 	FString BaseWith(const TCHAR* ShellPart)
 	{
-		return FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s%s%s }"),
-			DuelField, *ShellPart ? TEXT(", ") : TEXT(""), ShellPart);
+		return FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s, %s%s%s }"),
+			DuelField, VoidFields, *ShellPart ? TEXT(", ") : TEXT(""), ShellPart);
 	}
 
-	/** Parámetros válidos hasta S-010 sin el margen del duelo, y DuelPart en su lugar, para los casos de S-012. */
+	/** Parámetros válidos hasta S-010, con las escaleras, sin el margen del duelo y DuelPart en su lugar, para los casos de S-012. */
 	FString DuelCase(const TCHAR* DuelPart)
 	{
-		const FString Base = FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s }"), ShellFields);
+		const FString Base = FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s, %s }"), ShellFields, VoidFields);
 		return *DuelPart ? Append(Base, DuelPart) : Base;
+	}
+
+	/** Parámetros válidos hasta S-012 sin las escaleras del Vacío, y VoidPart en su lugar, para los casos de S-013. */
+	FString VoidCase(const TCHAR* VoidPart)
+	{
+		const FString Base = FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s, %s }"), ShellFields, DuelField);
+		return *VoidPart ? Append(Base, VoidPart) : Base;
 	}
 }
 
@@ -75,11 +86,15 @@ bool FMatchParamsLoadTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Tiempo de elección de esfera: 5 s"), FromFile.ShellPickSeconds, 5.0);
 	// S-012 (R-ELE-2): el margen de Shuten-dōji, con su valor inicial de la story.
 	TestEqual(TEXT("Margen de Shuten-dōji en el duelo: 0,15"), FromFile.DuelAdvantageMargin, 0.15);
+	// S-013 (R-VAC-2, R-ELE-2): las escaleras del Vacío, con sus valores iniciales de la story.
+	TestTrue(TEXT("Escalera de escape: difícil, normal, fácil"), FromFile.VoidEscapeLadder == TArray<ESkillDifficulty>{ESkillDifficulty::Hard, ESkillDifficulty::Normal, ESkillDifficulty::Easy});
+	TestTrue(TEXT("Escalera de Mictlantecuhtli: fácil"), FromFile.VoidEscapeAffinityLadder == TArray<ESkillDifficulty>{ESkillDifficulty::Easy});
 
 	// Los valores salen del texto, no del código: con otros valores en el JSON, otros parámetros.
 	const FMatchParamsLoadResult Other = Soulbound::Rules::LoadMatchParamsFromJsonString(
 		TEXT("{ \"turnClockSeconds\": 12.5, \"maxExtraTurns\": 3, \"maxLostTurns\": 0, \"raceDurationSeconds\": 45, \"choiceClockSeconds\": 7.5, ")
-		TEXT("\"shellRevealSeconds\": 1.5, \"shellShuffleSeconds\": 3, \"shellSwapCount\": 11, \"shellPickSeconds\": 6.5, \"duelAdvantageMargin\": 0.4 }"));
+		TEXT("\"shellRevealSeconds\": 1.5, \"shellShuffleSeconds\": 3, \"shellSwapCount\": 11, \"shellPickSeconds\": 6.5, \"duelAdvantageMargin\": 0.4, ")
+		TEXT("\"voidEscapeLadder\": [\"normal\", \"easy\"], \"voidEscapeAffinityLadder\": [\"hard\", \"normal\"] }"));
 	if (TestTrue(FString::Printf(TEXT("Otros valores cargan (%s)"), *Other.Message), Other.IsSuccess()))
 	{
 		TestEqual(TEXT("Reloj de turno leído del texto"), Other.Params.TurnClockSeconds, 12.5);
@@ -92,6 +107,15 @@ bool FMatchParamsLoadTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Intercambios leídos del texto"), Other.Params.ShellSwapCount, 11);
 		TestEqual(TEXT("Tiempo de elección de esfera leído del texto"), Other.Params.ShellPickSeconds, 6.5);
 		TestEqual(TEXT("Margen del duelo leído del texto"), Other.Params.DuelAdvantageMargin, 0.4);
+		TestTrue(TEXT("Escalera de escape leída del texto"), Other.Params.VoidEscapeLadder == TArray<ESkillDifficulty>{ESkillDifficulty::Normal, ESkillDifficulty::Easy});
+		TestTrue(TEXT("Escalera de la afinidad leída del texto"), Other.Params.VoidEscapeAffinityLadder == TArray<ESkillDifficulty>{ESkillDifficulty::Hard, ESkillDifficulty::Normal});
+	}
+
+	// S-013 (decisión del autor del 08/10/2026): la principal de 1 a 3 peldaños; la de la afinidad, de 1 a los de la principal.
+	for (const TCHAR* Ladders : {TEXT("\"voidEscapeLadder\": [\"easy\"], \"voidEscapeAffinityLadder\": [\"easy\"]"), TEXT("\"voidEscapeLadder\": [\"hard\", \"hard\", \"hard\"], \"voidEscapeAffinityLadder\": [\"normal\", \"easy\", \"easy\"]")})
+	{
+		const FMatchParamsLoadResult Edge = Soulbound::Rules::LoadMatchParamsFromJsonString(VoidCase(Ladders));
+		TestTrue(FString::Printf(TEXT("%s carga (%s)"), Ladders, *Edge.Message), Edge.IsSuccess());
 	}
 
 	// S-012: el margen admite de 0 a 1, el 1 excluido (decisión del autor del 06/10/2026).
@@ -146,6 +170,18 @@ bool FMatchParamsRejectTest::RunTest(const FString& Parameters)
 		{TEXT("margen del duelo de 1"), DuelCase(TEXT("\"duelAdvantageMargin\": 1"))},
 		{TEXT("margen del duelo mayor que 1"), DuelCase(TEXT("\"duelAdvantageMargin\": 1.5"))},
 		{TEXT("margen del duelo como texto"), DuelCase(TEXT("\"duelAdvantageMargin\": \"0.15\""))},
+		// S-013 (R-VAC-2, R-VAC-6): las dos escaleras, obligatorias, listas de dificultades conocidas; la principal de 1 a 3
+		// peldaños y la de la afinidad de 1 a los de la principal (decisión del autor del 08/10/2026).
+		{TEXT("faltan las escaleras"), VoidCase(TEXT(""))},
+		{TEXT("falta la escalera principal"), VoidCase(TEXT("\"voidEscapeAffinityLadder\": [\"easy\"]"))},
+		{TEXT("falta la escalera de la afinidad"), VoidCase(TEXT("\"voidEscapeLadder\": [\"hard\", \"normal\", \"easy\"]"))},
+		{TEXT("escalera principal vacía"), VoidCase(TEXT("\"voidEscapeLadder\": [], \"voidEscapeAffinityLadder\": [\"easy\"]"))},
+		{TEXT("escalera principal de cuatro peldaños"), VoidCase(TEXT("\"voidEscapeLadder\": [\"hard\", \"hard\", \"normal\", \"easy\"], \"voidEscapeAffinityLadder\": [\"easy\"]"))},
+		{TEXT("dificultad desconocida"), VoidCase(TEXT("\"voidEscapeLadder\": [\"hard\", \"imposible\", \"easy\"], \"voidEscapeAffinityLadder\": [\"easy\"]"))},
+		{TEXT("dificultad que no es texto"), VoidCase(TEXT("\"voidEscapeLadder\": [\"hard\", 2, \"easy\"], \"voidEscapeAffinityLadder\": [\"easy\"]"))},
+		{TEXT("escalera que no es lista"), VoidCase(TEXT("\"voidEscapeLadder\": \"hard\", \"voidEscapeAffinityLadder\": [\"easy\"]"))},
+		{TEXT("escalera de la afinidad vacía"), VoidCase(TEXT("\"voidEscapeLadder\": [\"hard\", \"normal\", \"easy\"], \"voidEscapeAffinityLadder\": []"))},
+		{TEXT("escalera de la afinidad más larga que la principal"), VoidCase(TEXT("\"voidEscapeLadder\": [\"hard\"], \"voidEscapeAffinityLadder\": [\"easy\", \"easy\"]"))},
 	};
 	for (const TPair<FString, FString>& Case : Cases)
 	{
@@ -158,6 +194,8 @@ bool FMatchParamsRejectTest::RunTest(const FString& Parameters)
 	TestTrue(FString::Printf(TEXT("La base con los del trilero carga (%s)"), *Valid.Message), Valid.IsSuccess());
 	const FMatchParamsLoadResult ValidDuel = Soulbound::Rules::LoadMatchParamsFromJsonString(DuelCase(DuelField));
 	TestTrue(FString::Printf(TEXT("La base con el margen del duelo carga (%s)"), *ValidDuel.Message), ValidDuel.IsSuccess());
+	const FMatchParamsLoadResult ValidVoid = Soulbound::Rules::LoadMatchParamsFromJsonString(VoidCase(VoidFields));
+	TestTrue(FString::Printf(TEXT("La base con las escaleras del Vacío carga (%s)"), *ValidVoid.Message), ValidVoid.IsSuccess());
 
 	const FMatchParamsLoadResult Missing = Soulbound::Rules::LoadMatchParamsFromFile(
 		FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data/Match/no_existe.json")));

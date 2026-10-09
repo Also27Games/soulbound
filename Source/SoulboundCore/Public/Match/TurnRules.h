@@ -58,6 +58,12 @@ namespace Soulbound::Rules
 	 *    turno del siguiente, arranca su reloj (R-TUR-8) y registra TurnStarted.
 	 *  - Start → PreRoll: con Celeridad (R-TUR-4) abre la elección de dados (DiceCount), con el plazo del reloj de turno;
 	 *    sin ella, un dado sin elección.
+	 *  - Start de un asiento en el Vacío (S-013, R-TUR-3, R-VAC-2), antes de nada y en este orden: su cuenta de turnos
+	 *    dentro sube uno; un Eco sale a su hogar y el turno pasa a End (R-ECO-5); quien tiene Desvío recibe la elección
+	 *    Deflection con el plazo del reloj de turno (agotada, ChoiceExpired y es "no", sin castigo; R-POD-6); si no, o si
+	 *    dice que no, el minijuego de escape con la dificultad del peldaño de su escalera (fase SkillTrial) o, pasado el
+	 *    último, la salida sin jugar y End (R-VAC-3). Si una Liberación lo saca mientras espera (Desvío o escape), la
+	 *    espera se cierra y el turno pasa a End. Nada de esto toca el sorteo de la partida.
 	 *  - En PreRoll con la elección de dados abierta: espera la intención (SubmitChoiceIntent); con el reloj de turno
 	 *    agotado, registra TurnClockExpired, sube la insolencia y pasa a End sin tirar (R-TUR-8).
 	 *  - PreRoll → RollAndChoose: tira los dados del turno (R-TUR-5), calcula las casillas alcanzables y registra Rolled.
@@ -105,14 +111,17 @@ namespace Soulbound::Rules
 	 * intención de destino lo es de RollAndChoose. Si se supera, el asiento obtiene la runa de la Fuente; si no, no. En
 	 * ambos casos el turno sigue en MoveAndResolve con el salto planar y la acción contra un jugador (R-INT-1, S-009), o
 	 * pasa a End si no hay nada que ofrecer. Sin plazo en S-008 (TODO(R-MIN) en TurnRules.cpp).
+	 * Escape del Vacío (S-013, PendingTrial VoidEscape, R-VAC-2, R-VAC-3): superado, el asiento sale a su hogar; fallado,
+	 * sigue dentro. En los dos casos el turno pasa a End sin tirar (ApplyVoidEscapeResult).
 	 * bPassed: si superó la prueba. NowSeconds: marca de tiempo de los eventos.
-	 * Devuelve Accepted, o WrongSeat o WrongPhase (también sin prueba pendiente, PendingTrial None) sin tocar el estado. Nombre propuesto en S-008.
+	 * Devuelve Accepted, o WrongSeat o WrongPhase (también sin prueba pendiente, PendingTrial None, o con un escape que una
+	 * Liberación dejó sin objeto) sin tocar el estado. Nombre propuesto en S-008.
 	 */
 	SOULBOUNDCORE_API EIntentResult SubmitSkillTrialResult(FMatchState& State, int32 Seat, bool bPassed, double NowSeconds);
 
 	/**
 	 * Intención que contesta la elección pendiente del asiento Seat (S-009; glosario "Intención"): la única forma de
-	 * elegir dados, repetir, saltar, retar a duelo, expulsar, robar, apartar la runa de Koschei o elegir esfera. Se valida asiento (el de
+	 * elegir dados, repetir, saltar, retar a duelo, expulsar, robar, apartar la runa de Koschei, elegir esfera o usar Desvío. Se valida asiento (el de
 	 * FPendingChoice::Seat, que desde S-010 puede no tener el turno), tipo de elección (Kind debe ser el de la pendiente:
 	 * una respuesta tardía no contesta otra elección), plazo y opción; si no es válida se descarta sin castigo y sin
 	 * tocar el estado. Option: una respuesta válida (FPendingChoice::IsValidAnswer: un valor de Options, o en PlayerAction
@@ -128,8 +137,11 @@ namespace Soulbound::Rules
 	 *    duelo (BeginDuel): sin runas el retado, termina el turno (R-DUE-4); si no, la máquina pasa a la fase Duel.
 	 *  - SafeRune (S-010): Koschei aparta la runa y empieza la muestra del trilero.
 	 *  - ShellPick (S-010): la runa de la esfera elegida pasa al ladrón (RuneStolen, R-ROB-3) y termina el turno.
+	 *  - Deflection (S-013, R-POD-6): usarlo devuelve la runa a su Fuente (RuneReturned), saca al asiento a su hogar
+	 *    (LeftVoid) y el turno sigue en PreRoll, entero; "no" sigue con la escalera de escape (UseDeflection).
 	 * NowSeconds: instante en que llega. Random: el sorteo de la partida (solo lo usa la repetición).
-	 * Devuelve Accepted, WrongSeat, WrongPhase (no hay elección pendiente de ese tipo), ClockExpired o InvalidOption.
+	 * Devuelve Accepted, WrongSeat, WrongPhase (no hay elección pendiente de ese tipo, o una Liberación dejó sin objeto la de
+	 * Desvío), ClockExpired o InvalidOption.
 	 * Nombre propuesto en S-009.
 	 */
 	SOULBOUNDCORE_API EIntentResult SubmitChoiceIntent(FMatchState& State, int32 Seat, EChoiceKind Kind, int32 Option, double NowSeconds, FRandomStream& Random);

@@ -46,6 +46,7 @@ namespace Soulbound::Presentation
 			const TCHAR* What = Kind == EChoiceKind::Reroll ? TEXT("repetir")
 				: Kind == EChoiceKind::PlanarJump ? TEXT("el salto planar")
 				: Kind == EChoiceKind::SafeRune ? TEXT("apartar una runa: el trilero se juega con todas")
+				: Kind == EChoiceKind::Deflection ? TEXT("Desvío: juega el escape")
 				: TEXT("la acción contra un jugador");
 			return FString::Printf(TEXT("el asiento %d deja pasar %s: se agota su elección"), Event.Seat, What);
 		}
@@ -73,6 +74,17 @@ namespace Soulbound::Presentation
 				Event.Value == 1 ? TEXT("retado") : TEXT("retador"));
 		case EMatchEventType::DuelLoserSentHome:
 			return FString::Printf(TEXT("el asiento %d pierde el duelo sin runas y vuelve a su hogar, %s"), Event.OtherSeat, *TileShortName(Board, Event.Value));
+		// S-013: el Vacío y la Vuelta al hogar. El minijuego de escape no existe aún: lo resuelve el decisor al azar.
+		case EMatchEventType::Banished:
+			return FString::Printf(TEXT("el asiento %d es DESTERRADO al Vacío%s: su ficha sale del tablero"), Event.Seat, Event.Value == 1 ? TEXT(" por la Furia") : TEXT(""));
+		case EMatchEventType::VoidEscapePassed:
+		case EMatchEventType::VoidEscapeFailed:
+			return FString::Printf(TEXT("el asiento %d %s el escape del Vacío en %s (resuelto al azar)"), Event.Seat,
+				Event.Type == EMatchEventType::VoidEscapePassed ? TEXT("SUPERA") : TEXT("FALLA y sigue dentro:"), *DifficultyText(Event.Value));
+		case EMatchEventType::LeftVoid:
+			return FString::Printf(TEXT("el asiento %d SALE del Vacío %s y vuelve a su hogar"), Event.Seat, *VoidExitText(Event.Value));
+		case EMatchEventType::SentHome:
+			return FString::Printf(TEXT("Vuelta al hogar: el asiento %d vuelve a %s"), Event.Seat, *TileShortName(Board, Event.Value));
 		case EMatchEventType::DebugEdit:
 			return Event.Seat == INDEX_NONE ? FString::Printf(TEXT("EDICIÓN DE DEPURACIÓN: %s"), *DebugKindName(Event.Value))
 				: FString::Printf(TEXT("EDICIÓN DE DEPURACIÓN: %s (asiento %d)"), *DebugKindName(Event.Value), Event.Seat);
@@ -95,8 +107,50 @@ namespace Soulbound::Presentation
 		case EDebugEditKind::FixNextSeat: return TEXT("fijar el siguiente asiento");
 		case EDebugEditKind::FixTrial: return TEXT("fijar el resultado del minijuego");
 		case EDebugEditKind::FixDuel: return TEXT("fijar el resultado del duelo");
+		case EDebugEditKind::Banish: return TEXT("desterrar al Vacío");
+		case EDebugEditKind::ReleaseVoid: return TEXT("Liberación del Vacío");
+		case EDebugEditKind::SendHome: return TEXT("Vuelta al hogar");
 		}
 		return TEXT("edición desconocida");
+	}
+
+	FString DifficultyText(int32 Difficulty)
+	{
+		switch (static_cast<ESkillDifficulty>(Difficulty))
+		{
+		case ESkillDifficulty::Easy: return TEXT("fácil");
+		case ESkillDifficulty::Normal: return TEXT("normal");
+		case ESkillDifficulty::Hard: return TEXT("difícil");
+		}
+		return TEXT("dificultad desconocida");
+	}
+
+	FString VoidExitText(int32 Exit)
+	{
+		switch (static_cast<EVoidExit>(Exit))
+		{
+		case EVoidExit::Escaped: return TEXT("por el escape");
+		case EVoidExit::Deflected: return TEXT("con Desvío, sacrificando la runa, y juega el turno");
+		case EVoidExit::TurnLimit: return TEXT("sin jugar, al acabar su escalera");
+		case EVoidExit::Echo: return TEXT("sin jugar, por ser Eco");
+		case EVoidExit::Released: return TEXT("por la Liberación");
+		}
+		return TEXT("por un motivo desconocido");
+	}
+
+	FString DescribeEffectResult(EEffectResult Result)
+	{
+		switch (Result)
+		{
+		case EEffectResult::Applied: return TEXT("aplicado");
+		case EEffectResult::InvalidSeat: return TEXT("ese asiento no existe (0 a 3)");
+		case EEffectResult::InVoid: return TEXT("ese asiento está en el Vacío: solo la Liberación lo saca");
+		case EEffectResult::InPlay: return TEXT("ese asiento está en juego (su turno, o un duelo o trilero en curso): hazlo entre turnos, con SbStepMode 1");
+		case EEffectResult::AlreadyHome: return TEXT("ese asiento ya está en su hogar");
+		case EEffectResult::NobodyInVoid: return TEXT("no hay nadie en el Vacío");
+		case EEffectResult::BondRace: return TEXT("durante la carrera nadie va al Vacío (solo por la Furia)");
+		}
+		return TEXT("rechazado");
 	}
 
 	FString DescribeDebugResult(EDebugEditResult Result)
@@ -146,6 +200,9 @@ namespace Soulbound::Presentation
 			return EEventSource::Debug;
 		case EMatchEventType::SealPlaced:
 		case EMatchEventType::SealReleased:
+		// S-013: desterrar y mandar a casa son efectos del Warden (hoy los piden los comandos).
+		case EMatchEventType::Banished:
+		case EMatchEventType::SentHome:
 			return EEventSource::Warden;
 		case EMatchEventType::Bonded:
 		case EMatchEventType::BoardAwakening:

@@ -37,6 +37,15 @@ namespace Soulbound::Presentation
 	/** Por qué se rechazó un Sello de depuración (S-011): el motivo de CanSealTile, en español. */
 	FString DescribeSealResult(ESealResult Result);
 
+	/** Por qué se rechazó un efecto de depuración (S-013: SbBanish, SbRelease, SbSendHome): el motivo de la regla, en español. */
+	FString DescribeEffectResult(EEffectResult Result);
+
+	/** Nombre en español de una dificultad del minijuego (ESkillDifficulty en un Value), para la crónica (S-013). */
+	FString DifficultyText(int32 Difficulty);
+
+	/** Motivo de una salida del Vacío (EVoidExit en el Value de LeftVoid), en español, para la crónica (S-013). */
+	FString VoidExitText(int32 Exit);
+
 	/** Quién origina el evento: los Sellos son del Warden, los de vínculo y fin de carrera de la carrera, el resto del asiento. */
 	EEventSource EventSource(EMatchEventType Type);
 }

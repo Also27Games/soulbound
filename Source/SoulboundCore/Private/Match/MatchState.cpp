@@ -35,6 +35,11 @@ FMatchState FMatchState::MakeSpikeMatch()
 
 bool FMatchState::IsTileOccupied(int32 TileId) const
 {
+	// R-TAB-24 (S-013): quien está en el Vacío no ocupa casilla; su TileId es INDEX_NONE, que no es una casilla.
+	if (TileId == INDEX_NONE)
+	{
+		return false;
+	}
 	for (const FSeatState& Seat : Seats)
 	{
 		if (Seat.TileId == TileId)

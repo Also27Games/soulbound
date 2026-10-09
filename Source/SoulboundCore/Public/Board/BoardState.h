@@ -245,4 +245,10 @@ struct SOULBOUNDCORE_API FBoardState
 
 	/** Identificador del Nicho del Dominio indicado, o INDEX_NONE si no tiene. */
 	int32 FindNiche(int32 DomainId) const;
+
+	/**
+	 * Identificador de la primera Fuente de Poder del Dominio indicado, o INDEX_NONE si no tiene: la Fuente a la que vuelve
+	 * una runa de ese tipo (R-RUN-6). Nombre propuesto en S-013.
+	 */
+	int32 FindPowerSource(int32 DomainId) const;
 };

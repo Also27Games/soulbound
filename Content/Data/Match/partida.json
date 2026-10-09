@@ -8,5 +8,7 @@
   "shellShuffleSeconds": 4,
   "shellSwapCount": 8,
   "shellPickSeconds": 5,
-  "duelAdvantageMargin": 0.15
+  "duelAdvantageMargin": 0.15,
+  "voidEscapeLadder": ["hard", "normal", "easy"],
+  "voidEscapeAffinityLadder": ["easy"]
 }

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Board/SealRules.h"
+#include "Match/EffectRules.h"
 
 struct FMatchState;
 struct FRandomStream;
@@ -21,6 +22,12 @@ enum class EDebugEditKind : uint8
 	FixTrial,
 	/** Fijar el resultado del próximo duelo del humano (S-012, SbDuel). */
 	FixDuel,
+	/** Desterrar a un asiento al Vacío (S-013, SbBanish). */
+	Banish,
+	/** Liberación: sacar a todos del Vacío (S-013, SbRelease). */
+	ReleaseVoid,
+	/** Vuelta al hogar de un asiento (S-013, SbSendHome). */
+	SendHome,
 };
 
 /** Resultado de una edición de depuración (S-011, nombre propuesto). Solo Applied cambia el estado. */
@@ -129,4 +136,16 @@ namespace Soulbound::Debug
 	 * más: como FixTrial, el resultado vive en el anfitrión de partida (S-012). Rechaza un asiento inexistente.
 	 */
 	SOULBOUNDCORE_API EDebugEditResult FixDuel(FMatchState& State, int32 Seat, double NowSeconds);
+
+	/**
+	 * Destierra al asiento Seat con la regla del efecto (Banish, sin la Furia, S-013): acepta y rechaza lo que CanBanish,
+	 * con su mismo motivo (durante la carrera, BondRace).
+	 */
+	SOULBOUNDCORE_API EEffectResult BanishSeat(FMatchState& State, int32 Seat, double NowSeconds);
+
+	/** Liberación con la regla del efecto (ReleaseVoid, S-013): acepta y rechaza lo que CanReleaseVoid, con su motivo. */
+	SOULBOUNDCORE_API EEffectResult ReleaseVoidEdit(FMatchState& State, double NowSeconds);
+
+	/** Vuelta al hogar del asiento Seat con la regla del efecto (SendHome, S-013): acepta y rechaza lo que CanSendHome. */
+	SOULBOUNDCORE_API EEffectResult SendHomeEdit(FMatchState& State, int32 Seat, double NowSeconds);
 }

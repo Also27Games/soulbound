@@ -192,8 +192,8 @@ namespace Soulbound::Rules
 		const int32 TileId = State.Seats[Seat].TileId;
 		for (int32 Other = 0; Other < State.Seats.Num(); ++Other)
 		{
-			// Quien ya está en su hogar no es objetivo válido.
-			if (Other != Seat && State.Seats[Other].TileId == TileId && TileId != HomeTile(State, Other))
+			// Quien ya está en su hogar no es objetivo válido; quien está en el Vacío tampoco (R-INT-3, S-013).
+			if (Other != Seat && !State.Seats[Other].IsInVoid() && State.Seats[Other].TileId == TileId && TileId != HomeTile(State, Other))
 			{
 				Targets.Add(Other);
 			}
@@ -211,12 +211,12 @@ namespace Soulbound::Rules
 		{
 			return Targets;
 		}
-		// TODO(R-INT-3): quien está en el Vacío es inmune; llega con la story del Vacío (hoy nadie está fuera del tablero).
 		const int32 TileId = State.Seats[Seat].TileId;
 		for (int32 Other = 0; Other < State.Seats.Num(); ++Other)
 		{
-			// Elegido o Eco, tenga runas o no: el ladrón no ve el Brazal ajeno, y robar a quien no tiene es R-ROB-4.
-			if (Other != Seat && State.Seats[Other].TileId == TileId)
+			// Elegido o Eco, tenga runas o no: el ladrón no ve el Brazal ajeno, y robar a quien no tiene es R-ROB-4. R-INT-3
+			// (S-013): quien está en el Vacío no comparte casilla con nadie y no puede ser robado.
+			if (Other != Seat && !State.Seats[Other].IsInVoid() && State.Seats[Other].TileId == TileId)
 			{
 				Targets.Add(Other);
 			}

@@ -96,6 +96,21 @@ public:
 	UFUNCTION(Exec)
 	void SbTurn(FString Seat);
 
+	/**
+	 * SbBanish <asiento>: destierra al asiento al Vacío con la regla del efecto, sin la Furia (S-013): durante la carrera se
+	 * rechaza, y también con quien está en juego (el que juega su turno, o un participante de un duelo o trilero).
+	 */
+	UFUNCTION(Exec)
+	void SbBanish(FString Seat);
+
+	/** SbRelease: Liberación, todos los del Vacío salen a su hogar (S-013). */
+	UFUNCTION(Exec)
+	void SbRelease();
+
+	/** SbSendHome <asiento>: Vuelta al hogar del asiento, con la regla del efecto (S-013). */
+	UFUNCTION(Exec)
+	void SbSendHome(FString Seat);
+
 	/** SbHelp: lista los comandos de depuración con su sintaxis. */
 	UFUNCTION(Exec)
 	void SbHelp();

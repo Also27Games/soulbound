@@ -6,6 +6,7 @@
 #include "Match/RuneRules.h"
 #include "Match/MatchEvents.h"
 #include "Match/ShellGameRules.h"
+#include "Match/VoidRules.h"
 #include "Math/RandomStream.h"
 
 using Soulbound::Rules::LogEvent;
@@ -85,6 +86,7 @@ namespace
 	{
 		switch (Kind)
 		{
+		case EChoiceKind::Deflection: return ETurnPhase::Start;
 		case EChoiceKind::DiceCount: return ETurnPhase::PreRoll;
 		case EChoiceKind::Reroll: return ETurnPhase::RollAndChoose;
 		case EChoiceKind::PlanarJump:
@@ -139,7 +141,8 @@ namespace
 			State.ActiveSeat = NextInTurnOrder(State, State.ActiveSeat);
 		}
 
-		// TODO(R-TUR-3): salida del Vacío al inicio del turno, en la story de castigos y Vacío.
+		// R-TUR-3: la salida del Vacío se decide al pasar de Start a PreRoll (EnterVoidTurn). Un turno saltado arriba no es
+		// un turno empezado en el Vacío y no sube su cuenta (decisión del autor del 08/10/2026).
 		State.TurnPhase = ETurnPhase::Start;
 		State.TurnDeadlineSeconds = NowSeconds + State.Params.TurnClockSeconds;
 		State.DiceCount = 0;
@@ -199,6 +202,61 @@ namespace
 		State.TurnPhase = ETurnPhase::End;
 		++State.TurnCount;
 		LogEvent(State, EMatchEventType::TurnEnded, NowSeconds, State.ActiveSeat);
+	}
+
+	/**
+	 * El paso de la escalera de escape del turno en curso (R-VAC-2), después de Eco y Desvío: el minijuego con la dificultad
+	 * del peldaño (fase SkillTrial) o, pasado el último, la salida sin jugar (R-VAC-3), que termina el turno.
+	 */
+	void ContinueVoidEscape(FMatchState& State, double NowSeconds)
+	{
+		const int32 Seat = State.ActiveSeat;
+		const TArray<ESkillDifficulty>& Ladder = Soulbound::Rules::VoidEscapeLadderFor(State, Seat);
+		const int32 Turn = State.Seats[Seat].VoidTurns;
+		if (Ladder.IsValidIndex(Turn - 1))
+		{
+			// TODO(R-MIN): el escape espera sin plazo, como el minijuego de la Fuente; su tiempo llega con la story del minijuego.
+			State.PendingTrial = ESkillTrial::VoidEscape;
+			State.PendingDifficulty = Ladder[Turn - 1];
+			State.TurnPhase = ETurnPhase::SkillTrial;
+			return;
+		}
+		Soulbound::Rules::LeaveVoid(State, Seat, EVoidExit::TurnLimit, NowSeconds);
+		EnterEnd(State, NowSeconds);
+	}
+
+	/**
+	 * Start de un asiento en el Vacío (R-TUR-3, R-VAC-2), antes de nada y en este orden: su cuenta sube uno; un Eco sale sin
+	 * jugar (R-ECO-5); quien tiene Desvío elige si lo usa (R-POD-6), bajo el reloj de turno y también en el turno en que
+	 * saldría solo (decisión del autor del 08/10/2026); si no, la escalera. Sin dados: nada de esto toca el sorteo.
+	 */
+	void EnterVoidTurn(FMatchState& State, double NowSeconds)
+	{
+		const int32 Seat = State.ActiveSeat;
+		++State.Seats[Seat].VoidTurns;
+		if (State.Seats[Seat].Role == ESeatRole::LostEcho)
+		{
+			Soulbound::Rules::LeaveVoid(State, Seat, EVoidExit::Echo, NowSeconds);
+			EnterEnd(State, NowSeconds);
+			return;
+		}
+		if (Soulbound::Rules::DeflectionRuneType(State, Seat) != INDEX_NONE)
+		{
+			OpenChoice(State, EChoiceKind::Deflection, {1}, State.TurnDeadlineSeconds);
+			return;
+		}
+		ContinueVoidEscape(State, NowSeconds);
+	}
+
+	/**
+	 * Si el asiento activo espera en su turno del Vacío (elección de Desvío o escape) pero ya no está dentro: lo sacó una
+	 * Liberación (R-VAC-5) y la espera ya no contesta nada (decisión aceptada por el autor el 08/10/2026).
+	 */
+	bool IsVoidWaitObsolete(const FMatchState& State)
+	{
+		const bool bWaitsInVoid = (State.TurnPhase == ETurnPhase::Start && State.PendingChoice.Kind == EChoiceKind::Deflection)
+			|| (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::VoidEscape);
+		return bWaitsInVoid && State.Seats.IsValidIndex(State.ActiveSeat) && !State.Seats[State.ActiveSeat].IsInVoid();
 	}
 
 	/**
@@ -422,6 +480,30 @@ namespace Soulbound::Rules
 			}
 			return true;
 		case ETurnPhase::Start:
+			if (State.PendingChoice.Kind == EChoiceKind::Deflection)
+			{
+				// R-VAC-3: si una Liberación lo sacó mientras elegía, ya salió por ella y su turno termina sin tirar.
+				if (IsVoidWaitObsolete(State))
+				{
+					EnterEnd(State, NowSeconds);
+					return true;
+				}
+				// R-POD-6: agotar la elección de Desvío es "no", sin castigo; sigue la escalera.
+				if (NowSeconds < State.PendingChoice.DeadlineSeconds)
+				{
+					return false;
+				}
+				LogEvent(State, EMatchEventType::ChoiceExpired, NowSeconds, State.ActiveSeat, static_cast<int32>(EChoiceKind::Deflection));
+				CloseChoice(State);
+				ContinueVoidEscape(State, NowSeconds);
+				return true;
+			}
+			// R-TUR-3: quien empieza su turno en el Vacío decide su salida antes de nada.
+			if (State.Seats[State.ActiveSeat].IsInVoid())
+			{
+				EnterVoidTurn(State, NowSeconds);
+				return true;
+			}
 			EnterPreRoll(State);
 			return true;
 		case ETurnPhase::PreRoll:
@@ -508,6 +590,13 @@ namespace Soulbound::Rules
 			OfferFrom(State, NowSeconds, EChoiceKind::PlanarJump);
 			return true;
 		case ETurnPhase::SkillTrial:
+			// R-VAC-3: si una Liberación sacó del Vacío a quien jugaba el escape, la prueba ya no cuenta y su turno termina.
+			if (IsVoidWaitObsolete(State))
+			{
+				State.PendingTrial = ESkillTrial::None;
+				EnterEnd(State, NowSeconds);
+				return true;
+			}
 			// TODO(R-MIN): el minijuego espera sin plazo; su tiempo propio llega con su story.
 			return false;
 		case ETurnPhase::Duel:
@@ -563,11 +652,18 @@ namespace Soulbound::Rules
 		{
 			return EIntentResult::WrongSeat;
 		}
-		if (State.TurnPhase != ETurnPhase::SkillTrial || State.PendingTrial == ESkillTrial::None)
+		if (State.TurnPhase != ETurnPhase::SkillTrial || State.PendingTrial == ESkillTrial::None || IsVoidWaitObsolete(State))
 		{
 			return EIntentResult::WrongPhase;
 		}
 		// TODO(R-MIN): sin plazo en S-008; el minijuego real tendrá su propio tiempo y su propio fallo por agotarlo.
+		if (State.PendingTrial == ESkillTrial::VoidEscape)
+		{
+			// R-VAC-2, R-VAC-3: superado, a su hogar; fallado, sigue dentro. En los dos casos el turno termina sin tirar.
+			Soulbound::Rules::ApplyVoidEscapeResult(State, Seat, bPassed, NowSeconds);
+			EnterEnd(State, NowSeconds);
+			return EIntentResult::Accepted;
+		}
 		Soulbound::Rules::ApplySkillTrialResult(State, Seat, bPassed, NowSeconds);
 		// R-INT-1 (S-009): tras la casilla y su minijuego, el salto planar y la acción; sin ellos, el turno termina.
 		State.TurnPhase = ETurnPhase::MoveAndResolve;
@@ -584,7 +680,7 @@ namespace Soulbound::Rules
 		{
 			return EIntentResult::WrongSeat;
 		}
-		if (!Choice.IsOpen() || Choice.Kind != Kind || State.TurnPhase != PhaseOf(Kind))
+		if (!Choice.IsOpen() || Choice.Kind != Kind || State.TurnPhase != PhaseOf(Kind) || IsVoidWaitObsolete(State))
 		{
 			return EIntentResult::WrongPhase;
 		}
@@ -602,6 +698,16 @@ namespace Soulbound::Rules
 		CloseChoice(State);
 		switch (Kind)
 		{
+		case EChoiceKind::Deflection:
+			// R-POD-6: usarlo sacrifica la runa, sale al hogar y juega el turno entero (R-VAC-3); "no" sigue con la escalera, y en
+			// el turno de salida eso es salir sin jugar.
+			if (Option != INDEX_NONE && Soulbound::Rules::UseDeflection(State, Seat, NowSeconds))
+			{
+				EnterPreRoll(State);
+				break;
+			}
+			ContinueVoidEscape(State, NowSeconds);
+			break;
 		case EChoiceKind::DiceCount:
 			// R-TUR-4: los dados del turno; la tirada la hace AdvanceTurn al salir de PreRoll.
 			State.DiceCount = Option;
