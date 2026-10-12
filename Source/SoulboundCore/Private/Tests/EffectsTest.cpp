@@ -349,9 +349,11 @@ bool FEffectsSelloContraRivalCaminoTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	// Fenrir en el Altar: desde su Nicho, al final de un ramal, ninguna casilla del ramal se puede sellar (dejaría el Nicho sin
+	// camino al Altar) y el camino no tendría casillas válidas, que es el caso del test siguiente.
 	const FBoardState& Board = F.State.Board;
-	const int32 RivalTile = F.State.Seats[Fenrir].TileId;
-	const TArray<int32> FromRival = Distances(Board, RivalTile);
+	F.State.Seats[Fenrir].TileId = Board.FindAltar();
+	TArray<int32> FromRival = Distances(Board, Board.FindAltar());
 
 	// Fenrir no tiene runas: su objetivo es la Fuente con reserva más cercana.
 	int32 Nearest = MAX_int32;
@@ -360,6 +362,18 @@ bool FEffectsSelloContraRivalCaminoTest::RunTest(const FString& Parameters)
 		Nearest = Tile.Type == ETileType::PowerSource && Tile.RuneReserve > 0 ? FMath::Min(Nearest, FromRival[Tile.TileId]) : Nearest;
 	}
 	const TArray<int32> Valid = SealableNow(F.State);
+	const bool bPathHasValid = Valid.ContainsByPredicate([&](int32 Tile)
+	{
+		return Board.Tiles.ContainsByPredicate([&](const FTileState& Source)
+		{
+			return Source.Type == ETileType::PowerSource && Source.RuneReserve > 0 && FromRival[Source.TileId] == Nearest
+				&& FromRival[Tile] + Distances(Board, Tile)[Source.TileId] == Nearest;
+		});
+	});
+	if (!TestTrue(TEXT("Montaje: el camino tiene casillas que se pueden sellar"), bPathHasValid))
+	{
+		return false;
+	}
 	int32 From = F.State.EventLog.Num();
 	F.Director(EchoA);
 	F.Launch(F.AddEvent(TEXT("sello-contra-rival"), {{App(EEffect::SealAgainstRival, EEffectTarget::ChosenRival)}}));
@@ -378,9 +392,11 @@ bool FEffectsSelloContraRivalCaminoTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("En un camino más corto hasta la Fuente más cercana"), bOnPath);
 	Soulbound::Tests::CheckSealInvariants(*this, F.State, TEXT("Sello contra rival"));
 
-	// Con los seis tipos, su objetivo es el Altar.
+	// Con los seis tipos, su objetivo es el Altar; desde su hogar, que en este tablero tiene casillas sellables hasta el Altar.
 	Soulbound::Rules::ReleaseSeal(F.State, Sealed, F.Now);
 	F.State.Seats[Fenrir].Runes.Init(1, Soulbound::Board::DomainCount);
+	F.State.Seats[Fenrir].TileId = Soulbound::Rules::HomeTile(F.State, Fenrir);
+	FromRival = Distances(Board, F.State.Seats[Fenrir].TileId);
 	const int32 Altar = Board.FindAltar();
 	From = F.State.EventLog.Num();
 	F.Director(EchoA);

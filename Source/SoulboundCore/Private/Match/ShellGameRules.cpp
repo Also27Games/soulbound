@@ -1,5 +1,6 @@
 #include "Match/ShellGameRules.h"
 
+#include "Match/EffectRules.h"
 #include "Match/MatchEvents.h"
 #include "Match/RuneRules.h"
 #include "Math/RandomStream.h"
@@ -187,6 +188,8 @@ namespace Soulbound::Rules
 		if (bMoved)
 		{
 			LogEvent(State, EMatchEventType::RuneStolen, NowSeconds, Thief, Rune, Victim);
+			// R-EFE-8 (S-014): robarle a un Marcado cobra su marca.
+			CollectMark(State, Thief, Victim, NowSeconds);
 		}
 		EndShellGame(State);
 		return bMoved;

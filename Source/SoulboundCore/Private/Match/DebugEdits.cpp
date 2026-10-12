@@ -257,7 +257,14 @@ namespace Soulbound::Debug
 {
 	EWardenEventStart LaunchEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random)
 	{
-		// TODO(R-COM-1): sin implementar (S-014, tests en rojo).
-		return EWardenEventStart::UnknownEvent;
+		// Como los efectos de S-013: la comprobación de la regla decide; aplicada, el evento de depuración va antes que los del
+		// evento. Siempre como entrega directa del Warden, entre turnos (S-014).
+		const EWardenEventStart Check = Soulbound::Rules::CanApplyEvent(State, EventId);
+		if (Check != EWardenEventStart::Started)
+		{
+			return Check;
+		}
+		LogEdit(State, EDebugEditKind::LaunchEvent, NowSeconds, INDEX_NONE);
+		return Soulbound::Rules::ApplyEvent(State, EventId, NowSeconds, Random);
 	}
 }

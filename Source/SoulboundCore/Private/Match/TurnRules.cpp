@@ -3,10 +3,12 @@
 #include "Board/MovementRules.h"
 #include "Match/BondRaceRules.h"
 #include "Match/DuelRules.h"
+#include "Match/EffectRules.h"
 #include "Match/RuneRules.h"
 #include "Match/MatchEvents.h"
 #include "Match/ShellGameRules.h"
 #include "Match/VoidRules.h"
+#include "Match/WardenEventRules.h"
 #include "Math/RandomStream.h"
 
 using Soulbound::Rules::LogEvent;
@@ -93,6 +95,11 @@ namespace
 		case EChoiceKind::PlayerAction: return ETurnPhase::MoveAndResolve;
 		case EChoiceKind::SafeRune:
 		case EChoiceKind::ShellPick: return ETurnPhase::ShellGame;
+		// S-014: las de los eventos del Warden, que se resuelven entre turnos.
+		case EChoiceKind::Dilemma:
+		case EChoiceKind::ChosenRival:
+		case EChoiceKind::GiftRune:
+		case EChoiceKind::LoseRune: return ETurnPhase::BetweenTurns;
 		case EChoiceKind::None:
 		default: return ETurnPhase::BetweenTurns;
 		}
@@ -103,6 +110,19 @@ namespace
 	{
 		const int32 Index = State.TurnOrder.Find(Seat);
 		return State.TurnOrder[(Index + 1) % State.TurnOrder.Num()];
+	}
+
+	/**
+	 * El turno pasa al siguiente del orden (R-TUR-1). Si el orden da la vuelta (llega a su primer asiento, juegue o se salte su
+	 * turno), empieza una ronda (decisión del autor del 10/10/2026, S-014): caducan marcas, Brazales revelados y la Noche.
+	 */
+	void MoveToNextSeat(FMatchState& State, double NowSeconds)
+	{
+		State.ActiveSeat = NextInTurnOrder(State, State.ActiveSeat);
+		if (State.ActiveSeat == State.TurnOrder[0])
+		{
+			Soulbound::Rules::StartRound(State, NowSeconds);
+		}
 	}
 
 	/** Caso límite del GDD 02: los turnos perdidos se descuentan contra los extra, uno a uno; el resto se aplica. */
@@ -138,7 +158,7 @@ namespace
 			// El anuncio del salto es del Warden; el motor deja el evento.
 			--Seat.LostTurns;
 			LogEvent(State, EMatchEventType::TurnSkipped, NowSeconds, State.ActiveSeat);
-			State.ActiveSeat = NextInTurnOrder(State, State.ActiveSeat);
+			MoveToNextSeat(State, NowSeconds);
 		}
 
 		// R-TUR-3: la salida del Vacío se decide al pasar de Start a PreRoll (EnterVoidTurn). Un turno saltado arriba no es
@@ -152,6 +172,8 @@ namespace
 		State.bRerollValuesPending = false;
 		// R-RUN-3: el turno que empieza aún no ha movido la ficha (los turnos extra también empiezan así).
 		State.bActiveSeatMoved = false;
+		// S-014: "el último que jugó", el activo de un evento del Warden que llegue entre turnos (R-DIR-1).
+		State.LastTurnSeat = State.ActiveSeat;
 		LogEvent(State, EMatchEventType::TurnStarted, NowSeconds, State.ActiveSeat);
 	}
 
@@ -413,15 +435,16 @@ namespace
 	{
 		FSeatState& Seat = State.Seats[State.ActiveSeat];
 		SettleExtraAgainstLost(Seat);
+		// Entre turnos antes de pasar al siguiente: lo que caduca con la ronda (S-014) se aplica con nadie en juego.
+		State.TurnPhase = ETurnPhase::BetweenTurns;
 		if (Seat.ExtraTurns > 0)
 		{
 			--Seat.ExtraTurns;
 		}
 		else
 		{
-			State.ActiveSeat = NextInTurnOrder(State, State.ActiveSeat);
+			MoveToNextSeat(State, NowSeconds);
 		}
-		State.TurnPhase = ETurnPhase::BetweenTurns;
 		State.DiceCount = 0;
 		State.Roll = 0;
 		State.ReachableOptions.Reset();
@@ -473,6 +496,12 @@ namespace Soulbound::Rules
 		switch (State.TurnPhase)
 		{
 		case ETurnPhase::BetweenTurns:
+			// S-014: un evento del Warden en curso se resuelve entero antes de empezar el siguiente turno; mientras espera una
+			// elección, la máquina espera, y el turno siguiente empieza en una llamada posterior.
+			if (State.CurrentEvent.IsActive())
+			{
+				return Soulbound::Rules::AdvanceWardenEvent(State, NowSeconds);
+			}
 			// Si el tiempo de carrera se agotó sin turno en curso, termina antes de empezar el siguiente.
 			if (!EndBondRaceIfTimeIsUp(State, NowSeconds, Random))
 			{
@@ -764,6 +793,13 @@ namespace Soulbound::Rules
 			// R-ROB-3: la runa de la esfera elegida pasa al ladrón; el robo es la acción del turno, que termina.
 			Soulbound::Rules::ResolveShellPick(State, Option, NowSeconds);
 			EnterEnd(State, NowSeconds);
+			break;
+		case EChoiceKind::Dilemma:
+		case EChoiceKind::ChosenRival:
+		case EChoiceKind::GiftRune:
+		case EChoiceKind::LoseRune:
+			// S-014: las del evento del Warden en curso; el evento sigue hasta la siguiente elección o el final.
+			Soulbound::Rules::AnswerWardenEventChoice(State, Kind, Option, NowSeconds);
 			break;
 		case EChoiceKind::None:
 			break;

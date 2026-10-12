@@ -265,8 +265,9 @@ bool FDirectionsDesatenderTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Regalo: burla"), F.Since(From, EMatchEventType::WardenTaunt).Num(), 1);
 	TestEqual(TEXT("Regalo: insolencia"), F.State.Seats[EchoA].Insolence, 1);
 
-	// Un daño a un rival señalado: cae sobre él.
+	// Un daño a un rival señalado: cae sobre él. El Eco 3, fuera de casa, es el rival que podía señalar.
 	F.MoveAway(EchoA);
+	F.MoveAway(EchoB);
 	From = F.State.EventLog.Num();
 	F.Director(EchoA);
 	F.Launch(F.AddEvent(TEXT("a-casa-el-señalado"), {{App(EEffect::SendHome, EEffectTarget::ChosenRival)}}));

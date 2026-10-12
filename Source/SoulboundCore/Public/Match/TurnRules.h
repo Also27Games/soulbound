@@ -54,8 +54,11 @@ namespace Soulbound::Rules
 
 	/**
 	 * Avanza el turno una fase si no hay una decisión pendiente (R-TUR-2):
+	 *  - BetweenTurns con un evento del Warden en curso (S-014): lo lleva (AdvanceWardenEvent) y no empieza turno; con una
+	 *    elección del evento en plazo, espera. El turno siguiente empieza cuando el evento ha terminado.
 	 *  - BetweenTurns → Start: salta a los asientos con turnos perdidos (R-TUR-10, evento TurnSkipped), empieza el
-	 *    turno del siguiente, arranca su reloj (R-TUR-8) y registra TurnStarted.
+	 *    turno del siguiente, arranca su reloj (R-TUR-8), lo anota como el último que jugó (LastTurnSeat, S-014) y registra
+	 *    TurnStarted. Cuando el orden pasa por su primer asiento, juegue o se salte, empieza una ronda (StartRound, S-014).
 	 *  - Start → PreRoll: con Celeridad (R-TUR-4) abre la elección de dados (DiceCount), con el plazo del reloj de turno;
 	 *    sin ella, un dado sin elección.
 	 *  - Start de un asiento en el Vacío (S-013, R-TUR-3, R-VAC-2), antes de nada y en este orden: su cuenta de turnos
@@ -139,6 +142,8 @@ namespace Soulbound::Rules
 	 *  - ShellPick (S-010): la runa de la esfera elegida pasa al ladrón (RuneStolen, R-ROB-3) y termina el turno.
 	 *  - Deflection (S-013, R-POD-6): usarlo devuelve la runa a su Fuente (RuneReturned), saca al asiento a su hogar
 	 *    (LeftVoid) y el turno sigue en PreRoll, entero; "no" sigue con la escalera de escape (UseDeflection).
+	 *  - Dilemma, ChosenRival, GiftRune y LoseRune (S-014): las del evento del Warden en curso, entre turnos; el evento sigue
+	 *    (AnswerWardenEventChoice). Ninguna admite "no".
 	 * NowSeconds: instante en que llega. Random: el sorteo de la partida (solo lo usa la repetición).
 	 * Devuelve Accepted, WrongSeat, WrongPhase (no hay elección pendiente de ese tipo, o una Liberación dejó sin objeto la de
 	 * Desvío), ClockExpired o InvalidOption.
