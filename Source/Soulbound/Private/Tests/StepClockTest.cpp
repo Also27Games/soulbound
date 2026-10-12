@@ -100,4 +100,23 @@ bool FStepClockDisableTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// S-014, criterio "Entre turnos" y prueba manual del dilema en el paso a paso: con un evento del Warden en curso la partida
+// no se detiene, para que corra el reloj de sus elecciones; lanzado con la partida detenida, el reloj se reanuda sin conceder
+// turno, y al acabar el evento la partida vuelve a detenerse antes del siguiente turno.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStepClockWardenEventTest, "Soulbound.Game.Match.PasoAPaso.EventoDelWardenEnCurso",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+bool FStepClockWardenEventTest::RunTest(const FString& Parameters)
+{
+	FStepClock Clock;
+	TestFalse(TEXT("Con un evento en curso, entre turnos no se detiene"), Clock.ShouldHold(true, ETurnPhase::BetweenTurns, EMatchPhase::RuneHunt, true));
+	Clock.Hold(10.0);
+	Clock.Resume(40.0);
+	TestFalse(TEXT("Reanudar suelta la espera"), Clock.bHeld);
+	TestFalse(TEXT("Sin conceder turno"), Clock.bStepGranted);
+	TestEqual(TEXT("El reloj sigue desde donde se detuvo"), Clock.MatchSeconds(40.0), 10.0);
+	TestEqual(TEXT("Y corre"), Clock.MatchSeconds(46.0), 16.0);
+	TestTrue(TEXT("Acabado el evento, vuelve a detenerse antes del siguiente turno"), Clock.ShouldHold(true, ETurnPhase::BetweenTurns, EMatchPhase::RuneHunt, false));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

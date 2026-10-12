@@ -252,3 +252,12 @@ namespace Soulbound::Debug
 		return Soulbound::Rules::SendHome(State, Seat, NowSeconds);
 	}
 }
+
+namespace Soulbound::Debug
+{
+	EWardenEventStart LaunchEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random)
+	{
+		// TODO(R-COM-1): sin implementar (S-014, tests en rojo).
+		return EWardenEventStart::UnknownEvent;
+	}
+}

@@ -101,6 +101,39 @@ struct SOULBOUNDCORE_API FMatchParams
 	 */
 	UPROPERTY()
 	TArray<ESkillDifficulty> VoidEscapeAffinityLadder;
+
+	/** Revelar Brazal (R-EFE-2, S-014): rondas que dura revelado. Entero de 1 en adelante. En datos; valor inicial 1. */
+	UPROPERTY()
+	int32 RevealBracerRounds = 0;
+
+	/** Marcado (R-EFE-8, S-014): rondas que dura la marca sin cobrarse. Entero de 1 en adelante. En datos; valor inicial 3. */
+	UPROPERTY()
+	int32 MarkRounds = 0;
+
+	/**
+	 * Noche de los Ecos (R-EFE-18, S-014): rondas tras las que termina sola si no llega la Ley de Sombras. Entero de 1 en
+	 * adelante. En datos; valor inicial 8.
+	 */
+	UPROPERTY()
+	int32 EchoNightMaxRounds = 0;
+
+	/**
+	 * Reloj del dilema (R-COM-2, S-014): segundos base para elegir opción; se suma DilemmaClockPerOptionSeconds por cada
+	 * opción a partir de la segunda. Mayor que cero. En datos; valor inicial 8.
+	 */
+	UPROPERTY()
+	double DilemmaClockSeconds = 0.0;
+
+	/** Reloj del dilema (R-COM-2, S-014): incremento por opción, en segundos. Cero o más. En datos; valor inicial 3. */
+	UPROPERTY()
+	double DilemmaClockPerOptionSeconds = 0.0;
+
+	/**
+	 * Reloj corto (R-DIR-1, R-EFE-11, R-EFE-16, S-014): segundos para señalar a un rival, elegir la runa regalada o la runa a
+	 * perder. Mayor que cero. En datos; valor inicial 6 (decisión del autor del 12/10/2026).
+	 */
+	UPROPERTY()
+	double ShortChoiceClockSeconds = 0.0;
 };
 
 /** Por qué se rechazaron unos parámetros de partida. */
@@ -134,7 +167,9 @@ namespace Soulbound::Rules
 	 * y tiempos del trilero (muestra, mezcla y elección de esfera) mayores que cero, topes enteros mayores o iguales que
 	 * cero, al menos un intercambio en la mezcla, el margen del duelo entre 0 y 1, el 1 excluido (S-012), y las escaleras de
 	 * escape del Vacío (S-013): la principal de 1 a Soulbound::Match::MaxVoidEscapeSteps peldaños, la de la afinidad de 1 a
-	 * los de la principal, todas con dificultades conocidas. Params: los parámetros a comprobar. Devuelve None o
+	 * los de la principal, todas con dificultades conocidas; y los de los efectos y eventos del Warden (S-014): rondas de
+	 * Brazal revelado, marca y tope de la Noche de 1 en adelante, reloj base del dilema y reloj corto mayores que cero, e
+	 * incremento por opción del dilema de cero en adelante. Params: los parámetros a comprobar. Devuelve None o
 	 * MalformedData con el motivo; el campo Params del resultado queda vacío.
 	 */
 	SOULBOUNDCORE_API FMatchParamsLoadResult ValidateMatchParams(const FMatchParams& Params);

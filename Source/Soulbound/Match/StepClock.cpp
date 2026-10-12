@@ -5,7 +5,7 @@ double FStepClock::MatchSeconds(double WorldNow) const
 	return bHeld ? FrozenMatchSeconds : WorldNow - OriginWorldSeconds;
 }
 
-bool FStepClock::ShouldHold(bool bStepMode, ETurnPhase TurnPhase, EMatchPhase MatchPhase) const
+bool FStepClock::ShouldHold(bool bStepMode, ETurnPhase TurnPhase, EMatchPhase MatchPhase, bool bWardenEventInProgress) const
 {
 	return bStepMode && !bHeld && !bStepGranted && TurnPhase == ETurnPhase::BetweenTurns && MatchPhase != EMatchPhase::MatchOver;
 }
@@ -39,6 +39,11 @@ void FStepClock::NoteTurnPhase(ETurnPhase TurnPhase)
 	{
 		bStepGranted = false;
 	}
+}
+
+void FStepClock::Resume(double WorldNow)
+{
+	// TODO(R-COM-1): sin implementar (S-014, tests en rojo).
 }
 
 void FStepClock::Disable(double WorldNow)

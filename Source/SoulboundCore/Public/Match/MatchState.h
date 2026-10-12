@@ -4,6 +4,7 @@
 #include "Board/BoardState.h"
 #include "Elects/Elects.h"
 #include "Match/MatchParams.h"
+#include "Match/WardenEvents.h"
 #include "MatchState.generated.h"
 
 namespace Soulbound::Match
@@ -127,6 +128,29 @@ enum class EChoiceKind : uint8
 	 * sin castigo. Bajo el reloj de turno, en la fase Start.
 	 */
 	Deflection,
+	/**
+	 * Dilema (glosario `Dilemma`, R-COM-2, S-014): qué opción del evento en curso elige quien lo dirige; las opciones son sus
+	 * índices, de 0 en adelante. Obligatoria; agotada, el Warden resuelve en su contra (una opción al azar) y sube la
+	 * insolencia. Con el reloj del dilema (base más incremento por opción). Entre turnos (BetweenTurns).
+	 */
+	Dilemma,
+	/**
+	 * Rival señalado (`EEffectTarget::ChosenRival`, R-DIR-1, S-014): a quién va un efecto dañino; las opciones son asientos
+	 * válidos (R-DIR-2). La contesta quien dirige el evento. Obligatoria; agotada, el efecto cae sobre él (R-DIR-4) y sube la
+	 * insolencia. Con el reloj corto. Entre turnos.
+	 */
+	ChosenRival,
+	/**
+	 * Runa regalada (`GiftRune`, R-EFE-16, S-014): qué tipo recibe el objetivo, que puede no tener el turno; las opciones son
+	 * los tipos con alguna Fuente con reserva. Obligatoria; agotada, no recibe nada, burla e insolencia (R-DIR-4). Con el
+	 * reloj corto. Entre turnos.
+	 */
+	GiftRune,
+	/**
+	 * Runa a perder (`LoseRune` "chosen", R-EFE-11, S-014): qué tipo de su Brazal pierde el objetivo; las opciones son los
+	 * tipos que tiene. Obligatoria; agotada, una al azar e insolencia (R-DIR-4). Con el reloj corto. Entre turnos.
+	 */
+	LoseRune,
 };
 
 /**
@@ -166,7 +190,7 @@ struct SOULBOUNDCORE_API FPlayerActionOption
  * Elección pendiente (S-009, nombre propuesto): a qué asiento se le pide, tipo, opciones y plazo. La máquina de turnos la
  * abre y espera la intención (SubmitChoiceIntent), como espera el destino; agotado el plazo, la resuelve ella. Desde S-010
  * puede pedírsele a un asiento que no tiene el turno (Koschei víctima aparta una runa). Solo la escriben las reglas de
- * Match/TurnRules.h.
+ * Match/TurnRules.h y, desde S-014, las de los eventos del Warden (Match/WardenEventRules.h), que abren las suyas entre turnos.
  */
 USTRUCT()
 struct SOULBOUNDCORE_API FPendingChoice
@@ -196,15 +220,28 @@ struct SOULBOUNDCORE_API FPendingChoice
 
 	/**
 	 * Plazo en segundos del reloj de partida: el del reloj de turno (DiceCount, Reroll, Deflection), el del reloj de elección
-	 * (PlanarJump, PlayerAction, SafeRune) o el tiempo de elección del trilero (ShellPick).
+	 * (PlanarJump, PlayerAction, SafeRune), el tiempo de elección del trilero (ShellPick) o, desde S-014, el reloj del dilema
+	 * (Dilemma) y el reloj corto (ChosenRival, GiftRune, LoseRune).
 	 */
 	UPROPERTY()
 	double DeadlineSeconds = 0.0;
 
 	bool IsOpen() const { return Kind != EChoiceKind::None; }
 
-	/** Si admite "no" (INDEX_NONE): todas menos la elección de dados, la runa de Koschei y la esfera del trilero (Desvío lo admite). */
-	bool CanDecline() const { return Kind != EChoiceKind::DiceCount && Kind != EChoiceKind::SafeRune && Kind != EChoiceKind::ShellPick; }
+	/**
+	 * Si admite "no" (INDEX_NONE): todas menos la elección de dados, la runa de Koschei, la esfera del trilero y, desde S-014,
+	 * las de los eventos del Warden, donde no contestar es desatenderle (R-DIR-4). Desvío lo admite.
+	 */
+	bool CanDecline() const
+	{
+		return Kind != EChoiceKind::DiceCount && Kind != EChoiceKind::SafeRune && Kind != EChoiceKind::ShellPick && !IsWardenEventChoice();
+	}
+
+	/** Si es una elección de un evento del Warden (S-014): dilema, rival señalado, runa regalada o runa a perder. */
+	bool IsWardenEventChoice() const
+	{
+		return Kind == EChoiceKind::Dilemma || Kind == EChoiceKind::ChosenRival || Kind == EChoiceKind::GiftRune || Kind == EChoiceKind::LoseRune;
+	}
 
 	/** Cuántas respuestas distintas de "no" admite (S-010): las de ActionOptions en PlayerAction, las de Options en el resto. */
 	int32 AnswerCount() const { return Kind == EChoiceKind::PlayerAction ? ActionOptions.Num() : Options.Num(); }
@@ -506,6 +543,58 @@ enum class EMatchEventType : uint8
 	LeftVoid,
 	/** Vuelta al hogar (glosario `SendHome`, R-EFE-4): la ficha del asiento va a su hogar; Value es la casilla. S-013. */
 	SentHome,
+	/**
+	 * Empieza un evento del Warden (R-COM-1, S-014): Seat quien lo dirige, Value su posición en FMatchState::WardenEvents y
+	 * Detail su número de opciones (1, decreto; más, dilema presentado). Nombre propuesto en S-014.
+	 */
+	WardenEventStarted,
+	/**
+	 * Opción del dilema en curso (R-COM-2): Seat quien lo dirige, Value el índice de la opción, Detail 0 si la eligió y 1 si
+	 * el Warden la sorteó en su contra al agotarse el reloj. Nombre propuesto en S-014.
+	 */
+	DilemmaChosen,
+	/**
+	 * Desatender al Warden (R-DIR-4, S-014): Seat no contestó a tiempo una elección de un evento y sube su insolencia; Value
+	 * es el tipo de elección (EChoiceKind). Va antes de lo que el Warden hace en su lugar. Nombre propuesto en S-014.
+	 */
+	WardenIgnored,
+	/**
+	 * Aplicación de un efecto (R-EFE-0, S-014): Seat el objetivo (INDEX_NONE en los globales: Sello, Ley de Sombras, Noche,
+	 * Liberación), OtherSeat quien lo señaló (rival señalado; INDEX_NONE si nadie), Value el efecto (EEffect) y Detail la
+	 * dirección (EEffectTarget). La causa es el evento anterior del registro (WardenEventStarted, DilemmaChosen o
+	 * WardenIgnored). Va antes de los eventos que deja el efecto. Nombre propuesto en S-014.
+	 */
+	EffectApplied,
+	/**
+	 * Burla del Warden (R-DIR-3, S-014): una aplicación sin objetivos válidos, o un regalo perdido por no elegir; no se aplica.
+	 * Seat quien dirige el evento (o el objetivo, en un regalo perdido), Value el efecto y Detail la dirección.
+	 * Nombre propuesto en S-014.
+	 */
+	WardenTaunt,
+	/** Un asiento queda Marcado (R-EFE-8): Value la ronda en que caduca, OtherSeat quien lo señaló o INDEX_NONE. S-014. */
+	Marked,
+	/** Se cobra una marca (R-EFE-8): Seat quien la cobra y gana un turno extra, OtherSeat el Marcado. S-014. */
+	MarkCollected,
+	/** Una marca caduca sin cobrarse (R-EFE-8): Seat el que estaba Marcado. S-014. */
+	MarkExpired,
+	/** El Brazal del asiento queda revelado, o se prolonga (R-EFE-2): Value la ronda en que se oculta. S-014. */
+	BracerRevealed,
+	/** El Brazal del asiento vuelve a ocultarse al caducar (R-EFE-2). S-014. */
+	BracerHidden,
+	/** Empieza la Noche de los Ecos (R-EFE-18): Value la ronda en que termina por el tope; sin asiento. S-014. */
+	EchoNightBegan,
+	/** Termina la Noche de los Ecos: Detail el motivo (EEchoNightEnd: Ley de Sombras o tope de rondas); sin asiento. S-014. */
+	EchoNightEnded,
+};
+
+/** Por qué termina la Noche de los Ecos (R-EFE-9, R-EFE-18, S-014, nombre propuesto): el Detail del evento EchoNightEnded. */
+UENUM()
+enum class EEchoNightEnd : uint8
+{
+	/** La Ley de Sombras. */
+	ShadowLaw,
+	/** El tope de rondas (FMatchParams::EchoNightMaxRounds): los Ecos vuelven a su hogar, igual que con la Ley. */
+	RoundLimit,
 };
 
 /**
@@ -542,6 +631,14 @@ struct SOULBOUNDCORE_API FMatchEvent
 	 */
 	UPROPERTY()
 	int32 Value = INDEX_NONE;
+
+	/**
+	 * Segundo dato del evento (S-014): en EffectApplied y WardenTaunt, la dirección; en WardenEventStarted, el número de
+	 * opciones; en DilemmaChosen, si la sorteó el Warden; en EchoNightEnded, el motivo. Nunca un asiento. INDEX_NONE en el
+	 * resto. Nombre propuesto en S-014.
+	 */
+	UPROPERTY()
+	int32 Detail = INDEX_NONE;
 };
 
 /** Estado de un asiento (Seat): quien lo ocupe (humano, bot o dummy) decide; el estado es el mismo. */
@@ -603,6 +700,71 @@ struct SOULBOUNDCORE_API FSeatState
 	 */
 	UPROPERTY()
 	int32 DomainId = INDEX_NONE;
+
+	/**
+	 * Ronda (FMatchState::Round) en que caduca su marca (R-EFE-8, S-014): Marcado mientras sea mayor que la ronda en curso;
+	 * 0 si nunca lo estuvo. Solo la escriben las reglas de Match/EffectRules.h. Nombre propuesto en S-014.
+	 */
+	UPROPERTY()
+	int32 MarkedUntilRound = 0;
+
+	/**
+	 * Ronda en que vuelve a ocultarse su Brazal (R-EFE-2, S-014): revelado mientras sea mayor que la ronda en curso; 0 si
+	 * nunca lo estuvo. Solo la escriben las reglas de Match/EffectRules.h. Nombre propuesto en S-014.
+	 */
+	UPROPERTY()
+	int32 RevealedUntilRound = 0;
+};
+
+/**
+ * Evento del Warden en curso (S-014, nombre propuesto): cuál, quién lo dirige, qué opción se aplica y por dónde va. Lo
+ * arranca ApplyEvent y lo lleva la máquina de turnos entre turnos (AdvanceTurn en BetweenTurns); cada elección que haga
+ * falta es la elección pendiente (FMatchState::PendingChoice). Solo lo escriben las reglas de Match/WardenEventRules.h.
+ */
+USTRUCT()
+struct SOULBOUNDCORE_API FCurrentWardenEvent
+{
+	GENERATED_BODY()
+
+	/** Posición del evento en FMatchState::WardenEvents; INDEX_NONE si no hay evento en curso. */
+	UPROPERTY()
+	int32 EventIndex = INDEX_NONE;
+
+	/** Quien lo dirige: el activo o, entre turnos, el último que jugó (R-DIR-1). */
+	UPROPERTY()
+	int32 Director = INDEX_NONE;
+
+	/** Opción que se aplica; INDEX_NONE mientras el dilema espera. */
+	UPROPERTY()
+	int32 Option = INDEX_NONE;
+
+	/** Aplicación de la opción que toca (R-COM-3: en orden). */
+	UPROPERTY()
+	int32 NextApplication = 0;
+
+	/**
+	 * Objetivos de la aplicación en curso que aún tienen que elegir (runa regalada, runa a perder a elección), en orden de
+	 * asiento; el primero tiene la elección abierta.
+	 */
+	UPROPERTY()
+	TArray<int32> PendingTargets;
+
+	/** Si el dilema se resuelve en contra de quien lo dirige (R-COM-2): regalos descartados, daños sobre él, sin elecciones. */
+	UPROPERTY()
+	bool bAgainst = false;
+
+	/**
+	 * Semilla de los sorteos del evento (direcciones al azar, Sello, opción y runa al azar): se saca una vez del sorteo del
+	 * Warden en ApplyEvent; cada sorteo la combina con Draws. Así el evento nunca toca el sorteo de la partida.
+	 */
+	UPROPERTY()
+	int32 Seed = 0;
+
+	/** Sorteos hechos con la semilla. */
+	UPROPERTY()
+	int32 Draws = 0;
+
+	bool IsActive() const { return EventIndex != INDEX_NONE; }
 };
 
 /**
@@ -703,6 +865,42 @@ struct SOULBOUNDCORE_API FMatchState
 	/** Duelo en curso (S-012); sin retador fuera de la fase Duel. */
 	UPROPERTY()
 	FDuelState Duel;
+
+	/**
+	 * Eventos del Warden de la partida (S-014): los de Content/Data/Events/eventos.json, que recibe StartMatch. Vacío en una
+	 * partida sin eventos (la simulación). Nombre del autor (12/10/2026): WardenEvents, para no confundirlo con EventLog.
+	 */
+	UPROPERTY()
+	FWardenEventTable WardenEvents;
+
+	/** Evento del Warden en curso (S-014); sin evento, EventIndex INDEX_NONE. */
+	UPROPERTY()
+	FCurrentWardenEvent CurrentEvent;
+
+	/**
+	 * Ronda (decisión del autor del 10/10/2026: cada vuelta completa del orden de turno): vueltas completas desde el inicio.
+	 * Sube cuando el orden pasa por su primer asiento, juegue o se salte su turno, y nunca con un turno extra. Marcas, Brazales
+	 * revelados y la Noche caducan por ella. Solo la escriben las reglas de Match/TurnRules.h. Nombre propuesto en S-014.
+	 */
+	UPROPERTY()
+	int32 Round = 0;
+
+	/**
+	 * Asiento del último turno empezado (S-014): "el último que jugó", el activo de un evento que llega entre turnos (R-DIR-1).
+	 * INDEX_NONE antes del primer turno. Nombre propuesto en S-014.
+	 */
+	UPROPERTY()
+	int32 LastTurnSeat = INDEX_NONE;
+
+	/**
+	 * Ronda en que termina por el tope la Noche de los Ecos (R-EFE-18, S-014): activa mientras sea mayor que Round; 0 sin
+	 * Noche. Solo la escriben las reglas de Match/EffectRules.h. Nombre propuesto en S-014.
+	 */
+	UPROPERTY()
+	int32 EchoNightUntilRound = 0;
+
+	/** Si la Noche de los Ecos está activa (R-EFE-18). */
+	bool IsEchoNight() const { return EchoNightUntilRound > Round; }
 
 	/**
 	 * Valor base de las semillas de mezcla del trilero (R-ROB-6, S-010): se saca una vez del sorteo de la partida al final

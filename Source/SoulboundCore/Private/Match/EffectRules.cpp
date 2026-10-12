@@ -110,3 +110,34 @@ namespace Soulbound::Rules
 		return EEffectResult::Applied;
 	}
 }
+
+namespace Soulbound::Rules
+{
+	// TODO(R-EFE-0): sin implementar (S-014, tests en rojo).
+	bool IsMarked(const FMatchState& State, int32 Seat) { return false; }
+	bool IsBracerRevealed(const FMatchState& State, int32 Seat) { return false; }
+	EEffectResult CanRevealBracer(const FMatchState& State, int32 Seat) { return EEffectResult::InvalidSeat; }
+	EEffectResult RevealBracer(FMatchState& State, int32 Seat, double NowSeconds) { return EEffectResult::InvalidSeat; }
+	EEffectResult CanChangeTurns(const FMatchState& State, int32 Seat) { return EEffectResult::InvalidSeat; }
+	EEffectResult LoseTurn(FMatchState& State, int32 Seat, int32 Count, double NowSeconds) { return EEffectResult::InvalidSeat; }
+	EEffectResult ExtraTurn(FMatchState& State, int32 Seat, int32 Count, double NowSeconds) { return EEffectResult::InvalidSeat; }
+	TArray<int32> SealableTiles(const FMatchState& State) { return {}; }
+	EEffectResult PlaceSeal(FMatchState& State, double NowSeconds, FRandomStream& Random) { return EEffectResult::NoValidTile; }
+	int32 SealAgainstRivalTile(const FMatchState& State, int32 Rival) { return INDEX_NONE; }
+	EEffectResult CanSealAgainstRival(const FMatchState& State, int32 Rival) { return EEffectResult::InvalidSeat; }
+	EEffectResult SealAgainstRival(FMatchState& State, int32 Rival, double NowSeconds) { return EEffectResult::InvalidSeat; }
+	EEffectResult CanMark(const FMatchState& State, int32 Seat, int32 Director) { return EEffectResult::InvalidSeat; }
+	EEffectResult Mark(FMatchState& State, int32 Seat, int32 Director, int32 Pointer, double NowSeconds) { return EEffectResult::InvalidSeat; }
+	bool CollectMark(FMatchState& State, int32 Collector, int32 Marked, double NowSeconds) { return false; }
+	EEffectResult CanShadowLaw(const FMatchState& State) { return EEffectResult::NoEchoes; }
+	EEffectResult ShadowLaw(FMatchState& State, double NowSeconds) { return EEffectResult::NoEchoes; }
+	EEffectResult CanEchoNight(const FMatchState& State) { return EEffectResult::NoEchoes; }
+	EEffectResult EchoNight(FMatchState& State, double NowSeconds) { return EEffectResult::NoEchoes; }
+	TArray<int32> LoseRuneOptions(const FMatchState& State, int32 Seat) { return {}; }
+	EEffectResult CanLoseRune(const FMatchState& State, int32 Seat) { return EEffectResult::InvalidSeat; }
+	EEffectResult LoseRune(FMatchState& State, int32 Seat, int32 RuneType, double NowSeconds, FRandomStream& Random) { return EEffectResult::InvalidSeat; }
+	TArray<int32> GiftRuneOptions(const FMatchState& State) { return {}; }
+	EEffectResult CanGiftRune(const FMatchState& State, int32 Seat) { return EEffectResult::InvalidSeat; }
+	EEffectResult GiftRune(FMatchState& State, int32 Seat, int32 RuneType, double NowSeconds) { return EEffectResult::InvalidSeat; }
+	void StartRound(FMatchState& State, double NowSeconds) {}
+}
