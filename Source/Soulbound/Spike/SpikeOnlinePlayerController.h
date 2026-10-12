@@ -111,6 +111,17 @@ public:
 	UFUNCTION(Exec)
 	void SbSendHome(FString Seat);
 
+	/**
+	 * SbEvent <id>: lanza el evento del Warden con ese identificador de eventos.json, como entrega directa y entre turnos
+	 * (S-014), con el sorteo del Warden. Fuera de BetweenTurns se rechaza: con SbStepMode 1, entre turnos.
+	 */
+	UFUNCTION(Exec)
+	void SbEvent(FString Id);
+
+	/** SbEvents: lista los identificadores de los eventos del Warden cargados, con su texto (S-014). */
+	UFUNCTION(Exec)
+	void SbEvents();
+
 	/** SbHelp: lista los comandos de depuración con su sintaxis. */
 	UFUNCTION(Exec)
 	void SbHelp();

@@ -156,6 +156,14 @@ public:
 
 	/** Vuelta al hogar del asiento Seat (S-013). */
 	FDebugEditOutcome DebugSendHome(int32 Seat);
+
+	/**
+	 * Lanza el evento del Warden EventId como entrega directa, entre turnos (S-014, Soulbound::Debug::LaunchEvent), con el
+	 * sorteo del Warden (WardenRandom: el anfitrión del Warden pasa el suyo). Si la partida estaba detenida en el paso a paso
+	 * y el evento espera una elección, el reloj se reanuda sin conceder turno: las elecciones del evento tienen plazo, y la
+	 * partida vuelve a detenerse al acabar el evento, antes del siguiente turno.
+	 */
+	FDebugEditOutcome DebugLaunchEvent(const FString& EventId, FRandomStream& WardenRandom);
 #endif
 
 	/** Se lanza tras cada cambio del estado. */
@@ -172,6 +180,10 @@ public:
 	/** Ruta de los Elegidos, relativa a Content/ (S-008). */
 	UPROPERTY(Config)
 	FString ElectsRelativePath = TEXT("Data/Elects/elegidos.json");
+
+	/** Ruta de los eventos del Warden, relativa a Content/ (S-014). */
+	UPROPERTY(Config)
+	FString WardenEventsRelativePath = TEXT("Data/Events/eventos.json");
 
 	/** Semilla de la partida. Valor inicial -1: aleatoria. Un valor de 0 en adelante la fija para repetir una partida. */
 	UPROPERTY(Config)

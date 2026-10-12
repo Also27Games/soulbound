@@ -136,8 +136,54 @@ namespace
 		case EChoiceKind::SafeRune: return FString::Printf(TEXT("D%d"), Choice.Options[Index]);
 		case EChoiceKind::ShellPick: return FString::Printf(TEXT("esfera %d"), Index + 1);
 		case EChoiceKind::Deflection: return TEXT("usar Desvío");
+		// S-014: las de los eventos del Warden. El dilema enseña lo que hace cada opción.
+		case EChoiceKind::Dilemma:
+		{
+			const int32 EventIndex = State.CurrentEvent.EventIndex;
+			const FWardenEventDef* Def = State.WardenEvents.Events.IsValidIndex(EventIndex) ? &State.WardenEvents.Events[EventIndex] : nullptr;
+			return Def && Def->Options.IsValidIndex(Choice.Options[Index]) ? Soulbound::Presentation::DescribeOption(Def->Options[Choice.Options[Index]])
+				: FString::Printf(TEXT("opción %d"), Index + 1);
+		}
+		case EChoiceKind::ChosenRival: return FString::Printf(TEXT("asiento %d"), Choice.Options[Index]);
+		case EChoiceKind::GiftRune:
+		case EChoiceKind::LoseRune: return FString::Printf(TEXT("D%d"), Choice.Options[Index]);
 		default: return FString::FromInt(Choice.AnswerAt(Index));
 		}
+	}
+
+	/**
+	 * Estados del asiento Seat que dejan los efectos del Warden (S-014): Marcado y Brazal revelado, con la ronda en que
+	 * caducan, para la leyenda de asientos. Vacío si no tiene ninguno. Solo lee el estado.
+	 */
+	FString EffectStatusText(const FMatchState& State, int32 Seat)
+	{
+		FString Text;
+		if (Soulbound::Rules::IsMarked(State, Seat))
+		{
+			Text += FString::Printf(TEXT(" | MARCADO hasta la ronda %d"), State.Seats[Seat].MarkedUntilRound);
+		}
+		if (Soulbound::Rules::IsBracerRevealed(State, Seat))
+		{
+			Text += FString::Printf(TEXT(" | BRAZAL REVELADO hasta la ronda %d"), State.Seats[Seat].RevealedUntilRound);
+		}
+		return Text;
+	}
+
+	/**
+	 * Línea del evento del Warden en curso (S-014): su texto y quién lo dirige; si es un dilema que espera, lo dice (las
+	 * opciones, numeradas, van en la línea de petición). Vacía sin evento. Solo lee el estado.
+	 */
+	FString WardenEventLine(const FMatchState& State)
+	{
+		const FCurrentWardenEvent& Event = State.CurrentEvent;
+		if (!Event.IsActive() || !State.WardenEvents.Events.IsValidIndex(Event.EventIndex))
+		{
+			return FString();
+		}
+		const FWardenEventDef& Def = State.WardenEvents.Events[Event.EventIndex];
+		const TCHAR* Kind = Def.IsDilemma() ? (Event.Option == INDEX_NONE ? TEXT("DILEMA, elige una opción") : TEXT("DILEMA")) : TEXT("DECRETO");
+		const FString Against = Event.bAgainst ? FString(TEXT(" | resuelto EN SU CONTRA")) : FString();
+		return FString::Printf(TEXT("EL WARDEN (%s): \"%s\" | dirige el asiento %d%s"), Kind, *Def.Text, Event.Director, *Against);
 	}
 
 	/**
@@ -170,7 +216,11 @@ namespace
 			return bHuman ? FString::Printf(TEXT("REPETIR: [R] repite la tirada (una vez por turno), o clic en una casilla blanca | %s"), *Left)
 				: FString::Printf(TEXT("el asiento %d decide si repite la tirada | %s"), Choice.Seat, *Left);
 		}
-		const TCHAR* What = Choice.Kind == EChoiceKind::DiceCount ? TEXT("dados")
+		const TCHAR* What = Choice.Kind == EChoiceKind::Dilemma ? TEXT("una opción del dilema")
+			: Choice.Kind == EChoiceKind::ChosenRival ? TEXT("a quién señalas")
+			: Choice.Kind == EChoiceKind::GiftRune ? TEXT("qué runa te regala el Warden")
+			: Choice.Kind == EChoiceKind::LoseRune ? TEXT("qué runa pierdes")
+			: Choice.Kind == EChoiceKind::DiceCount ? TEXT("dados")
 			: Choice.Kind == EChoiceKind::PlanarJump ? TEXT("salto planar")
 			: Choice.Kind == EChoiceKind::SafeRune ? TEXT("la runa que Koschei pone a salvo del trilero")
 			: Choice.Kind == EChoiceKind::ShellPick ? TEXT("esfera")
@@ -834,7 +884,8 @@ void ABoardViewActor::BuildOverlay()
 			const FString DomainName = DomainTitle(HostPtr->GetState(), SeatState.DomainId);
 			// S-013: la ficha desterrada no está en el tablero; aquí se dice dónde está.
 			const FString Void = VoidText(HostPtr->GetState(), Seat);
-			const FString InVoid = Void.IsEmpty() ? FString() : TEXT(" | ") + Void;
+			// S-014: Marcado y Brazal revelado van detrás del Vacío.
+			const FString InVoid = (Void.IsEmpty() ? FString() : TEXT(" | ") + Void) + EffectStatusText(HostPtr->GetState(), Seat);
 			if (SeatState.Role == ESeatRole::Elect)
 			{
 				return FString::Printf(TEXT("%d (%s): ELEGIDO, D%d %s%s"), Seat, Who, SeatState.DomainId, *DomainName, *InVoid);
@@ -912,7 +963,7 @@ void ABoardViewActor::RefreshChronicle(const FMatchState& State)
 		case Soulbound::Presentation::EEventSource::Debug: Color = DebugLineColor; break;
 		case Soulbound::Presentation::EEventSource::Seat: break;
 		}
-		Lines.Add({FString::Printf(TEXT("[%s] %s"), *Stamp(Event.ClockSeconds), *Soulbound::Presentation::DescribeEvent(Event, State.Board)), Color});
+		Lines.Add({FString::Printf(TEXT("[%s] %s"), *Stamp(Event.ClockSeconds), *Soulbound::Presentation::DescribeEvent(Event, State.Board, &State.WardenEvents)), Color});
 	}
 	ChroniclePanel->SetLines(Lines);
 }
@@ -1149,6 +1200,20 @@ void ABoardViewActor::TickHud()
 		ShowText(9, FColor::Magenta, ShellGameLine(State));
 	}
 
+	// Evento del Warden (S-014): su texto mientras se resuelve, entre turnos; las opciones del dilema van en la petición.
+	const FString EventText = State.IsMatchOver() ? FString() : WardenEventLine(State);
+	if (!EventText.IsEmpty())
+	{
+		ShowText(11, FColor::Orange, EventText);
+	}
+
+	// Noche de los Ecos (S-014): mientras dura, bien visible.
+	if (State.IsEchoNight() && !State.IsMatchOver())
+	{
+		ShowText(12, FColor(150, 120, 255), FString::Printf(TEXT("NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio (como mucho hasta la ronda %d)"),
+			State.EchoNightUntilRound));
+	}
+
 	// Duelo (S-012): el duelo en curso y, resuelto, su resultado mientras dura el turno.
 	const FString DuelText = State.IsMatchOver() ? FString() : DuelLine(State, HostPtr->GetHumanSeat());
 	if (!DuelText.IsEmpty())
@@ -1175,7 +1240,8 @@ void ABoardViewActor::TickHud()
 		? FString(TEXT("Warden: aun no ha dicho nada"))
 		: FString::Printf(TEXT("Warden: \"%s\""), *HostPtr->GetLastWardenLine()));
 
-	ShowText(5, FColor::Silver, FString::Printf(TEXT("Semilla: %d (fijala con FixedSeed para repetir la partida) | t=%.0f s"), HostPtr->GetSeed(), State.ClockSeconds));
+	ShowText(5, FColor::Silver, FString::Printf(TEXT("Semilla: %d (fijala con FixedSeed para repetir la partida) | t=%.0f s | ronda %d"), HostPtr->GetSeed(), State.ClockSeconds,
+		State.Round));
 
 	// Carrera por el vínculo (S-006): tiempo que queda, fin, o victoria del Warden; y el rol y el hogar de cada asiento.
 	FString Race;
@@ -1209,7 +1275,7 @@ void ABoardViewActor::TickHud()
 			: SeatState.DomainId == INDEX_NONE
 				? FString::Printf(TEXT("%d Eco"), Seat)
 				: FString::Printf(TEXT("%d Eco, hogar: Nicho del Dominio %d"), Seat, SeatState.DomainId))
-			+ (Void.IsEmpty() ? FString() : TEXT(", ") + Void));
+			+ (Void.IsEmpty() ? FString() : TEXT(", ") + Void) + EffectStatusText(State, Seat));
 	}
 	ShowText(7, FColor::Cyan, FString::Printf(TEXT("Asientos: %s"), *FString::Join(Roles, TEXT(" | "))));
 }
