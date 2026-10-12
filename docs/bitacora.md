@@ -4,6 +4,33 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo de la story; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera.
 
+## S-014. Catálogo de efectos y eventos (12/10/2026, rama `main`)
+
+- **Qué se pidió**: el repertorio del Warden. Un catálogo cerrado de 18 efectos con gravedad y direcciones (R-EFE-0), de los que se aplican trece. Las ocho direcciones con el Líder (R-DIR-1), el filtro de objetivos válidos con burla (R-DIR-2, 3) y las tres desatenciones con insolencia (R-DIR-4). Decretos y dilemas escritos en `eventos.json` (R-COM-1 a 3), resueltos entre turnos por la máquina de turnos, con rondas, Marcado, Brazal revelado y Noche de los Ecos. También el registro, `SbEvent` y `SbEvents`, y la vista.
+- **Qué se decidió**: el autor fijó en el plan (12/10) los dos ejemplos que faltaban (`duelo-por-todo`, con la variante `one` o `all`; `liberacion-y-a-casa`), el reloj corto en datos (6 s) y el Sello sin dirección, con la Liberación a "todos los del Vacío". Decidió también:
+  - el turno extra concedido entre turnos se juega tras el próximo turno, también el de la marca cobrada;
+  - el dilema agotado descarta los regalos, aplica los daños con asiento sobre el activo, aplica los daños sin asiento tal cual y no abre ninguna elección dentro;
+  - la tabla de eventos va en el estado (`WardenEvents`, no `Events`);
+  - un evento con un efecto de otra story se rechaza entero;
+  - al tope de rondas de la Noche, los Ecos vuelven a casa sin evento de Ley de Sombras;
+  - el Líder sin runas, al pie de la letra (empatan todos).
+  - Quitó una regla que el agente había propuesto: rechazar los dilemas entregados por el Oráculo.
+  - Las rondas se cuentan al pasar el orden por su primer asiento.
+  - El Marcado lo cobra cualquier ganador de un duelo y el robo solo si la runa pasa al ladrón.
+- **Cómo funciona**: el catálogo es una tabla del motor (`EffectCatalog`). `ApplyEvent` saca una semilla del sorteo del Warden, anota quién dirige el evento (el último que jugó) y aplica el decreto, o abre el dilema con su reloj (base más incremento por opción). Cada aplicación se valida por separado: un rival señalado abre `ChosenRival`; la runa regalada y la runa a perder a elección dejan sus objetivos en cola; los efectos globales (Sello, Ley, Noche, Liberación) van una vez, y si no hay objetivo, `WardenTaunt`. En `BetweenTurns` la máquina lleva el evento (`AdvanceWardenEvent`) y no empieza turno hasta que termina; agotar una elección deja `WardenIgnored` y sube la insolencia. Las rondas suben en `MoveToNextSeat`, y `StartRound` hace caducar marcas, Brazales y Noche. La marca se cobra en `ApplyExpel`, `ResolveShellPick`, `ResolveDuel` y en la Vuelta al hogar o el Vacío de un rival señalado. La Noche quita el confinamiento en `MakeMoverTraits`. En juego, `SbEvent` pasa por el anfitrión del Warden (su sorteo), y el paso a paso no detiene la partida mientras dura un evento.
+- **Dudas y resolución**: las nueve del plan, resueltas por el autor (arriba). El GDD 05 no está en el checkout. Durante la implementación, ninguna parada.
+- **Tests**: 36 nuevos (18 de `Effects`, 16 de `WardenEvents`, `Directions` y `Turns.RondaPorVueltaDelOrden`, `Debug.LanzarEvento` y `PasoAPaso.EventoDelWardenEnCurso`) y los dos de parámetros ampliados con los seis nuevos. Vistos en rojo con las firmas vacías: 38 fallos, ninguno de un test anterior. 192 en verde por consola. La crónica de la simulación no cambia (1386 líneas), porque nadie lanza eventos.
+- **Pendiente**: los tres criterios manuales de PIE (decreto, dilema con y sin respuesta, Marcado y Noche), para el autor con captura; el agente no pudo verlos porque el MCP de Unreal no conectó. Quedan fuera:
+  - Alto, Consulta forzada, Prueba del Warden, Robo decretado y Duelo forzado, con la elección de dos rivales (S-015, S-016);
+  - la entrega por el Oráculo y las interrupciones (`TODO(R-TUR-11)`);
+  - el Sello con criterio del cerebro (`TODO(R-EFE-6)`).
+  - Los textos de cinco eventos los redactó el agente y los revisa el autor.
+- **Proceso**: agente Opus 5.5 en una conversación nueva; tiempo: por anotar. Preguntas que pararon al agente: nueve, en una parada (el plan). Correcciones tras fusionar: por anotar. Build y tests:
+  - Rojo: compiló a la primera, pero un test nuevo indexaba una lista vacía y tumbaba el comandlet; se protegió.
+  - Motor: compiló a la primera.
+  - Tests: fallaron dos por errores del propio test. A `TresDesatenciones` le faltaba un rival válido. `SelloContraRivalEnSuCamino` partía de un Nicho, donde ninguna casilla del ramal se puede sellar, así que el motor caía bien en "la más cercana"; ahora parte del Altar.
+  - Vista y Shipping: compilaron a la primera.
+
 ## S-013. El Vacío (08/10/2026, rama `main`)
 
 - **Qué se pidió**: el castigo mayor entero, con las piezas que ya había: entrar en el Vacío (la ficha sale del tablero, R-VAC-1, R-TAB-24) e inmunidad dentro (R-INT-3, R-DIR-2); salir al empezar cada turno propio en el orden de R-VAC-2 (Eco sale sin jugar, Desvío, escalera de escape de datos, Mictlantecuhtli), siempre al hogar (R-VAC-3) y con la cuenta desde cero al volver a entrar (R-VAC-4); Liberación (R-VAC-5); destierro como función con el parámetro de la Furia (R-CAR-7); Vuelta al hogar (R-EFE-4); registro, comandos `SbBanish`, `SbRelease` y `SbSendHome`, y vista.
