@@ -42,6 +42,8 @@ enum class EEffectResult : uint8
 	InvalidRune,
 	/** El efecto se aplica en su story: Alto, Consulta forzada, Prueba del Warden, Robo decretado, Duelo forzado (S-014). */
 	NotImplemented,
+	/** La Noche de los Ecos con otra Noche activa (R-EFE-18; decisión del autor del 14/10/2026). */
+	AlreadyActive,
 };
 
 /**
@@ -198,13 +200,16 @@ namespace Soulbound::Rules
 	 */
 	SOULBOUNDCORE_API EEffectResult ShadowLaw(FMatchState& State, double NowSeconds);
 
-	/** Si vale la Noche de los Ecos (R-EFE-18): BondRace durante la carrera; NoEchoes sin ningún Eco; Applied si vale. S-014. */
+	/**
+	 * Si vale la Noche de los Ecos (R-EFE-18): BondRace durante la carrera; NoEchoes sin ningún Eco; AlreadyActive con otra
+	 * Noche activa (decisión del autor del 14/10/2026: el motor la rechaza y el cerebro del Warden no la decreta); Applied si vale. S-014.
+	 */
 	SOULBOUNDCORE_API EEffectResult CanEchoNight(const FMatchState& State);
 
 	/**
 	 * Noche de los Ecos (glosario `EchoNight`, R-EFE-18): los Ecos transitan por cualquier Dominio (permiso temporal de
 	 * R-TAB-20, en MakeMoverTraits) y pueden robar allí, pero no obtienen runas en Fuentes con dueño (R-ECO-3). Dura hasta la
-	 * Ley de Sombras o FMatchParams::EchoNightMaxRounds rondas; decretarla con la Noche activa reinicia el tope. Registra
+	 * Ley de Sombras o FMatchParams::EchoNightMaxRounds rondas; con la Noche activa no vale (AlreadyActive). Registra
 	 * EchoNightBegan. Devuelve CanEchoNight; si no es Applied, no cambia nada. S-014.
 	 */
 	SOULBOUNDCORE_API EEffectResult EchoNight(FMatchState& State, double NowSeconds);

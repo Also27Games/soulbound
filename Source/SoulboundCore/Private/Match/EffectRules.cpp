@@ -460,6 +460,12 @@ namespace Soulbound::Rules
 		{
 			return EEffectResult::BondRace;
 		}
+		// Decisión del autor del 14/10/2026: una Noche sobre otra no tiene sentido; el motor la rechaza y el cerebro del Warden
+		// (S-016) no la decreta. Principio del autor: el Warden nunca parece equivocarse; la burla es la red de seguridad del motor.
+		if (State.IsEchoNight())
+		{
+			return EEffectResult::AlreadyActive;
+		}
 		const bool bEchoes = State.Seats.ContainsByPredicate([](const FSeatState& Seat) { return Seat.Role == ESeatRole::LostEcho; });
 		return bEchoes ? EEffectResult::Applied : EEffectResult::NoEchoes;
 	}
@@ -471,8 +477,7 @@ namespace Soulbound::Rules
 		{
 			return Result;
 		}
-		// R-EFE-18: hasta la Ley de Sombras o el tope de rondas. Decretarla con la Noche activa reinicia el tope, como re-marcar.
-		// TODO(R-EFE-18): decisión no solicitada, pendiente del autor: si una Noche sobre otra reinicia el tope o es burla.
+		// R-EFE-18: hasta la Ley de Sombras o el tope de rondas.
 		State.EchoNightUntilRound = State.Round + State.Params.EchoNightMaxRounds;
 		LogEvent(State, EMatchEventType::EchoNightBegan, NowSeconds, INDEX_NONE, State.EchoNightUntilRound);
 		return EEffectResult::Applied;

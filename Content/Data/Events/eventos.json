@@ -16,7 +16,7 @@
      "options": [
        [{"effect": "ForcedDuel", "target": "TwoChosenRivals", "variant": "all"}]
      ]},
-    {"id": "noche", "text": "Es de noche: los Ecos caminan por donde quieran",
+    {"id": "noche", "text": "Ha llegado la noche",
      "delivery": "direct",
      "options": [
        [{"effect": "EchoNight", "target": "Echoes"}]
@@ -26,7 +26,7 @@
      "options": [
        [{"effect": "ReleaseVoid", "target": "Everyone"}, {"effect": "SendHome", "target": "Everyone"}]
      ]},
-    {"id": "lider-ensena-y-pierde", "text": "El líder enseña su Brazal y pierde una runa",
+    {"id": "lider-ensena-y-pierde", "text": "Que el líder enseñe lo que lleva y pierda una",
      "delivery": "direct",
      "options": [
        [{"effect": "RevealBracer", "target": "Leader"}, {"effect": "LoseRune", "target": "Leader", "variant": "random"}]

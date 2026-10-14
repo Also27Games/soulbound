@@ -265,6 +265,7 @@ namespace Soulbound::Presentation
 		case EEffectResult::SelfTarget: return TEXT("nadie se marca a sí mismo");
 		case EEffectResult::InvalidRune: return TEXT("ese tipo de runa no es una opción");
 		case EEffectResult::NotImplemented: return TEXT("ese efecto llega en otra story");
+		case EEffectResult::AlreadyActive: return TEXT("ya es de noche");
 		}
 		return TEXT("rechazado");
 	}

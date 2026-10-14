@@ -763,6 +763,16 @@ bool FEffectsNocheYLeyTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Queda EchoNightBegan"), F.Since(From, EMatchEventType::EchoNightBegan).Num(), 1);
 	TestFalse(TEXT("El Eco no está confinado"), Soulbound::Rules::MakeMoverTraits(F.State, EchoA).bConfinedToForgotten);
 
+	// Decisión del autor del 14/10/2026: una Noche sobre otra no vale (AlreadyActive): burla, sin segundo EchoNightBegan ni cambio del tope.
+	const int32 UntilRound = F.State.EchoNightUntilRound;
+	From = F.State.EventLog.Num();
+	F.Director(Fenrir);
+	F.Launch(TEXT("noche"));
+	TestEqual(TEXT("Con la Noche activa no vale"), AsInt(Soulbound::Rules::CanEchoNight(F.State)), AsInt(EEffectResult::AlreadyActive));
+	TestEqual(TEXT("Una Noche sobre otra es burla"), F.Since(From, EMatchEventType::WardenTaunt).Num(), 1);
+	TestEqual(TEXT("Sin segundo EchoNightBegan"), F.Since(From, EMatchEventType::EchoNightBegan).Num(), 0);
+	TestEqual(TEXT("El tope no cambia"), F.State.EchoNightUntilRound, UntilRound);
+
 	// Llega a la Fuente de un Dominio con dueño: no obtiene runa.
 	From = F.State.EventLog.Num();
 	TestTrue(TEXT("El Eco llega a la Fuente de Fenrir"), F.Land(EchoA, F.SourceOf(FEventFixture::FenrirDomain)));
