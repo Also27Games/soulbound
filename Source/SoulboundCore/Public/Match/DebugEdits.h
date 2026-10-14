@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Board/SealRules.h"
 #include "Match/EffectRules.h"
+#include "Match/WardenEventRules.h"
 
 struct FMatchState;
 struct FRandomStream;
@@ -28,6 +29,8 @@ enum class EDebugEditKind : uint8
 	ReleaseVoid,
 	/** Vuelta al hogar de un asiento (S-013, SbSendHome). */
 	SendHome,
+	/** Lanzar un evento del Warden (S-014, SbEvent). */
+	LaunchEvent,
 };
 
 /** Resultado de una edición de depuración (S-011, nombre propuesto). Solo Applied cambia el estado. */
@@ -148,4 +151,11 @@ namespace Soulbound::Debug
 
 	/** Vuelta al hogar del asiento Seat con la regla del efecto (SendHome, S-013): acepta y rechaza lo que CanSendHome. */
 	SOULBOUNDCORE_API EEffectResult SendHomeEdit(FMatchState& State, int32 Seat, double NowSeconds);
+
+	/**
+	 * Lanza el evento del Warden EventId como entrega directa, entre turnos, con la regla de los eventos (ApplyEvent, S-014):
+	 * acepta y rechaza lo que CanApplyEvent, con su mismo motivo. Aplicada, el evento de depuración (sin asiento) va antes que
+	 * los del evento. Random: el sorteo del Warden, nunca el de la partida.
+	 */
+	SOULBOUNDCORE_API EWardenEventStart LaunchEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random);
 }

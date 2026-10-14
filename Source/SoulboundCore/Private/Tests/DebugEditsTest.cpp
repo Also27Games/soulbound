@@ -11,6 +11,7 @@
 #include "Match/MatchStart.h"
 #include "Match/RuneRules.h"
 #include "Match/TurnRules.h"
+#include "Match/WardenEventRules.h"
 #include "Math/RandomStream.h"
 #include "Misc/AutomationTest.h"
 #include "MatchTestSetup.h"
@@ -685,6 +686,49 @@ bool FDebugVoidEffectsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Mandar a casa deja el estado de la regla"), SameState(WithoutDebugEvents(HomeMirror), WithoutDebugEvents(F.State)));
 	TestEqual(TEXT("El último de depuración es la Vuelta al hogar"), EventsOfType(F.State, EMatchEventType::DebugEdit).Last().Value, static_cast<int32>(EDebugEditKind::SendHome));
 	TestEqual(TEXT("Mandar a casa a quien ya está en ella: AlreadyHome"), Soulbound::Debug::SendHomeEdit(F.State, 2, 37.0), EEffectResult::AlreadyHome);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDebugLaunchEventTest,
+	"Soulbound.Core.Debug.LanzarEvento",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FDebugLaunchEventTest::RunTest(const FString& Parameters)
+{
+	// S-014, herramienta SbEvent (patrón de S-011): la edición lanza el evento con la regla (ApplyEvent) y deja el mismo estado
+	// que ella, con su evento de depuración, sin asiento, justo antes de los del evento; un rechazo devuelve el motivo de la
+	// regla y no deja nada. El sorteo es el del Warden, nunca el de la partida.
+	FDebugFixture F;
+	if (!F.Start(*this))
+	{
+		return false;
+	}
+	FWardenEventDef& Event = F.State.WardenEvents.Events.AddDefaulted_GetRef();
+	Event.Id = TEXT("extra");
+	Event.Text = TEXT("Un turno extra");
+	FEffectApplication Extra;
+	Extra.Effect = EEffect::ExtraTurn;
+	Extra.Target = EEffectTarget::ActivePlayer;
+	Event.Options.AddDefaulted_GetRef().Applications.Add(Extra);
+
+	const FMatchState Before = F.State;
+	FRandomStream Warden(11);
+	TestEqual(TEXT("Un id que no existe: el motivo de la regla"), Soulbound::Debug::LaunchEvent(F.State, TEXT("no-existe"), 10.0, Warden), EWardenEventStart::UnknownEvent);
+	TestTrue(TEXT("... y no deja nada"), SameState(Before, F.State));
+
+	FMatchState Mirror = F.State;
+	FRandomStream MirrorWarden(11);
+	TestEqual(TEXT("La regla lo lanza en el espejo"), Soulbound::Rules::ApplyEvent(Mirror, TEXT("extra"), 11.0, MirrorWarden), EWardenEventStart::Started);
+	const int32 From = F.State.EventLog.Num();
+	TestEqual(TEXT("Lanzar se aplica"), Soulbound::Debug::LaunchEvent(F.State, TEXT("extra"), 11.0, Warden), EWardenEventStart::Started);
+	TestTrue(TEXT("Deja el estado de la regla"), SameState(WithoutDebugEvents(Mirror), WithoutDebugEvents(F.State)));
+	if (TestTrue(TEXT("Deja eventos"), F.State.EventLog.Num() > From + 1))
+	{
+		const FMatchEvent& Edit = F.State.EventLog[From];
+		TestTrue(TEXT("Primero el de depuración, sin asiento"), Edit.Type == EMatchEventType::DebugEdit && Edit.Value == static_cast<int32>(EDebugEditKind::LaunchEvent)
+			&& Edit.Seat == INDEX_NONE);
+		TestTrue(TEXT("Después el del evento"), F.State.EventLog[From + 1].Type == EMatchEventType::WardenEventStarted);
+	}
 	return true;
 }
 

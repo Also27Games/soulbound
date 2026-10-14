@@ -2,6 +2,7 @@
 
 #include "Board/BoardLoader.h"
 #include "Elects/ElectsLoader.h"
+#include "Match/WardenEvents.h"
 #include "Math/RandomStream.h"
 
 namespace
@@ -27,7 +28,8 @@ namespace
 
 namespace Soulbound::Rules
 {
-	FMatchStartResult StartMatch(const FBoardState& Board, const FMatchParams& Params, const FElectsTable& Elects, int32 PlayerCount, FRandomStream& Random)
+	FMatchStartResult StartMatch(const FBoardState& Board, const FMatchParams& Params, const FElectsTable& Elects, int32 PlayerCount, FRandomStream& Random,
+		const FWardenEventTable& WardenEvents)
 	{
 		using Soulbound::Board::DomainCount;
 
@@ -51,12 +53,19 @@ namespace Soulbound::Rules
 		{
 			return Fail(EMatchStartError::InvalidElects, TEXT("Los Elegidos no son válidos: ") + ElectsValidation.Message);
 		}
+		const FWardenEventsLoadResult EventsValidation = ValidateWardenEvents(WardenEvents);
+		if (!EventsValidation.IsSuccess())
+		{
+			return Fail(EMatchStartError::InvalidWardenEvents, TEXT("Los eventos del Warden no son válidos: ") + EventsValidation.Message);
+		}
 
 		FMatchStartResult Result;
 		FMatchState& State = Result.State;
 		State.Board = Board;
 		State.Params = Params;
 		State.Elects = Elects;
+		// S-014: los eventos del Warden viajan en el estado, como los Elegidos; sin ellos, la partida no tiene eventos.
+		State.WardenEvents = WardenEvents;
 
 		// R-TAB-5: una bolsa con tantos efectos de cada tipo como piden los datos, barajada y repartida a los Nodos
 		// en orden de casilla. ValidateBoard garantiza que hay tantos Nodos como efectos en la bolsa.

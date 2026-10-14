@@ -17,6 +17,8 @@ enum class EMatchStartError : uint8
 	InvalidMatchParams,
 	/** Los Elegidos no pasan ValidateElects (S-008). */
 	InvalidElects,
+	/** Los eventos del Warden no pasan ValidateWardenEvents (S-014). */
+	InvalidWardenEvents,
 };
 
 /** Resultado de iniciar una partida: o éxito con el estado inicial, o fallo con un motivo legible. */
@@ -46,10 +48,14 @@ namespace Soulbound::Rules
 	 *  - R-ELE-1: los seis Elegidos viajan en el estado (FMatchState::Elects).
 	 *  - R-ROB-6 (S-010): saca del sorteo, el último, el valor base de las semillas de mezcla del trilero
 	 *    (FMatchState::ShellSeedBase). Desde S-010 los dados de cada semilla no son los de antes.
+	 *  - S-014: los eventos del Warden viajan en el estado (FMatchState::WardenEvents), sin tocar el sorteo.
 	 * Board: tablero válido (se comprueba con ValidateBoard). Params: parámetros de partida válidos (se comprueban con
 	 * ValidateMatchParams). Elects: los seis Elegidos, válidos (ValidateElects); no hay modo sin ellos. PlayerCount: asientos ocupados por humanos o bots, de 1 a 4; en Fase 1 los bots rellenan
-	 * los huecos y siempre es 4. Random: sorteo; misma semilla, mismo resultado.
-	 * Devuelve el estado inicial, o InvalidPlayerCount, InvalidBoard, InvalidMatchParams o InvalidElects sin tocar Random.
+	 * los huecos y siempre es 4. Random: sorteo; misma semilla, mismo resultado. WardenEvents: los eventos del Warden, válidos
+	 * (ValidateWardenEvents); opcional (S-014): sin ellos la partida no tiene eventos que lanzar, como en la simulación.
+	 * Devuelve el estado inicial, o InvalidPlayerCount, InvalidBoard, InvalidMatchParams, InvalidElects o InvalidWardenEvents
+	 * sin tocar Random.
 	 */
-	SOULBOUNDCORE_API FMatchStartResult StartMatch(const FBoardState& Board, const FMatchParams& Params, const FElectsTable& Elects, int32 PlayerCount, FRandomStream& Random);
+	SOULBOUNDCORE_API FMatchStartResult StartMatch(const FBoardState& Board, const FMatchParams& Params, const FElectsTable& Elects, int32 PlayerCount, FRandomStream& Random,
+		const FWardenEventTable& WardenEvents = FWardenEventTable());
 }

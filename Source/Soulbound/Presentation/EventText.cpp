@@ -12,7 +12,7 @@ namespace Soulbound::Presentation
 		return Tile.Type == ETileType::Altar ? FString(TEXT("ALTAR")) : FString::Printf(TEXT("D%d·%d"), Tile.DomainId, Tile.TileId);
 	}
 
-	FString DescribeEvent(const FMatchEvent& Event, const FBoardState& Board)
+	FString DescribeEvent(const FMatchEvent& Event, const FBoardState& Board, const FWardenEventTable* WardenEvents)
 	{
 		switch (Event.Type)
 		{
@@ -85,6 +85,45 @@ namespace Soulbound::Presentation
 			return FString::Printf(TEXT("el asiento %d SALE del Vacío %s y vuelve a su hogar"), Event.Seat, *VoidExitText(Event.Value));
 		case EMatchEventType::SentHome:
 			return FString::Printf(TEXT("Vuelta al hogar: el asiento %d vuelve a %s"), Event.Seat, *TileShortName(Board, Event.Value));
+		// S-014: los eventos del Warden y sus efectos.
+		case EMatchEventType::WardenEventStarted:
+		{
+			const FWardenEventDef* Def = WardenEvents && WardenEvents->Events.IsValidIndex(Event.Value) ? &WardenEvents->Events[Event.Value] : nullptr;
+			const FString Text = Def ? FString::Printf(TEXT("\"%s\""), *Def->Text) : FString::Printf(TEXT("evento %d"), Event.Value);
+			return Event.Detail > 1 ? FString::Printf(TEXT("EL WARDEN propone un DILEMA al asiento %d: %s (%d opciones)"), Event.Seat, *Text, Event.Detail)
+				: FString::Printf(TEXT("EL WARDEN DECRETA (dirige el asiento %d): %s"), Event.Seat, *Text);
+		}
+		case EMatchEventType::DilemmaChosen:
+			return Event.Detail == 1
+				? FString::Printf(TEXT("el Warden sortea la opción %d del dilema EN CONTRA del asiento %d"), Event.Value + 1, Event.Seat)
+				: FString::Printf(TEXT("el asiento %d elige la opción %d del dilema"), Event.Seat, Event.Value + 1);
+		case EMatchEventType::WardenIgnored:
+			return FString::Printf(TEXT("el asiento %d no contesta a tiempo (%s): sube su INSOLENCIA"), Event.Seat, *ChoiceKindText(Event.Value));
+		case EMatchEventType::EffectApplied:
+		{
+			const FString Target = EffectTargetName(Event.Detail);
+			const FString Pointer = Event.OtherSeat == INDEX_NONE ? FString() : FString::Printf(TEXT(", señalado por el asiento %d"), Event.OtherSeat);
+			return Event.Seat == INDEX_NONE ? FString::Printf(TEXT("EFECTO: %s"), *EffectName(Event.Value))
+				: FString::Printf(TEXT("EFECTO: %s sobre el asiento %d (%s%s)"), *EffectName(Event.Value), Event.Seat, *Target, *Pointer);
+		}
+		case EMatchEventType::WardenTaunt:
+			return FString::Printf(TEXT("BURLA del Warden: %s %s no tiene objetivo válido"), *EffectName(Event.Value), *EffectTargetName(Event.Detail));
+		case EMatchEventType::Marked:
+			return FString::Printf(TEXT("el asiento %d queda MARCADO hasta la ronda %d: quien le perjudique, juega otra vez"), Event.Seat, Event.Value);
+		case EMatchEventType::MarkCollected:
+			return FString::Printf(TEXT("el asiento %d COBRA la marca del asiento %d: gana un turno extra"), Event.Seat, Event.OtherSeat);
+		case EMatchEventType::MarkExpired:
+			return FString::Printf(TEXT("la marca del asiento %d caduca sin cobrarse"), Event.Seat);
+		case EMatchEventType::BracerRevealed:
+			return FString::Printf(TEXT("el Brazal del asiento %d queda REVELADO hasta la ronda %d"), Event.Seat, Event.Value);
+		case EMatchEventType::BracerHidden:
+			return FString::Printf(TEXT("el Brazal del asiento %d vuelve a ocultarse"), Event.Seat);
+		case EMatchEventType::EchoNightBegan:
+			return FString::Printf(TEXT("NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio (como mucho hasta la ronda %d)"), Event.Value);
+		case EMatchEventType::EchoNightEnded:
+			return Event.Detail == static_cast<int32>(EEchoNightEnd::ShadowLaw)
+				? FString(TEXT("LEY DE SOMBRAS: termina la Noche de los Ecos"))
+				: FString(TEXT("termina la Noche de los Ecos por el tope de rondas: los Ecos, a casa"));
 		case EMatchEventType::DebugEdit:
 			return Event.Seat == INDEX_NONE ? FString::Printf(TEXT("EDICIÓN DE DEPURACIÓN: %s"), *DebugKindName(Event.Value))
 				: FString::Printf(TEXT("EDICIÓN DE DEPURACIÓN: %s (asiento %d)"), *DebugKindName(Event.Value), Event.Seat);
@@ -110,8 +149,78 @@ namespace Soulbound::Presentation
 		case EDebugEditKind::Banish: return TEXT("desterrar al Vacío");
 		case EDebugEditKind::ReleaseVoid: return TEXT("Liberación del Vacío");
 		case EDebugEditKind::SendHome: return TEXT("Vuelta al hogar");
+		case EDebugEditKind::LaunchEvent: return TEXT("lanzar un evento del Warden");
 		}
 		return TEXT("edición desconocida");
+	}
+
+	FString EffectName(int32 Effect)
+	{
+		static const TCHAR* const Names[] = {
+			TEXT("Alto"), TEXT("Revelar Brazal"), TEXT("Consulta forzada"), TEXT("Vuelta al hogar"), TEXT("Turno perdido"), TEXT("Sello"),
+			TEXT("Sello contra rival"), TEXT("Marcado"), TEXT("Ley de Sombras"), TEXT("Prueba del Warden"), TEXT("Perder una runa"),
+			TEXT("Robo decretado"), TEXT("Duelo forzado"), TEXT("el Vacío"), TEXT("Turno extra"), TEXT("Runa regalada"), TEXT("Liberación"),
+			TEXT("Noche de los Ecos"),
+		};
+		static_assert(UE_ARRAY_COUNT(Names) == Soulbound::Effects::EffectCount, "un nombre por efecto del catálogo");
+		return Effect >= 0 && Effect < UE_ARRAY_COUNT(Names) ? FString(Names[Effect]) : FString(TEXT("efecto desconocido"));
+	}
+
+	FString EffectTargetName(int32 Target)
+	{
+		switch (static_cast<EEffectTarget>(Target))
+		{
+		case EEffectTarget::ActivePlayer: return TEXT("al activo");
+		case EEffectTarget::ChosenRival: return TEXT("al rival señalado");
+		case EEffectTarget::TwoChosenRivals: return TEXT("a dos rivales señalados");
+		case EEffectTarget::Leader: return TEXT("al líder");
+		case EEffectTarget::NextPlayer: return TEXT("al siguiente");
+		case EEffectTarget::Everyone: return TEXT("a todos");
+		case EEffectTarget::RandomPlayer: return TEXT("al azar");
+		case EEffectTarget::Echoes: return TEXT("a los Ecos");
+		case EEffectTarget::None: return TEXT("");
+		}
+		return TEXT("");
+	}
+
+	FString DescribeApplication(const FEffectApplication& Application)
+	{
+		const FString Amount = Application.Amount > 1 ? FString::Printf(TEXT(" ×%d"), Application.Amount) : FString();
+		const FString Variant = Application.Variant == EEffectVariant::Chosen ? FString(TEXT(" (a elección)"))
+			: Application.Variant == EEffectVariant::AllRunes ? FString(TEXT(" (por todas las runas)")) : FString();
+		const FString Target = EffectTargetName(static_cast<int32>(Application.Target));
+		return EffectName(static_cast<int32>(Application.Effect)) + Amount + Variant + (Target.IsEmpty() ? FString() : TEXT(" ") + Target);
+	}
+
+	FString DescribeOption(const FWardenEventOption& Option)
+	{
+		return FString::JoinBy(Option.Applications, TEXT(" y luego "), [](const FEffectApplication& Application) { return DescribeApplication(Application); });
+	}
+
+	FString DescribeWardenEventStart(EWardenEventStart Result)
+	{
+		switch (Result)
+		{
+		case EWardenEventStart::Started: return TEXT("lanzado");
+		case EWardenEventStart::UnknownEvent: return TEXT("no hay ningún evento con ese identificador (SbEvents los lista)");
+		case EWardenEventStart::NotBetweenTurns: return TEXT("los eventos van entre turnos: con SbStepMode 1, cuando la partida espera el siguiente turno");
+		case EWardenEventStart::EventInProgress: return TEXT("ya hay un evento en curso");
+		case EWardenEventStart::MatchOver: return TEXT("la partida ha terminado");
+		case EWardenEventStart::NotImplemented: return TEXT("usa un efecto que llega en otra story (Alto, Consulta forzada, Prueba del Warden, Robo decretado o Duelo forzado)");
+		}
+		return TEXT("rechazado");
+	}
+
+	FString ChoiceKindText(int32 Kind)
+	{
+		switch (static_cast<EChoiceKind>(Kind))
+		{
+		case EChoiceKind::Dilemma: return TEXT("el dilema");
+		case EChoiceKind::ChosenRival: return TEXT("a quién señala: el efecto cae sobre él");
+		case EChoiceKind::GiftRune: return TEXT("qué runa recibe: el regalo se pierde");
+		case EChoiceKind::LoseRune: return TEXT("qué runa pierde: una al azar");
+		default: return TEXT("una elección");
+		}
 	}
 
 	FString DifficultyText(int32 Difficulty)
@@ -149,6 +258,14 @@ namespace Soulbound::Presentation
 		case EEffectResult::AlreadyHome: return TEXT("ese asiento ya está en su hogar");
 		case EEffectResult::NobodyInVoid: return TEXT("no hay nadie en el Vacío");
 		case EEffectResult::BondRace: return TEXT("durante la carrera nadie va al Vacío (solo por la Furia)");
+		case EEffectResult::NoRunes: return TEXT("ese asiento no tiene runas");
+		case EEffectResult::NoReserve: return TEXT("ninguna Fuente tiene reserva");
+		case EEffectResult::NoEchoes: return TEXT("no hay Ecos a los que aplicarlo");
+		case EEffectResult::NoValidTile: return TEXT("no hay casilla que sellar");
+		case EEffectResult::SelfTarget: return TEXT("nadie se marca a sí mismo");
+		case EEffectResult::InvalidRune: return TEXT("ese tipo de runa no es una opción");
+		case EEffectResult::NotImplemented: return TEXT("ese efecto llega en otra story");
+		case EEffectResult::AlreadyActive: return TEXT("ya es de noche");
 		}
 		return TEXT("rechazado");
 	}
@@ -203,6 +320,19 @@ namespace Soulbound::Presentation
 		// S-013: desterrar y mandar a casa son efectos del Warden (hoy los piden los comandos).
 		case EMatchEventType::Banished:
 		case EMatchEventType::SentHome:
+		// S-014: los eventos del Warden y lo que dejan sus efectos.
+		case EMatchEventType::WardenEventStarted:
+		case EMatchEventType::DilemmaChosen:
+		case EMatchEventType::WardenIgnored:
+		case EMatchEventType::EffectApplied:
+		case EMatchEventType::WardenTaunt:
+		case EMatchEventType::Marked:
+		case EMatchEventType::MarkCollected:
+		case EMatchEventType::MarkExpired:
+		case EMatchEventType::BracerRevealed:
+		case EMatchEventType::BracerHidden:
+		case EMatchEventType::EchoNightBegan:
+		case EMatchEventType::EchoNightEnded:
 			return EEventSource::Warden;
 		case EMatchEventType::Bonded:
 		case EMatchEventType::BoardAwakening:

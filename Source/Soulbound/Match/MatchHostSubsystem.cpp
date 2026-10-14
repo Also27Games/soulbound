@@ -11,6 +11,8 @@
 #include "Match/MatchParams.h"
 #include "Match/DebugEdits.h"
 #include "Match/MatchStart.h"
+#include "Match/WardenEventRules.h"
+#include "Match/WardenEvents.h"
 #include "Misc/DateTime.h"
 #include "Misc/Paths.h"
 #include "TimerManager.h"
@@ -79,9 +81,10 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 	const FBoardLoadResult Board = Soulbound::Rules::LoadBoardFromFile(BoardPath);
 	const FMatchParamsLoadResult Params = Soulbound::Rules::LoadMatchParamsFromFile(ParamsPath);
 	const FElectsLoadResult Elects = Soulbound::Rules::LoadElectsFromFile(FPaths::Combine(FPaths::ProjectContentDir(), ElectsRelativePath));
-	if (!Board.IsSuccess() || !Params.IsSuccess() || !Elects.IsSuccess())
+	const FWardenEventsLoadResult Events = Soulbound::Rules::LoadWardenEventsFromFile(FPaths::Combine(FPaths::ProjectContentDir(), WardenEventsRelativePath));
+	if (!Board.IsSuccess() || !Params.IsSuccess() || !Elects.IsSuccess() || !Events.IsSuccess())
 	{
-		const FString Error = !Board.IsSuccess() ? Board.Message : !Params.IsSuccess() ? Params.Message : Elects.Message;
+		const FString Error = !Board.IsSuccess() ? Board.Message : !Params.IsSuccess() ? Params.Message : !Elects.IsSuccess() ? Elects.Message : Events.Message;
 		UE_LOG(LogSoulboundMatch, Error, TEXT("No se pudo iniciar la partida: %s"), *Error);
 		if (GEngine)
 		{
@@ -95,7 +98,7 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 	// Los decisores tienen su propio generador (semilla + 1), como en la simulación: no tocan los dados de la partida.
 	DeciderRng.Initialize(UsedSeed + 1);
 
-	FMatchStartResult Start = Soulbound::Rules::StartMatch(Board.Board, Params.Params, Elects.Table, Soulbound::Match::MaxPlayers, MatchRng);
+	FMatchStartResult Start = Soulbound::Rules::StartMatch(Board.Board, Params.Params, Elects.Table, Soulbound::Match::MaxPlayers, MatchRng, Events.Table);
 	if (!Start.IsSuccess())
 	{
 		UE_LOG(LogSoulboundMatch, Error, TEXT("StartMatch rechaza la partida: %s"), *Start.Message);
@@ -138,8 +141,9 @@ void UMatchHostSubsystem::Advance()
 	// Las reglas son del motor: aquí solo se pregunta al decisor, se entrega su intención y se avanza el turno.
 	while (true)
 	{
-		// Paso a paso: al entrar en BetweenTurns la partida se detiene hasta que se concede un paso.
-		if (StepClock.ShouldHold(bStepMode, State.TurnPhase, State.MatchPhase))
+		// Paso a paso: al entrar en BetweenTurns la partida se detiene hasta que se concede un paso; con un evento del Warden
+		// en curso, no, hasta que termina (S-014).
+		if (StepClock.ShouldHold(bStepMode, State.TurnPhase, State.MatchPhase, State.CurrentEvent.IsActive()))
 		{
 			StepClock.Hold(GetWorld()->GetTimeSeconds());
 			UE_LOG(LogSoulboundMatch, Log, TEXT("Paso a paso: partida detenida en t=%.1f s, esperando el siguiente turno."), StepClock.FrozenMatchSeconds);
@@ -565,5 +569,30 @@ FDebugEditOutcome UMatchHostSubsystem::DebugSendHome(int32 Seat)
 	const EEffectResult Result = Soulbound::Debug::SendHomeEdit(State, Seat, State.ClockSeconds);
 	const bool bApplied = Result == EEffectResult::Applied;
 	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("asiento %d vuelve a su hogar"), Seat) : Soulbound::Presentation::DescribeEffectResult(Result));
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugLaunchEvent(const FString& EventId, FRandomStream& WardenRandom)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	const EWardenEventStart Result = Soulbound::Debug::LaunchEvent(State, EventId, State.ClockSeconds, WardenRandom);
+	const bool bApplied = Result == EWardenEventStart::Started;
+	// S-014: con la partida detenida, el reloj vuelve a correr para que corran los plazos del evento; el turno siguiente
+	// sigue esperando su paso (ShouldHold vuelve a detener al terminar el evento).
+	if (bApplied && State.CurrentEvent.IsActive() && StepClock.bHeld)
+	{
+		StepClock.Resume(GetWorld()->GetTimeSeconds());
+	}
+	const FDebugEditOutcome Outcome = FinishDebugEdit(bApplied, bApplied
+		? FString::Printf(TEXT("evento \"%s\" lanzado%s"), *EventId, State.CurrentEvent.IsActive() ? TEXT(": espera una elección") : TEXT(" y aplicado"))
+		: Soulbound::Presentation::DescribeWardenEventStart(Result));
+	if (bApplied)
+	{
+		Advance();
+	}
+	return Outcome;
 }
 #endif

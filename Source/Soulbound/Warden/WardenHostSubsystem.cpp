@@ -49,6 +49,30 @@ void UWardenHostSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
+void UWardenHostSubsystem::SeedFrom(const UMatchHostSubsystem& Match)
+{
+	if (!bSeeded)
+	{
+		// Semilla derivada de la de la partida (+2; +1 es la de los decisores): fijarla repite también al Warden.
+		Rng.Initialize(Match.GetSeed() + 2);
+		bSeeded = true;
+	}
+}
+
+#if !UE_BUILD_SHIPPING
+FDebugEditOutcome UWardenHostSubsystem::DebugLaunchEvent(const FString& EventId)
+{
+	UMatchHostSubsystem* Match = GetWorld() ? GetWorld()->GetSubsystem<UMatchHostSubsystem>() : nullptr;
+	if (!Match || !Match->HasMatch())
+	{
+		return {false, TEXT("sin partida")};
+	}
+	// S-014: los sorteos del evento (direcciones al azar, Sello, opción al azar) salen del sorteo del Warden, no del de la partida.
+	SeedFrom(*Match);
+	return Match->DebugLaunchEvent(EventId, Rng);
+}
+#endif
+
 void UWardenHostSubsystem::Evaluate()
 {
 	UMatchHostSubsystem* Match = GetWorld() ? GetWorld()->GetSubsystem<UMatchHostSubsystem>() : nullptr;
@@ -57,12 +81,7 @@ void UWardenHostSubsystem::Evaluate()
 	{
 		return;
 	}
-	if (!bSeeded)
-	{
-		// Semilla derivada de la de la partida (+2; +1 es la de los decisores): fijarla repite también al Warden.
-		Rng.Initialize(Match->GetSeed() + 2);
-		bSeeded = true;
-	}
+	SeedFrom(*Match);
 	++EvaluationCount;
 
 	const FMatchState& State = Match->GetState();

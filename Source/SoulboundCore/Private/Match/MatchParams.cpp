@@ -128,6 +128,32 @@ namespace Soulbound::Rules
 		{
 			return Reject(EMatchParamsError::MalformedData, TEXT("R-VAC-2: las escaleras de escape del Vacío solo admiten las dificultades fácil, normal y difícil."));
 		}
+		// S-014: las duraciones en rondas, de una en adelante; los relojes del dilema y corto, mayores que cero; el incremento
+		// por opción del dilema puede ser cero.
+		const TPair<const TCHAR*, int32> Rounds[] = {
+			{TEXT("R-EFE-2: el Brazal revelado"), Params.RevealBracerRounds},
+			{TEXT("R-EFE-8: la marca"), Params.MarkRounds},
+			{TEXT("R-EFE-18: la Noche de los Ecos"), Params.EchoNightMaxRounds},
+		};
+		for (const TPair<const TCHAR*, int32>& Round : Rounds)
+		{
+			if (Round.Value < 1)
+			{
+				return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("%s debe durar al menos una ronda (son %d)."), Round.Key, Round.Value));
+			}
+		}
+		if (!(Params.DilemmaClockSeconds > 0.0))
+		{
+			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-COM-2: el reloj del dilema debe ser mayor que cero (es %g)."), Params.DilemmaClockSeconds));
+		}
+		if (!(Params.DilemmaClockPerOptionSeconds >= 0.0))
+		{
+			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-COM-2: el incremento por opción del dilema no puede ser negativo (es %g)."), Params.DilemmaClockPerOptionSeconds));
+		}
+		if (!(Params.ShortChoiceClockSeconds > 0.0))
+		{
+			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-DIR-1: el reloj corto debe ser mayor que cero (es %g)."), Params.ShortChoiceClockSeconds));
+		}
 		return FMatchParamsLoadResult();
 	}
 
@@ -155,6 +181,9 @@ namespace Soulbound::Rules
 			{TEXT("shellShuffleSeconds"), &Params.ShellShuffleSeconds},
 			{TEXT("shellPickSeconds"), &Params.ShellPickSeconds},
 			{TEXT("duelAdvantageMargin"), &Params.DuelAdvantageMargin},
+			{TEXT("dilemmaClockSeconds"), &Params.DilemmaClockSeconds},
+			{TEXT("dilemmaClockPerOptionSeconds"), &Params.DilemmaClockPerOptionSeconds},
+			{TEXT("shortChoiceClockSeconds"), &Params.ShortChoiceClockSeconds},
 		};
 		for (const TPair<const TCHAR*, double*>& Time : Times)
 		{
@@ -167,6 +196,9 @@ namespace Soulbound::Rules
 			{TEXT("maxExtraTurns"), &Params.MaxExtraTurns},
 			{TEXT("maxLostTurns"), &Params.MaxLostTurns},
 			{TEXT("shellSwapCount"), &Params.ShellSwapCount},
+			{TEXT("revealBracerRounds"), &Params.RevealBracerRounds},
+			{TEXT("markRounds"), &Params.MarkRounds},
+			{TEXT("echoNightMaxRounds"), &Params.EchoNightMaxRounds},
 		};
 		for (const TPair<const TCHAR*, int32*>& Cap : Caps)
 		{

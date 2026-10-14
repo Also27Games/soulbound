@@ -58,7 +58,8 @@ namespace Soulbound::Rules
 
 	/**
 	 * Rasgos de movimiento del asiento Seat según el estado (R-TAB-20, R-ECO-2): un Eco tras la carrera queda
-	 * confinado al Altar y los Dominios Olvidados; durante la carrera, y un Elegido siempre, sin restricción. Paso Libre
+	 * confinado al Altar y los Dominios Olvidados, salvo durante la Noche de los Ecos (R-EFE-18, S-014); durante la carrera,
+	 * y un Elegido siempre, sin restricción. Paso Libre
 	 * (R-POD-2, R-ELE-2): un Elegido con la runa que se lo da según su mapa, o Fenrir siempre por su afinidad.
 	 * Es la función que usa la máquina de turnos para calcular las casillas alcanzables, así que la interfaz y el motor
 	 * comparten criterio (R-TAB-21). Asiento inexistente: rasgos por defecto.

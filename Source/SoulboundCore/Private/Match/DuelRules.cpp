@@ -1,6 +1,7 @@
 #include "Match/DuelRules.h"
 
 #include "Match/BondRaceRules.h"
+#include "Match/EffectRules.h"
 #include "Match/MatchEvents.h"
 #include "Match/RuneRules.h"
 
@@ -103,6 +104,8 @@ namespace Soulbound::Rules
 		Result.Winner = DuelWinner(State, Duel.Challenger, Duel.Challenged, Duel.ChallengerPerformance, Duel.ChallengedPerformance);
 		Result.Loser = Result.Winner == Duel.Challenger ? Duel.Challenged : Duel.Challenger;
 		LogEvent(State, EMatchEventType::DuelWon, NowSeconds, Result.Winner, Result.Winner == Duel.Challenged ? 1 : 0, Result.Loser);
+		// R-EFE-8 (S-014): ganarle un duelo a un Marcado cobra su marca, sea el ganador el retador o el retado.
+		CollectMark(State, Result.Winner, Result.Loser, NowSeconds);
 		// R-DUE-6: el perdedor sin runas (solo puede ser un retador sin runas desde un Nodo) vuelve a su hogar. No es un
 		// movimiento suyo: no resuelve casilla ni cambia turnos (R-INT-4), como la Expulsión.
 		if (!HasRunes(State.Seats[Result.Loser]))

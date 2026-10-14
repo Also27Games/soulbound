@@ -4,6 +4,7 @@
 #include "Board/BoardState.h"
 #include "Match/DebugEdits.h"
 #include "Match/MatchState.h"
+#include "Match/WardenEventRules.h"
 
 /**
  * Texto de un evento del registro (R-TUR-15) para la vista de depuración (S-007). La vista tiene su propia función y
@@ -25,8 +26,29 @@ namespace Soulbound::Presentation
 	/** Nombre corto de una casilla, el de su etiqueta: "D3·41" (Dominio e identificador) o "ALTAR". */
 	FString TileShortName(const FBoardState& Board, int32 TileId);
 
-	/** Frase del evento, en español, con el número de asiento y los datos del evento. Board da los nombres de casilla. */
-	FString DescribeEvent(const FMatchEvent& Event, const FBoardState& Board);
+	/**
+	 * Frase del evento, en español, con el número de asiento y los datos del evento. Board da los nombres de casilla;
+	 * WardenEvents, el texto de los eventos del Warden (S-014), si se tiene.
+	 */
+	FString DescribeEvent(const FMatchEvent& Event, const FBoardState& Board, const FWardenEventTable* WardenEvents = nullptr);
+
+	/** Nombre en español de un efecto (EEffect en un Value), para la crónica y la vista (S-014). */
+	FString EffectName(int32 Effect);
+
+	/** Dirección en español ("al líder"...; vacía sin dirección), de un EEffectTarget en un Detail (S-014). */
+	FString EffectTargetName(int32 Target);
+
+	/** Una aplicación de efecto en español: "Turno extra ×2 al activo" (S-014). */
+	FString DescribeApplication(const FEffectApplication& Application);
+
+	/** Una opción de un evento: sus aplicaciones en orden, separadas por " y luego " (S-014). */
+	FString DescribeOption(const FWardenEventOption& Option);
+
+	/** Por qué no se lanzó un evento (S-014: SbEvent), en español. */
+	FString DescribeWardenEventStart(EWardenEventStart Result);
+
+	/** Qué decide una elección (EChoiceKind en un Value), en español, para la crónica (S-014: la desatención). */
+	FString ChoiceKindText(int32 Kind);
 
 	/** Nombre en español del tipo de una edición de depuración (EDebugEditKind en Event.Value), para la crónica. */
 	FString DebugKindName(int32 Kind);

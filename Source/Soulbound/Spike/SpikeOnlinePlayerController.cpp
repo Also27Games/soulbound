@@ -2,6 +2,7 @@
 
 #include "../Match/MatchHostSubsystem.h"
 #include "../Presentation/BoardTileActor.h"
+#include "../Warden/WardenHostSubsystem.h"
 #include "Components/InputComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
@@ -510,12 +511,51 @@ void ASpikeOnlinePlayerController::SbSendHome(FString Seat)
 #endif
 }
 
+void ASpikeOnlinePlayerController::SbEvent(FString Id)
+{
+#if !UE_BUILD_SHIPPING
+	if (!GetDebugHost())
+	{
+		return;
+	}
+	if (Id.IsEmpty())
+	{
+		Say(TEXT("[Depuración] Uso: SbEvent <id> (SbEvents lista los eventos)"));
+		return;
+	}
+	// El evento lo lanza el anfitrión del Warden, con su sorteo; el anfitrión de partida lo aplica (S-014).
+	UWardenHostSubsystem* Warden = GetWorld() ? GetWorld()->GetSubsystem<UWardenHostSubsystem>() : nullptr;
+	if (!Warden)
+	{
+		Say(TEXT("[Depuración] No hay anfitrión del Warden en este mundo."));
+		return;
+	}
+	ReportDebugEdit(Warden->DebugLaunchEvent(Id));
+#endif
+}
+
+void ASpikeOnlinePlayerController::SbEvents()
+{
+#if !UE_BUILD_SHIPPING
+	if (const UMatchHostSubsystem* Host = GetDebugHost())
+	{
+		const TArray<FWardenEventDef>& Events = Host->GetState().WardenEvents.Events;
+		const FString List = FString::JoinBy(Events, TEXT(" | "), [](const FWardenEventDef& Event)
+		{
+			return FString::Printf(TEXT("%s (%s)"), *Event.Id, Event.IsDilemma() ? TEXT("dilema") : TEXT("decreto"));
+		});
+		Say(FString::Printf(TEXT("[Depuración] %d eventos: %s"), Events.Num(), *List));
+	}
+#endif
+}
+
 void ASpikeOnlinePlayerController::SbHelp()
 {
 #if !UE_BUILD_SHIPPING
 	Say(TEXT("[Depuración] Comandos: SbGiveRune <asiento> <tipo> [n] | SbTakeRune <asiento> <tipo> [n] | SbMove <asiento> <casilla> | "
 		"SbBond <asiento> <dominio> | SbSeal <casilla> | SbUnseal <casilla> | SbEndRace | SbRoll <n> | SbTrial pass|fail | "
-		"SbDuel win|lose | SbTurn <asiento> | SbBanish <asiento> | SbRelease | SbSendHome <asiento> | SbHelp. Los asientos van de 0 a 3 "
-		"y el tipo de runa es el Dominio de 0 a 5. SbBanish y SbSendHome no valen con quien está jugando su turno: entre turnos, con SbStepMode 1."));
+		"SbDuel win|lose | SbTurn <asiento> | SbBanish <asiento> | SbRelease | SbSendHome <asiento> | SbEvent <id> | SbEvents | SbHelp. "
+		"Los asientos van de 0 a 3 y el tipo de runa es el Dominio de 0 a 5. SbBanish y SbSendHome no valen con quien está jugando su turno, "
+		"y SbEvent solo entre turnos: con SbStepMode 1."));
 #endif
 }

@@ -1,0 +1,45 @@
+{
+  "events": [
+    {"id": "pierdes-un-turno", "text": "Pierdes un turno",
+     "delivery": "direct",
+     "options": [
+       [{"effect": "LoseTurn", "target": "ActivePlayer", "amount": 1}]
+     ]},
+    {"id": "dos-turnos-o-casa", "text": "Dos turnos extra para ti, o mandas a casa a quien señales",
+     "delivery": "direct",
+     "options": [
+       [{"effect": "ExtraTurn", "target": "ActivePlayer", "amount": 2}],
+       [{"effect": "SendHome", "target": "ChosenRival"}]
+     ]},
+    {"id": "duelo-por-todo", "text": "Elige a dos y que se maten por todo",
+     "delivery": "direct",
+     "options": [
+       [{"effect": "ForcedDuel", "target": "TwoChosenRivals", "variant": "all"}]
+     ]},
+    {"id": "noche", "text": "Ha llegado la noche",
+     "delivery": "direct",
+     "options": [
+       [{"effect": "EchoNight", "target": "Echoes"}]
+     ]},
+    {"id": "liberacion-y-a-casa", "text": "Los del Vacío salen, pero todos volvéis a casa",
+     "delivery": "direct",
+     "options": [
+       [{"effect": "ReleaseVoid", "target": "Everyone"}, {"effect": "SendHome", "target": "Everyone"}]
+     ]},
+    {"id": "lider-ensena-y-pierde", "text": "Que el líder enseñe lo que lleva y pierda una",
+     "delivery": "direct",
+     "options": [
+       [{"effect": "RevealBracer", "target": "Leader"}, {"effect": "LoseRune", "target": "Leader", "variant": "random"}]
+     ]},
+    {"id": "marca-al-lider", "text": "El líder queda Marcado: quien le haga daño, juega otra vez",
+     "delivery": "direct",
+     "options": [
+       [{"effect": "Mark", "target": "Leader"}]
+     ]},
+    {"id": "ley-de-sombras", "text": "Ley de Sombras: los Ecos, a casa",
+     "delivery": "direct",
+     "options": [
+       [{"effect": "ShadowLaw", "target": "Echoes"}]
+     ]}
+  ]
+}

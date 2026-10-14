@@ -24,10 +24,12 @@ struct FStepClock
 	double MatchSeconds(double WorldNow) const;
 
 	/**
-	 * Si hay que detener la partida ahora: modo activo, no detenida ya, sin paso concedido, entre turnos y la partida
-	 * sin terminar. Un turno extra pendiente también espera: cada turno es un paso.
+	 * Si hay que detener la partida ahora: modo activo, no detenida ya, sin paso concedido, entre turnos, la partida sin
+	 * terminar y sin un evento del Warden en curso (S-014: el evento se resuelve entre turnos y sus elecciones tienen reloj;
+	 * la partida se detiene al acabar, antes del siguiente turno). Un turno extra pendiente también espera: cada turno es un
+	 * paso.
 	 */
-	bool ShouldHold(bool bStepMode, ETurnPhase TurnPhase, EMatchPhase MatchPhase) const;
+	bool ShouldHold(bool bStepMode, ETurnPhase TurnPhase, EMatchPhase MatchPhase, bool bWardenEventInProgress = false) const;
 
 	/** Detiene la partida en WorldNow: el reloj queda en el segundo de partida de ese instante. */
 	void Hold(double WorldNow);
@@ -38,6 +40,12 @@ struct FStepClock
 	/** Anota la fase del turno tras avanzar la máquina: al salir de BetweenTurns se retira el paso concedido. */
 	void NoteTurnPhase(ETurnPhase TurnPhase);
 
-	/** Sale del modo: si esperaba, reanuda el reloj; el paso concedido se retira. */
+	/**
+	 * Reanuda el reloj sin conceder turno (S-014): si esperaba, el reloj sigue desde donde se detuvo; el paso concedido se
+	 * retira. Lo usa el anfitrión al lanzar un evento del Warden con la partida detenida, para que corran sus relojes.
+	 */
+	void Resume(double WorldNow);
+
+	/** Sale del modo: si esperaba, reanuda el reloj; el paso concedido se retira (Resume). */
 	void Disable(double WorldNow);
 };

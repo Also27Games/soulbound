@@ -3,6 +3,7 @@
 #include "Board/MovementRules.h"
 #include "Match/BondRaceRules.h"
 #include "Match/DuelRules.h"
+#include "Match/EffectRules.h"
 #include "Match/MatchEvents.h"
 
 using Soulbound::Rules::LogEvent;
@@ -97,6 +98,16 @@ namespace Soulbound::Rules
 		++State.Board.Tiles[SourceTile].RuneReserve;
 		LogEvent(State, EMatchEventType::RuneReturned, NowSeconds, Seat, RuneType);
 		return true;
+	}
+
+	bool GrantRuneFromSource(FMatchState& State, int32 Seat, int32 SourceTile, double NowSeconds)
+	{
+		// R-EFE-16: como obtener en la Fuente, pero sin llegar a ella; sin reserva no hay runa (y no es SourceDepleted: no llegó).
+		if (!State.Seats.IsValidIndex(Seat) || !IsPowerSource(State.Board, SourceTile) || State.Board.Tiles[SourceTile].RuneReserve <= 0)
+		{
+			return false;
+		}
+		return ObtainRune(State, Seat, SourceTile, NowSeconds);
 	}
 
 	bool IsPowerActive(const FMatchState& State, int32 Seat, EPower Power)
@@ -273,5 +284,7 @@ namespace Soulbound::Rules
 		State.Seats[Target].TileId = HomeTile(State, Target);
 		// Seat expulsa y Target es el afectado, en OtherSeat; Value nunca lleva un asiento (decisión del autor del 05/10/2026).
 		LogEvent(State, EMatchEventType::Expelled, NowSeconds, Seat, INDEX_NONE, Target);
+		// R-EFE-8 (S-014): expulsar a un Marcado cobra su marca.
+		CollectMark(State, Seat, Target, NowSeconds);
 	}
 }

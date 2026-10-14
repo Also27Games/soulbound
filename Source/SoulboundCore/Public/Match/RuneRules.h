@@ -54,6 +54,14 @@ namespace Soulbound::Rules
 	SOULBOUNDCORE_API bool ReturnRuneToSource(FMatchState& State, int32 Seat, int32 RuneType, int32 SourceTile, double NowSeconds);
 
 	/**
+	 * El asiento Seat recibe una runa de la Fuente SourceTile sin llegar a ella (Runa regalada, R-EFE-16, S-014): el Brazal
+	 * sube uno en el tipo de la Fuente (su Dominio) y la reserva baja uno (RuneObtained). Un Eco la recibe de cualquier
+	 * Dominio. NowSeconds: marca del evento. Devuelve false, sin cambiar nada, si el asiento no existe, la casilla no es una
+	 * Fuente o no le queda reserva. Nombre propuesto en S-014.
+	 */
+	SOULBOUNDCORE_API bool GrantRuneFromSource(FMatchState& State, int32 Seat, int32 SourceTile, double NowSeconds);
+
+	/**
 	 * Si el poder Power está activo para el asiento Seat (R-ELE-5, R-ECO-1, R-ECO-7): un Elegido lo tiene mientras
 	 * posea al menos una runa del tipo que se lo da según su mapa; los duplicados no cambian nada (R-RUN-5). Un Eco tras
 	 * la carrera solo tiene Celeridad, mientras tenga una runa de su Dominio asignado (Runa de Liberación); un Eco en
@@ -118,7 +126,8 @@ namespace Soulbound::Rules
 	/**
 	 * El asiento Seat expulsa al asiento Target (R-POD-4): Target pasa a su hogar (HomeTile, R-TAB-13) y se registra
 	 * Expelled (Seat quien expulsa, OtherSeat el expulsado, desde S-010). No es un movimiento de Target: no resuelve casilla
-	 * ni cambia sus turnos (R-INT-4). No valida: los objetivos los da ExpelTargets. Nombre propuesto en S-009.
+	 * ni cambia sus turnos (R-INT-4). No valida: los objetivos los da ExpelTargets. Si Target estaba Marcado, Seat cobra la
+	 * marca (R-EFE-8, S-014). Nombre propuesto en S-009.
 	 */
 	SOULBOUNDCORE_API void ApplyExpel(FMatchState& State, int32 Seat, int32 Target, double NowSeconds);
 }
