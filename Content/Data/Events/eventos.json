@@ -40,6 +40,21 @@
      "delivery": "direct",
      "options": [
        [{"effect": "ShadowLaw", "target": "Echoes"}]
+     ]},
+    {"id": "prueba-del-warden", "text": "El Warden pone a prueba a quien señales",
+     "delivery": "direct",
+     "options": [
+       [{"effect": "WardenTrial", "target": "ChosenRival"}]
+     ]},
+    {"id": "robo-a-todos", "text": "Tú robas a todos",
+     "delivery": "direct",
+     "options": [
+       [{"effect": "DecreedTheft", "target": "Everyone"}]
+     ]},
+    {"id": "duelo-con-quien-senales", "text": "Te bates con quien señales por una runa",
+     "delivery": "direct",
+     "options": [
+       [{"effect": "ForcedDuel", "target": "ChosenRival", "variant": "one"}]
      ]}
   ]
 }

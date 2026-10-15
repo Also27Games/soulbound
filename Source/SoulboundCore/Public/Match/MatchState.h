@@ -60,7 +60,9 @@ enum class ETurnPhase : uint8
 	/**
 	 * Trilero (glosario `ShellGame`, R-ROB-1, R-ROB-2): un asiento roba a otro. La máquina espera mientras dura, como espera
 	 * cualquier elección: Koschei aparta una runa (elección SafeRune), muestra, mezcla y elección de esfera (ShellPick),
-	 * con los plazos del reloj de partida (FShellGameState). Nombre propuesto en S-010.
+	 * con los plazos del reloj de partida (FShellGameState). Desde S-015 también entre turnos, como parte de un evento del
+	 * Warden (FCurrentWardenEvent::bWaitsForAction): al acabar la máquina vuelve a BetweenTurns y el evento sigue. Nombre
+	 * propuesto en S-010.
 	 */
 	ShellGame,
 	/**
@@ -86,6 +88,12 @@ enum class ESkillTrial : uint8
 	 * dificultad del peldaño de su escalera. Superada, vuelve a su hogar; en los dos casos su turno termina sin tirar.
 	 */
 	VoidEscape,
+	/**
+	 * Prueba del Warden (glosario `WardenTrial`, R-EFE-10, S-015): la prueba de un asiento con la Prueba pendiente (FSeatState::
+	 * bWardenTrialPending) al empezar su siguiente turno jugado, antes de tirar, con la dificultad de datos
+	 * (FMatchParams::WardenTrialDifficulty). Superada, el turno sigue; fallada, termina sin tirada y sin consumir el sorteo.
+	 */
+	WardenTrial,
 };
 
 /**
@@ -339,7 +347,7 @@ struct SOULBOUNDCORE_API FDuelState
 	/** Rendimiento que aún no ha llegado: los válidos van de 0 a 1. */
 	static constexpr double NoPerformance = -1.0;
 
-	/** Asiento que reta (el activo). INDEX_NONE si no hay duelo. */
+	/** Asiento que reta (el activo, o quien dirige un Duelo forzado). INDEX_NONE si no hay duelo o reta el Warden. */
 	UPROPERTY()
 	int32 Challenger = INDEX_NONE;
 
@@ -359,7 +367,22 @@ struct SOULBOUNDCORE_API FDuelState
 	UPROPERTY()
 	double ChallengedPerformance = NoPerformance;
 
-	bool IsActive() const { return Challenger != INDEX_NONE; }
+	/**
+	 * Duelo contra el Warden (S-015, nombre propuesto `WardenDuel`): quien reta es el Warden, no un asiento. Challenger vale
+	 * INDEX_NONE y ChallengerPerformance es el rendimiento fijo de los datos (FMatchParams::WardenDuelPerformance), desde que
+	 * se abre; Challenged es el jugador al que se bate.
+	 */
+	UPROPERTY()
+	bool bAgainstWarden = false;
+
+	/**
+	 * Lo que está en juego en un Duelo forzado (S-015, variante AllRunes): todas las runas del perdedor. Falso: una runa, con
+	 * el trilero (R-DUE-5). Sin efecto en un duelo que no nace de un evento.
+	 */
+	UPROPERTY()
+	bool bAllRunes = false;
+
+	bool IsActive() const { return Challenger != INDEX_NONE || bAgainstWarden; }
 
 	/** Si Seat participa en el duelo en curso. */
 	bool IsParticipant(int32 Seat) const { return IsActive() && (Seat == Challenger || Seat == Challenged); }
@@ -512,7 +535,8 @@ enum class EMatchEventType : uint8
 	DebugEdit,
 	/**
 	 * Un asiento reta a otro a duelo (R-POD-3, R-DUE-2); Seat el retador, OtherSeat el retado, Value 1 si el reto sale de un
-	 * Nodo de Duelo (aunque el retador tenga además el poder) y 0 si sale del poder Duelo. Nombre propuesto en S-012.
+	 * Nodo de Duelo (aunque el retador tenga además el poder), 0 si sale del poder Duelo y 2 si es un Duelo forzado del Warden
+	 * (R-EFE-13, S-015). Nombre propuesto en S-012.
 	 */
 	DuelChallenged,
 	/** Reto a quien no tiene runas: no hay duelo y la acción se pierde (R-DUE-4); Seat el retador, OtherSeat el retado. S-012. */
@@ -585,6 +609,24 @@ enum class EMatchEventType : uint8
 	EchoNightBegan,
 	/** Termina la Noche de los Ecos: Detail el motivo (EEchoNightEnd: Ley de Sombras o tope de rondas); sin asiento. S-014. */
 	EchoNightEnded,
+	/** Una Prueba del Warden queda pendiente en el asiento (R-EFE-10, S-015): Seat el objetivo. Nombre propuesto en S-015. */
+	WardenTrialPending,
+	/** Un asiento supera su Prueba del Warden y su turno sigue (R-EFE-10): Value la dificultad (ESkillDifficulty). S-015. */
+	WardenTrialPassed,
+	/** Un asiento falla su Prueba del Warden y su turno termina sin tirar (R-EFE-10): Value la dificultad. S-015. */
+	WardenTrialFailed,
+	/** La Prueba pendiente de un asiento se anula porque entra en el Vacío (R-EFE-10): Seat el desterrado. S-015. */
+	WardenTrialCancelled,
+	/** Una runa pasa del perdedor al ganador de un Duelo forzado de todas (R-EFE-13): Seat el ganador, OtherSeat el perdedor, Value el tipo. S-015. */
+	RunesSeized,
+	/** Empieza un Duelo contra el Warden (S-015): Seat el jugador, Value el rendimiento del Warden en centésimas y Detail 1 si están en juego todas las runas. */
+	WardenDuelStarted,
+	/** El Warden gana su duelo (S-015): Seat el jugador, que pierde lo que estaba en juego (vuelve a su Fuente, R-RUN-6). */
+	WardenDuelWon,
+	/** El Warden pierde su duelo (S-015): Seat el jugador, que no pierde nada. */
+	WardenDuelLost,
+	/** El Warden roba a quien no señaló a tiempo en un Robo decretado (R-DIR-4, S-015): Seat la víctima, Value el tipo; la runa vuelve a su Fuente. */
+	RuneTakenByWarden,
 };
 
 /** Por qué termina la Noche de los Ecos (R-EFE-9, R-EFE-18, S-014, nombre propuesto): el Detail del evento EchoNightEnded. */
@@ -714,6 +756,14 @@ struct SOULBOUNDCORE_API FSeatState
 	 */
 	UPROPERTY()
 	int32 RevealedUntilRound = 0;
+
+	/**
+	 * Prueba del Warden pendiente (R-EFE-10, S-015): el asiento la juega al empezar su siguiente turno jugado, antes de tirar.
+	 * Como mucho una; la anula entrar en el Vacío. Solo la escriben las reglas de Match/EffectRules.h y la máquina de turnos.
+	 * Nombre propuesto en S-015.
+	 */
+	UPROPERTY()
+	bool bWardenTrialPending = false;
 };
 
 /**
@@ -763,6 +813,20 @@ struct SOULBOUNDCORE_API FCurrentWardenEvent
 	/** Sorteos hechos con la semilla. */
 	UPROPERTY()
 	int32 Draws = 0;
+
+	/**
+	 * Si el evento espera a un duelo o un trilero suyo (S-015): la máquina está en la fase Duel o ShellGame entre turnos y,
+	 * al acabar, vuelve a BetweenTurns y el evento sigue por su siguiente aplicación. Nada de esto termina un turno.
+	 */
+	UPROPERTY()
+	bool bWaitsForAction = false;
+
+	/**
+	 * Primer rival señalado de un Duelo forzado a "dos rivales señalados" (S-015), que será el retador; INDEX_NONE mientras
+	 * no ha señalado a ninguno. Las dos elecciones son ChosenRival seguidas; esto dice cuál es cuál.
+	 */
+	UPROPERTY()
+	int32 FirstRival = INDEX_NONE;
 
 	bool IsActive() const { return EventIndex != INDEX_NONE; }
 };

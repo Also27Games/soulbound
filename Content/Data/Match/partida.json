@@ -16,5 +16,7 @@
   "echoNightMaxRounds": 8,
   "dilemmaClockSeconds": 8,
   "dilemmaClockPerOptionSeconds": 3,
-  "shortChoiceClockSeconds": 6
+  "shortChoiceClockSeconds": 6,
+  "wardenTrialDifficulty": "normal",
+  "wardenDuelPerformance": 0.75
 }

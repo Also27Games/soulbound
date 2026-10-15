@@ -120,7 +120,8 @@ bool FWardenEventsRechazaTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// CA-COM-1, R-COM-1: eventos.json carga con los seis ejemplos de R-COM-3 y los dos de las pruebas manuales, y viaja en el estado.
+// CA-COM-1, R-COM-1: eventos.json carga con los seis ejemplos de R-COM-3, los dos de las pruebas manuales y los tres de S-015
+// (Prueba del Warden, Robo a todos y Duelo con quien señales), y viaja en el estado.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWardenEventsArchivoTest, "Soulbound.Core.WardenEvents.ArchivoCarga",
 	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
@@ -132,7 +133,8 @@ bool FWardenEventsArchivoTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	const TCHAR* const Ids[] = {TEXT("pierdes-un-turno"), TEXT("dos-turnos-o-casa"), TEXT("duelo-por-todo"), TEXT("noche"), TEXT("liberacion-y-a-casa"),
-		TEXT("lider-ensena-y-pierde"), TEXT("marca-al-lider"), TEXT("ley-de-sombras")};
+		TEXT("lider-ensena-y-pierde"), TEXT("marca-al-lider"), TEXT("ley-de-sombras"), TEXT("prueba-del-warden"), TEXT("robo-a-todos"),
+		TEXT("duelo-con-quien-senales")};
 	for (const TCHAR* Id : Ids)
 	{
 		TestTrue(FString::Printf(TEXT("Está %s"), Id), Table.IndexOf(Id) != INDEX_NONE);
@@ -363,8 +365,8 @@ bool FWardenEventsDosTurnosOCasaTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// CA-COM-1, R-COM-3: "duelo-por-todo" se carga con Duelo forzado a dos rivales señalados por todas las runas, y lanzarlo dice
-// que es de S-015, sin tocar nada.
+// CA-COM-1, R-COM-3, R-EFE-13: "duelo-por-todo" se carga con Duelo forzado a dos rivales señalados por todas las runas y se
+// aplica (S-015): quien dirige señala a dos, el primero reta al segundo y se juegan todas las runas del perdedor.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWardenEventsDueloPorTodoTest, "Soulbound.Core.WardenEvents.Ejemplo.DueloPorTodo",
 	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
@@ -384,10 +386,22 @@ bool FWardenEventsDueloPorTodoTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Duelo forzado"), AsInt(Duel.Effect), AsInt(EEffect::ForcedDuel));
 	TestEqual(TEXT("A dos rivales señalados"), AsInt(Duel.Target), AsInt(EEffectTarget::TwoChosenRivals));
 	TestEqual(TEXT("Por todas las runas"), static_cast<int32>(Duel.Variant), static_cast<int32>(EEffectVariant::AllRunes));
+	F.State.Seats[Koschei].Runes[0] = 1;
+	F.State.Seats[EchoA].Runes[2] = 1;
+	F.State.Seats[EchoA].Runes[3] = 1;
 	F.Director(Fenrir);
-	const FMatchState Before = F.State;
-	TestEqual(TEXT("Pendiente de S-015: no implementado"), AsInt(F.Launch(TEXT("duelo-por-todo"))), AsInt(EWardenEventStart::NotImplemented));
-	TestTrue(TEXT("Sin tocar nada"), SameState(Before, F.State));
+	TestEqual(TEXT("Se aplica"), AsInt(F.Launch(TEXT("duelo-por-todo"))), AsInt(EWardenEventStart::Started));
+	TestEqual(TEXT("Señala quien dirige"), F.State.PendingChoice.Seat, Fenrir);
+	TestEqual(TEXT("Primero, al retador"), F.State.PendingChoice.Options, TArray<int32>({Koschei, EchoA}));
+	F.Answer(EchoA);
+	TestEqual(TEXT("Después, al retado"), F.State.PendingChoice.Options, TArray<int32>({Koschei}));
+	F.Answer(Koschei);
+	TestEqual(TEXT("Se baten"), AsInt(F.State.TurnPhase), AsInt(ETurnPhase::Duel));
+	TestTrue(TEXT("Por todas las runas"), F.State.Duel.bAllRunes);
+	F.Perform(EchoA, 0.9);
+	F.Perform(Koschei, 0.1);
+	TestEqual(TEXT("El ganador se lleva todas"), F.RuneTotal(EchoA), 3);
+	TestEqual(TEXT("El perdedor se queda sin ninguna"), F.RuneTotal(Koschei), 0);
 	return true;
 }
 

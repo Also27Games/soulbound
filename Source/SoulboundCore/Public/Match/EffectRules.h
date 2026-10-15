@@ -40,10 +40,15 @@ enum class EEffectResult : uint8
 	SelfTarget,
 	/** El tipo de runa no es una opción válida (S-014). */
 	InvalidRune,
-	/** El efecto se aplica en su story: Alto, Consulta forzada, Prueba del Warden, Robo decretado, Duelo forzado (S-014). */
+	/** El efecto se aplica en su story: hoy, Alto y Consulta forzada al Oráculo (S-016, S-017). */
 	NotImplemented,
 	/** La Noche de los Ecos con otra Noche activa (R-EFE-18; decisión del autor del 14/10/2026). */
 	AlreadyActive,
+	/**
+	 * Una Prueba del Warden sobre quien ya la tiene (R-EFE-10, S-015; principio del autor del 14/10/2026: el Warden nunca
+	 * parece equivocarse). Nombre propuesto en S-015.
+	 */
+	AlreadyPending,
 };
 
 /**

@@ -134,6 +134,20 @@ struct SOULBOUNDCORE_API FMatchParams
 	 */
 	UPROPERTY()
 	double ShortChoiceClockSeconds = 0.0;
+
+	/**
+	 * Prueba del Warden (R-EFE-10, S-015): dificultad del minijuego de habilidad que juega quien la tiene pendiente al empezar
+	 * su turno. Una de las tres. En datos (wardenTrialDifficulty); valor inicial normal.
+	 */
+	UPROPERTY()
+	ESkillDifficulty WardenTrialDifficulty = ESkillDifficulty::Normal;
+
+	/**
+	 * Duelo contra el Warden (S-015): rendimiento fijo del Warden, de 0 a 1, con el que se bate quien desatiende un Duelo forzado.
+	 * Es lo que decide si el Warden gana la mayoría de las veces. En datos (wardenDuelPerformance); valor inicial 0,75.
+	 */
+	UPROPERTY()
+	double WardenDuelPerformance = 0.0;
 };
 
 /** Por qué se rechazaron unos parámetros de partida. */

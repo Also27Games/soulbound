@@ -21,6 +21,10 @@ struct FDuelResult
 	int32 Loser = INDEX_NONE;
 	/** Si el perdedor no tenía runas y volvió a su hogar (R-DUE-6): entonces no hay botín. */
 	bool bLoserSentHome = false;
+	/** Si el duelo era contra el Warden (S-015): Winner es INDEX_NONE si gana el Warden y el jugador si gana él. */
+	bool bAgainstWarden = false;
+	/** Si lo que estaba en juego eran todas las runas del perdedor (Duelo forzado con la variante AllRunes, S-015). */
+	bool bAllRunes = false;
 };
 
 /**
