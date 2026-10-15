@@ -183,7 +183,8 @@ namespace Soulbound::Rules
 	 * escape del Vacío (S-013): la principal de 1 a Soulbound::Match::MaxVoidEscapeSteps peldaños, la de la afinidad de 1 a
 	 * los de la principal, todas con dificultades conocidas; y los de los efectos y eventos del Warden (S-014): rondas de
 	 * Brazal revelado, marca y tope de la Noche de 1 en adelante, reloj base del dilema y reloj corto mayores que cero, e
-	 * incremento por opción del dilema de cero en adelante. Params: los parámetros a comprobar. Devuelve None o
+	 * incremento por opción del dilema de cero en adelante; y los de S-015: la dificultad de la Prueba del Warden, una de las
+	 * tres, y el rendimiento del Warden en su duelo, de 0 a 1. Params: los parámetros a comprobar. Devuelve None o
 	 * MalformedData con el motivo; el campo Params del resultado queda vacío.
 	 */
 	SOULBOUNDCORE_API FMatchParamsLoadResult ValidateMatchParams(const FMatchParams& Params);

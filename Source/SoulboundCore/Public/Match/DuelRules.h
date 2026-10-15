@@ -69,7 +69,7 @@ namespace Soulbound::Rules
 
 	/**
 	 * Guarda el rendimiento Performance del asiento Seat en el duelo en curso. No valida: lo hace SubmitDuelPerformance.
-	 * Devuelve true si ya están los dos rendimientos.
+	 * Devuelve true si ya están los dos rendimientos (en un duelo contra el Warden, el del Warden ya está desde que se abre).
 	 */
 	SOULBOUNDCORE_API bool RecordDuelPerformance(FMatchState& State, int32 Seat, double Performance);
 
@@ -77,7 +77,32 @@ namespace Soulbound::Rules
 	 * Resuelve el duelo en curso con los dos rendimientos (R-DUE-1): decide el ganador (DuelWinner) y registra DuelWon. Si el
 	 * perdedor no tiene runas, vuelve a su hogar (HomeTile) y se registra DuelLoserSentHome (R-DUE-6); no es un movimiento
 	 * suyo ni cambia turnos (R-INT-4). El duelo termina; el botín (R-DUE-5) lo empieza la máquina de turnos con BeginSteal.
+	 * Contra el Warden (S-015) solo decide quién gana, con DuelWinner (Winner es INDEX_NONE si gana el Warden, que reta y cuyo
+	 * empate es del retado): ni DuelWon, ni Marcado, ni vuelta al hogar; lo que pierde el jugador lo aplica
+	 * SettleWardenDuel (Match/WardenEventRules.h).
 	 * NowSeconds: marca de los eventos. Devuelve ganador, perdedor y si el perdedor volvió a su hogar.
 	 */
 	SOULBOUNDCORE_API FDuelResult ResolveDuel(FMatchState& State, double NowSeconds);
+
+	/**
+	 * Un Duelo forzado del Warden (R-EFE-13, S-015): como BeginDuel, pero el reto nace de un evento, no de un Nodo ni del
+	 * poder (DuelChallenged con Value 2) y bAllRunes dice lo que está en juego (FDuelState::bAllRunes). Sin runas el retado,
+	 * DuelNoRunes y no hay duelo. No valida: lo hace CanForceDuel. Devuelve qué pasó. Nombre propuesto en S-015.
+	 */
+	SOULBOUNDCORE_API EDuelStart BeginForcedDuel(FMatchState& State, int32 Challenger, int32 Challenged, bool bAllRunes, double NowSeconds);
+
+	/**
+	 * Duelo contra el Warden (glosario `WardenDuel`, S-015): el Warden reta a Challenged, que desatendió un Duelo forzado.
+	 * El rendimiento del Warden es el de los datos (FMatchParams::WardenDuelPerformance) y se fija al abrirlo; el duelo se
+	 * resuelve cuando llega el del jugador. Registra WardenDuelStarted. Sin runas Challenged, no hay duelo y devuelve
+	 * NoRunes sin registrar nada (la burla es de quien lo llama). Nombre propuesto en S-015.
+	 */
+	SOULBOUNDCORE_API EDuelStart BeginWardenDuel(FMatchState& State, int32 Challenged, bool bAllRunes, double NowSeconds);
+
+	/**
+	 * Todas las runas del Brazal de Loser pasan al de Winner, sin trilero (R-EFE-13, variante AllRunes), una a una en orden
+	 * de tipo, con un RunesSeized por runa (Seat el ganador, OtherSeat el perdedor, Value el tipo). Devuelve cuántas.
+	 * S-015.
+	 */
+	SOULBOUNDCORE_API int32 SeizeAllRunes(FMatchState& State, int32 Winner, int32 Loser, double NowSeconds);
 }

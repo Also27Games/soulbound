@@ -62,7 +62,9 @@ namespace Soulbound::Rules
 	/**
 	 * Si el asiento Seat está en juego (decisión del autor del 08/10/2026): es el asiento activo y su turno ha empezado
 	 * (TurnPhase distinta de BetweenTurns), o participa en el duelo en curso, o es el ladrón o la víctima del trilero en
-	 * curso. Entre turnos nadie está en juego. Nombre propuesto en S-013.
+	 * curso. Entre turnos nadie está en juego, salvo (S-015) los participantes de un duelo o un trilero de un evento del
+	 * Warden, que se juegan entre turnos: el asiento al que le toca el siguiente turno no lo está por eso. Nombre propuesto
+	 * en S-013.
 	 */
 	SOULBOUNDCORE_API bool IsSeatInPlay(const FMatchState& State, int32 Seat);
 
@@ -253,4 +255,58 @@ namespace Soulbound::Rules
 	 * del 12/10/2026). Lo llama la máquina de turnos cuando el orden pasa por su primer asiento.
 	 */
 	SOULBOUNDCORE_API void StartRound(FMatchState& State, double NowSeconds);
+
+	// S-015: los tres efectos que encadenan con el minijuego, el trilero o el duelo (Match/EffectCatalog.h). La máquina de
+	// turnos (Match/TurnRules.h) lleva la fase que abren; estos solo comprueban y los empiezan.
+
+	/** Si Seat puede recibir la Prueba del Warden (R-EFE-10): InvalidSeat, InVoid, AlreadyPending; Applied si vale. S-015. */
+	SOULBOUNDCORE_API EEffectResult CanWardenTrial(const FMatchState& State, int32 Seat);
+
+	/**
+	 * Prueba del Warden (glosario `WardenTrial`, R-EFE-10): queda pendiente en Seat (FSeatState::bWardenTrialPending); la juega
+	 * al empezar su siguiente turno jugado, antes de tirar. Registra WardenTrialPending. Devuelve CanWardenTrial; si no es
+	 * Applied, no cambia nada. S-015.
+	 */
+	SOULBOUNDCORE_API EEffectResult WardenTrial(FMatchState& State, int32 Seat, double NowSeconds);
+
+	/**
+	 * Aplica el resultado de la Prueba del Warden de Seat (lo llama SubmitSkillTrialResult): registra WardenTrialPassed o
+	 * WardenTrialFailed (Value: la dificultad), deja de estar pendiente y limpia la prueba en curso. Superada, el turno sigue;
+	 * fallada, termina sin tirar (lo decide la máquina). Devuelve bPassed. S-015.
+	 */
+	SOULBOUNDCORE_API bool ApplyWardenTrialResult(FMatchState& State, int32 Seat, bool bPassed, double NowSeconds);
+
+	/**
+	 * Si el Robo decretado vale con Thief de ladrón y Victim de víctima (R-EFE-12, R-INT-3): InvalidSeat, InVoid si
+	 * cualquiera de los dos está en el Vacío, SelfTarget si son el mismo; Applied si vale. Tenga runas o no la víctima: robar a
+	 * quien no las tiene es burla para el ladrón (R-ROB-4), no un objetivo inválido. S-015.
+	 */
+	SOULBOUNDCORE_API EEffectResult CanDecreeTheft(const FMatchState& State, int32 Victim, int32 Thief);
+
+	/**
+	 * Robo decretado (glosario `DecreedTheft`, R-EFE-12): Thief roba a Victim con el trilero de siempre (BeginSteal), entre
+	 * turnos: sin runas la víctima, StealNoRunes; Koschei aparta o anula (R-ROB-5). No termina ningún turno. Devuelve
+	 * CanDecreeTheft; si no es Applied, no cambia nada. S-015.
+	 */
+	SOULBOUNDCORE_API EEffectResult DecreeTheft(FMatchState& State, int32 Victim, int32 Thief, double NowSeconds);
+
+	/**
+	 * Si el Duelo forzado vale con Challenger de retador y Challenged de retado (R-EFE-13, R-INT-3): InvalidSeat, InVoid si
+	 * cualquiera está en el Vacío, SelfTarget si son el mismo, NoRunes si el retado no tiene (el motor filtra a los rivales
+	 * sin runas: señalar a uno anularía el duelo, decisión del autor del 15/10/2026); Applied si vale. S-015.
+	 */
+	SOULBOUNDCORE_API EEffectResult CanForceDuel(const FMatchState& State, int32 Challenged, int32 Challenger);
+
+	/**
+	 * Duelo forzado (glosario `ForcedDuel`, R-EFE-13): Challenger reta a Challenged por una runa (con el trilero del botín) o
+	 * por todas (bAllRunes, sin trilero), entre turnos. Empieza el duelo (BeginForcedDuel); no termina ningún turno. Devuelve
+	 * CanForceDuel; si no es Applied, no cambia nada. S-015.
+	 */
+	SOULBOUNDCORE_API EEffectResult ForceDuel(FMatchState& State, int32 Challenged, int32 Challenger, bool bAllRunes, double NowSeconds);
+
+	/**
+	 * Tipo de una runa del Brazal de Seat al azar con Random, cada runa con la misma probabilidad (los duplicados cuentan).
+	 * INDEX_NONE si no tiene runas. La usan Perder una runa y las runas que el Warden se lleva (S-015).
+	 */
+	SOULBOUNDCORE_API int32 RandomRuneType(const FMatchState& State, int32 Seat, FRandomStream& Random);
 }

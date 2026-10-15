@@ -43,13 +43,15 @@ namespace
 	/** Juega el trilero en curso hasta el final: deja pasar la muestra y la mezcla y contesta cada elección con su primera opción. */
 	void PlayShellGame(FEventFixture& F)
 	{
+		// Sin avanzar la máquina tras contestar la última elección: así un evento con varios trileros no empieza el siguiente.
 		for (int32 Step = 0; Step < 24 && F.State.ShellGame.IsActive(); ++Step)
 		{
 			if (F.State.PendingChoice.IsOpen())
 			{
 				F.Choose(F.State.PendingChoice.Seat, F.State.PendingChoice.Kind, F.State.PendingChoice.Options[0]);
+				continue;
 			}
-			else if (F.State.ShellGame.Stage == EShellGameStage::Reveal || F.State.ShellGame.Stage == EShellGameStage::Shuffle)
+			if (F.State.ShellGame.Stage == EShellGameStage::Reveal || F.State.ShellGame.Stage == EShellGameStage::Shuffle)
 			{
 				F.Now = FMath::Max(F.Now, F.State.ShellGame.StageDeadlineSeconds);
 			}

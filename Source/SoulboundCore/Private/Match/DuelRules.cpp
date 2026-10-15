@@ -89,11 +89,48 @@ namespace Soulbound::Rules
 		return EDuelStart::Started;
 	}
 
+	EDuelStart BeginForcedDuel(FMatchState& State, int32 Challenger, int32 Challenged, bool bAllRunes, double NowSeconds)
+	{
+		// R-DUE-4: sin runas el retado no hay duelo (el motor ya filtra a quien no las tiene: CanForceDuel).
+		if (!State.Seats.IsValidIndex(Challenged) || !HasRunes(State.Seats[Challenged]))
+		{
+			LogEvent(State, EMatchEventType::DuelNoRunes, NowSeconds, Challenger, INDEX_NONE, Challenged);
+			return EDuelStart::NoRunes;
+		}
+		// R-EFE-13: nace de un evento, no de un Nodo (bActiveSeatMoved puede ser de un turno anterior): Value 2 en el registro.
+		FDuelState& Duel = State.Duel;
+		Duel = FDuelState();
+		Duel.Challenger = Challenger;
+		Duel.Challenged = Challenged;
+		Duel.bAllRunes = bAllRunes;
+		LogEvent(State, EMatchEventType::DuelChallenged, NowSeconds, Challenger, 2, Challenged);
+		return EDuelStart::Started;
+	}
+
+	EDuelStart BeginWardenDuel(FMatchState& State, int32 Challenged, bool bAllRunes, double NowSeconds)
+	{
+		if (!State.Seats.IsValidIndex(Challenged) || !HasRunes(State.Seats[Challenged]))
+		{
+			return EDuelStart::NoRunes;
+		}
+		// El Warden reta: el empate es del retado (DuelWinner, decisión de S-012). Su rendimiento es un dato fijo.
+		FDuelState& Duel = State.Duel;
+		Duel = FDuelState();
+		Duel.bAgainstWarden = true;
+		Duel.Challenged = Challenged;
+		Duel.bAllRunes = bAllRunes;
+		Duel.ChallengerPerformance = State.Params.WardenDuelPerformance;
+		LogEvent(State, EMatchEventType::WardenDuelStarted, NowSeconds, Challenged, FMath::RoundToInt(State.Params.WardenDuelPerformance * 100.0), INDEX_NONE,
+			bAllRunes ? 1 : 0);
+		return EDuelStart::Started;
+	}
+
 	bool RecordDuelPerformance(FMatchState& State, int32 Seat, double Performance)
 	{
 		FDuelState& Duel = State.Duel;
 		(Seat == Duel.Challenger ? Duel.ChallengerPerformance : Duel.ChallengedPerformance) = Performance;
-		return Duel.HasPerformed(Duel.Challenger) && Duel.HasPerformed(Duel.Challenged);
+		// Contra el Warden, su rendimiento ya está y solo falta el del jugador.
+		return Duel.bAgainstWarden ? Duel.HasPerformed(Duel.Challenged) : Duel.HasPerformed(Duel.Challenger) && Duel.HasPerformed(Duel.Challenged);
 	}
 
 	FDuelResult ResolveDuel(FMatchState& State, double NowSeconds)
@@ -101,8 +138,16 @@ namespace Soulbound::Rules
 		const FDuelState Duel = State.Duel;
 		State.Duel = FDuelState();
 		FDuelResult Result;
+		Result.bAgainstWarden = Duel.bAgainstWarden;
+		Result.bAllRunes = Duel.bAllRunes;
 		Result.Winner = DuelWinner(State, Duel.Challenger, Duel.Challenged, Duel.ChallengerPerformance, Duel.ChallengedPerformance);
 		Result.Loser = Result.Winner == Duel.Challenger ? Duel.Challenged : Duel.Challenger;
+		if (Duel.bAgainstWarden)
+		{
+			// Challenger es INDEX_NONE: ganar el reto es ganar el Warden. Lo que pierde el jugador, y su registro, es de
+			// SettleWardenDuel (necesita el sorteo del evento).
+			return Result;
+		}
 		LogEvent(State, EMatchEventType::DuelWon, NowSeconds, Result.Winner, Result.Winner == Duel.Challenged ? 1 : 0, Result.Loser);
 		// R-EFE-8 (S-014): ganarle un duelo a un Marcado cobra su marca, sea el ganador el retador o el retado.
 		CollectMark(State, Result.Winner, Result.Loser, NowSeconds);
@@ -116,5 +161,24 @@ namespace Soulbound::Rules
 			LogEvent(State, EMatchEventType::DuelLoserSentHome, NowSeconds, Result.Winner, Home, Result.Loser);
 		}
 		return Result;
+	}
+
+	int32 SeizeAllRunes(FMatchState& State, int32 Winner, int32 Loser, double NowSeconds)
+	{
+		int32 Seized = 0;
+		if (!State.Seats.IsValidIndex(Winner) || !State.Seats.IsValidIndex(Loser) || Winner == Loser)
+		{
+			return Seized;
+		}
+		// R-EFE-13: una a una, en orden de tipo, con un registro por runa. No es un trilero: Koschei no aparta nada.
+		for (int32 RuneType = 0; RuneType < State.Seats[Loser].Runes.Num(); ++RuneType)
+		{
+			while (TransferRune(State, Loser, Winner, RuneType))
+			{
+				LogEvent(State, EMatchEventType::RunesSeized, NowSeconds, Winner, RuneType, Loser);
+				++Seized;
+			}
+		}
+		return Seized;
 	}
 }
