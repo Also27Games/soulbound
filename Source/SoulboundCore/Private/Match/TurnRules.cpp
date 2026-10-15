@@ -447,18 +447,6 @@ namespace
 		State.TurnPhase = ETurnPhase::Duel;
 	}
 
-	/** Un duelo de un evento (S-015): como BeginDuelAction, sin turno; la máquina vuelve al evento al acabar. */
-	void BeginEventDuelAction(FMatchState& State, int32 Challenger, int32 Challenged, bool bAllRunes, double NowSeconds)
-	{
-		State.CurrentEvent.bWaitsForAction = true;
-		if (Soulbound::Rules::BeginForcedDuel(State, Challenger, Challenged, bAllRunes, NowSeconds) == EDuelStart::NoRunes)
-		{
-			FinishAction(State, NowSeconds);
-			return;
-		}
-		State.TurnPhase = ETurnPhase::Duel;
-	}
-
 	/** El paso que sigue a cerrar una elección de MoveAndResolve: tras el salto, la acción; tras la acción, el fin. */
 	EChoiceKind StepAfter(EChoiceKind Closed)
 	{
@@ -930,7 +918,13 @@ namespace Soulbound::Rules
 
 	void BeginEventDuel(FMatchState& State, int32 Challenger, int32 Challenged, bool bAllRunes, double NowSeconds)
 	{
-		BeginEventDuelAction(State, Challenger, Challenged, bAllRunes, NowSeconds);
+		State.CurrentEvent.bWaitsForAction = true;
+		if (Soulbound::Rules::BeginForcedDuel(State, Challenger, Challenged, bAllRunes, NowSeconds) == EDuelStart::NoRunes)
+		{
+			FinishAction(State, NowSeconds);
+			return;
+		}
+		State.TurnPhase = ETurnPhase::Duel;
 	}
 
 	void BeginEventWardenDuel(FMatchState& State, int32 Challenged, bool bAllRunes, double NowSeconds)
