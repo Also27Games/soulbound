@@ -240,6 +240,7 @@ namespace
 			// R-DIR-1, R-EFE-13: quien dirige señala dos rivales válidos, uno tras otro; el primero es el retador. Con menos de
 			// dos válidos, burla (R-DIR-3). Las dos elecciones son ChosenRival; FirstRival dice cuál es cuál.
 			TArray<int32> Rivals = ValidTargets(State, Application.Effect, PointedSeats(State, EEffectTarget::Everyone, Director), Director);
+			Rivals.Remove(Director);
 			if (Rivals.Num() < 2)
 			{
 				Taunt(State, Application, Director, NowSeconds);
@@ -262,7 +263,8 @@ namespace
 		}
 		if (Application.Effect == EEffect::ForcedDuel)
 		{
-			// R-EFE-13, "dos al azar": dos válidos distintos con el sorteo del evento, y el retador se sortea entre ellos.
+			// R-EFE-13, "dos al azar": dos válidos distintos con el sorteo del evento, y el retador se sortea entre ellos. Quien
+			// dirige puede ser uno de los dos (decisión del autor del 14/10/2026: "al azar" puede caer sobre quien dirige).
 			if (Targets.Num() < 2)
 			{
 				Taunt(State, Application, Director, NowSeconds);
@@ -403,7 +405,14 @@ namespace Soulbound::Rules
 		case EEffect::GiftRune: return CanGiftRune(State, Seat);
 		case EEffect::WardenTrial: return CanWardenTrial(State, Seat);
 		case EEffect::DecreedTheft: return CanDecreeTheft(State, Seat, Director);
-		case EEffect::ForcedDuel: return CanForceDuel(State, Seat, Director);
+		case EEffect::ForcedDuel:
+			// R-INT-3: quien dirige no puede estar en el Vacío. Seat puede ser el propio Director (con "dos al azar", 14/10/2026);
+			// que el retador y el retado sean distintos lo comprueba ApplyEffect con el retador real.
+			if (!State.Seats.IsValidIndex(Director))
+			{
+				return EEffectResult::InvalidSeat;
+			}
+			return State.Seats[Director].IsInVoid() ? EEffectResult::InVoid : CanForceDuelTarget(State, Seat);
 		case EEffect::ReleaseVoid:
 			// Global: con alguien dentro. Sobre un asiento: solo si está dentro (filtro de "los del Vacío", decisión del autor).
 			if (Seat == INDEX_NONE)
@@ -675,6 +684,7 @@ namespace Soulbound::Rules
 				Event.FirstRival = Option;
 				TArray<int32> Rivals = ValidTargets(State, Application.Effect, PointedSeats(State, EEffectTarget::Everyone, Event.Director), Event.Director);
 				Rivals.Remove(Option);
+				Rivals.Remove(Event.Director);
 				if (Rivals.IsEmpty())
 				{
 					Event.FirstRival = INDEX_NONE;

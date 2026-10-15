@@ -658,17 +658,18 @@ namespace Soulbound::Rules
 		{
 			return ChallengerCheck;
 		}
-		const EEffectResult ChallengedCheck = CheckSeatOnBoard(State, Challenged);
-		if (ChallengedCheck != EEffectResult::Applied)
-		{
-			return ChallengedCheck;
-		}
 		if (Challenged == Challenger)
 		{
 			return EEffectResult::SelfTarget;
 		}
+		return CanForceDuelTarget(State, Challenged);
+	}
+
+	EEffectResult CanForceDuelTarget(const FMatchState& State, int32 Seat)
+	{
+		const EEffectResult Check = CheckSeatOnBoard(State, Seat);
 		// R-EFE-13 (decisión del autor del 15/10/2026): el retado tiene al menos una runa; si no, el duelo se anularía.
-		return TotalRunes(State.Seats[Challenged]) == 0 ? EEffectResult::NoRunes : EEffectResult::Applied;
+		return Check == EEffectResult::Applied && TotalRunes(State.Seats[Seat]) == 0 ? EEffectResult::NoRunes : Check;
 	}
 
 	EEffectResult ForceDuel(FMatchState& State, int32 Challenged, int32 Challenger, bool bAllRunes, double NowSeconds)

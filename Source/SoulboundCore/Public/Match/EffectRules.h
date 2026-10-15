@@ -298,6 +298,12 @@ namespace Soulbound::Rules
 	SOULBOUNDCORE_API EEffectResult CanForceDuel(const FMatchState& State, int32 Challenged, int32 Challenger);
 
 	/**
+	 * Si Seat puede ser parte de un Duelo forzado como retado (R-EFE-13, R-INT-3): InvalidSeat, InVoid, NoRunes; Applied si
+	 * vale. No mira quién reta: con "dos al azar" (decisión del autor del 14/10/2026) quien dirige puede ser sorteado. S-015.
+	 */
+	SOULBOUNDCORE_API EEffectResult CanForceDuelTarget(const FMatchState& State, int32 Seat);
+
+	/**
 	 * Duelo forzado (glosario `ForcedDuel`, R-EFE-13): Challenger reta a Challenged por una runa (con el trilero del botín) o
 	 * por todas (bAllRunes, sin trilero), entre turnos. Empieza el duelo (BeginForcedDuel); no termina ningún turno. Devuelve
 	 * CanForceDuel; si no es Applied, no cambia nada. S-015.

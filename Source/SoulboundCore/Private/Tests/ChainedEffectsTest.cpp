@@ -573,34 +573,56 @@ bool FChainedForcedDuelTooFewTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// CA-EFE-10, R-EFE-13: "dos al azar": dos válidos con el sorteo del evento, distintos y rivales de quien dirige; el retador se
-// sortea; misma semilla, mismo duelo; nada toca el sorteo de la partida.
+// CA-EFE-10, R-EFE-13: "dos al azar": dos válidos distintos con el sorteo del evento; quien dirige puede ser uno de ellos
+// (decisión del autor del 14/10/2026); el retador se sortea; misma semilla, mismo duelo; nada toca el sorteo de la partida.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FChainedForcedDuelRandomTest, "Soulbound.Core.ChainedEffects.ForcedDuel.DosAlAzar",
 	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 bool FChainedForcedDuelRandomTest::RunTest(const FString& Parameters)
 {
+	bool bDirectorChallenges = false;
+	bool bDirectorChallenged = false;
 	TArray<TPair<int32, int32>> Pairs;
-	for (int32 Run = 0; Run < 2; ++Run)
+	for (int32 Seed = 1; Seed <= 40; ++Seed)
 	{
 		FEventFixture F;
 		if (!F.StartAfterRace(*this))
 		{
 			return false;
 		}
+		F.State.Seats[Fenrir].Runes[4] = 1;
 		F.State.Seats[Koschei].Runes[0] = 1;
 		F.State.Seats[EchoA].Runes[2] = 1;
 		F.State.Seats[EchoB].Runes[3] = 1;
-		F.WardenRandom.Initialize(11);
+		F.WardenRandom.Initialize(Seed);
 		const int32 SeedBefore = F.Random.GetCurrentSeed();
 		F.Decree(Fenrir, App(EEffect::ForcedDuel, EEffectTarget::RandomPlayer, 1, EEffectVariant::OneRune));
-		TestEqual(TEXT("Empieza el duelo"), AsInt(F.State.TurnPhase), AsInt(ETurnPhase::Duel));
+		if (!TestEqual(TEXT("Empieza el duelo"), AsInt(F.State.TurnPhase), AsInt(ETurnPhase::Duel)))
+		{
+			return false;
+		}
 		TestTrue(TEXT("Dos distintos"), F.State.Duel.Challenger != F.State.Duel.Challenged);
-		TestTrue(TEXT("Ninguno es quien dirige"), F.State.Duel.Challenger != Fenrir && F.State.Duel.Challenged != Fenrir);
 		TestEqual(TEXT("Con el sorteo del evento"), F.Random.GetCurrentSeed(), SeedBefore);
+		bDirectorChallenges |= F.State.Duel.Challenger == Fenrir;
+		bDirectorChallenged |= F.State.Duel.Challenged == Fenrir;
 		Pairs.Add(TPair<int32, int32>(F.State.Duel.Challenger, F.State.Duel.Challenged));
 	}
-	TestTrue(TEXT("La misma semilla da el mismo duelo"), Pairs[0] == Pairs[1]);
+	TestTrue(TEXT("Quien dirige puede ser el retador"), bDirectorChallenges);
+	TestTrue(TEXT("Quien dirige puede ser el retado"), bDirectorChallenged);
+
+	// La misma semilla da el mismo duelo.
+	FEventFixture Again;
+	if (!Again.StartAfterRace(*this))
+	{
+		return false;
+	}
+	Again.State.Seats[Fenrir].Runes[4] = 1;
+	Again.State.Seats[Koschei].Runes[0] = 1;
+	Again.State.Seats[EchoA].Runes[2] = 1;
+	Again.State.Seats[EchoB].Runes[3] = 1;
+	Again.WardenRandom.Initialize(1);
+	Again.Decree(Fenrir, App(EEffect::ForcedDuel, EEffectTarget::RandomPlayer, 1, EEffectVariant::OneRune));
+	TestTrue(TEXT("La misma semilla da el mismo duelo"), Pairs[0] == TPair<int32, int32>(Again.State.Duel.Challenger, Again.State.Duel.Challenged));
 	return true;
 }
 
