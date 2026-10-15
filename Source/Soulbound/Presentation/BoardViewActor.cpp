@@ -54,7 +54,7 @@ namespace
 		case ETurnPhase::PreRoll: return TEXT("antes de tirar");
 		case ETurnPhase::RollAndChoose: return TEXT("tirada y destino");
 		case ETurnPhase::MoveAndResolve: return TEXT("movimiento");
-		case ETurnPhase::SkillTrial: return TEXT("minijuego (Fuente o escape del Vacío)");
+		case ETurnPhase::SkillTrial: return TEXT("minijuego (Fuente, escape del Vacío o Prueba del Warden)");
 		case ETurnPhase::ShellGame: return TEXT("trilero");
 		case ETurnPhase::Duel: return TEXT("duelo");
 		case ETurnPhase::End: return TEXT("fin de turno");
@@ -152,12 +152,64 @@ namespace
 	}
 
 	/**
+	 * Efecto del evento del Warden que espera ahora a su duelo o a su trilero (S-015): la aplicación en curso de la opción que
+	 * se aplica. Falso si no hay evento esperando una acción. Solo lee el estado.
+	 */
+	bool EventActionEffect(const FMatchState& State, EEffect& OutEffect)
+	{
+		const FCurrentWardenEvent& Event = State.CurrentEvent;
+		if (!Event.IsActive() || !Event.bWaitsForAction || !State.WardenEvents.Events.IsValidIndex(Event.EventIndex))
+		{
+			return false;
+		}
+		const FWardenEventDef& Def = State.WardenEvents.Events[Event.EventIndex];
+		if (!Def.Options.IsValidIndex(Event.Option) || !Def.Options[Event.Option].Applications.IsValidIndex(Event.NextApplication - 1))
+		{
+			return false;
+		}
+		OutEffect = Def.Options[Event.Option].Applications[Event.NextApplication - 1].Effect;
+		return true;
+	}
+
+	/**
+	 * Qué se elige al señalar a un rival en el evento en curso (S-015), para la línea de petición: a quién se pone a prueba, a
+	 * quién se roba, con quién se bate o, con dos rivales, quién reta y a quién. Solo lee el estado.
+	 */
+	FString ChosenRivalText(const FMatchState& State)
+	{
+		const FCurrentWardenEvent& Event = State.CurrentEvent;
+		const FWardenEventDef* Def = State.WardenEvents.Events.IsValidIndex(Event.EventIndex) ? &State.WardenEvents.Events[Event.EventIndex] : nullptr;
+		if (Def && Def->Options.IsValidIndex(Event.Option) && Def->Options[Event.Option].Applications.IsValidIndex(Event.NextApplication - 1))
+		{
+			const FEffectApplication& Application = Def->Options[Event.Option].Applications[Event.NextApplication - 1];
+			if (Application.Target == EEffectTarget::TwoChosenRivals)
+			{
+				return Event.FirstRival == INDEX_NONE ? FString(TEXT("el primer rival, que reta al segundo"))
+					: FString::Printf(TEXT("el segundo rival, al que reta el asiento %d"), Event.FirstRival);
+			}
+			switch (Application.Effect)
+			{
+			case EEffect::WardenTrial: return TEXT("a quién pones a prueba");
+			case EEffect::DecreedTheft: return TEXT("a quién robas");
+			case EEffect::ForcedDuel: return TEXT("con quién te bates");
+			default: break;
+			}
+		}
+		return TEXT("a quién señalas");
+	}
+
+	/**
 	 * Estados del asiento Seat que dejan los efectos del Warden (S-014): Marcado y Brazal revelado, con la ronda en que
 	 * caducan, para la leyenda de asientos. Vacío si no tiene ninguno. Solo lee el estado.
 	 */
 	FString EffectStatusText(const FMatchState& State, int32 Seat)
 	{
 		FString Text;
+		if (State.Seats.IsValidIndex(Seat) && State.Seats[Seat].bWardenTrialPending)
+		{
+			// S-015: la Prueba del Warden pendiente, hasta que la juegue al empezar su siguiente turno.
+			Text += TEXT(" | PRUEBA DEL WARDEN");
+		}
 		if (Soulbound::Rules::IsMarked(State, Seat))
 		{
 			Text += FString::Printf(TEXT(" | MARCADO hasta la ronda %d"), State.Seats[Seat].MarkedUntilRound);
@@ -216,8 +268,9 @@ namespace
 			return bHuman ? FString::Printf(TEXT("REPETIR: [R] repite la tirada (una vez por turno), o clic en una casilla blanca | %s"), *Left)
 				: FString::Printf(TEXT("el asiento %d decide si repite la tirada | %s"), Choice.Seat, *Left);
 		}
+		const FString RivalWhat = Choice.Kind == EChoiceKind::ChosenRival ? ChosenRivalText(State) : FString();
 		const TCHAR* What = Choice.Kind == EChoiceKind::Dilemma ? TEXT("una opción del dilema")
-			: Choice.Kind == EChoiceKind::ChosenRival ? TEXT("a quién señalas")
+			: Choice.Kind == EChoiceKind::ChosenRival ? *RivalWhat
 			: Choice.Kind == EChoiceKind::GiftRune ? TEXT("qué runa te regala el Warden")
 			: Choice.Kind == EChoiceKind::LoseRune ? TEXT("qué runa pierdes")
 			: Choice.Kind == EChoiceKind::DiceCount ? TEXT("dados")
@@ -249,7 +302,11 @@ namespace
 	FString ShellGameLine(const FMatchState& State)
 	{
 		const FShellGameState& Game = State.ShellGame;
-		const FString Who = FString::Printf(TEXT("TRILERO: el asiento %d roba al asiento %d"), Game.Thief, Game.Victim);
+		// S-015: el de un evento del Warden lo dice: el Robo decretado, o el botín de un Duelo forzado.
+		EEffect EventEffect = EEffect::Halt;
+		const bool bFromEvent = EventActionEffect(State, EventEffect);
+		const TCHAR* Header = !bFromEvent ? TEXT("TRILERO") : EventEffect == EEffect::DecreedTheft ? TEXT("ROBO DECRETADO") : TEXT("DUELO FORZADO (botín: trilero)");
+		const FString Who = FString::Printf(TEXT("%s: el asiento %d roba al asiento %d"), Header, Game.Thief, Game.Victim);
 		const double StageLeft = FMath::Max(0.0, Game.StageDeadlineSeconds - State.ClockSeconds);
 		switch (Game.Stage)
 		{
@@ -289,6 +346,18 @@ namespace
 		if (Duel.IsActive())
 		{
 			auto Status = [&Duel](int32 Seat) { return Duel.HasPerformed(Seat) ? TEXT("ha rendido") : TEXT("rindiendo"); };
+			// S-015: el Duelo contra el Warden (rinde un valor fijo) y el Duelo forzado de un evento, entre turnos.
+			if (Duel.bAgainstWarden)
+			{
+				return FString::Printf(TEXT("DUELO CONTRA EL WARDEN: el asiento %s se bate contra el Warden (rinde %.2f) por %s | %s | resuelto al azar (sin minijuego aún)"),
+					*Who(Duel.Challenged), Duel.ChallengerPerformance, Duel.bAllRunes ? TEXT("todas sus runas") : TEXT("una de sus runas"), Status(Duel.Challenged));
+			}
+			if (State.CurrentEvent.IsActive() && State.CurrentEvent.bWaitsForAction)
+			{
+				return FString::Printf(TEXT("DUELO FORZADO: el asiento %s reta al asiento %s por %s | retador %s, retado %s | resuelto al azar (sin minijuego aún)"),
+					*Who(Duel.Challenger), *Who(Duel.Challenged), Duel.bAllRunes ? TEXT("todas sus runas") : TEXT("una runa"),
+					Status(Duel.Challenger), Status(Duel.Challenged));
+			}
 			return FString::Printf(TEXT("DUELO: el asiento %s reta al asiento %s%s | retador %s, retado %s | resuelto al azar (sin minijuego aún)"),
 				*Who(Duel.Challenger), *Who(Duel.Challenged), Duel.bFromDuelNode ? TEXT(" desde un Nodo de Duelo") : TEXT(""),
 				Status(Duel.Challenger), Status(Duel.Challenged));
@@ -1168,11 +1237,24 @@ void ABoardViewActor::TickHud()
 		FString::Printf(TEXT("Turno %d | juega: asiento %d (%s) | fase: %s"), TurnNumber, State.ActiveSeat,
 			State.ActiveSeat == HostPtr->GetHumanSeat() ? TEXT("humano") : TEXT("dummy"), PhaseName(State.TurnPhase)));
 
+	// S-015: un duelo o un trilero de un evento se juega entre turnos; el asiento activo es a quien le toca después.
+	if (State.CurrentEvent.IsActive() && State.CurrentEvent.bWaitsForAction && !State.IsMatchOver())
+	{
+		ShowText(0, FColor::Orange, FString::Printf(TEXT("Entre turnos | evento del Warden en curso | fase: %s | el siguiente turno es del asiento %d"),
+			PhaseName(State.TurnPhase), State.ActiveSeat));
+	}
+
 	if (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::VoidEscape)
 	{
 		// Escape del Vacío (S-013): el minijuego aún no existe; el humano lo resuelve al azar, o como fije SbTrial.
 		ShowText(1, FColor::Yellow, FString::Printf(TEXT("Escape del Vacío: el asiento %d juega en %s (%s) y espera el resultado (resuelto al azar, o con SbTrial)"),
 			State.ActiveSeat, *Soulbound::Presentation::DifficultyText(static_cast<int32>(State.PendingDifficulty)), *VoidText(State, State.ActiveSeat)));
+	}
+	else if (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::WardenTrial)
+	{
+		// Prueba del Warden (S-015): el minijuego aún no existe; el humano lo resuelve al azar, o como fije SbTrial.
+		ShowText(1, FColor::Yellow, FString::Printf(TEXT("PRUEBA DEL WARDEN: el asiento %d juega en %s antes de tirar y espera el resultado (resuelta al azar, o con SbTrial)"),
+			State.ActiveSeat, *Soulbound::Presentation::DifficultyText(static_cast<int32>(State.PendingDifficulty))));
 	}
 	else if (State.TurnPhase == ETurnPhase::SkillTrial)
 	{
