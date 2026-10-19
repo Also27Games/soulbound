@@ -642,7 +642,7 @@ namespace Soulbound::Rules
 			const FPendingChoice Expired = State.PendingChoice;
 			State.PendingChoice = FPendingChoice();
 			LogEvent(State, EMatchEventType::WardenIgnored, NowSeconds, Expired.Seat, static_cast<int32>(Expired.Kind));
-			RaiseInsolence(State, Expired.Seat);
+			RaiseInsolence(State, Expired.Seat, NowSeconds);
 			const FEffectApplication Application = ApplicationInProgress(State);
 			switch (Expired.Kind)
 			{

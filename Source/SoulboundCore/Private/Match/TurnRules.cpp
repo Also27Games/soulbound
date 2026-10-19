@@ -594,7 +594,7 @@ namespace Soulbound::Rules
 					DrawDice(Random);
 					CloseChoice(State);
 					LogEvent(State, EMatchEventType::TurnClockExpired, NowSeconds, State.ActiveSeat);
-					RaiseInsolence(State, State.ActiveSeat);
+					RaiseInsolence(State, State.ActiveSeat, NowSeconds);
 					EnterEnd(State, NowSeconds);
 					return true;
 				}
@@ -629,7 +629,7 @@ namespace Soulbound::Rules
 				CloseChoice(State);
 				SettleRerollValues(State, Random);
 				LogEvent(State, EMatchEventType::TurnClockExpired, NowSeconds, State.ActiveSeat);
-				RaiseInsolence(State, State.ActiveSeat);
+				RaiseInsolence(State, State.ActiveSeat, NowSeconds);
 				EnterEnd(State, NowSeconds);
 				return true;
 			}
@@ -1008,7 +1008,7 @@ namespace Soulbound::Rules
 		return GrantCapped(State, Seat, Count, &FSeatState::LostTurns, State.Params.MaxLostTurns);
 	}
 
-	bool RaiseInsolence(FMatchState& State, int32 Seat)
+	bool RaiseInsolence(FMatchState& State, int32 Seat, double NowSeconds)
 	{
 		if (!State.Seats.IsValidIndex(Seat))
 		{

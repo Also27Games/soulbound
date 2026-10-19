@@ -571,6 +571,7 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 		// S-016: el Warden por acto (intervenciones con efecto, turnos empezados y cortados, hueco más largo).
 		TArray<FWardenActReport> WardenActs;
 		WardenActs.SetNum(Soulbound::Warden::ActCount);
+		int32 Furies = 0;
 		for (int32 Seed = 1; Seed <= Games; ++Seed)
 		{
 			Params.Seed = Seed;
@@ -590,6 +591,9 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 				}
 				TestEqual(TEXT("Las intervenciones por acto suman las de la partida"), Interventions, Result.Interventions);
 			}
+			// S-016 (B): las Furias, contadas del registro.
+			TestEqual(TEXT("Las Furias del resultado son las del registro"), Result.Furies, CountEvents(Result.FinalState, EMatchEventType::FuryUnleashed));
+			Furies += Result.Furies;
 			const FMatchState& State = Result.FinalState;
 			const TArray<FMatchEvent> Ended = Soulbound::Tests::EventsOfType(State, EMatchEventType::BondRaceEnded);
 			if (!TestEqual(FString::Printf(TEXT("%s, semilla %d: la carrera termina una vez"), *BoardFile, Seed), Ended.Num(), 1))
@@ -658,6 +662,7 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 				ActNames[Act], static_cast<double>(Report.EffectInterventions) / Games, Report.TurnsStarted > 0 ? 100.0 * Report.TurnsCut / Report.TurnsStarted : 0.0,
 				100.0 * Target, Report.MaxGapSeconds));
 		}
+		Lines.Add(FString::Printf(TEXT("    Furias del Warden por partida, de media: %.2f"), static_cast<double>(Furies) / Games));
 		Lines.Add(FString::Printf(TEXT("    tiempo real: %.3f s en total"), WallSum));
 	}
 
@@ -1226,6 +1231,37 @@ bool FMatchSimulationWardenLogTest::RunTest(const FString& Parameters)
 	FSimulationParams Other = Params;
 	Other.Seed = 43;
 	TestFalse(TEXT("Otra semilla, otro registro del Warden"), SameEvents(LogA, WardenLog(FMatchSimulation(Other, FourRaceDummies()).Run())));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationNoInsolenceTest,
+	"Soulbound.Core.Simulation.DummiesNuncaInsolentes",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationNoInsolenceTest::RunTest(const FString& Parameters)
+{
+	// CA-INS-3 (R-INS-1; simulación): en 50 partidas con dummies de carrera y el Warden real (tablero de 35, semillas 1 a 50),
+	// insolencia 0 en todos los asientos al final, ni un castigo ni una Furia: los dummies contestan siempre dentro del plazo.
+	FSimulationParams Params;
+	if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), 1, Params))
+	{
+		return false;
+	}
+	for (int32 Seed = 1; Seed <= 50; ++Seed)
+	{
+		Params.Seed = Seed;
+		const FSimulationResult Result = FMatchSimulation(Params, FourRaceDummies()).Run();
+		for (int32 Seat = 0; Seat < Result.FinalState.Seats.Num(); ++Seat)
+		{
+			if (Result.FinalState.Seats[Seat].Insolence != 0)
+			{
+				AddError(FString::Printf(TEXT("Semilla %d: el asiento %d acaba con insolencia %d"), Seed, Seat, Result.FinalState.Seats[Seat].Insolence));
+			}
+		}
+		TestEqual(FString::Printf(TEXT("Semilla %d: ningún castigo de insolencia"), Seed), CountEvents(Result.FinalState, EMatchEventType::InsolencePunished), 0);
+		TestEqual(FString::Printf(TEXT("Semilla %d: ninguna Furia"), Seed), Result.Furies, 0);
+		TestTrue(FString::Printf(TEXT("Semilla %d: el Warden juega"), Seed), Result.Evaluations > 0);
+	}
 	return true;
 }
 

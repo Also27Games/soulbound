@@ -645,6 +645,50 @@ enum class EMatchEventType : uint8
 	WardenDecided,
 	/** Comentario del Warden (glosario `Remark`, R-WAR-4, S-016): sin texto ni efecto; el tipo y la frase son de S-017. Sin asiento. */
 	WardenRemark,
+	/**
+	 * Castigo de insolencia (R-INS-2, S-016): Seat el insolente, Value el nivel que alcanzó con la subida y Detail la gravedad
+	 * (EInsolencePunishment). Lo que hace va justo después: EffectApplied (o WardenTaunt sin efecto válido), o FuryUnleashed.
+	 * Nombre propuesto en S-016.
+	 */
+	InsolencePunished,
+	/**
+	 * La Furia del Warden (glosario `WardenFury`, R-INS-3, S-016): Seat el insolente, al Vacío de la Furia; su insolencia vuelve
+	 * a 0. Va antes de su Banished (Value 1), o solo si ya estaba en el Vacío. Nombre propuesto en S-016.
+	 */
+	FuryUnleashed,
+	/**
+	 * El Warden se niega dentro del Vacío de la Furia (glosario `FuryVoid`, R-INS-3, S-016): Seat el de la Furia, Value 0 si
+	 * intentó Desvío (la runa no se consume) y 1 si una Liberación sacó a los demás y a él no. Nombre propuesto en S-016.
+	 */
+	FuryRefusal,
+};
+
+/** Gravedad de un castigo de insolencia (R-INS-2, S-016, nombre propuesto): la de la tabla, o la Furia. Es el Detail de InsolencePunished. */
+UENUM()
+enum class EInsolencePunishment : uint8
+{
+	Light,
+	Medium,
+	Severe,
+	/** La Furia (R-INS-3): sin sorteo, al Vacío de la Furia. */
+	Fury,
+};
+
+/**
+ * Castigo de insolencia que espera (R-INS-2, S-016, nombre propuesto): el nivel que alcanzó la subida y la gravedad, sorteada
+ * en ese momento. Espera a que el asiento deje de estar en juego (FSeatState::PendingPunishments) o salga del Vacío
+ * (FSeatState::VoidPunishments).
+ */
+USTRUCT()
+struct SOULBOUNDCORE_API FPendingPunishment
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	int32 Level = 0;
+
+	UPROPERTY()
+	EInsolencePunishment Kind = EInsolencePunishment::Light;
 };
 
 /** Por qué termina la Noche de los Ecos (R-EFE-9, R-EFE-18, S-014, nombre propuesto): el Detail del evento EchoNightEnded. */
@@ -782,6 +826,27 @@ struct SOULBOUNDCORE_API FSeatState
 	 */
 	UPROPERTY()
 	bool bWardenTrialPending = false;
+
+	/**
+	 * Vacío de la Furia (glosario `FuryVoid`, R-INS-3, S-016): el Vacío en que lo dejó la Furia, donde Desvío no funciona (la
+	 * runa no se consume) y una Liberación saca a los demás y a él no. Lo borra la salida del Vacío. Nombre del glosario.
+	 */
+	UPROPERTY()
+	bool bFuryVoid = false;
+
+	/**
+	 * Castigos de insolencia que esperan a que el asiento deje de estar en juego (R-INS-2, S-016): el del reloj de turno, al
+	 * terminar ese turno; el de una desatención que lo deja en un duelo o un trilero, al acabar. Nombre propuesto en S-016.
+	 */
+	UPROPERTY()
+	TArray<FPendingPunishment> PendingPunishments;
+
+	/**
+	 * Castigos de insolencia aplazados a la salida del Vacío (R-INS-2, S-016), salvo la Furia, que no se aplaza. Nombre
+	 * propuesto en S-016.
+	 */
+	UPROPERTY()
+	TArray<FPendingPunishment> VoidPunishments;
 };
 
 /**

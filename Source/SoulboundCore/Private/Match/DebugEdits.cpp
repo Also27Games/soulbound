@@ -267,4 +267,10 @@ namespace Soulbound::Debug
 		LogEdit(State, EDebugEditKind::LaunchEvent, NowSeconds, INDEX_NONE);
 		return Soulbound::Rules::ApplyEvent(State, EventId, NowSeconds, Random);
 	}
+
+	EDebugEditResult SetInsolence(FMatchState& State, int32 Seat, int32 Level, double NowSeconds)
+	{
+		// TODO(R-INS-1): firma vacía del ciclo rojo de S-016 (B).
+		return EDebugEditResult::InvalidSeat;
+	}
 }

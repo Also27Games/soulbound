@@ -226,8 +226,11 @@ namespace Soulbound::Rules
 	SOULBOUNDCORE_API bool GrantLostTurns(FMatchState& State, int32 Seat, int32 Count);
 
 	/**
-	 * Sube un nivel la insolencia del asiento Seat, sin pasar de Soulbound::Match::MaxInsolence.
-	 * El castigo de cada nivel y la Furia son de la story del Warden. Devuelve false si el asiento no existe.
+	 * Sube un nivel la insolencia del asiento Seat, sin pasar de Soulbound::Match::MaxInsolence (R-INS-1). Desde S-016, con
+	 * Warden en la partida, cada subida trae su castigo (R-INS-2, R-INS-3, Match/InsolenceRules.h), sorteado ahora con el nivel
+	 * anterior: se aplica en el acto si el asiento no está en juego ni en el Vacío; si está en juego, al dejar de estarlo
+	 * (FSeatState::PendingPunishments); si está en el Vacío, a su salida (VoidPunishments), salvo la Furia. Sin Warden, solo
+	 * cuenta. NowSeconds: marca de los eventos (cambio de firma de S-016, hecho a mano). Devuelve false si el asiento no existe.
 	 */
-	SOULBOUNDCORE_API bool RaiseInsolence(FMatchState& State, int32 Seat);
+	SOULBOUNDCORE_API bool RaiseInsolence(FMatchState& State, int32 Seat, double NowSeconds);
 }

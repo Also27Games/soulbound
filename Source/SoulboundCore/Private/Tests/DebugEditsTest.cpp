@@ -732,4 +732,34 @@ bool FDebugLaunchEventTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDebugInsolenceTest,
+	"Soulbound.Core.Debug.FijarInsolencia",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FDebugInsolenceTest::RunTest(const FString& Parameters)
+{
+	// S-016 (SbInsolence, patrón de S-011): fija la insolencia de un asiento, de 0 a 4, sin castigo, y deja su DebugEdit; fuera
+	// de rango o con un asiento que no existe, se rechaza sin tocar nada.
+	FDebugFixture F;
+	if (!F.Start(*this))
+	{
+		return false;
+	}
+	const int32 Before = F.State.EventLog.Num();
+	TestEqual(TEXT("Fijar 4 se aplica"), Soulbound::Debug::SetInsolence(F.State, 2, 4, F.Now), EDebugEditResult::Applied);
+	TestEqual(TEXT("Insolencia 4"), F.State.Seats[2].Insolence, 4);
+	if (TestEqual(TEXT("Un solo evento"), F.State.EventLog.Num(), Before + 1))
+	{
+		const FMatchEvent& Edit = F.State.EventLog.Last();
+		TestTrue(TEXT("El de la edición, con el asiento"), Edit.Type == EMatchEventType::DebugEdit && Edit.Seat == 2
+			&& Edit.Value == static_cast<int32>(EDebugEditKind::SetInsolence));
+	}
+	const FMatchState Fixed = F.State;
+	TestEqual(TEXT("5 está fuera de rango: es la Furia, no un nivel"), Soulbound::Debug::SetInsolence(F.State, 2, Soulbound::Match::MaxInsolence, F.Now), EDebugEditResult::InvalidAmount);
+	TestEqual(TEXT("Negativo, fuera de rango"), Soulbound::Debug::SetInsolence(F.State, 2, -1, F.Now), EDebugEditResult::InvalidAmount);
+	TestEqual(TEXT("Asiento inexistente"), Soulbound::Debug::SetInsolence(F.State, 4, 1, F.Now), EDebugEditResult::InvalidSeat);
+	TestTrue(TEXT("Un rechazo no cambia el estado"), SameState(Fixed, F.State));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
