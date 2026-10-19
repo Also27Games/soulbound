@@ -90,9 +90,21 @@ namespace Soulbound::Presentation
 		{
 			const FWardenEventDef* Def = WardenEvents && WardenEvents->Events.IsValidIndex(Event.Value) ? &WardenEvents->Events[Event.Value] : nullptr;
 			const FString Text = Def ? FString::Printf(TEXT("\"%s\""), *Def->Text) : FString::Printf(TEXT("evento %d"), Event.Value);
-			return Event.Detail > 1 ? FString::Printf(TEXT("EL WARDEN propone un DILEMA al asiento %d: %s (%d opciones)"), Event.Seat, *Text, Event.Detail)
-				: FString::Printf(TEXT("EL WARDEN DECRETA (dirige el asiento %d): %s"), Event.Seat, *Text);
+			// S-016: el canal y el nombre del evento; los de prueba, fuera de los sacos, por su identificador.
+			const FString Name = !Def ? FString(TEXT("EL WARDEN"))
+				: !Def->bInBag ? FString::Printf(TEXT("EL WARDEN (%s)"), *Def->Id)
+				: FString::Printf(TEXT("EL WARDEN, %s \"%s\""), Def->Channel == EWardenChannel::Strike ? TEXT("GOLPE") : TEXT("ESCENA"), *Def->DisplayName());
+			return Event.Detail > 1 ? FString::Printf(TEXT("%s: propone un DILEMA al asiento %d: %s (%d opciones)"), *Name, Event.Seat, *Text, Event.Detail)
+				: FString::Printf(TEXT("%s: DECRETA (dirige el asiento %d): %s"), *Name, Event.Seat, *Text);
 		}
+		// S-016: el corte de un golpe y el comentario; las evaluaciones y las decisiones no tienen línea (sí, su registro).
+		case EMatchEventType::TurnInterrupted:
+			return FString::Printf(TEXT("GOLPE: el Warden CORTA el turno del asiento %d %s: la tirada se pierde y la ficha se queda donde está"), Event.Seat, *TurnPhaseText(Event.Value));
+		case EMatchEventType::WardenRemark:
+			return FString(TEXT("el Warden comenta (la frase llega con S-017)"));
+		case EMatchEventType::WardenEvaluated:
+		case EMatchEventType::WardenDecided:
+			return FString();
 		case EMatchEventType::DilemmaChosen:
 			return Event.Detail == 1
 				? FString::Printf(TEXT("el Warden sortea la opción %d del dilema EN CONTRA del asiento %d"), Event.Value + 1, Event.Seat)
@@ -227,7 +239,7 @@ namespace Soulbound::Presentation
 		case EWardenEventStart::NotBetweenTurns: return TEXT("los eventos van entre turnos: con SbStepMode 1, cuando la partida espera el siguiente turno");
 		case EWardenEventStart::EventInProgress: return TEXT("ya hay un evento en curso");
 		case EWardenEventStart::MatchOver: return TEXT("la partida ha terminado");
-		case EWardenEventStart::NotImplemented: return TEXT("usa un efecto que llega en otra story (Alto o Consulta forzada)");
+		case EWardenEventStart::NotImplemented: return TEXT("usa un efecto que llega en otra story (la Consulta forzada, S-017)");
 		}
 		return TEXT("rechazado");
 	}
@@ -241,6 +253,18 @@ namespace Soulbound::Presentation
 		case EChoiceKind::GiftRune: return TEXT("qué runa recibe: el regalo se pierde");
 		case EChoiceKind::LoseRune: return TEXT("qué runa pierde: una al azar");
 		default: return TEXT("una elección");
+		}
+	}
+
+	FString TurnPhaseText(int32 Phase)
+	{
+		switch (static_cast<ETurnPhase>(Phase))
+		{
+		case ETurnPhase::Start: return TEXT("al empezar (Start)");
+		case ETurnPhase::PreRoll: return TEXT("antes de tirar (PreRoll)");
+		case ETurnPhase::RollAndChoose: return TEXT("mientras elige destino (RollAndChoose)");
+		case ETurnPhase::MoveAndResolve: return TEXT("tras moverse (MoveAndResolve)");
+		default: return TEXT("en una fase que no se corta");
 		}
 	}
 
@@ -288,6 +312,7 @@ namespace Soulbound::Presentation
 		case EEffectResult::NotImplemented: return TEXT("ese efecto llega en otra story");
 		case EEffectResult::AlreadyActive: return TEXT("ya es de noche");
 		case EEffectResult::AlreadyPending: return TEXT("ese asiento ya tiene una Prueba del Warden pendiente");
+		case EEffectResult::NoTurnToCut: return TEXT("el Alto solo vale cortando un turno, en un golpe");
 		}
 		return TEXT("rechazado");
 	}
@@ -362,6 +387,9 @@ namespace Soulbound::Presentation
 		case EMatchEventType::WardenDuelWon:
 		case EMatchEventType::WardenDuelLost:
 		case EMatchEventType::RuneTakenByWarden:
+		// S-016: el corte de un golpe y el comentario.
+		case EMatchEventType::TurnInterrupted:
+		case EMatchEventType::WardenRemark:
 			return EEventSource::Warden;
 		case EMatchEventType::Bonded:
 		case EMatchEventType::BoardAwakening:

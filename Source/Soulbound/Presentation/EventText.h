@@ -65,6 +65,9 @@ namespace Soulbound::Presentation
 	/** Nombre en español de una dificultad del minijuego (ESkillDifficulty en un Value), para la crónica (S-013). */
 	FString DifficultyText(int32 Difficulty);
 
+	/** En qué fase se corta un turno (ETurnPhase en un Value), en español, para la crónica (S-016: TurnInterrupted). */
+	FString TurnPhaseText(int32 Phase);
+
 	/** Motivo de una salida del Vacío (EVoidExit en el Value de LeftVoid), en español, para la crónica (S-013). */
 	FString VoidExitText(int32 Exit);
 

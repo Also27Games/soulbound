@@ -1,6 +1,7 @@
 #include "BoardViewActor.h"
 
 #include "../Match/MatchHostSubsystem.h"
+#include "../Warden/WardenHostSubsystem.h"
 #include "BoardTileActor.h"
 #include "ChroniclePanel.h"
 #include "EventText.h"
@@ -8,6 +9,7 @@
 #include "Match/BondRaceRules.h"
 #include "Match/RuneRules.h"
 #include "PresentationShapes.h"
+#include "Warden/WardenBrain.h"
 #include "SeatTokenActor.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
@@ -1032,7 +1034,12 @@ void ABoardViewActor::RefreshChronicle(const FMatchState& State)
 		case Soulbound::Presentation::EEventSource::Debug: Color = DebugLineColor; break;
 		case Soulbound::Presentation::EEventSource::Seat: break;
 		}
-		Lines.Add({FString::Printf(TEXT("[%s] %s"), *Stamp(Event.ClockSeconds), *Soulbound::Presentation::DescribeEvent(Event, State.Board, &State.WardenEvents)), Color});
+		// S-016: las evaluaciones del Warden que no hacen nada no tienen línea (una cada 15 s taparía la crónica).
+		const FString Text = Soulbound::Presentation::DescribeEvent(Event, State.Board, &State.WardenEvents);
+		if (!Text.IsEmpty())
+		{
+			Lines.Add({FString::Printf(TEXT("[%s] %s"), *Stamp(Event.ClockSeconds), *Text), Color});
+		}
 	}
 	ChroniclePanel->SetLines(Lines);
 }
@@ -1318,9 +1325,17 @@ void ABoardViewActor::TickHud()
 		: FString::JoinBy(State.Board.SealedTiles, TEXT(", "), [](int32 Id) { return FString::FromInt(Id); });
 	ShowText(3, FColor::Red, FString::Printf(TEXT("Sellos activos: %d (casillas: %s)"), State.Board.SealedTiles.Num(), *Sealed));
 
-	ShowText(4, FColor::Orange, HostPtr->GetLastWardenLine().IsEmpty()
-		? FString(TEXT("Warden: aun no ha dicho nada"))
-		: FString::Printf(TEXT("Warden: \"%s\""), *HostPtr->GetLastWardenLine()));
+	// S-016: el Warden, en una línea: acto, segundos hasta la siguiente evaluación y desde la última intervención, y su modo.
+	const UWardenHostSubsystem* WardenHost = GetWorld() ? GetWorld()->GetSubsystem<UWardenHostSubsystem>() : nullptr;
+	const bool bWardenOn = WardenHost && WardenHost->GetMode() == EWardenHostMode::Auto;
+	static const TCHAR* const ActNames[] = {TEXT("I"), TEXT("II"), TEXT("III")};
+	const int32 Act = static_cast<int32>(Soulbound::Rules::CurrentAct(State, State.ClockSeconds));
+	const FString Next = !State.WardenParams.HasWarden() ? FString(TEXT("sin Warden"))
+		: !bWardenOn ? FString(TEXT("apagado (SbWardenMode auto)"))
+		: State.Warden.bDeferred ? FString(TEXT("evaluación aplazada hasta que acabe lo que está en curso"))
+		: FString::Printf(TEXT("siguiente evaluación en %.0f s"), FMath::Max(0.0, State.Warden.NextEvaluationSeconds - State.ClockSeconds));
+	ShowText(4, FColor::Orange, FString::Printf(TEXT("Warden: Acto %s | %s | última intervención hace %.0f s%s"), ActNames[FMath::Clamp(Act, 0, 2)], *Next,
+		State.ClockSeconds - State.Warden.LastEffectSeconds, State.Warden.PendingScene != INDEX_NONE ? TEXT(" | una escena espera al hueco") : TEXT("")));
 
 	ShowText(5, FColor::Silver, FString::Printf(TEXT("Semilla: %d (fijala con FixedSeed para repetir la partida) | t=%.0f s | ronda %d"), HostPtr->GetSeed(), State.ClockSeconds,
 		State.Round));
