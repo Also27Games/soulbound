@@ -105,7 +105,108 @@ namespace
 		return FWardenEventsLoadResult();
 	}
 
-	/** Lee un evento del JSON: id, texto, entrega y opciones. */
+	FWardenEventsLoadResult BagError(const FString& Id, const FString& What)
+	{
+		return Reject(EWardenEventsError::InvalidBag, FString::Printf(TEXT("R-SAC-2: evento \"%s\": %s."), *Id, *What));
+	}
+
+	/**
+	 * Lee el saco de un evento (S-016, R-SAC-2), todo opcional salvo el canal de un evento con acto: `name`, `act` ("I", "II" o
+	 * "III"), `channel` ("strike" o "scene"), `weights` (tres números), `maxUses` (entero de 1 en adelante), `window` (`from` y
+	 * `to`, segundos) y `cutsTurn`. Por defecto, peso 1 en su acto y los siguientes, sin límite de usos, sin ventana y el corte
+	 * del canal (golpe sí, escena no). La regla (pesos no negativos, ventana no vacía) la comprueba ValidateWardenEvents.
+	 */
+	FWardenEventsLoadResult ReadBag(const FJsonObject& Object, FWardenEventDef& Out)
+	{
+		Object.TryGetStringField(TEXT("name"), Out.Name);
+		if (const TSharedPtr<FJsonValue> Act = Object.TryGetField(TEXT("act")))
+		{
+			const TCHAR* const Acts[] = {TEXT("I"), TEXT("II"), TEXT("III")};
+			FString Name;
+			int32 Found = INDEX_NONE;
+			if (Act->TryGetString(Name))
+			{
+				for (int32 Candidate = 0; Candidate < UE_ARRAY_COUNT(Acts); ++Candidate)
+				{
+					Found = Name.Equals(Acts[Candidate], ESearchCase::CaseSensitive) ? Candidate : Found;
+				}
+			}
+			if (Found == INDEX_NONE)
+			{
+				return BagError(Out.Id, TEXT("\"act\" debe ser \"I\", \"II\" o \"III\""));
+			}
+			Out.bInBag = true;
+			Out.Act = static_cast<EAct>(Found);
+		}
+		FString Channel;
+		if (Object.TryGetStringField(TEXT("channel"), Channel))
+		{
+			if (Channel != TEXT("strike") && Channel != TEXT("scene"))
+			{
+				return BagError(Out.Id, TEXT("\"channel\" debe ser \"strike\" o \"scene\" (el comentario no lleva evento)"));
+			}
+			Out.Channel = Channel == TEXT("scene") ? EWardenChannel::Scene : EWardenChannel::Strike;
+		}
+		else if (Out.bInBag)
+		{
+			return BagError(Out.Id, TEXT("un evento con acto necesita \"channel\""));
+		}
+		if (const TSharedPtr<FJsonValue> Weights = Object.TryGetField(TEXT("weights")))
+		{
+			const TArray<TSharedPtr<FJsonValue>>* List = nullptr;
+			if (!Weights->TryGetArray(List) || !List)
+			{
+				return BagError(Out.Id, TEXT("\"weights\" debe ser una lista de tres números"));
+			}
+			for (const TSharedPtr<FJsonValue>& Weight : *List)
+			{
+				double Number = 0.0;
+				if (!Soulbound::JsonFields::ReadNumberValue(Weight, Number))
+				{
+					return BagError(Out.Id, TEXT("\"weights\" debe ser una lista de tres números"));
+				}
+				Out.Weights.Add(Number);
+			}
+		}
+		else if (Out.bInBag)
+		{
+			// Lo que dice la story donde el GDD no dice nada: peso 1 en su acto y en los siguientes.
+			for (int32 Act = 0; Act < Soulbound::Warden::ActCount; ++Act)
+			{
+				Out.Weights.Add(Act >= static_cast<int32>(Out.Act) ? 1.0 : 0.0);
+			}
+		}
+		if (const TSharedPtr<FJsonValue> MaxUses = Object.TryGetField(TEXT("maxUses")))
+		{
+			if (!Soulbound::JsonFields::ReadIntegerValue(MaxUses, Out.MaxUses) || Out.MaxUses < 1)
+			{
+				return BagError(Out.Id, TEXT("\"maxUses\" debe ser un entero de 1 en adelante (sin campo, sin límite)"));
+			}
+		}
+		if (const TSharedPtr<FJsonValue> Window = Object.TryGetField(TEXT("window")))
+		{
+			const TSharedPtr<FJsonObject>* Bounds = nullptr;
+			if (!Window->TryGetObject(Bounds) || !Bounds)
+			{
+				return BagError(Out.Id, TEXT("\"window\" debe ser un objeto con \"from\" y \"to\""));
+			}
+			const TSharedPtr<FJsonValue> From = (*Bounds)->TryGetField(TEXT("from"));
+			const TSharedPtr<FJsonValue> To = (*Bounds)->TryGetField(TEXT("to"));
+			if ((From && !Soulbound::JsonFields::ReadNumberValue(From, Out.WindowFromSeconds)) || (To && (!Soulbound::JsonFields::ReadNumberValue(To, Out.WindowToSeconds) || Out.WindowToSeconds < 0.0)))
+			{
+				return BagError(Out.Id, TEXT("\"from\" y \"to\" de \"window\" son segundos, de 0 en adelante"));
+			}
+		}
+		Out.bCutsTurn = Out.Channel == EWardenChannel::Strike;
+		bool bCuts = false;
+		if (Object.TryGetBoolField(TEXT("cutsTurn"), bCuts))
+		{
+			Out.bCutsTurn = bCuts;
+		}
+		return FWardenEventsLoadResult();
+	}
+
+	/** Lee un evento del JSON: id, texto, entrega, saco y opciones. */
 	FWardenEventsLoadResult ReadEvent(const TSharedPtr<FJsonValue>& Value, int32 Index, FWardenEventDef& Out)
 	{
 		const TSharedPtr<FJsonObject>* Object = nullptr;
@@ -115,11 +216,16 @@ namespace
 			return Reject(EWardenEventsError::MalformedData, FString::Printf(TEXT("El evento %d no es un objeto con \"id\" y \"text\" de texto."), Index + 1));
 		}
 		FString Delivery;
-		if (!(*Object)->TryGetStringField(TEXT("delivery"), Delivery) || !(Delivery == TEXT("direct") || Delivery == TEXT("oracle")))
+		if (!(*Object)->TryGetStringField(TEXT("delivery"), Delivery) || !(Delivery == TEXT("direct") || Delivery == TEXT("oracle") || Delivery == TEXT("any")))
 		{
-			return Reject(EWardenEventsError::MalformedData, FString::Printf(TEXT("Evento \"%s\": \"delivery\" debe ser \"direct\" u \"oracle\"."), *Out.Id));
+			return Reject(EWardenEventsError::MalformedData, FString::Printf(TEXT("Evento \"%s\": \"delivery\" debe ser \"direct\", \"oracle\" o \"any\"."), *Out.Id));
 		}
-		Out.Delivery = Delivery == TEXT("oracle") ? EEventDelivery::Oracle : EEventDelivery::Direct;
+		Out.Delivery = Delivery == TEXT("oracle") ? EEventDelivery::Oracle : Delivery == TEXT("any") ? EEventDelivery::Any : EEventDelivery::Direct;
+		FWardenEventsLoadResult Bag = ReadBag(**Object, Out);
+		if (!Bag.IsSuccess())
+		{
+			return Bag;
+		}
 
 		const TArray<TSharedPtr<FJsonValue>>* Options = nullptr;
 		if (!(*Object)->TryGetArrayField(TEXT("options"), Options) || !Options)
@@ -163,6 +269,21 @@ namespace Soulbound::Rules
 			if (bRepeated)
 			{
 				return Reject(EWardenEventsError::DuplicateId, FString::Printf(TEXT("El identificador \"%s\" está repetido."), *Event.Id));
+			}
+			// R-SAC-2 (S-016): un saco con canal de evento, tres pesos no negativos y usos no negativos (0, sin límite); una
+			// ventana que no empieza antes de la partida ni acaba antes de empezar.
+			if (Event.bInBag)
+			{
+				const bool bNegativeWeight = Event.Weights.ContainsByPredicate([](double Weight) { return Weight < 0.0; });
+				if (Event.Channel == EWardenChannel::Remark || Event.Weights.Num() != Soulbound::Warden::ActCount || bNegativeWeight || Event.MaxUses < 0)
+				{
+					return Reject(EWardenEventsError::InvalidBag, FString::Printf(TEXT("R-SAC-2: evento \"%s\": canal golpe o escena, %d pesos no negativos y usos no negativos."),
+						*Event.Id, Soulbound::Warden::ActCount));
+				}
+			}
+			if (Event.WindowFromSeconds < 0.0 || (Event.WindowToSeconds >= 0.0 && Event.WindowToSeconds < Event.WindowFromSeconds))
+			{
+				return Reject(EWardenEventsError::InvalidBag, FString::Printf(TEXT("R-SAC-2: evento \"%s\": la ventana va de %.0f a %.0f s."), *Event.Id, Event.WindowFromSeconds, Event.WindowToSeconds));
 			}
 			// R-COM-1: de una a cuatro opciones, cada una con al menos una aplicación.
 			if (Event.Options.Num() < 1 || Event.Options.Num() > Soulbound::Match::MaxEventOptions)

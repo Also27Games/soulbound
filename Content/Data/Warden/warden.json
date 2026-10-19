@@ -1,0 +1,17 @@
+{
+  "acts": [
+    {"startSeconds": 0, "interveneProbability": 0.20, "channelWeights": {"strike": 40, "scene": 20, "remark": 40}, "cutTarget": 0.15},
+    {"startSeconds": 300, "interveneProbability": 0.35, "channelWeights": {"strike": 45, "scene": 25, "remark": 30}, "cutTarget": 0.25},
+    {"startSeconds": 1620, "interveneProbability": 0.50, "channelWeights": {"strike": 50, "scene": 25, "remark": 25}, "cutTarget": 0.35}
+  ],
+  "matchEndSeconds": 2400,
+  "evaluationIntervalSeconds": 15,
+  "evaluationVariationSeconds": 5,
+  "guaranteeSeconds": 120,
+  "marginSeconds": 12,
+  "insolence": [
+    {"levels": [0, 1], "light": 70, "medium": 25, "severe": 5},
+    {"levels": [2, 3], "light": 30, "medium": 50, "severe": 20},
+    {"levels": [4], "fury": true}
+  ]
+}

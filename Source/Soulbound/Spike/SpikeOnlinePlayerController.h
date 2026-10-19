@@ -122,6 +122,13 @@ public:
 	UFUNCTION(Exec)
 	void SbEvents();
 
+	/**
+	 * SbWardenMode off|auto: apaga o enciende el cerebro del Warden en el anfitrión del Warden (S-016), para probar otras cosas
+	 * sin que intervenga. No es una edición del estado: no deja evento. Cuerpo vacío en Shipping.
+	 */
+	UFUNCTION(Exec)
+	void SbWardenMode(FString Mode);
+
 	/** SbHelp: lista los comandos de depuración con su sintaxis. */
 	UFUNCTION(Exec)
 	void SbHelp();

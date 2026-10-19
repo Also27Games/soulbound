@@ -56,6 +56,9 @@ namespace Soulbound::Tests
 		/** El sorteo del Warden: el que reciben los eventos. Nunca el de la partida (FChoiceFixture::Random). */
 		FRandomStream WardenRandom{7};
 
+		/** Parámetros del Warden con los que se inicia la partida (S-016); vacíos, la partida no tiene Warden, como hasta S-015. */
+		FWardenParams WardenParams;
+
 		bool StartAfterRace(FAutomationTestBase& Test)
 		{
 			FBoardState Board;
@@ -67,7 +70,7 @@ namespace Soulbound::Tests
 			{
 				return false;
 			}
-			FMatchStartResult Result = Soulbound::Rules::StartMatch(Board, Params, Elects, Soulbound::Match::MaxPlayers, Random, Events);
+			FMatchStartResult Result = Soulbound::Rules::StartMatch(Board, Params, Elects, Soulbound::Match::MaxPlayers, Random, Events, WardenParams);
 			State = MoveTemp(Result.State);
 			if (!Test.TestTrue(FString::Printf(TEXT("La partida empieza (%s)"), *Result.Message), Result.IsSuccess())
 				|| !Bond(Test, Fenrir, FenrirDomain) || !Bond(Test, Koschei, KoscheiDomain))

@@ -7,10 +7,10 @@
 #include "StepClock.h"
 #include "Math/RandomStream.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "Warden/WardenBrain.h"
 #include "MatchHostSubsystem.generated.h"
 
 class ABoardViewActor;
-struct FWardenDecision;
 
 #if !UE_BUILD_SHIPPING
 /**
@@ -63,8 +63,8 @@ public:
 	/** Semilla con la que se inició la partida (la fijada, o la aleatoria elegida). Repetir una partida es fijarla. */
 	int32 GetSeed() const { return UsedSeed; }
 
-	/** Última línea que dijo el Warden, o vacía si aún no ha intervenido. */
-	const FString& GetLastWardenLine() const { return LastWardenLine; }
+	/** Segundos de partida ahora: los que marca el reloj (congelado en el paso a paso, S-007). El anfitrión del Warden los mira (S-016). */
+	double GetMatchSeconds() const { return MatchSeconds(); }
 
 	/**
 	 * Intención de destino del asiento humano (glosario "Intención"). Se entrega tal cual a SubmitDestinationIntent:
@@ -80,8 +80,12 @@ public:
 	 */
 	EIntentResult SubmitHumanChoice(EChoiceKind Kind, int32 Option);
 
-	/** El anfitrión del Warden pide aplicar una decisión sobre el estado; aquí se escribe y se avisa. */
-	void ApplyWardenDecision(const FWardenDecision& Decision);
+	/**
+	 * El anfitrión del Warden pide una evaluación (S-016): el motor la hace y la aplica sobre el estado
+	 * (Soulbound::Rules::EvaluateWarden), aquí se escribe y se avisa, y la partida sigue (un golpe deja el turno entre turnos
+	 * con el evento en marcha). Devuelve la decisión, para el log del anfitrión del Warden.
+	 */
+	FWardenDecision EvaluateWarden();
 
 	/**
 	 * Modo paso a paso (S-007). Activo, la partida se detiene al acabar cada turno y el reloj se congela hasta que se
@@ -159,11 +163,11 @@ public:
 
 	/**
 	 * Lanza el evento del Warden EventId como entrega directa, entre turnos (S-014, Soulbound::Debug::LaunchEvent), con el
-	 * sorteo del Warden (WardenRandom: el anfitrión del Warden pasa el suyo). Si la partida estaba detenida en el paso a paso
-	 * y el evento espera una elección, el reloj se reanuda sin conceder turno: las elecciones del evento tienen plazo, y la
-	 * partida vuelve a detenerse al acabar el evento, antes del siguiente turno.
+	 * sorteo del Warden, que desde S-016 vive en el estado (WardenDraw). Si la partida estaba detenida en el paso a paso y el
+	 * evento espera una elección, el reloj se reanuda sin conceder turno: las elecciones del evento tienen plazo, y la partida
+	 * vuelve a detenerse al acabar el evento, antes del siguiente turno.
 	 */
-	FDebugEditOutcome DebugLaunchEvent(const FString& EventId, FRandomStream& WardenRandom);
+	FDebugEditOutcome DebugLaunchEvent(const FString& EventId);
 #endif
 
 	/** Se lanza tras cada cambio del estado. */
@@ -184,6 +188,10 @@ public:
 	/** Ruta de los eventos del Warden, relativa a Content/ (S-014). */
 	UPROPERTY(Config)
 	FString WardenEventsRelativePath = TEXT("Data/Events/eventos.json");
+
+	/** Ruta de los parámetros del Warden, relativa a Content/ (S-016). */
+	UPROPERTY(Config)
+	FString WardenParamsRelativePath = TEXT("Data/Warden/warden.json");
 
 	/** Semilla de la partida. Valor inicial -1: aleatoria. Un valor de 0 en adelante la fija para repetir una partida. */
 	UPROPERTY(Config)
@@ -265,7 +273,6 @@ private:
 	FDebugEditOutcome FinishDebugEdit(bool bApplied, const FString& Message);
 #endif
 	FTimerHandle AdvanceTimer;
-	FString LastWardenLine;
 	FStepClock StepClock;
 	int32 UsedSeed = 0;
 	bool bHasMatch = false;

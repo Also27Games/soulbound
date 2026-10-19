@@ -24,7 +24,8 @@ namespace
 	TArray<FEffectDef> MakeCatalog()
 	{
 		return {
-			Def(EEffect::Halt, S::Light, {T::ActivePlayer}, false),
+			// S-016 (R-TAB-28): su único efecto es el corte; solo vale en un evento que llega cortando un turno.
+			Def(EEffect::Halt, S::Light, {T::ActivePlayer}, true),
 			Def(EEffect::RevealBracer, S::Light, {T::ActivePlayer, T::ChosenRival, T::Leader, T::Everyone}, true),
 			Def(EEffect::ForcedOracle, S::Light, {T::ActivePlayer, T::ChosenRival, T::NextPlayer}, false),
 			Def(EEffect::SendHome, S::Medium, {T::ActivePlayer, T::ChosenRival, T::Leader, T::NextPlayer, T::Everyone, T::RandomPlayer}, true),

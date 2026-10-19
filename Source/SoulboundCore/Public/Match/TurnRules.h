@@ -56,9 +56,11 @@ namespace Soulbound::Rules
 	 * Avanza el turno una fase si no hay una decisión pendiente (R-TUR-2):
 	 *  - BetweenTurns con un evento del Warden en curso (S-014): lo lleva (AdvanceWardenEvent) y no empieza turno; con una
 	 *    elección del evento en plazo, espera. El turno siguiente empieza cuando el evento ha terminado.
+	 *  - BetweenTurns con una escena del Warden esperando al hueco (S-016, FWardenState::PendingScene): la lanza
+	 *    (LaunchWardenEvent) y no empieza turno.
 	 *  - BetweenTurns → Start: salta a los asientos con turnos perdidos (R-TUR-10, evento TurnSkipped), empieza el
-	 *    turno del siguiente, arranca su reloj (R-TUR-8), lo anota como el último que jugó (LastTurnSeat, S-014) y registra
-	 *    TurnStarted. Cuando el orden pasa por su primer asiento, juegue o se salte, empieza una ronda (StartRound, S-014).
+	 *    turno del siguiente, arranca su reloj (R-TUR-8), lo anota como el último que jugó (LastTurnSeat, S-014), abre un hueco
+	 *    nuevo para el Warden (FWardenState::bGapUsed, S-016) y registra TurnStarted. Cuando el orden pasa por su primer asiento, juegue o se salte, empieza una ronda (StartRound, S-014).
 	 *  - Start → PreRoll: con Celeridad (R-TUR-4) abre la elección de dados (DiceCount), con el plazo del reloj de turno;
 	 *    sin ella, un dado sin elección.
 	 *  - Start de un asiento en el Vacío (S-013, R-TUR-3, R-VAC-2), antes de nada y en este orden: su cuenta de turnos
@@ -193,6 +195,23 @@ namespace Soulbound::Rules
 	 * Nombre propuesto en S-015.
 	 */
 	SOULBOUNDCORE_API void BeginEventWardenDuel(FMatchState& State, int32 Challenged, bool bAllRunes, double NowSeconds);
+
+	/**
+	 * Si el turno en curso se puede cortar ahora (R-TUR-11, S-016): fase Start, PreRoll, RollAndChoose o MoveAndResolve. Nunca
+	 * en Duel, ShellGame ni SkillTrial (ahí el Warden aplaza, R-WAR-7), ni entre turnos ni en End. Nombre propuesto en S-016.
+	 */
+	SOULBOUNDCORE_API bool CanInterruptTurn(const FMatchState& State);
+
+	/**
+	 * Corta el turno en curso (glosario "Corte", R-TUR-11, R-TAB-26, S-016): registra TurnInterrupted con la fase, cierra las
+	 * elecciones abiertas, pierde la tirada pendiente respetando el consumo fijo (si el turno llegó a PreRoll, saca de Random
+	 * los valores que falten: los cuatro en PreRoll, los dos de la repetición si siguen pendientes), deja la ficha donde está
+	 * (su casilla ya resolvió al llegar), termina el turno (TurnEnded) y lo deja entre turnos como cualquier fin de turno
+	 * (turno extra, siguiente del orden, fin de carrera). El cortado queda como el último que jugó (LastTurnSeat).
+	 * NowSeconds: marca de los eventos. Random: el sorteo de la partida. Devuelve false, sin cambiar nada, si CanInterruptTurn
+	 * no lo permite. Nombre propuesto en S-016.
+	 */
+	SOULBOUNDCORE_API bool InterruptTurn(FMatchState& State, double NowSeconds, FRandomStream& Random);
 
 	/**
 	 * Concede Count turnos extra al asiento Seat (R-TUR-9), sin pasar del tope de los parámetros de partida.

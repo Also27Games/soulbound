@@ -16,7 +16,7 @@
 #include "Misc/DateTime.h"
 #include "Misc/Paths.h"
 #include "TimerManager.h"
-#include "Warden/WardenBrain.h"
+#include "Warden/WardenRules.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogSoulboundMatch, Log, All);
 
@@ -82,9 +82,11 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 	const FMatchParamsLoadResult Params = Soulbound::Rules::LoadMatchParamsFromFile(ParamsPath);
 	const FElectsLoadResult Elects = Soulbound::Rules::LoadElectsFromFile(FPaths::Combine(FPaths::ProjectContentDir(), ElectsRelativePath));
 	const FWardenEventsLoadResult Events = Soulbound::Rules::LoadWardenEventsFromFile(FPaths::Combine(FPaths::ProjectContentDir(), WardenEventsRelativePath));
-	if (!Board.IsSuccess() || !Params.IsSuccess() || !Elects.IsSuccess() || !Events.IsSuccess())
+	const FWardenParamsLoadResult Warden = Soulbound::Rules::LoadWardenParamsFromFile(FPaths::Combine(FPaths::ProjectContentDir(), WardenParamsRelativePath));
+	if (!Board.IsSuccess() || !Params.IsSuccess() || !Elects.IsSuccess() || !Events.IsSuccess() || !Warden.IsSuccess())
 	{
-		const FString Error = !Board.IsSuccess() ? Board.Message : !Params.IsSuccess() ? Params.Message : !Elects.IsSuccess() ? Elects.Message : Events.Message;
+		const FString Error = !Board.IsSuccess() ? Board.Message : !Params.IsSuccess() ? Params.Message : !Elects.IsSuccess() ? Elects.Message
+			: !Events.IsSuccess() ? Events.Message : Warden.Message;
 		UE_LOG(LogSoulboundMatch, Error, TEXT("No se pudo iniciar la partida: %s"), *Error);
 		if (GEngine)
 		{
@@ -98,7 +100,8 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 	// Los decisores tienen su propio generador (semilla + 1), como en la simulación: no tocan los dados de la partida.
 	DeciderRng.Initialize(UsedSeed + 1);
 
-	FMatchStartResult Start = Soulbound::Rules::StartMatch(Board.Board, Params.Params, Elects.Table, Soulbound::Match::MaxPlayers, MatchRng, Events.Table);
+	// S-016: el Warden viaja en el estado, con su sorteo propio (semilla + 2), igual que en la simulación.
+	FMatchStartResult Start = Soulbound::Rules::StartMatch(Board.Board, Params.Params, Elects.Table, Soulbound::Match::MaxPlayers, MatchRng, Events.Table, Warden.Params);
 	if (!Start.IsSuccess())
 	{
 		UE_LOG(LogSoulboundMatch, Error, TEXT("StartMatch rechaza la partida: %s"), *Start.Message);
@@ -370,20 +373,18 @@ EIntentResult UMatchHostSubsystem::SubmitHumanChoice(EChoiceKind Kind, int32 Opt
 	return Result;
 }
 
-void UMatchHostSubsystem::ApplyWardenDecision(const FWardenDecision& Decision)
+FWardenDecision UMatchHostSubsystem::EvaluateWarden()
 {
 	if (!bHasMatch)
 	{
-		return;
+		return FWardenDecision();
 	}
 	State.ClockSeconds = MatchSeconds();
-	FWardenBrain::Apply(State, Decision);
-	// Sin intervención el estado no cambia: no se avisa a la presentación.
-	if (Decision.IsIntervention())
-	{
-		LastWardenLine = Decision.Line;
-		OnMatchStateChanged.Broadcast();
-	}
+	// S-016: el motor decide y aplica (cerebro, registro, corte y evento); aquí solo se escribe y se avisa.
+	const FWardenDecision Decision = Soulbound::Rules::EvaluateWarden(State, State.ClockSeconds, MatchRng);
+	OnMatchStateChanged.Broadcast();
+	Advance();
+	return Decision;
 }
 
 #if !UE_BUILD_SHIPPING
@@ -575,13 +576,15 @@ FDebugEditOutcome UMatchHostSubsystem::DebugSendHome(int32 Seat)
 	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("asiento %d vuelve a su hogar"), Seat) : Soulbound::Presentation::DescribeEffectResult(Result));
 }
 
-FDebugEditOutcome UMatchHostSubsystem::DebugLaunchEvent(const FString& EventId, FRandomStream& WardenRandom)
+FDebugEditOutcome UMatchHostSubsystem::DebugLaunchEvent(const FString& EventId)
 {
 	if (!bHasMatch)
 	{
 		return FinishDebugEdit(false, TEXT("sin partida"));
 	}
 	State.ClockSeconds = MatchSeconds();
+	// S-016: el sorteo del Warden es el del estado; un evento lanzado a mano no gasta usos ni cuenta para la garantía.
+	FRandomStream WardenRandom = Soulbound::Rules::WardenDraw(State);
 	const EWardenEventStart Result = Soulbound::Debug::LaunchEvent(State, EventId, State.ClockSeconds, WardenRandom);
 	const bool bApplied = Result == EWardenEventStart::Started;
 	// S-014: con la partida detenida, el reloj vuelve a correr para que corran los plazos del evento; el turno siguiente

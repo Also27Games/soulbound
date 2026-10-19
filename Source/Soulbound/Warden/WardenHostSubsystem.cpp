@@ -1,9 +1,9 @@
 #include "WardenHostSubsystem.h"
 
 #include "../Match/MatchHostSubsystem.h"
-#include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
+#include "Warden/WardenRules.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogSoulboundWarden, Log, All);
 
@@ -36,27 +36,23 @@ void UWardenHostSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 		return;
 	}
 
-	InWorld.GetTimerManager().SetTimer(EvaluationTimer, this, &UWardenHostSubsystem::Evaluate, EvaluationPeriodSeconds, true);
-	UE_LOG(LogSoulboundWarden, Log, TEXT("Anfitrion del Warden activo: evalua cada %.0f s."), EvaluationPeriodSeconds);
+	InWorld.GetTimerManager().SetTimer(PollTimer, this, &UWardenHostSubsystem::Poll, PollSeconds, true);
+	UE_LOG(LogSoulboundWarden, Log, TEXT("Anfitrion del Warden activo: evalua en el instante que devuelve el cerebro (warden.json)."));
 }
 
 void UWardenHostSubsystem::Deinitialize()
 {
 	if (UWorld* World = GetWorld())
 	{
-		World->GetTimerManager().ClearTimer(EvaluationTimer);
+		World->GetTimerManager().ClearTimer(PollTimer);
 	}
 	Super::Deinitialize();
 }
 
-void UWardenHostSubsystem::SeedFrom(const UMatchHostSubsystem& Match)
+void UWardenHostSubsystem::SetMode(EWardenHostMode InMode)
 {
-	if (!bSeeded)
-	{
-		// Semilla derivada de la de la partida (+2; +1 es la de los decisores): fijarla repite también al Warden.
-		Rng.Initialize(Match.GetSeed() + 2);
-		bSeeded = true;
-	}
+	Mode = InMode;
+	UE_LOG(LogSoulboundWarden, Log, TEXT("Anfitrion del Warden: modo %s."), Mode == EWardenHostMode::Auto ? TEXT("auto") : TEXT("off"));
 }
 
 #if !UE_BUILD_SHIPPING
@@ -67,35 +63,28 @@ FDebugEditOutcome UWardenHostSubsystem::DebugLaunchEvent(const FString& EventId)
 	{
 		return {false, TEXT("sin partida")};
 	}
-	// S-014: los sorteos del evento (direcciones al azar, Sello, opción al azar) salen del sorteo del Warden, no del de la partida.
-	SeedFrom(*Match);
-	return Match->DebugLaunchEvent(EventId, Rng);
+	// S-014: los sorteos del evento salen del sorteo del Warden, no del de la partida; desde S-016, el del estado.
+	return Match->DebugLaunchEvent(EventId);
 }
 #endif
 
-void UWardenHostSubsystem::Evaluate()
+void UWardenHostSubsystem::Poll()
 {
 	UMatchHostSubsystem* Match = GetWorld() ? GetWorld()->GetSubsystem<UMatchHostSubsystem>() : nullptr;
-	// Detenida en el paso a paso: el Warden no evalúa (el reloj de partida está congelado; S-007).
-	if (!Match || !Match->HasMatch() || Match->IsWaitingForStep())
+	// Detenida en el paso a paso: el Warden no evalúa (el reloj de partida está congelado; S-007). Apagado (S-016), tampoco.
+	if (Mode != EWardenHostMode::Auto || !Match || !Match->HasMatch() || Match->IsWaitingForStep())
 	{
 		return;
 	}
-	SeedFrom(*Match);
-	++EvaluationCount;
-
-	const FMatchState& State = Match->GetState();
-	const FWardenDecision Decision = Brain.Evaluate(State, Rng);
-	Match->ApplyWardenDecision(Decision);
-
-	const FString Text = Decision.IsIntervention()
-		? FString::Printf(TEXT("Warden (eval %d, t=%.0f s): accion %d en casilla %d, \"%s\". Sellos: %d"),
-			EvaluationCount, State.ClockSeconds, static_cast<int32>(Decision.Action), Decision.TileId, *Decision.Line, State.Board.SealedTiles.Num())
-		: FString::Printf(TEXT("Warden (eval %d, t=%.0f s): observa y calla. Sellos: %d"), EvaluationCount, State.ClockSeconds, State.Board.SealedTiles.Num());
-
-	UE_LOG(LogSoulboundWarden, Log, TEXT("%s"), *Text);
-	if (GEngine)
+	// R-WAR-1, R-WAR-3: el instante lo dio el cerebro en la evaluación anterior; una aplazada, en cuanto termina lo que la aplazó.
+	if (!Soulbound::Rules::IsWardenEvaluationDue(Match->GetState(), Match->GetMatchSeconds()))
 	{
-		GEngine->AddOnScreenDebugMessage(-1, EvaluationPeriodSeconds, Decision.IsIntervention() ? FColor::Orange : FColor::Silver, Text);
+		return;
 	}
+	++EvaluationCount;
+	const FWardenDecision Decision = Match->EvaluateWarden();
+	const FMatchState& State = Match->GetState();
+	UE_LOG(LogSoulboundWarden, Log, TEXT("Warden (eval %d, t=%.1f s, acto %d): decisión %d, evento %d%s; siguiente en %.1f s"), EvaluationCount, State.ClockSeconds,
+		static_cast<int32>(Decision.Act) + 1, static_cast<int32>(Decision.Kind), Decision.EventIndex, Decision.bForcedByGuarantee ? TEXT(", forzada por la garantía") : TEXT(""),
+		State.Warden.NextEvaluationSeconds);
 }

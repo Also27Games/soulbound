@@ -49,6 +49,11 @@ enum class EEffectResult : uint8
 	 * parece equivocarse). Nombre propuesto en S-015.
 	 */
 	AlreadyPending,
+	/**
+	 * Alto sin turno que cortar (R-TAB-28, S-016): solo vale en un evento que llega cortando un turno, y sobre el cortado.
+	 * Nombre propuesto en S-016.
+	 */
+	NoTurnToCut,
 };
 
 /**

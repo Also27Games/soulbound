@@ -10,6 +10,7 @@
 #include "Match/VoidRules.h"
 #include "Match/WardenEventRules.h"
 #include "Math/RandomStream.h"
+#include "Warden/WardenRules.h"
 
 using Soulbound::Rules::LogEvent;
 
@@ -174,6 +175,8 @@ namespace
 		State.bActiveSeatMoved = false;
 		// S-014: "el último que jugó", el activo de un evento del Warden que llegue entre turnos (R-DIR-1).
 		State.LastTurnSeat = State.ActiveSeat;
+		// S-016 (R-WAR-4): el hueco entre turnos que acaba aquí ya no puede tener otra intervención; el siguiente, sí.
+		State.Warden.bGapUsed = false;
 		LogEvent(State, EMatchEventType::TurnStarted, NowSeconds, State.ActiveSeat);
 	}
 
@@ -459,7 +462,9 @@ namespace
 	 */
 	bool EndBondRaceIfTimeIsUp(FMatchState& State, double NowSeconds, FRandomStream& Random)
 	{
-		// TODO(R-TAB-26): el fin de carrera como interrupción del turno en curso es de la story del Warden.
+		// TODO(R-TAB-26): el fin de carrera que corta el turno en curso es un evento programado (de los que siempre cortan), y
+		// llega con los eventos programados de S-017 (decisión del autor del 19/10/2026); hasta entonces la carrera termina al
+		// acabar el turno en curso. El corte ya existe (InterruptTurn): faltará llamarlo desde el evento programado.
 		return State.MatchPhase == EMatchPhase::BondRace && NowSeconds >= State.Params.RaceDurationSeconds
 			&& Soulbound::Rules::EndBondRace(State, NowSeconds, Random);
 	}
@@ -535,6 +540,14 @@ namespace Soulbound::Rules
 			if (State.CurrentEvent.IsActive())
 			{
 				return Soulbound::Rules::AdvanceWardenEvent(State, NowSeconds);
+			}
+			// S-016 (R-WAR-4): una escena que el Warden decidió con un turno en curso entra en este hueco, antes del turno siguiente.
+			if (State.Warden.PendingScene != INDEX_NONE)
+			{
+				const int32 Scene = State.Warden.PendingScene;
+				State.Warden.PendingScene = INDEX_NONE;
+				Soulbound::Rules::LaunchWardenEvent(State, Scene, false, NowSeconds);
+				return true;
 			}
 			// Si el tiempo de carrera se agotó sin turno en curso, termina antes de empezar el siguiente.
 			if (!EndBondRaceIfTimeIsUp(State, NowSeconds, Random))
@@ -692,8 +705,8 @@ namespace Soulbound::Rules
 		{
 			return EIntentResult::ClockExpired;
 		}
-		// TODO(R-TUR-11): si el Warden sella una casilla entre la tirada y la confirmación, las opciones calculadas
-		// al tirar siguen admitiéndola. Las interrupciones y su efecto sobre el turno son de la story del Warden.
+		// R-TUR-11 (S-016): el Warden no sella a mitad de turno sin cortarlo (un golpe corta; una escena espera al hueco), así
+		// que las opciones calculadas al tirar siguen valiendo hasta confirmar. Solo SbSeal puede sellar en medio, y es depuración.
 		if (!State.ReachableOptions.Contains(TileId))
 		{
 			return EIntentResult::Unreachable;
@@ -936,6 +949,53 @@ namespace Soulbound::Rules
 			return;
 		}
 		State.TurnPhase = ETurnPhase::Duel;
+	}
+
+	bool CanInterruptTurn(const FMatchState& State)
+	{
+		if (!HasTurnOrder(State) || State.IsMatchOver())
+		{
+			return false;
+		}
+		// R-WAR-7: en Duel, ShellGame y SkillTrial no se corta (el Warden aplaza); entre turnos y en End no hay turno que cortar.
+		switch (State.TurnPhase)
+		{
+		case ETurnPhase::Start:
+		case ETurnPhase::PreRoll:
+		case ETurnPhase::RollAndChoose:
+		case ETurnPhase::MoveAndResolve:
+			return true;
+		default:
+			return false;
+		}
+	}
+
+	bool InterruptTurn(FMatchState& State, double NowSeconds, FRandomStream& Random)
+	{
+		if (!CanInterruptTurn(State))
+		{
+			return false;
+		}
+		const ETurnPhase Phase = State.TurnPhase;
+		// Consumo fijo (decisión del autor del 04/10/2026): un turno que llegó a PreRoll saca cuatro valores. En PreRoll aún no
+		// tiró: los cuatro; después, los dos de la repetición si siguen pendientes. En Start no llegó: nada.
+		if (Phase == ETurnPhase::PreRoll)
+		{
+			DrawDice(Random);
+			DrawDice(Random);
+		}
+		else
+		{
+			SettleRerollValues(State, Random);
+		}
+		LogEvent(State, EMatchEventType::TurnInterrupted, NowSeconds, State.ActiveSeat, static_cast<int32>(Phase));
+		// R-TUR-11: la ficha se queda donde está; el turno termina como cualquier otro (turno extra, siguiente, fin de carrera), y
+		// el cortado es el activo del evento que lo cortó (el último que jugó).
+		State.PendingTrial = ESkillTrial::None;
+		State.LastTurnSeat = State.ActiveSeat;
+		EnterEnd(State, NowSeconds);
+		LeaveEnd(State, NowSeconds, Random);
+		return true;
 	}
 
 	bool GrantExtraTurns(FMatchState& State, int32 Seat, int32 Count)

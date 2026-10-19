@@ -23,11 +23,11 @@ namespace Soulbound::Effects
 UENUM()
 enum class EEffect : uint8
 {
-	/** Alto (`Halt`): leve. Interrumpe el turno; es del Warden (S-016). */
+	/** Alto (`Halt`, R-TAB-28, R-EFE-1): leve. Su único efecto es el corte del turno: solo vale en un golpe que corta (S-016). */
 	Halt,
 	/** Revelar Brazal (`RevealBracer`, R-EFE-2): leve. Los tipos de runa del objetivo, visibles unas rondas. */
 	RevealBracer,
-	/** Consulta forzada al Oráculo (`ForcedOracle`): leve. Del Warden (S-016). */
+	/** Consulta forzada al Oráculo (`ForcedOracle`): leve. Llega con el Oráculo (S-017). */
 	ForcedOracle,
 	/** Vuelta al hogar (`SendHome`, R-EFE-4): medio. */
 	SendHome,
@@ -132,7 +132,7 @@ struct SOULBOUNDCORE_API FEffectDef
 	bool bTakesAmount = false;
 	/** Variantes admitidas; la primera es la de por defecto. Vacío: solo None. */
 	TArray<EEffectVariant> Variants;
-	/** Si el motor lo aplica (16 de 18 desde S-015); Alto y Consulta forzada se cargan y validan, pero aplicarlos es NotImplemented. */
+	/** Si el motor lo aplica (17 de 18 desde S-016); la Consulta forzada se carga y valida, pero aplicarla es NotImplemented (S-017). */
 	bool bImplemented = false;
 };
 

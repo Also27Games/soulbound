@@ -13,6 +13,7 @@
 #include "Misc/AutomationTest.h"
 #include "MatchTestSetup.h"
 #include "Simulation/MatchSimulation.h"
+#include "WardenFixture.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -113,20 +114,32 @@ namespace
 		return Rolls;
 	}
 
-	/** Parámetros de simulación con el tablero de pruebas y los parámetros de partida de sus archivos de datos. */
+	/** Los eventos y los parámetros del Warden de sus archivos (S-016): la simulación juega con el Warden real. */
+	bool LoadWarden(FAutomationTestBase& Test, FSimulationParams& OutParams)
+	{
+		return Soulbound::Tests::LoadTestWardenEvents(Test, OutParams.WardenEvents) && Soulbound::Tests::LoadTestWardenParams(Test, OutParams.WardenParams);
+	}
+
+	/** Parámetros de simulación con el tablero de pruebas, los parámetros de partida y el Warden de sus archivos de datos. */
 	bool MakeParams(FAutomationTestBase& Test, int32 Seed, FSimulationParams& OutParams)
 	{
 		OutParams.Seed = Seed;
 		return Soulbound::Tests::LoadTestBoard(Test, OutParams.Board) && Soulbound::Tests::LoadTestMatchParams(Test, OutParams.MatchParams)
-			&& Soulbound::Tests::LoadTestElects(Test, OutParams.Elects);
+			&& Soulbound::Tests::LoadTestElects(Test, OutParams.Elects) && LoadWarden(Test, OutParams);
 	}
 
-	/** Parámetros de simulación con el tablero BoardFileName de Content/Data/Boards y los parámetros de partida del archivo. */
+	/** Parámetros de simulación con el tablero BoardFileName de Content/Data/Boards, los parámetros de partida y el Warden de sus archivos. */
 	bool MakeBoardParams(FAutomationTestBase& Test, const FString& BoardFileName, int32 Seed, FSimulationParams& OutParams)
 	{
 		OutParams.Seed = Seed;
 		return Soulbound::Tests::LoadBoardFile(Test, BoardFileName, OutParams.Board) && Soulbound::Tests::LoadTestMatchParams(Test, OutParams.MatchParams)
-			&& Soulbound::Tests::LoadTestElects(Test, OutParams.Elects);
+			&& Soulbound::Tests::LoadTestElects(Test, OutParams.Elects) && LoadWarden(Test, OutParams);
+	}
+
+	/** Lo más que puede tardar el Warden en volver a evaluar (S-016): intervalo más variación. */
+	double MaxEvaluationGap(const FSimulationParams& Params)
+	{
+		return Params.WardenParams.EvaluationIntervalSeconds + Params.WardenParams.EvaluationVariationSeconds;
 	}
 
 	int32 CountEvents(const FMatchState& State, EMatchEventType Type)
@@ -141,12 +154,16 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationDeterminismTest,
 
 bool FMatchSimulationDeterminismTest::RunTest(const FString& Parameters)
 {
-	// Semilla fija 42.
+	// Semilla fija 42. Desde S-016, con el Warden apagado (decisión del autor del 19/10/2026): el Warden real corta turnos y
+	// decide según el estado, así que con otro decisor sus cortes (y con ellos los dados que consume cada turno) serían otros.
+	// Apagado, la partida conserva las tiradas de S-010; el registro del Warden con la misma semilla lo comprueba
+	// RegistroDelWardenDeterminista.
 	FSimulationParams Params;
 	if (!MakeParams(*this, 42, Params))
 	{
 		return false;
 	}
+	Params.bWardenEnabled = false;
 
 	const FSimulationResult A = FMatchSimulation(Params, FourDummies()).Run();
 	const FSimulationResult B = FMatchSimulation(Params, FourDummies()).Run();
@@ -207,9 +224,9 @@ bool FMatchSimulationDeterminismTest::RunTest(const FString& Parameters)
 	const double ExpectedTurns = (Params.DurationSeconds - ShellSeconds) / Params.DummyResponseSeconds;
 	TestTrue(TEXT("Se juegan turnos"), A.Turns > 0);
 	TestTrue(FString::Printf(TEXT("Turnos derivados de los parametros: %d frente a %.1f"), A.Turns, ExpectedTurns), FMath::Abs(A.Turns - ExpectedTurns) <= 1.0);
-	TestEqual(TEXT("Evaluaciones del Warden"), A.Evaluations, FMath::FloorToInt32(Params.DurationSeconds / Params.EvaluationPeriodSeconds));
-	TestTrue(TEXT("El Warden intervino alguna vez"), A.Interventions > 0);
-	TestTrue(TEXT("El Warden no intervino siempre"), A.Interventions < A.Evaluations);
+	// Hasta S-015 aquí se exigía una evaluación del cerebro del spike cada 15 s y alguna intervención; apagado, ninguna.
+	TestEqual(TEXT("Con el Warden apagado, no evalúa"), A.Evaluations, 0);
+	TestEqual(TEXT("Ni interviene"), A.Interventions, 0);
 
 	// Otra semilla, otro registro.
 	Params.Seed = 43;
@@ -268,6 +285,9 @@ bool FMatchSimulationTurnMachineTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
+	// Desde S-016, con el Warden apagado: lo que se comprueba es la máquina de turnos, y un golpe que corta un turno antes de
+	// tirar (o una Prueba fallada, o el Vacío) deja inicios sin tirada. El Warden en la simulación lo comprueban sus tests.
+	Params.bWardenEnabled = false;
 	const FSimulationResult Result = FMatchSimulation(Params, FourDummies()).Run();
 	const FMatchState& State = Result.FinalState;
 	if (!TestEqual(TEXT("La partida tiene orden de turno"), State.TurnOrder.Num(), Soulbound::Match::SeatCount))
@@ -325,19 +345,42 @@ bool FMatchSimulationChronicleTest::RunTest(const FString& Parameters)
 		return Result.Log.FilterByPredicate([Fragment](const FString& Line) { return Line.Contains(Fragment, ESearchCase::CaseSensitive); }).Num();
 	};
 	const int32 Started = Result.FinalState.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::TurnStarted; }).Num();
-	TestEqual(TEXT("Una línea de turno por cada turno empezado"), CountLines(TEXT("] Turno ")), Started);
+	// Desde S-016 hay turnos que no llegan a tirar (cortados antes, en el Vacío, con la Prueba fallada): la línea de turno
+	// sale con la tirada, y cada turno que tiró cuenta cómo acabó, también cortado por un golpe (si movió, su movimiento y su
+	// corte).
+	int32 RolledTurnsEnded = 0;
+	int32 CutAfterRolling = 0;
+	int32 CutAfterMoving = 0;
+	bool bRolled = false;
+	for (const FMatchEvent& Event : Result.FinalState.EventLog)
+	{
+		bRolled = Event.Type == EMatchEventType::TurnStarted ? false : bRolled || Event.Type == EMatchEventType::Rolled;
+		RolledTurnsEnded += Event.Type == EMatchEventType::TurnEnded && bRolled ? 1 : 0;
+		if (Event.Type == EMatchEventType::TurnInterrupted)
+		{
+			CutAfterRolling += Event.Value == static_cast<int32>(ETurnPhase::RollAndChoose) || Event.Value == static_cast<int32>(ETurnPhase::MoveAndResolve) ? 1 : 0;
+			CutAfterMoving += Event.Value == static_cast<int32>(ETurnPhase::MoveAndResolve) ? 1 : 0;
+		}
+	}
+	TestTrue(TEXT("Se empiezan turnos"), Started > 0);
+	TestEqual(TEXT("Una línea de turno por cada tirada"), CountLines(TEXT("] Turno ")), CountEvents(Result.FinalState, EMatchEventType::Rolled));
 	TestEqual(TEXT("Cada movimiento del registro tiene su línea de crónica"), CountLines(TEXT(" va a la casilla ")), CountEvents(Result.FinalState, EMatchEventType::Moved));
-	TestEqual(TEXT("Cada turno terminado cuenta cómo acabó"), CountLines(TEXT(" va a la casilla ")) + CountLines(TEXT(" no puede moverse")) + CountLines(TEXT(" agota el reloj")), Result.Turns);
+	TestEqual(TEXT("Cada turno con tirada cuenta cómo acabó"), CountLines(TEXT(" va a la casilla ")) + CountLines(TEXT(" no puede moverse")) + CountLines(TEXT(" agota el reloj"))
+		+ CutAfterRolling - CutAfterMoving, RolledTurnsEnded);
 	// S-010: con esta semilla, un salto rechazado abría la acción en el Nodo y la simulación se quedaba esperándola hasta
 	// el final (defecto de S-009). Al acabar, ninguna elección puede seguir abierta con su plazo vencido.
 	const FPendingChoice& Left = Result.FinalState.PendingChoice;
 	TestFalse(FString::Printf(TEXT("Ninguna elección queda sin contestar más allá de su plazo (tipo %d, plazo %.0f s)"), static_cast<int32>(Left.Kind), Left.DeadlineSeconds),
 		Left.IsOpen() && Left.DeadlineSeconds < Result.FinalState.ClockSeconds);
-	TestEqual(TEXT("Una línea por intervención del Warden"), CountLines(TEXT("] Warden ")), Result.Interventions);
+	// S-016: el Warden real. Una línea por intervención con efecto (el evento, con su canal y su nombre), una por comentario y
+	// una por cada turno que corta, con la fase.
+	TestEqual(TEXT("Una línea por intervención del Warden"), CountLines(TEXT("] Warden lanza ")), Result.Interventions);
+	TestTrue(TEXT("El Warden interviene"), Result.Interventions > 0);
+	TestEqual(TEXT("Una línea por comentario"), CountLines(TEXT("] Warden comenta")), CountEvents(Result.FinalState, EMatchEventType::WardenRemark));
+	TestEqual(TEXT("Una línea por turno cortado"), CountLines(TEXT(" corta el turno ")), CountEvents(Result.FinalState, EMatchEventType::TurnInterrupted));
 
-	TestEqual(TEXT("Cada Sello que cae por el tope tiene su línea"), CountLines(TEXT(" cae el Sello de la ")),
-		Result.FinalState.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::SealReleased; }).Num()
-		- CountLines(TEXT(" Warden libera la ")));
+	// Desde S-016 nadie libera un Sello a mano: los que caen son los del tope.
+	TestEqual(TEXT("Cada Sello que cae por el tope tiene su línea"), CountLines(TEXT(" cae el Sello de la ")), CountEvents(Result.FinalState, EMatchEventType::SealReleased));
 
 	// S-006: vínculos y fin de carrera, una línea por evento.
 	const FMatchState& Final = Result.FinalState;
@@ -368,10 +411,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationSealsTest,
 
 bool FMatchSimulationSealsTest::RunTest(const FString& Parameters)
 {
-	// Criterio "Cerebro del spike" (S-004, R-TAB-22) en partidas enteras: se rehace el tablero evento a evento desde
-	// el registro y, después de cada Sello, nunca hay más de M, ninguno en casilla prohibida y toda casilla no sellada
-	// tiene camino al Altar (nadie queda encerrado por Sellos). Ninguna intervención de sellar se pierde: cada línea
-	// "Warden sella" de la crónica tiene su SealPlaced. Diez semillas, empezando por la de la crónica.
+	// Criterio de S-004 (R-TAB-22) en partidas enteras: se rehace el tablero evento a evento desde el registro y, después de
+	// cada Sello, nunca hay más de M, ninguno en casilla prohibida y toda casilla no sellada tiene camino al Altar (nadie
+	// queda encerrado por Sellos). Desde S-016 los Sellos son los de los eventos del Warden real (Primer muro, Arquitecto...):
+	// cada Sello que se aplica (EffectApplied de Sello o de Sello contra rival) sella. Diez semillas, empezando por la de la
+	// crónica.
 	int32 CapReleases = 0;
 	for (int32 Seed = 42; Seed < 52; ++Seed)
 	{
@@ -434,8 +478,13 @@ bool FMatchSimulationSealsTest::RunTest(const FString& Parameters)
 		{
 			return Result.Log.FilterByPredicate([Fragment](const FString& Line) { return Line.Contains(Fragment, ESearchCase::CaseSensitive); }).Num();
 		};
-		TestEqual(FString::Printf(TEXT("Semilla %d: cada intervención de sellar sella"), Seed), Placed, CountLines(TEXT("] Warden sella la ")));
-		CapReleases += Released - CountLines(TEXT("] Warden libera la "));
+		const int32 SealsApplied = Result.FinalState.EventLog.FilterByPredicate([](const FMatchEvent& Event)
+		{
+			return Event.Type == EMatchEventType::EffectApplied && (Event.Value == static_cast<int32>(EEffect::PlaceSeal) || Event.Value == static_cast<int32>(EEffect::SealAgainstRival));
+		}).Num();
+		TestEqual(FString::Printf(TEXT("Semilla %d: cada Sello aplicado sella"), Seed), Placed, SealsApplied);
+		TestEqual(FString::Printf(TEXT("Semilla %d: cada Sello tiene su línea"), Seed), CountLines(TEXT(" sella la ")), Placed);
+		CapReleases += Released;
 	}
 	TestTrue(TEXT("En alguna partida el tope entra en juego"), CapReleases > 0);
 	return true;
@@ -460,7 +509,7 @@ bool FMatchSimulationBondRaceTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Se juegan turnos"), A.Turns > 0);
 	TestEqual(TEXT("La carrera termina una vez"), CountEvents(A.FinalState, EMatchEventType::BondRaceEnded), 1);
 	TestTrue(TEXT("La partida termina: o se acaba o llega a su duración"),
-		A.FinalState.IsMatchOver() || A.FinalState.ClockSeconds >= Params.DurationSeconds - Params.EvaluationPeriodSeconds);
+		A.FinalState.IsMatchOver() || A.FinalState.ClockSeconds >= Params.DurationSeconds - MaxEvaluationGap(Params));
 	TestTrue(TEXT("Misma semilla, mismo registro"), A.Log == B.Log);
 	TestTrue(TEXT("Misma semilla, mismo estado final"), Soulbound::Tests::SameState(A.FinalState, B.FinalState));
 	TestTrue(FString::Printf(TEXT("Una partida tarda menos de un segundo (%.4f s)"), A.WallSeconds), A.WallSeconds < 1.0);
@@ -519,10 +568,28 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 		int32 Duels = 0;
 		int32 DuelsWon = 0;
 		int32 DuelsWonByChallenged = 0;
+		// S-016: el Warden por acto (intervenciones con efecto, turnos empezados y cortados, hueco más largo).
+		TArray<FWardenActReport> WardenActs;
+		WardenActs.SetNum(Soulbound::Warden::ActCount);
 		for (int32 Seed = 1; Seed <= Games; ++Seed)
 		{
 			Params.Seed = Seed;
 			const FSimulationResult Result = FMatchSimulation(Params, FourRaceDummies()).Run();
+			if (TestEqual(FString::Printf(TEXT("%s, semilla %d: cifras del Warden de los tres actos"), *BoardFile, Seed), Result.WardenActs.Num(), Soulbound::Warden::ActCount))
+			{
+				int32 Interventions = 0;
+				for (int32 Act = 0; Act < Soulbound::Warden::ActCount; ++Act)
+				{
+					const FWardenActReport& Report = Result.WardenActs[Act];
+					TestTrue(TEXT("Un acto no corta más turnos de los que empieza"), Report.TurnsCut <= Report.TurnsStarted);
+					WardenActs[Act].EffectInterventions += Report.EffectInterventions;
+					WardenActs[Act].TurnsStarted += Report.TurnsStarted;
+					WardenActs[Act].TurnsCut += Report.TurnsCut;
+					WardenActs[Act].MaxGapSeconds = FMath::Max(WardenActs[Act].MaxGapSeconds, Report.MaxGapSeconds);
+					Interventions += Report.EffectInterventions;
+				}
+				TestEqual(TEXT("Las intervenciones por acto suman las de la partida"), Interventions, Result.Interventions);
+			}
 			const FMatchState& State = Result.FinalState;
 			const TArray<FMatchEvent> Ended = Soulbound::Tests::EventsOfType(State, EMatchEventType::BondRaceEnded);
 			if (!TestEqual(FString::Printf(TEXT("%s, semilla %d: la carrera termina una vez"), *BoardFile, Seed), Ended.Num(), 1))
@@ -582,6 +649,15 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 		Lines.Add(FString::Printf(TEXT("    duelos por partida, de media: %.2f (objetivo del GDD 04: de 3 a 8)"), static_cast<double>(Duels) / Games));
 		Lines.Add(FString::Printf(TEXT("    duelos que gana el retado: %d de %d (%.1f %%)"), DuelsWonByChallenged, DuelsWon,
 			DuelsWon > 0 ? 100.0 * DuelsWonByChallenged / DuelsWon : 0.0));
+		static const TCHAR* const ActNames[] = {TEXT("I"), TEXT("II"), TEXT("III")};
+		for (int32 Act = 0; Act < Soulbound::Warden::ActCount; ++Act)
+		{
+			const FWardenActReport& Report = WardenActs[Act];
+			const double Target = Params.WardenParams.Acts.IsValidIndex(Act) ? Params.WardenParams.Acts[Act].CutTarget : 0.0;
+			Lines.Add(FString::Printf(TEXT("    Warden, Acto %s: %.2f intervenciones con efecto por partida | %.1f %% de turnos cortados (objetivo %.0f %%) | hueco máximo sin golpe ni escena: %.0f s"),
+				ActNames[Act], static_cast<double>(Report.EffectInterventions) / Games, Report.TurnsStarted > 0 ? 100.0 * Report.TurnsCut / Report.TurnsStarted : 0.0,
+				100.0 * Target, Report.MaxGapSeconds));
+		}
 		Lines.Add(FString::Printf(TEXT("    tiempo real: %.3f s en total"), WallSum));
 	}
 
@@ -1019,6 +1095,137 @@ bool FMatchSimulationDuelsTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("En 20 partidas, los dummies se baten en duelo"), Won > 0);
 	AddInfo(FString::Printf(TEXT("20 partidas: %d retos, %d duelos resueltos"), Duels, Won));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationWardenGuaranteeTest,
+	"Soulbound.Core.Simulation.WardenGarantiaEIntervalos",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationWardenGuaranteeTest::RunTest(const FString& Parameters)
+{
+	// CA-WAR-2 (R-WAR-3, R-WAR-5; simulación): en 50 partidas con los valores iniciales (tablero de 35 casillas, dummies de
+	// carrera, semillas 1 a 50), ningún tramo de 120 s sin golpe ni escena (desde el inicio y hasta el final, también), y todos
+	// los intervalos entre evaluaciones dentro de 15 ± 5 s. Decisiones del autor del 19/10/2026: las re-evaluaciones tras un
+	// aplazamiento no cuentan para el intervalo (el par que empieza en una aplazada no se mide), y R-WAR-7 manda sobre R-WAR-5:
+	// si la evaluación que cierra el tramo vino de un aplazamiento, el tramo puede pasar de 120 s solo por el tiempo que estuvo
+	// aplazada (desde la evaluación aplazada hasta la que intervino).
+	FSimulationParams Params;
+	if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), 1, Params))
+	{
+		return false;
+	}
+	const double Guarantee = Params.WardenParams.GuaranteeSeconds;
+	const double MinInterval = Params.WardenParams.EvaluationIntervalSeconds - Params.WardenParams.EvaluationVariationSeconds;
+	const double MaxInterval = Params.WardenParams.EvaluationIntervalSeconds + Params.WardenParams.EvaluationVariationSeconds;
+	double WorstGap = 0.0;
+	int32 Intervals = 0;
+	int32 Evaluations = 0;
+	for (int32 Seed = 1; Seed <= 50; ++Seed)
+	{
+		Params.Seed = Seed;
+		const FSimulationResult Result = FMatchSimulation(Params, FourRaceDummies()).Run();
+		const FMatchState& State = Result.FinalState;
+		const double End = State.IsMatchOver() ? State.ClockSeconds : Params.DurationSeconds;
+
+		double LastEffect = 0.0;
+		double LastEvaluation = -1.0;
+		bool bLastDeferred = false;
+		// Tiempo que estuvo aplazada la última evaluación, si vino de un aplazamiento; 0 si no.
+		double DeferredFor = 0.0;
+		for (const FMatchEvent& Event : State.EventLog)
+		{
+			if (Event.Type == EMatchEventType::WardenEventStarted)
+			{
+				WorstGap = FMath::Max(WorstGap, Event.ClockSeconds - LastEffect);
+				const double Allowed = Guarantee + (Event.ClockSeconds == LastEvaluation ? DeferredFor : 0.0);
+				if (Event.ClockSeconds - LastEffect > Allowed + KINDA_SMALL_NUMBER)
+				{
+					AddError(FString::Printf(TEXT("Semilla %d: %.1f s sin golpe ni escena hasta el %.1f"), Seed, Event.ClockSeconds - LastEffect, Event.ClockSeconds));
+				}
+				LastEffect = Event.ClockSeconds;
+			}
+			else if (Event.Type == EMatchEventType::WardenDecided)
+			{
+				++Evaluations;
+				if (LastEvaluation >= 0.0 && !bLastDeferred)
+				{
+					++Intervals;
+					const double Interval = Event.ClockSeconds - LastEvaluation;
+					if (Interval < MinInterval - KINDA_SMALL_NUMBER || Interval > MaxInterval + KINDA_SMALL_NUMBER)
+					{
+						AddError(FString::Printf(TEXT("Semilla %d: intervalo de %.2f s entre evaluaciones en el %.1f"), Seed, Interval, Event.ClockSeconds));
+					}
+				}
+				DeferredFor = bLastDeferred ? Event.ClockSeconds - LastEvaluation : 0.0;
+				LastEvaluation = Event.ClockSeconds;
+				bLastDeferred = Event.Detail == static_cast<int32>(EWardenDecisionKind::Deferred);
+			}
+		}
+		WorstGap = FMath::Max(WorstGap, End - LastEffect);
+		if (End - LastEffect > Guarantee)
+		{
+			AddError(FString::Printf(TEXT("Semilla %d: %.1f s sin golpe ni escena hasta el final"), Seed, End - LastEffect));
+		}
+	}
+	TestTrue(TEXT("Se mide algo"), Intervals > 0);
+	const FString Summary = FString::Printf(TEXT("50 partidas: %d evaluaciones, %d intervalos medidos, hueco máximo real sin golpe ni escena %.1f s"), Evaluations, Intervals, WorstGap);
+	AddInfo(Summary);
+	UE_LOG(LogSoulboundTest, Display, TEXT("%s"), *Summary);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationWardenLogTest,
+	"Soulbound.Core.Simulation.RegistroDelWardenDeterminista",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationWardenLogTest::RunTest(const FString& Parameters)
+{
+	// Criterio "Registro y determinismo" (R-WAR-10): dos simulaciones con la misma semilla dan el mismo registro del Warden
+	// (evaluaciones, decisiones, cortes y eventos, con sus marcas) y el mismo estado del Warden al final. Con el Warden
+	// encendido, que corta turnos y lanza eventos de los sacos. Semilla fija 42, tablero de 35 casillas.
+	FSimulationParams Params;
+	if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), 42, Params))
+	{
+		return false;
+	}
+	const FSimulationResult A = FMatchSimulation(Params, FourRaceDummies()).Run();
+	const FSimulationResult B = FMatchSimulation(Params, FourRaceDummies()).Run();
+	auto WardenLog = [](const FSimulationResult& Result)
+	{
+		return Result.FinalState.EventLog.FilterByPredicate([](const FMatchEvent& Event)
+		{
+			return Event.Type == EMatchEventType::WardenEvaluated || Event.Type == EMatchEventType::WardenDecided || Event.Type == EMatchEventType::WardenRemark
+				|| Event.Type == EMatchEventType::TurnInterrupted || Event.Type == EMatchEventType::WardenEventStarted;
+		});
+	};
+	auto SameEvents = [](const TArray<FMatchEvent>& X, const TArray<FMatchEvent>& Y)
+	{
+		if (X.Num() != Y.Num())
+		{
+			return false;
+		}
+		for (int32 Index = 0; Index < X.Num(); ++Index)
+		{
+			if (X[Index].Type != Y[Index].Type || X[Index].ClockSeconds != Y[Index].ClockSeconds || X[Index].Seat != Y[Index].Seat
+				|| X[Index].Value != Y[Index].Value || X[Index].Detail != Y[Index].Detail)
+			{
+				return false;
+			}
+		}
+		return true;
+	};
+	const TArray<FMatchEvent> LogA = WardenLog(A);
+	TestTrue(TEXT("Misma semilla, mismo registro del Warden"), SameEvents(LogA, WardenLog(B)));
+	TestTrue(TEXT("Y mismo estado del Warden"), FWardenState::StaticStruct()->CompareScriptStruct(&A.FinalState.Warden, &B.FinalState.Warden, PPF_None));
+	TestTrue(TEXT("Mismo registro de texto"), A.Log == B.Log);
+	TestTrue(TEXT("El Warden evalúa"), A.Evaluations > 0);
+	TestTrue(TEXT("Interviene con efecto"), A.Interventions > 0);
+	TestTrue(TEXT("Y corta algún turno"), CountEvents(A.FinalState, EMatchEventType::TurnInterrupted) > 0);
+
+	FSimulationParams Other = Params;
+	Other.Seed = 43;
+	TestFalse(TEXT("Otra semilla, otro registro del Warden"), SameEvents(LogA, WardenLog(FMatchSimulation(Other, FourRaceDummies()).Run())));
 	return true;
 }
 

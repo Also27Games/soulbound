@@ -14,13 +14,13 @@ enum class EWardenEventStart : uint8
 	Started,
 	/** No hay ningún evento con ese identificador en FMatchState::WardenEvents. */
 	UnknownEvent,
-	/** El turno no está entre turnos (BetweenTurns): hasta las interrupciones de S-016, los eventos van entre turnos. */
+	/** El turno no está entre turnos (BetweenTurns): los eventos van entre turnos; un golpe corta el turno antes (S-016). */
 	NotBetweenTurns,
 	/** Ya hay un evento en curso. */
 	EventInProgress,
 	/** La partida terminó, o no tiene orden de turno. */
 	MatchOver,
-	/** El evento usa un efecto que es de otra story (Alto, Consulta forzada al Oráculo). */
+	/** El evento usa un efecto que es de otra story (desde S-016, solo la Consulta forzada al Oráculo, de S-017). */
 	NotImplemented,
 };
 
@@ -50,8 +50,9 @@ namespace Soulbound::Rules
 	/**
 	 * Si el efecto Effect vale sobre el asiento Seat en un evento que dirige Director (R-DIR-2, R-DIR-3): en el Vacío solo
 	 * Liberación (y Liberación solo para quien está dentro); el resto, la comprobación de cada efecto (Match/EffectRules.h).
-	 * En los efectos globales (IsGlobalEffect) Seat no cuenta: es su comprobación global. NotImplemented en Alto y Consulta
-	 * forzada. Desde S-015: la Prueba del Warden (AlreadyPending sobre quien ya la tiene), el Robo decretado (Seat la víctima,
+	 * En los efectos globales (IsGlobalEffect) Seat no cuenta: es su comprobación global. NotImplemented en la Consulta
+	 * forzada. Desde S-016, el Alto (R-TAB-28) solo vale en un evento que llegó cortando un turno
+	 * (FCurrentWardenEvent::bInterruptedTurn) y sobre quien lo dirige, el cortado; si no, NoTurnToCut (burla). Desde S-015: la Prueba del Warden (AlreadyPending sobre quien ya la tiene), el Robo decretado (Seat la víctima,
 	 * Director el ladrón) y el Duelo forzado (Seat el retado, Director el retador; sin runas el retado, NoRunes). S-014.
 	 */
 	SOULBOUNDCORE_API EEffectResult CanApplyEffect(const FMatchState& State, EEffect Effect, int32 Seat, int32 Director);
@@ -61,13 +62,23 @@ namespace Soulbound::Rules
 	 * CanApplyEffect y, si vale, registra EffectApplied y aplica el efecto. Pointer: quien señaló a Seat (rival señalado), o
 	 * INDEX_NONE; si lo hay, una Vuelta al hogar o un Vacío cobran su marca (R-EFE-8). Rune: el tipo elegido en Runa regalada y
 	 * Perder una runa "chosen", o INDEX_NONE (al azar al perderla). Random: el sorteo del Warden (Sello, runa al azar).
-	 * Devuelve el resultado de la comprobación; si no es Applied, no cambia nada (NotImplemented en Alto y Consulta forzada).
+	 * Devuelve el resultado de la comprobación; si no es Applied, no cambia nada (NotImplemented en la Consulta forzada). El
+	 * Alto (S-016) solo deja su EffectApplied: el corte ya lo hizo quien lanzó el evento.
 	 * Robo decretado y Duelo forzado empiezan su trilero o su duelo, que la máquina juega entre turnos (S-015); en el Duelo
 	 * forzado, Pointer es el retador (INDEX_NONE: Director), así que con "dos rivales señalados" Seat es el segundo señalado.
 	 * S-014.
 	 */
 	SOULBOUNDCORE_API EEffectResult ApplyEffect(FMatchState& State, const FEffectApplication& Application, int32 Seat, int32 Director, int32 Pointer, int32 Rune,
 		double NowSeconds, FRandomStream& Random);
+
+	/**
+	 * Si la aplicación Application tendría ahora algún objetivo válido en un evento que dirige Director (R-DIR-2, R-DIR-3), con
+	 * el mismo filtro que la resuelve: los efectos globales, su comprobación global; rival señalado, algún rival válido (dos
+	 * rivales señalados, dos); el Robo decretado que elige el Warden, alguien con runas; el Duelo forzado "dos al azar", dos
+	 * válidos; el resto, alguno de los asientos de su dirección. El Alto depende del corte: lo mira quien sabe si corta (el
+	 * cerebro). Lo usa el cerebro para no elegir eventos sin objetivo (R-WAR-8). Nombre propuesto en S-016.
+	 */
+	SOULBOUNDCORE_API bool HasValidTargets(const FMatchState& State, const FEffectApplication& Application, int32 Director);
 
 	/**
 	 * Reloj de un dilema de OptionCount opciones (R-COM-2): la base más un incremento por cada opción a partir de la segunda
@@ -88,9 +99,10 @@ namespace Soulbound::Rules
 	 * WardenEventStarted. Un decreto se aplica ya; un dilema abre la elección Dilemma para quien lo dirige, con
 	 * DilemmaClockSeconds. Las aplicaciones de la opción se resuelven en orden, cada una validada por separado (R-COM-3,
 	 * R-DIR-2): sin objetivos válidos, WardenTaunt y la siguiente. Avanza hasta la primera elección o el final.
-	 * NowSeconds: marca de los eventos. Devuelve CanApplyEvent; si no es Started, no cambia nada. Nombre propuesto en S-014.
+	 * NowSeconds: marca de los eventos. bInterruptedTurn (S-016): si llega con el corte de un turno, el de un golpe; solo así
+	 * vale el Alto. Devuelve CanApplyEvent; si no es Started, no cambia nada. Nombre propuesto en S-014.
 	 */
-	SOULBOUNDCORE_API EWardenEventStart ApplyEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random);
+	SOULBOUNDCORE_API EWardenEventStart ApplyEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random, bool bInterruptedTurn = false);
 
 	/**
 	 * Lleva el evento en curso (lo llama AdvanceTurn en BetweenTurns): con una elección abierta, espera a su plazo y, agotado,

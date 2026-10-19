@@ -392,6 +392,10 @@ namespace Soulbound::Rules
 		// R-DIR-2: en el Vacío solo Liberación; cada comprobación lo mira (InVoid) junto a sus propios motivos (R-DIR-3).
 		switch (Effect)
 		{
+		case EEffect::Halt:
+			// R-TAB-28 (S-016): el Alto es el corte; solo vale en un evento que llegó cortando un turno, y sobre el cortado.
+			return State.CurrentEvent.IsActive() && State.CurrentEvent.bInterruptedTurn && Seat == Director && State.Seats.IsValidIndex(Seat)
+				? EEffectResult::Applied : EEffectResult::NoTurnToCut;
 		case EEffect::RevealBracer: return CanRevealBracer(State, Seat);
 		case EEffect::SendHome: return CanSendHome(State, Seat);
 		case EEffect::LoseTurn:
@@ -452,9 +456,11 @@ namespace Soulbound::Rules
 		}
 		const int32 Target = IsGlobalEffect(Effect) ? INDEX_NONE : Seat;
 		LogEvent(State, EMatchEventType::EffectApplied, NowSeconds, Target, static_cast<int32>(Effect), Pointer, static_cast<int32>(Application.Target));
-		// TODO(R-EFE-0): un switch que crece con cada efecto; los dos que faltan (Alto y Consulta forzada, S-016, S-017) entran aquí.
+		// TODO(R-EFE-0): un switch que crece con cada efecto; el que falta (Consulta forzada, S-017) entra aquí.
 		switch (Effect)
 		{
+		// R-TAB-28 (S-016): el Alto no hace nada más que el corte, que ya hizo quien lanzó el evento (InterruptTurn).
+		case EEffect::Halt: break;
 		case EEffect::RevealBracer: RevealBracer(State, Seat, NowSeconds); break;
 		case EEffect::SendHome: SendHome(State, Seat, NowSeconds); break;
 		case EEffect::LoseTurn: LoseTurn(State, Seat, Application.Amount, NowSeconds); break;
@@ -481,6 +487,27 @@ namespace Soulbound::Rules
 		return EEffectResult::Applied;
 	}
 
+	bool HasValidTargets(const FMatchState& State, const FEffectApplication& Application, int32 Director)
+	{
+		// El mismo filtro que BeginApplication, sin abrir elecciones ni sortear.
+		if (IsGlobalEffect(Application.Effect))
+		{
+			return CanApplyEffect(State, Application.Effect, INDEX_NONE, Director) == EEffectResult::Applied;
+		}
+		if (Application.Target == EEffectTarget::ChosenRival || Application.Target == EEffectTarget::TwoChosenRivals)
+		{
+			TArray<int32> Rivals = ValidTargets(State, Application.Effect, PointedSeats(State, EEffectTarget::Everyone, Director), Director);
+			Rivals.Remove(Director);
+			return Rivals.Num() >= (Application.Target == EEffectTarget::TwoChosenRivals ? 2 : 1);
+		}
+		TArray<int32> Targets = ValidTargets(State, Application.Effect, PointedSeats(State, Application.Target, Director), Director);
+		if (Application.Effect == EEffect::DecreedTheft)
+		{
+			Targets = Targets.FilterByPredicate([&State](int32 Seat) { return HasRunes(State.Seats[Seat]); });
+		}
+		return Targets.Num() >= (Application.Effect == EEffect::ForcedDuel ? 2 : 1);
+	}
+
 	double DilemmaClockSeconds(const FMatchParams& Params, int32 OptionCount)
 	{
 		// R-COM-2: base más un incremento por cada opción a partir de la segunda.
@@ -494,8 +521,8 @@ namespace Soulbound::Rules
 		{
 			return EWardenEventStart::MatchOver;
 		}
-		// Decisión del autor del 10/10/2026: los eventos se aplican entre turnos hasta las interrupciones de S-016.
-		// TODO(R-TUR-11): con las interrupciones, un evento podrá llegar a mitad de turno.
+		// Decisión del autor del 10/10/2026: los eventos se aplican entre turnos. Desde S-016 un golpe llega a mitad de turno,
+		// pero lo corta antes (InterruptTurn) y el evento se aplica en el hueco que deja: también entre turnos.
 		if (State.TurnPhase != ETurnPhase::BetweenTurns)
 		{
 			return EWardenEventStart::NotBetweenTurns;
@@ -523,7 +550,7 @@ namespace Soulbound::Rules
 		return EWardenEventStart::Started;
 	}
 
-	EWardenEventStart ApplyEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random)
+	EWardenEventStart ApplyEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random, bool bInterruptedTurn)
 	{
 		const EWardenEventStart Result = CanApplyEvent(State, EventId);
 		if (Result != EWardenEventStart::Started)
@@ -535,6 +562,8 @@ namespace Soulbound::Rules
 		Event = FCurrentWardenEvent();
 		Event.EventIndex = State.WardenEvents.IndexOf(EventId);
 		Event.Director = EventDirector(State);
+		// S-016: si llega cortando un turno (un golpe), el Alto vale sobre el cortado, que es quien lo dirige.
+		Event.bInterruptedTurn = bInterruptedTurn;
 		// Un valor del sorteo del Warden; los sorteos del evento salen de él, nunca del de la partida.
 		Event.Seed = Random.RandRange(0, MAX_int32 - 1);
 		const int32 OptionCount = State.WardenEvents.Events[Event.EventIndex].Options.Num();
