@@ -1106,8 +1106,10 @@ bool FMatchSimulationWardenGuaranteeTest::RunTest(const FString& Parameters)
 {
 	// CA-WAR-2 (R-WAR-3, R-WAR-5; simulación): en 50 partidas con los valores iniciales (tablero de 35 casillas, dummies de
 	// carrera, semillas 1 a 50), ningún tramo de 120 s sin golpe ni escena (desde el inicio y hasta el final, también), y todos
-	// los intervalos entre evaluaciones dentro de 15 ± 5 s. Las re-evaluaciones tras un aplazamiento no cuentan para el
-	// intervalo (decisión del autor del 19/10/2026): el par que empieza en una aplazada no se mide.
+	// los intervalos entre evaluaciones dentro de 15 ± 5 s. Decisiones del autor del 19/10/2026: las re-evaluaciones tras un
+	// aplazamiento no cuentan para el intervalo (el par que empieza en una aplazada no se mide), y R-WAR-7 manda sobre R-WAR-5:
+	// si la evaluación que cierra el tramo vino de un aplazamiento, el tramo puede pasar de 120 s solo por el tiempo que estuvo
+	// aplazada (desde la evaluación aplazada hasta la que intervino).
 	FSimulationParams Params;
 	if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), 1, Params))
 	{
@@ -1129,12 +1131,15 @@ bool FMatchSimulationWardenGuaranteeTest::RunTest(const FString& Parameters)
 		double LastEffect = 0.0;
 		double LastEvaluation = -1.0;
 		bool bLastDeferred = false;
+		// Tiempo que estuvo aplazada la última evaluación, si vino de un aplazamiento; 0 si no.
+		double DeferredFor = 0.0;
 		for (const FMatchEvent& Event : State.EventLog)
 		{
 			if (Event.Type == EMatchEventType::WardenEventStarted)
 			{
 				WorstGap = FMath::Max(WorstGap, Event.ClockSeconds - LastEffect);
-				if (Event.ClockSeconds - LastEffect > Guarantee)
+				const double Allowed = Guarantee + (Event.ClockSeconds == LastEvaluation ? DeferredFor : 0.0);
+				if (Event.ClockSeconds - LastEffect > Allowed + KINDA_SMALL_NUMBER)
 				{
 					AddError(FString::Printf(TEXT("Semilla %d: %.1f s sin golpe ni escena hasta el %.1f"), Seed, Event.ClockSeconds - LastEffect, Event.ClockSeconds));
 				}
@@ -1152,6 +1157,7 @@ bool FMatchSimulationWardenGuaranteeTest::RunTest(const FString& Parameters)
 						AddError(FString::Printf(TEXT("Semilla %d: intervalo de %.2f s entre evaluaciones en el %.1f"), Seed, Interval, Event.ClockSeconds));
 					}
 				}
+				DeferredFor = bLastDeferred ? Event.ClockSeconds - LastEvaluation : 0.0;
 				LastEvaluation = Event.ClockSeconds;
 				bLastDeferred = Event.Detail == static_cast<int32>(EWardenDecisionKind::Deferred);
 			}
@@ -1163,7 +1169,9 @@ bool FMatchSimulationWardenGuaranteeTest::RunTest(const FString& Parameters)
 		}
 	}
 	TestTrue(TEXT("Se mide algo"), Intervals > 0);
-	AddInfo(FString::Printf(TEXT("50 partidas: %d evaluaciones, %d intervalos medidos, hueco máximo sin golpe ni escena %.1f s"), Evaluations, Intervals, WorstGap));
+	const FString Summary = FString::Printf(TEXT("50 partidas: %d evaluaciones, %d intervalos medidos, hueco máximo real sin golpe ni escena %.1f s"), Evaluations, Intervals, WorstGap);
+	AddInfo(Summary);
+	UE_LOG(LogSoulboundTest, Display, TEXT("%s"), *Summary);
 	return true;
 }
 

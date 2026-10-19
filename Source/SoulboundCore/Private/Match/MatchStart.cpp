@@ -78,6 +78,8 @@ namespace Soulbound::Rules
 		// la simulación hasta S-015), sin tocar el sorteo de la partida; los usos de cada evento y la primera evaluación.
 		State.WardenParams = WardenParams;
 		State.Warden.Seed = Random.GetInitialSeed() + 2;
+		// S-016 (R-TAB-12): el reparto de hogares al acabar la carrera, con su propia semilla, más 3, tampoco toca los dados.
+		State.HomeAssignmentSeed = Random.GetInitialSeed() + 3;
 		for (const FWardenEventDef& Event : WardenEvents.Events)
 		{
 			State.Warden.UsesLeft.Add(Event.MaxUses > 0 ? Event.MaxUses : -1);

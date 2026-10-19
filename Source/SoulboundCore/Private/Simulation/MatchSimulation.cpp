@@ -35,7 +35,7 @@ namespace
 		case EChoiceKind::PlayerAction: return TEXT("acción contra un jugador");
 		case EChoiceKind::SafeRune: return TEXT("runa a salvo de Koschei");
 		case EChoiceKind::ShellPick: return TEXT("esfera del trilero");
-		// S-014: las de los eventos del Warden; el cerebro del spike no lanza eventos, así que la simulación no las ve.
+		// S-014: las de los eventos del Warden; desde S-016 el cerebro real los lanza y los dummies las contestan.
 		case EChoiceKind::Dilemma: return TEXT("dilema");
 		case EChoiceKind::ChosenRival: return TEXT("rival señalado");
 		case EChoiceKind::GiftRune: return TEXT("runa regalada");

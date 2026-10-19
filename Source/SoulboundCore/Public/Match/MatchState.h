@@ -1056,6 +1056,14 @@ struct SOULBOUNDCORE_API FMatchState
 	UPROPERTY()
 	int32 ShellSeedBase = 0;
 
+	/**
+	 * Semilla del reparto de hogares al acabar la carrera (R-TAB-12, S-016, nombre propuesto): la de la partida más 3, fijada
+	 * por StartMatch sin sacar ningún valor (como la del Warden, más 2). Así el reparto no toca el sorteo de los dados, que
+	 * hasta S-015 lo pagaba en un instante que dependía de los decisores (decisión del autor del 19/10/2026).
+	 */
+	UPROPERTY()
+	int32 HomeAssignmentSeed = 0;
+
 	/** Trileros jugados en la partida (S-010): el contador que se combina con ShellSeedBase. */
 	UPROPERTY()
 	int32 ShellGameCount = 0;

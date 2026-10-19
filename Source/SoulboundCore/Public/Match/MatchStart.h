@@ -53,7 +53,8 @@ namespace Soulbound::Rules
 	 *  - S-014: los eventos del Warden viajan en el estado (FMatchState::WardenEvents), sin tocar el sorteo.
 	 *  - S-016 (R-WAR-10): los parámetros del Warden también (FMatchState::WardenParams), y su estado: la semilla de su sorteo,
 	 *    la de la partida más 2 (Random.GetInitialSeed, sin sacar ningún valor), los usos de cada evento y la primera evaluación,
-	 *    a un intervalo del inicio.
+	 *    a un intervalo del inicio. Y la semilla del reparto de hogares al acabar la carrera (HomeAssignmentSeed, la de la
+	 *    partida más 3), que tampoco toca el sorteo.
 	 * Board: tablero válido (se comprueba con ValidateBoard). Params: parámetros de partida válidos (se comprueban con
 	 * ValidateMatchParams). Elects: los seis Elegidos, válidos (ValidateElects); no hay modo sin ellos. PlayerCount: asientos ocupados por humanos o bots, de 1 a 4; en Fase 1 los bots rellenan
 	 * los huecos y siempre es 4. Random: sorteo; misma semilla, mismo resultado. WardenEvents: los eventos del Warden, válidos

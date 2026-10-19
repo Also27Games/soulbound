@@ -125,14 +125,18 @@ namespace Soulbound::Rules
 
 		// R-TAB-12: cada Eco, en orden de asiento, recibe al azar un Dominio Olvidado distinto. Siempre hay bastantes:
 		// quedan 4 menos E Ecos y 6 menos E Olvidados. Se barajan los seis Dominios y se toman los Olvidados en ese
-		// orden: el sorteo gasta siempre lo mismo del generador de la partida, sea cual sea E, así quién se vincula no
-		// cambia los dados que vienen después (grabación y reproducción, GDD 08).
+		// orden. Desde S-016 la barajada usa su propia semilla (FMatchState::HomeAssignmentSeed, decisión del autor del
+		// 19/10/2026): hasta S-015 sacaba sus valores del sorteo de los dados en el instante en que acaba la carrera, que
+		// depende de los decisores, y con otro decisor los dados de después cambiaban (grabación y reproducción, GDD 08).
+		// TODO(R-TAB-12): Random ya no se usa aquí; se queda en la firma hasta quitarlo con el refactor de Rider, que
+		// actualiza sus llamadas (ClaimNiche, la máquina de turnos, las ediciones y los tests).
 		TArray<int32> Forgotten;
 		for (const FDomainState& Domain : State.Board.Domains)
 		{
 			Forgotten.Add(Domain.DomainId);
 		}
-		Shuffle(Forgotten, Random);
+		FRandomStream HomeRandom(State.HomeAssignmentSeed);
+		Shuffle(Forgotten, HomeRandom);
 		Forgotten.RemoveAll([&State](int32 DomainId) { return State.Board.Domains[DomainId].State != EDomainState::Forgotten; });
 		int32 NextForgotten = 0;
 		for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)

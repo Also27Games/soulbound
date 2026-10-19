@@ -73,7 +73,9 @@ struct SOULBOUNDCORE_API FSimulationResult
  * Simulación (glosario "Simulación"): una partida entera sin mundo ni red, con reloj virtual. Los mismos datos,
  * las mismas reglas y el mismo cerebro que en juego; solo cambia quién avanza el reloj. Inicia la partida con
  * StartMatch y juega los turnos con la máquina de turnos del motor (Match/TurnRules.h): la simulación consulta a
- * los decisores y avanza el reloj, pero no contiene reglas de turno. El cerebro del Warden sigue siendo el del spike.
+ * los decisores y avanza el reloj, pero no contiene reglas de turno. Desde S-016, el Warden real: el cerebro evalúa en el
+ * instante que él mismo devuelve (EvaluateWarden, el mismo contrato que el anfitrión del Warden) y sus decisiones se aplican
+ * con las reglas del motor; con bWardenEnabled apagado, la partida no tiene Warden.
  * La partida acaba al llegar a DurationSeconds o, antes, al terminar con victoria del Warden (R-CAR-8, S-006).
  * Los duelos (S-012) se resuelven al instante: los dos participantes rinden con su decisor y el botín es un trilero.
  * Tres sorteos separados, en simulación y en juego (decisión del autor del 05/10/2026, S-010): partida (inicio, dados y
