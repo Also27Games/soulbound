@@ -115,11 +115,12 @@ namespace
 			return Reject(EWardenEventsError::MalformedData, FString::Printf(TEXT("El evento %d no es un objeto con \"id\" y \"text\" de texto."), Index + 1));
 		}
 		FString Delivery;
-		if (!(*Object)->TryGetStringField(TEXT("delivery"), Delivery) || !(Delivery == TEXT("direct") || Delivery == TEXT("oracle")))
+		if (!(*Object)->TryGetStringField(TEXT("delivery"), Delivery) || !(Delivery == TEXT("direct") || Delivery == TEXT("oracle") || Delivery == TEXT("any")))
 		{
-			return Reject(EWardenEventsError::MalformedData, FString::Printf(TEXT("Evento \"%s\": \"delivery\" debe ser \"direct\" u \"oracle\"."), *Out.Id));
+			return Reject(EWardenEventsError::MalformedData, FString::Printf(TEXT("Evento \"%s\": \"delivery\" debe ser \"direct\", \"oracle\" o \"any\"."), *Out.Id));
 		}
-		Out.Delivery = Delivery == TEXT("oracle") ? EEventDelivery::Oracle : EEventDelivery::Direct;
+		Out.Delivery = Delivery == TEXT("oracle") ? EEventDelivery::Oracle : Delivery == TEXT("any") ? EEventDelivery::Any : EEventDelivery::Direct;
+		// TODO(R-SAC-2): sin leer todavía el saco (nombre, acto, canal, pesos, usos, ventana y corte).
 
 		const TArray<TSharedPtr<FJsonValue>>* Options = nullptr;
 		if (!(*Object)->TryGetArrayField(TEXT("options"), Options) || !Options)

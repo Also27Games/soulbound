@@ -29,8 +29,9 @@ namespace
 namespace Soulbound::Rules
 {
 	FMatchStartResult StartMatch(const FBoardState& Board, const FMatchParams& Params, const FElectsTable& Elects, int32 PlayerCount, FRandomStream& Random,
-		const FWardenEventTable& WardenEvents)
+		const FWardenEventTable& WardenEvents, const FWardenParams& WardenParams)
 	{
+		// TODO(R-WAR-10): firma vacía del ciclo rojo de S-016; los parámetros y la semilla del Warden aún no viajan en el estado.
 		using Soulbound::Board::DomainCount;
 
 		if (PlayerCount < Soulbound::Match::MinPlayers || PlayerCount > Soulbound::Match::MaxPlayers)

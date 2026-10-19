@@ -85,13 +85,10 @@ void UWardenHostSubsystem::Evaluate()
 	++EvaluationCount;
 
 	const FMatchState& State = Match->GetState();
-	const FWardenDecision Decision = Brain.Evaluate(State, Rng);
-	Match->ApplyWardenDecision(Decision);
+	const FWardenDecision Decision = Match->EvaluateWarden();
 
-	const FString Text = Decision.IsIntervention()
-		? FString::Printf(TEXT("Warden (eval %d, t=%.0f s): accion %d en casilla %d, \"%s\". Sellos: %d"),
-			EvaluationCount, State.ClockSeconds, static_cast<int32>(Decision.Action), Decision.TileId, *Decision.Line, State.Board.SealedTiles.Num())
-		: FString::Printf(TEXT("Warden (eval %d, t=%.0f s): observa y calla. Sellos: %d"), EvaluationCount, State.ClockSeconds, State.Board.SealedTiles.Num());
+	const FString Text = FString::Printf(TEXT("Warden (eval %d, t=%.0f s): decisión %d, evento %d"), EvaluationCount, State.ClockSeconds,
+		static_cast<int32>(Decision.Kind), Decision.EventIndex);
 
 	UE_LOG(LogSoulboundWarden, Log, TEXT("%s"), *Text);
 	if (GEngine)

@@ -66,7 +66,7 @@ bool FBoard15SimulationTest::RunTest(const FString& Parameters)
 	// Desde S-006, con dummies al azar en un tablero de 91 casillas nadie suele vincularse en la carrera: la partida
 	// termina entonces con victoria del Warden (R-CAR-8), antes de su duración.
 	TestTrue(TEXT("La partida llega a su duración o termina con victoria del Warden"),
-		A.FinalState.ClockSeconds >= Params.DurationSeconds - Params.EvaluationPeriodSeconds || A.FinalState.Outcome == EMatchOutcome::WardenVictory);
+		A.FinalState.ClockSeconds >= Params.DurationSeconds - Params.MatchParams.TurnClockSeconds || A.FinalState.Outcome == EMatchOutcome::WardenVictory);
 	TestEqual(TEXT("Misma semilla, mismo número de líneas"), A.Log.Num(), B.Log.Num());
 	TestTrue(TEXT("Misma semilla, mismo registro"), A.Log == B.Log);
 	TestTrue(TEXT("Misma semilla, mismo estado final"), Soulbound::Tests::SameState(A.FinalState, B.FinalState));

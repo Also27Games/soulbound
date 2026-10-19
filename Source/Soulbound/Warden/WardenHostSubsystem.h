@@ -43,7 +43,6 @@ private:
 
 	FTimerHandle EvaluationTimer;
 	FRandomStream Rng;
-	FWardenBrain Brain;
 	int32 EvaluationCount = 0;
 	bool bSeeded = false;
 };

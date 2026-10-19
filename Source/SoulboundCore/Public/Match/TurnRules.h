@@ -195,6 +195,23 @@ namespace Soulbound::Rules
 	SOULBOUNDCORE_API void BeginEventWardenDuel(FMatchState& State, int32 Challenged, bool bAllRunes, double NowSeconds);
 
 	/**
+	 * Si el turno en curso se puede cortar ahora (R-TUR-11, S-016): fase Start, PreRoll, RollAndChoose o MoveAndResolve. Nunca
+	 * en Duel, ShellGame ni SkillTrial (ahí el Warden aplaza, R-WAR-7), ni entre turnos ni en End. Nombre propuesto en S-016.
+	 */
+	SOULBOUNDCORE_API bool CanInterruptTurn(const FMatchState& State);
+
+	/**
+	 * Corta el turno en curso (glosario "Corte", R-TUR-11, R-TAB-26, S-016): registra TurnInterrupted con la fase, cierra las
+	 * elecciones abiertas, pierde la tirada pendiente respetando el consumo fijo (si el turno llegó a PreRoll, saca de Random
+	 * los valores que falten: los cuatro en PreRoll, los dos de la repetición si siguen pendientes), deja la ficha donde está
+	 * (su casilla ya resolvió al llegar), termina el turno (TurnEnded) y lo deja entre turnos como cualquier fin de turno
+	 * (turno extra, siguiente del orden, fin de carrera). El cortado queda como el último que jugó (LastTurnSeat).
+	 * NowSeconds: marca de los eventos. Random: el sorteo de la partida. Devuelve false, sin cambiar nada, si CanInterruptTurn
+	 * no lo permite. Nombre propuesto en S-016.
+	 */
+	SOULBOUNDCORE_API bool InterruptTurn(FMatchState& State, double NowSeconds, FRandomStream& Random);
+
+	/**
 	 * Concede Count turnos extra al asiento Seat (R-TUR-9), sin pasar del tope de los parámetros de partida.
 	 * Devuelve false, sin cambiar nada, si el asiento no existe o Count no es positivo.
 	 */

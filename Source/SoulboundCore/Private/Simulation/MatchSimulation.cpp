@@ -94,14 +94,13 @@ FSimulationResult FMatchSimulation::Run()
 		return Result;
 	}
 	FMatchState State = MoveTemp(Start.State);
-	const FWardenBrain Brain;
 
 	// El registro se lee como una crónica: una línea por turno, por destino y por intervención del Warden.
 	Result.Log.Add(FString::Printf(TEXT("Partida | semilla %d | orden de turno %s | %d casillas | reloj de turno %.0f s | respuesta del decisor %.0f s"),
 		Params.Seed, *FString::JoinBy(State.TurnOrder, TEXT(", "), [](int32 Seat) { return FString::FromInt(Seat); }),
 		State.Board.Tiles.Num(), State.Params.TurnClockSeconds, Params.DummyResponseSeconds));
 
-	double NextEvaluation = Params.EvaluationPeriodSeconds;
+	double NextEvaluation = 0.0;
 	double NextTurnEvent = 0.0;
 	FPendingAnswer Pending;
 	int32 LoggedEvents = 0;
@@ -383,20 +382,8 @@ FSimulationResult FMatchSimulation::Run()
 
 		if (bEvaluationFirst)
 		{
-			const FWardenDecision Decision = Brain.Evaluate(State, WardenRng);
-			FWardenBrain::Apply(State, Decision);
-			++Result.Evaluations;
-			if (Decision.IsIntervention())
-			{
-				++Result.Interventions;
-				const TCHAR* Verb = Decision.Action == EWardenAction::SealTile ? TEXT("sella la ")
-					: Decision.Action == EWardenAction::ReleaseTile ? TEXT("libera la ")
-					: TEXT("comenta");
-				const FString Target = Decision.Action == EWardenAction::Comment ? FString() : DescribeTile(State.Board, Decision.TileId);
-				Result.Log.Add(FString::Printf(TEXT("%s Warden %s%s: \"%s\""), *Stamp(State.ClockSeconds), Verb, *Target, *Decision.Line));
-			}
-			LogNewEvents();
-			NextEvaluation += Params.EvaluationPeriodSeconds;
+			// TODO(R-WAR-1): firma vacía del ciclo rojo de S-016; el cerebro real entra con su implementación.
+			NextEvaluation = TNumericLimits<double>::Max();
 		}
 		else
 		{

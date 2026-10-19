@@ -627,6 +627,24 @@ enum class EMatchEventType : uint8
 	WardenDuelLost,
 	/** El Warden roba a quien no señaló a tiempo en un Robo decretado (R-DIR-4, S-015): Seat la víctima, Value el tipo; la runa vuelve a su Fuente. */
 	RuneTakenByWarden,
+	/**
+	 * Un golpe corta el turno en curso (R-TUR-11, S-016): Seat el asiento cortado, Value la fase en que estaba (ETurnPhase). Va
+	 * antes del TurnEnded de ese turno y del evento que lo cortó. Nombre propuesto en S-016.
+	 */
+	TurnInterrupted,
+	/**
+	 * Evaluación del cerebro del Warden (R-WAR-10, S-016): Value el acto (EAct), Detail 1 si la garantía la obliga a intervenir
+	 * (R-WAR-5) y 0 si no. Sin asiento. Nombre propuesto en S-016.
+	 */
+	WardenEvaluated,
+	/**
+	 * Decisión de una evaluación (R-WAR-10, S-016): Value la posición del evento en FMatchState::WardenEvents (INDEX_NONE sin
+	 * evento: nada, comentario o aplazada) y Detail el tipo de decisión (EWardenDecisionKind). Va justo después de su
+	 * WardenEvaluated. Sin asiento. Nombre propuesto en S-016.
+	 */
+	WardenDecided,
+	/** Comentario del Warden (glosario `Remark`, R-WAR-4, S-016): sin texto ni efecto; el tipo y la frase son de S-017. Sin asiento. */
+	WardenRemark,
 };
 
 /** Por qué termina la Noche de los Ecos (R-EFE-9, R-EFE-18, S-014, nombre propuesto): el Detail del evento EchoNightEnded. */
@@ -828,7 +846,60 @@ struct SOULBOUNDCORE_API FCurrentWardenEvent
 	UPROPERTY()
 	int32 FirstRival = INDEX_NONE;
 
+	/**
+	 * Si el evento llega con el corte de un turno (S-016, R-TUR-11): un golpe, o una escena cortante, sobre un turno en curso.
+	 * Solo así vale el Alto (R-TAB-28), y solo sobre quien dirige, el cortado. Nombre propuesto en S-016.
+	 */
+	UPROPERTY()
+	bool bInterruptedTurn = false;
+
 	bool IsActive() const { return EventIndex != INDEX_NONE; }
+};
+
+/**
+ * Estado del Warden en la partida (R-WAR-10, S-016, nombre propuesto): lo que el cerebro necesita recordar entre
+ * evaluaciones para que una partida se reproduzca con su semilla. Solo lo escriben las reglas de Warden/WardenRules.h y, al
+ * empezar cada turno, la máquina de turnos (bGapUsed).
+ */
+USTRUCT()
+struct SOULBOUNDCORE_API FWardenState
+{
+	GENERATED_BODY()
+
+	/**
+	 * Semilla del sorteo propio del Warden: la de la partida más 2, fijada por StartMatch (como el anfitrión y la simulación
+	 * hasta S-015). Cada sorteo la combina con Draws (WardenDraw); nada toca el sorteo de los dados.
+	 */
+	UPROPERTY()
+	int32 Seed = 0;
+
+	/** Sorteos hechos con Seed. */
+	UPROPERTY()
+	int32 Draws = 0;
+
+	/** Usos que le quedan a cada evento de FMatchState::WardenEvents, en su orden (glosario `MaxUses`); -1, sin límite. */
+	UPROPERTY()
+	TArray<int32> UsesLeft;
+
+	/** Instante de la última intervención con efecto (golpe o escena aplicados), o 0 si aún no hubo: de aquí cuenta la garantía. */
+	UPROPERTY()
+	double LastEffectSeconds = 0.0;
+
+	/** Instante de la siguiente evaluación, el que devolvió el cerebro en la anterior (R-WAR-3). */
+	UPROPERTY()
+	double NextEvaluationSeconds = 0.0;
+
+	/** Si la última evaluación se aplazó (R-WAR-7): se vuelve a evaluar en cuanto termina lo que la aplazó. */
+	UPROPERTY()
+	bool bDeferred = false;
+
+	/** Escena decidida con un turno en curso que espera al hueco entre turnos (R-WAR-4); INDEX_NONE si no hay. */
+	UPROPERTY()
+	int32 PendingScene = INDEX_NONE;
+
+	/** Si el hueco entre turnos en curso ya tuvo su intervención con efecto (R-WAR-4: como mucho una). Lo limpia el inicio de turno. */
+	UPROPERTY()
+	bool bGapUsed = false;
 };
 
 /**
@@ -940,6 +1011,17 @@ struct SOULBOUNDCORE_API FMatchState
 	/** Evento del Warden en curso (S-014); sin evento, EventIndex INDEX_NONE. */
 	UPROPERTY()
 	FCurrentWardenEvent CurrentEvent;
+
+	/**
+	 * Parámetros del Warden (S-016): los de Content/Data/Warden/warden.json, que recibe StartMatch. Sin actos, la partida no
+	 * tiene Warden (FWardenParams::HasWarden).
+	 */
+	UPROPERTY()
+	FWardenParams WardenParams;
+
+	/** Estado del Warden (S-016): sorteo propio, usos, última intervención, siguiente evaluación, aplazamiento y escena en espera. */
+	UPROPERTY()
+	FWardenState Warden;
 
 	/**
 	 * Ronda (decisión del autor del 10/10/2026: cada vuelta completa del orden de turno): vueltas completas desde el inicio.

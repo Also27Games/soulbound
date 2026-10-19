@@ -10,6 +10,7 @@
 #include "Misc/AutomationTest.h"
 #include "MatchTestSetup.h"
 #include "Warden/WardenBrain.h"
+#include "WardenFixture.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -490,12 +491,23 @@ bool FBondRaceEndOfRaceTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("E = 0: ni la carrera termina otra vez"), Soulbound::Rules::EndBondRace(State, RaceEnd + 100.0, Random));
 		TestTrue(TEXT("E = 0: el estado no cambia"), Soulbound::Tests::SameState(Before, State));
 
-		// Y el Warden no actúa sobre una partida terminada (decisión del autor del 01/10/2026). Generador con semilla 1.
+		// Y el Warden no actúa sobre una partida terminada (decisión del autor del 01/10/2026). Generador con semilla 1. Desde
+		// S-016, con el Warden de los datos y siempre dispuesto a intervenir: aun así, nada.
+		FWardenParams WardenParams;
+		if (!Soulbound::Tests::LoadTestWardenParams(*this, WardenParams))
+		{
+			return false;
+		}
+		for (FWardenActParams& Act : WardenParams.Acts)
+		{
+			Act.InterveneProbability = 1.0;
+		}
+		State.WardenParams = WardenParams;
 		FRandomStream WardenRandom(1);
 		const FWardenBrain Brain;
 		for (int32 Evaluation = 0; Evaluation < 50; ++Evaluation)
 		{
-			if (Brain.Evaluate(State, WardenRandom).IsIntervention())
+			if (Brain.Evaluate(State, RaceEnd + 15.0 * Evaluation, WardenRandom).Kind != EWardenDecisionKind::None)
 			{
 				AddError(TEXT("E = 0: el Warden interviene en una partida terminada"));
 				break;

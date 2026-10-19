@@ -7,10 +7,10 @@
 #include "StepClock.h"
 #include "Math/RandomStream.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "Warden/WardenBrain.h"
 #include "MatchHostSubsystem.generated.h"
 
 class ABoardViewActor;
-struct FWardenDecision;
 
 #if !UE_BUILD_SHIPPING
 /**
@@ -80,8 +80,12 @@ public:
 	 */
 	EIntentResult SubmitHumanChoice(EChoiceKind Kind, int32 Option);
 
-	/** El anfitrión del Warden pide aplicar una decisión sobre el estado; aquí se escribe y se avisa. */
-	void ApplyWardenDecision(const FWardenDecision& Decision);
+	/**
+	 * El anfitrión del Warden pide una evaluación (S-016): el motor la hace y la aplica sobre el estado
+	 * (Soulbound::Rules::EvaluateWarden), aquí se escribe y se avisa, y la partida sigue (un golpe deja el turno entre turnos
+	 * con el evento en marcha). Devuelve la decisión, para el log del anfitrión del Warden.
+	 */
+	FWardenDecision EvaluateWarden();
 
 	/**
 	 * Modo paso a paso (S-007). Activo, la partida se detiene al acabar cada turno y el reloj se congela hasta que se

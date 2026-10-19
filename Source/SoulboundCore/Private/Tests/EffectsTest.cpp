@@ -102,7 +102,8 @@ bool FEffectsCatalogoCerradoTest::RunTest(const FString& Parameters)
 	};
 	// La tabla de la story (R-EFE-0), escrita aquí como oráculo independiente.
 	const TArray<FRow> Expected = {
-		{EEffect::Halt, S::Light, {T::ActivePlayer}, false},
+		// S-016: el Alto se aplica (su efecto es el corte, R-TAB-28).
+		{EEffect::Halt, S::Light, {T::ActivePlayer}, true},
 		{EEffect::RevealBracer, S::Light, {T::ActivePlayer, T::ChosenRival, T::Leader, T::Everyone}, true},
 		{EEffect::ForcedOracle, S::Light, {T::ActivePlayer, T::ChosenRival, T::NextPlayer}, false},
 		{EEffect::SendHome, S::Medium, {T::ActivePlayer, T::ChosenRival, T::Leader, T::NextPlayer, T::Everyone, T::RandomPlayer}, true},
@@ -839,8 +840,8 @@ bool FEffectsPendientesTest::RunTest(const FString& Parameters)
 	}
 	F.State.Seats[Koschei].Runes[0] = 1;
 	F.Director(Fenrir);
+	// Desde S-016 el Alto se aplica (su efecto es el corte): solo queda la Consulta forzada, de S-017.
 	const TPair<EEffect, EEffectTarget> Pending[] = {
-		{EEffect::Halt, EEffectTarget::ActivePlayer},
 		{EEffect::ForcedOracle, EEffectTarget::ActivePlayer},
 	};
 	for (const TPair<EEffect, EEffectTarget>& Effect : Pending)
@@ -856,8 +857,8 @@ bool FEffectsPendientesTest::RunTest(const FString& Parameters)
 		TestTrue(FString::Printf(TEXT("%s: el estado y el registro no cambian"), *Name), SameState(Before, F.State));
 	}
 
-	// Un dilema con un Alto en una de sus opciones se rechaza entero.
-	const FString Id = F.AddEvent(TEXT("con-alto"), {{App(EEffect::ExtraTurn, EEffectTarget::ActivePlayer)}, {App(EEffect::Halt, EEffectTarget::ActivePlayer)}});
+	// Un dilema con una Consulta forzada en una de sus opciones se rechaza entero (hasta S-016, con un Alto).
+	const FString Id = F.AddEvent(TEXT("con-consulta"), {{App(EEffect::ExtraTurn, EEffectTarget::ActivePlayer)}, {App(EEffect::ForcedOracle, EEffectTarget::ActivePlayer)}});
 	const FMatchState Before = F.State;
 	TestEqual(TEXT("El evento se rechaza: no implementado"), AsInt(F.Launch(Id)), AsInt(EWardenEventStart::NotImplemented));
 	TestTrue(TEXT("Sin tocar nada"), SameState(Before, F.State));

@@ -938,6 +938,18 @@ namespace Soulbound::Rules
 		State.TurnPhase = ETurnPhase::Duel;
 	}
 
+	bool CanInterruptTurn(const FMatchState& State)
+	{
+		// TODO(R-TUR-11): firma vacía del ciclo rojo de S-016.
+		return false;
+	}
+
+	bool InterruptTurn(FMatchState& State, double NowSeconds, FRandomStream& Random)
+	{
+		// TODO(R-TUR-11): firma vacía del ciclo rojo de S-016.
+		return false;
+	}
+
 	bool GrantExtraTurns(FMatchState& State, int32 Seat, int32 Count)
 	{
 		return GrantCapped(State, Seat, Count, &FSeatState::ExtraTurns, State.Params.MaxExtraTurns);

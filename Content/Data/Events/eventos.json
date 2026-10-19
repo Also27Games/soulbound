@@ -55,6 +55,194 @@
      "delivery": "direct",
      "options": [
        [{"effect": "ForcedDuel", "target": "ChosenRival", "variant": "one"}]
+     ]},
+
+    {"id": "tropiezo", "name": "Tropiezo", "text": "Tu turno se acaba aquí",
+     "act": "I", "channel": "strike", "delivery": "direct",
+     "options": [
+       [{"effect": "Halt", "target": "ActivePlayer"}]
+     ]},
+    {"id": "pausa", "name": "Pausa", "text": "Pierdes un turno",
+     "act": "I", "channel": "strike", "delivery": "any", "window": {"to": 150},
+     "options": [
+       [{"effect": "LoseTurn", "target": "ActivePlayer", "amount": 1}]
+     ]},
+    {"id": "al-altar", "name": "Al Altar", "text": "Vuelves a tu hogar",
+     "act": "I", "channel": "strike", "delivery": "any", "window": {"to": 150},
+     "options": [
+       [{"effect": "SendHome", "target": "ActivePlayer"}]
+     ]},
+    {"id": "la-prueba", "name": "La Prueba", "text": "En tu próximo turno, la Prueba del Warden",
+     "act": "I", "channel": "strike", "delivery": "direct",
+     "options": [
+       [{"effect": "WardenTrial", "target": "ActivePlayer"}]
+     ]},
+    {"id": "prisa", "name": "Prisa", "text": "Un turno extra para ti",
+     "act": "I", "channel": "strike", "delivery": "any",
+     "options": [
+       [{"effect": "ExtraTurn", "target": "ActivePlayer", "amount": 1}]
+     ]},
+    {"id": "primer-muro", "name": "Primer muro", "text": "El Warden sella una casilla",
+     "act": "I", "channel": "scene", "delivery": "direct",
+     "options": [
+       [{"effect": "PlaceSeal"}]
+     ]},
+
+    {"id": "elige-tu-veneno", "name": "Elige tu veneno", "text": "Pierdes un turno, o pierdes la runa que elijas",
+     "act": "II", "channel": "strike", "delivery": "direct",
+     "options": [
+       [{"effect": "LoseTurn", "target": "ActivePlayer", "amount": 1}],
+       [{"effect": "LoseRune", "target": "ActivePlayer", "variant": "chosen"}]
+     ]},
+    {"id": "generosidad-envenenada", "name": "Generosidad envenenada", "text": "Dos turnos extra para ti, o mandas a casa a quien señales",
+     "act": "II", "channel": "strike", "delivery": "direct",
+     "options": [
+       [{"effect": "ExtraTurn", "target": "ActivePlayer", "amount": 2}],
+       [{"effect": "SendHome", "target": "ChosenRival"}]
+     ]},
+    {"id": "ensename", "name": "Enséñame", "text": "Quien señales enseña su Brazal",
+     "act": "II", "channel": "strike", "delivery": "any",
+     "options": [
+       [{"effect": "RevealBracer", "target": "ChosenRival"}]
+     ]},
+    {"id": "ojos-en-ti", "name": "Ojos en ti", "text": "Enseñas tu Brazal",
+     "act": "II", "channel": "strike", "delivery": "any",
+     "options": [
+       [{"effect": "RevealBracer", "target": "ActivePlayer"}]
+     ]},
+    {"id": "el-orbe-llama", "name": "El orbe llama", "text": "Consultas el Oráculo",
+     "act": "II", "channel": "strike", "delivery": "direct",
+     "options": [
+       [{"effect": "ForcedOracle", "target": "ActivePlayer"}]
+     ]},
+    {"id": "voluntad-ajena", "name": "Voluntad ajena", "text": "Quien señales consulta el Oráculo",
+     "act": "II", "channel": "strike", "delivery": "direct",
+     "options": [
+       [{"effect": "ForcedOracle", "target": "ChosenRival"}]
+     ]},
+    {"id": "arquitecto", "name": "Arquitecto", "text": "El Warden sella el camino de quien señales",
+     "act": "II", "channel": "strike", "delivery": "direct",
+     "options": [
+       [{"effect": "SealAgainstRival", "target": "ChosenRival"}]
+     ]},
+    {"id": "hazlo-tu", "name": "Hazlo tú", "text": "Sellas el camino de quien señales, o le haces enseñar su Brazal",
+     "act": "II", "channel": "strike", "delivery": "direct",
+     "options": [
+       [{"effect": "SealAgainstRival", "target": "ChosenRival"}],
+       [{"effect": "RevealBracer", "target": "ChosenRival"}]
+     ]},
+    {"id": "duelo-por-orden", "name": "Duelo por orden", "text": "Te bates con quien señales por una runa",
+     "act": "II", "channel": "strike", "delivery": "direct",
+     "options": [
+       [{"effect": "ForcedDuel", "target": "ChosenRival", "variant": "one"}]
+     ]},
+    {"id": "el-precio", "name": "El precio", "text": "Robas a quien señales, o recibes la runa que elijas",
+     "act": "II", "channel": "strike", "delivery": "direct",
+     "options": [
+       [{"effect": "DecreedTheft", "target": "ChosenRival"}],
+       [{"effect": "GiftRune", "target": "ActivePlayer"}]
+     ]},
+    {"id": "tres-caminos", "name": "Tres caminos", "text": "Pierdes un turno, pierdes una runa al azar o te espera la Prueba",
+     "act": "II", "channel": "strike", "delivery": "direct",
+     "options": [
+       [{"effect": "LoseTurn", "target": "ActivePlayer", "amount": 1}],
+       [{"effect": "LoseRune", "target": "ActivePlayer", "variant": "random"}],
+       [{"effect": "WardenTrial", "target": "ActivePlayer"}]
+     ]},
+    {"id": "ojo-por-ojo", "name": "Ojo por ojo", "text": "Pierdes una runa al azar, o quien señales pasa la Prueba",
+     "act": "II", "channel": "strike", "delivery": "direct",
+     "options": [
+       [{"effect": "LoseRune", "target": "ActivePlayer", "variant": "random"}],
+       [{"effect": "WardenTrial", "target": "ChosenRival"}]
+     ]},
+    {"id": "impuesto", "name": "Impuesto", "text": "Pierdes una runa al azar",
+     "act": "II", "channel": "strike", "delivery": "any",
+     "options": [
+       [{"effect": "LoseRune", "target": "ActivePlayer", "variant": "random"}]
+     ]},
+    {"id": "cadena", "name": "Cadena", "text": "Quien te sigue vuelve a su hogar",
+     "act": "II", "channel": "strike", "delivery": "any",
+     "options": [
+       [{"effect": "SendHome", "target": "NextPlayer"}]
+     ]},
+    {"id": "destierro", "name": "Destierro", "text": "Al Vacío",
+     "act": "II", "channel": "strike", "delivery": "any", "weights": [0, 0.3, 0.3], "maxUses": 2,
+     "options": [
+       [{"effect": "Banish", "target": "ActivePlayer"}]
+     ]},
+    {"id": "la-ley-de-sombras", "name": "Ley de Sombras", "text": "Los Ecos, a casa",
+     "act": "II", "channel": "scene", "delivery": "direct",
+     "options": [
+       [{"effect": "ShadowLaw", "target": "Echoes"}]
+     ]},
+    {"id": "noche-de-los-ecos", "name": "Noche de los Ecos", "text": "Los Ecos caminan por cualquier Dominio",
+     "act": "II", "channel": "scene", "delivery": "direct",
+     "options": [
+       [{"effect": "EchoNight", "target": "Echoes"}]
+     ]},
+    {"id": "piedad", "name": "Piedad", "text": "Los del Vacío salen",
+     "act": "II", "channel": "scene", "delivery": "direct",
+     "options": [
+       [{"effect": "ReleaseVoid", "target": "Everyone"}]
+     ]},
+    {"id": "amanecer", "name": "Amanecer", "text": "Los del Vacío salen, y los Ecos vuelven a casa",
+     "act": "II", "channel": "scene", "delivery": "direct",
+     "options": [
+       [{"effect": "ReleaseVoid", "target": "Everyone"}, {"effect": "ShadowLaw", "target": "Echoes"}]
+     ]},
+    {"id": "marcha-atras", "name": "Marcha atrás", "text": "Todos vuelven a su hogar",
+     "act": "II", "channel": "scene", "delivery": "direct", "maxUses": 1,
+     "options": [
+       [{"effect": "SendHome", "target": "Everyone"}]
+     ]},
+    {"id": "hermanos-de-sangre", "name": "Hermanos de sangre", "text": "Dos al azar se baten por una runa",
+     "act": "II", "channel": "scene", "delivery": "direct",
+     "options": [
+       [{"effect": "ForcedDuel", "target": "RandomPlayer", "variant": "one"}]
+     ]},
+
+    {"id": "el-perseguido", "name": "El perseguido", "text": "El líder queda Marcado",
+     "act": "III", "channel": "scene", "delivery": "direct",
+     "options": [
+       [{"effect": "Mark", "target": "Leader"}]
+     ]},
+    {"id": "marca-ciega", "name": "Marca ciega", "text": "Uno al azar queda Marcado",
+     "act": "III", "channel": "scene", "delivery": "direct",
+     "options": [
+       [{"effect": "Mark", "target": "RandomPlayer"}]
+     ]},
+    {"id": "todo-o-nada", "name": "Todo o nada", "text": "Señala a dos y que se batan por todas sus runas",
+     "act": "III", "channel": "strike", "delivery": "direct", "window": {"from": 1920},
+     "options": [
+       [{"effect": "ForcedDuel", "target": "TwoChosenRivals", "variant": "all"}]
+     ]},
+    {"id": "cosecha", "name": "Cosecha", "text": "Todos pierden una runa al azar",
+     "act": "III", "channel": "scene", "delivery": "direct", "maxUses": 1,
+     "options": [
+       [{"effect": "LoseRune", "target": "Everyone", "variant": "random"}]
+     ]},
+    {"id": "cosecha-del-lider", "name": "Cosecha del líder", "text": "El líder pierde una runa al azar",
+     "act": "III", "channel": "strike", "delivery": "any",
+     "options": [
+       [{"effect": "LoseRune", "target": "Leader", "variant": "random"}]
+     ]},
+    {"id": "milagro", "name": "Milagro", "text": "Robas a todos",
+     "act": "III", "channel": "strike", "delivery": "any", "maxUses": 1,
+     "options": [
+       [{"effect": "DecreedTheft", "target": "Everyone"}]
+     ]},
+    {"id": "destierro-del-lider", "name": "Destierro del líder", "text": "El líder, al Vacío",
+     "act": "III", "channel": "strike", "delivery": "any",
+     "options": [
+       [{"effect": "Banish", "target": "Leader"}]
+     ]},
+    {"id": "trueque", "name": "Trueque", "text": "Dos turnos extra, robar a quien señales, la runa que elijas o sellar su camino",
+     "act": "III", "channel": "strike", "delivery": "direct",
+     "options": [
+       [{"effect": "ExtraTurn", "target": "ActivePlayer", "amount": 2}],
+       [{"effect": "DecreedTheft", "target": "ChosenRival"}],
+       [{"effect": "GiftRune", "target": "ActivePlayer"}],
+       [{"effect": "SealAgainstRival", "target": "ChosenRival"}]
      ]}
   ]
 }

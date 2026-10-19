@@ -16,7 +16,7 @@
 #include "Misc/DateTime.h"
 #include "Misc/Paths.h"
 #include "TimerManager.h"
-#include "Warden/WardenBrain.h"
+#include "Warden/WardenRules.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogSoulboundMatch, Log, All);
 
@@ -370,20 +370,18 @@ EIntentResult UMatchHostSubsystem::SubmitHumanChoice(EChoiceKind Kind, int32 Opt
 	return Result;
 }
 
-void UMatchHostSubsystem::ApplyWardenDecision(const FWardenDecision& Decision)
+FWardenDecision UMatchHostSubsystem::EvaluateWarden()
 {
 	if (!bHasMatch)
 	{
-		return;
+		return FWardenDecision();
 	}
 	State.ClockSeconds = MatchSeconds();
-	FWardenBrain::Apply(State, Decision);
-	// Sin intervención el estado no cambia: no se avisa a la presentación.
-	if (Decision.IsIntervention())
-	{
-		LastWardenLine = Decision.Line;
-		OnMatchStateChanged.Broadcast();
-	}
+	// S-016: el motor decide y aplica (cerebro, registro, corte y evento); aquí solo se escribe y se avisa.
+	const FWardenDecision Decision = Soulbound::Rules::EvaluateWarden(State, State.ClockSeconds, MatchRng);
+	OnMatchStateChanged.Broadcast();
+	Advance();
+	return Decision;
 }
 
 #if !UE_BUILD_SHIPPING

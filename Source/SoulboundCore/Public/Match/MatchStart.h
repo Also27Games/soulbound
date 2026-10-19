@@ -57,5 +57,5 @@ namespace Soulbound::Rules
 	 * sin tocar Random.
 	 */
 	SOULBOUNDCORE_API FMatchStartResult StartMatch(const FBoardState& Board, const FMatchParams& Params, const FElectsTable& Elects, int32 PlayerCount, FRandomStream& Random,
-		const FWardenEventTable& WardenEvents = FWardenEventTable());
+		const FWardenEventTable& WardenEvents = FWardenEventTable(), const FWardenParams& WardenParams = FWardenParams());
 }
