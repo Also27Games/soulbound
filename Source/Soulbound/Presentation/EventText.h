@@ -68,6 +68,12 @@ namespace Soulbound::Presentation
 	/** En qué fase se corta un turno (ETurnPhase en un Value), en español, para la crónica (S-016: TurnInterrupted). */
 	FString TurnPhaseText(int32 Phase);
 
+	/**
+	 * Lo que pierde el asiento al que un golpe le corta el turno en la fase Phase (ETurnPhase en un Value), en español: la
+	 * tirada antes de mover, el salto o la acción tras mover (S-016, TurnInterrupted).
+	 */
+	FString TurnCutLossText(int32 Phase);
+
 	/** Motivo de una salida del Vacío (EVoidExit en el Value de LeftVoid), en español, para la crónica (S-013). */
 	FString VoidExitText(int32 Exit);
 

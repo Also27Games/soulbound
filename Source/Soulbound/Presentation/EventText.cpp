@@ -99,7 +99,7 @@ namespace Soulbound::Presentation
 		}
 		// S-016: el corte de un golpe y el comentario; las evaluaciones y las decisiones no tienen línea (sí, su registro).
 		case EMatchEventType::TurnInterrupted:
-			return FString::Printf(TEXT("GOLPE: el Warden CORTA el turno del asiento %d %s: la tirada se pierde y la ficha se queda donde está"), Event.Seat, *TurnPhaseText(Event.Value));
+			return FString::Printf(TEXT("GOLPE: el Warden CORTA el turno del asiento %d %s: %s"), Event.Seat, *TurnPhaseText(Event.Value), *TurnCutLossText(Event.Value));
 		case EMatchEventType::WardenRemark:
 			return FString(TEXT("el Warden comenta (la frase llega con S-017)"));
 		case EMatchEventType::WardenEvaluated:
@@ -265,6 +265,19 @@ namespace Soulbound::Presentation
 		case ETurnPhase::RollAndChoose: return TEXT("mientras elige destino (RollAndChoose)");
 		case ETurnPhase::MoveAndResolve: return TEXT("tras moverse (MoveAndResolve)");
 		default: return TEXT("en una fase que no se corta");
+		}
+	}
+
+	FString TurnCutLossText(int32 Phase)
+	{
+		// R-TUR-11: lo que pierde depende de por dónde iba: antes de mover, la tirada; tras mover, la tirada ya se usó.
+		switch (static_cast<ETurnPhase>(Phase))
+		{
+		case ETurnPhase::Start:
+		case ETurnPhase::PreRoll: return TEXT("pierde la tirada");
+		case ETurnPhase::RollAndChoose: return TEXT("pierde la tirada sin moverse");
+		case ETurnPhase::MoveAndResolve: return TEXT("pierde el salto o la acción que le quedaban; la ficha se queda donde llegó");
+		default: return TEXT("pierde lo que le quedaba del turno");
 		}
 	}
 

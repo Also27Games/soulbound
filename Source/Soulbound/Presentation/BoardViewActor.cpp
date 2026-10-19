@@ -1333,7 +1333,9 @@ void ABoardViewActor::TickHud()
 	const FString Next = !State.WardenParams.HasWarden() ? FString(TEXT("sin Warden"))
 		: !bWardenOn ? FString(TEXT("apagado (SbWardenMode auto)"))
 		: State.Warden.bDeferred ? FString(TEXT("evaluación aplazada hasta que acabe lo que está en curso"))
-		: FString::Printf(TEXT("siguiente evaluación en %.0f s"), FMath::Max(0.0, State.Warden.NextEvaluationSeconds - State.ClockSeconds));
+		// Vencida (la partida detenida en el paso a paso, que no evalúa): evaluará en cuanto siga.
+		: State.Warden.NextEvaluationSeconds <= State.ClockSeconds ? FString(TEXT("siguiente evaluación: pendiente"))
+		: FString::Printf(TEXT("siguiente evaluación en %.0f s"), State.Warden.NextEvaluationSeconds - State.ClockSeconds);
 	ShowText(4, FColor::Orange, FString::Printf(TEXT("Warden: Acto %s | %s | última intervención hace %.0f s%s"), ActNames[FMath::Clamp(Act, 0, 2)], *Next,
 		State.ClockSeconds - State.Warden.LastEffectSeconds, State.Warden.PendingScene != INDEX_NONE ? TEXT(" | una escena espera al hueco") : TEXT("")));
 
