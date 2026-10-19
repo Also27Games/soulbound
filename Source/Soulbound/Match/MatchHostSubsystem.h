@@ -161,6 +161,9 @@ public:
 	/** Vuelta al hogar del asiento Seat (S-013). */
 	FDebugEditOutcome DebugSendHome(int32 Seat);
 
+	/** Fija la insolencia del asiento Seat en Level, de 0 a 4, sin castigo (S-016, Soulbound::Debug::SetInsolence). */
+	FDebugEditOutcome DebugSetInsolence(int32 Seat, int32 Level);
+
 	/**
 	 * Lanza el evento del Warden EventId como entrega directa, entre turnos (S-014, Soulbound::Debug::LaunchEvent), con el
 	 * sorteo del Warden, que desde S-016 vive en el estado (WardenDraw). Si la partida estaba detenida en el paso a paso y el

@@ -74,6 +74,9 @@ namespace Soulbound::Presentation
 	 */
 	FString TurnCutLossText(int32 Phase);
 
+	/** Gravedad de un castigo de insolencia (EInsolencePunishment en un Detail), en español (S-016, InsolencePunished). */
+	FString InsolencePunishmentText(int32 Kind);
+
 	/** Motivo de una salida del Vacío (EVoidExit en el Value de LeftVoid), en español, para la crónica (S-013). */
 	FString VoidExitText(int32 Exit);
 

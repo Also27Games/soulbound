@@ -207,6 +207,17 @@ namespace
 	FString EffectStatusText(const FMatchState& State, int32 Seat)
 	{
 		FString Text;
+		if (State.Seats.IsValidIndex(Seat))
+		{
+			// S-016 (B), decisión del autor del 05/10/2026: la insolencia de cada uno, a la vista, y los castigos que esperan.
+			const FSeatState& SeatState = State.Seats[Seat];
+			const int32 Waiting = SeatState.PendingPunishments.Num() + SeatState.VoidPunishments.Num();
+			Text += FString::Printf(TEXT(" | insolencia %d de %d"), SeatState.Insolence, Soulbound::Match::MaxInsolence);
+			if (Waiting > 0)
+			{
+				Text += FString::Printf(TEXT(" | %d castigo%s pendiente%s"), Waiting, Waiting > 1 ? TEXT("s") : TEXT(""), Waiting > 1 ? TEXT("s") : TEXT(""));
+			}
+		}
 		if (State.Seats.IsValidIndex(Seat) && State.Seats[Seat].bWardenTrialPending)
 		{
 			// S-015: la Prueba del Warden pendiente, hasta que la juegue al empezar su siguiente turno.
@@ -252,7 +263,9 @@ namespace
 		}
 		const bool bPlayingVoidTurn = Seat == State.ActiveSeat && (State.TurnPhase == ETurnPhase::Start || State.TurnPhase == ETurnPhase::SkillTrial)
 			&& State.Seats[Seat].VoidTurns > 0;
-		return FString::Printf(TEXT("EN EL VACÍO, turno %d"), State.Seats[Seat].VoidTurns + (bPlayingVoidTurn ? 0 : 1));
+		// S-016 (B): el Vacío de la Furia, donde no funcionan Desvío ni Liberación.
+		return FString::Printf(TEXT("%s, turno %d"), State.Seats[Seat].bFuryVoid ? TEXT("EN EL VACÍO DE LA FURIA (sin Desvío ni Liberación)") : TEXT("EN EL VACÍO"),
+			State.Seats[Seat].VoidTurns + (bPlayingVoidTurn ? 0 : 1));
 	}
 
 	/**

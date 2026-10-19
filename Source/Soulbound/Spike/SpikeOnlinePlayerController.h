@@ -103,6 +103,13 @@ public:
 	UFUNCTION(Exec)
 	void SbBanish(FString Seat);
 
+	/**
+	 * SbInsolence <asiento> <n>: fija la insolencia del asiento, de 0 a 4, sin castigo (S-016). Con 4, la siguiente desatención
+	 * trae la Furia. Cuerpo vacío en Shipping.
+	 */
+	UFUNCTION(Exec)
+	void SbInsolence(FString Seat, FString Level);
+
 	/** SbRelease: Liberación, todos los del Vacío salen a su hogar (S-013). */
 	UFUNCTION(Exec)
 	void SbRelease();
