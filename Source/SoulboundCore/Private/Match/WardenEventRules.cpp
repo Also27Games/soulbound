@@ -423,7 +423,8 @@ namespace Soulbound::Rules
 			{
 				return CanReleaseVoid(State);
 			}
-			return State.Seats.IsValidIndex(Seat) && State.Seats[Seat].IsInVoid() ? EEffectResult::Applied : EEffectResult::NobodyInVoid;
+			// R-INS-3 (S-016): a quien está en el Vacío de la Furia la Liberación no le saca.
+			return State.Seats.IsValidIndex(Seat) && State.Seats[Seat].IsInVoid() && !State.Seats[Seat].bFuryVoid ? EEffectResult::Applied : EEffectResult::NobodyInVoid;
 		case EEffect::EchoNight: return CanEchoNight(State);
 		default: return EEffectResult::NotImplemented;
 		}
@@ -642,7 +643,6 @@ namespace Soulbound::Rules
 			const FPendingChoice Expired = State.PendingChoice;
 			State.PendingChoice = FPendingChoice();
 			LogEvent(State, EMatchEventType::WardenIgnored, NowSeconds, Expired.Seat, static_cast<int32>(Expired.Kind));
-			RaiseInsolence(State, Expired.Seat, NowSeconds);
 			const FEffectApplication Application = ApplicationInProgress(State);
 			switch (Expired.Kind)
 			{
@@ -686,6 +686,11 @@ namespace Soulbound::Rules
 			default:
 				break;
 			}
+			// R-INS-2 (decisión del autor del 19/10/2026): primero lo que el Warden hace en su lugar (R-DIR-4), después, en el mismo
+			// instante, la insolencia y su castigo; si eso lo deja en juego (su Duelo contra el Warden), el castigo espera a que acabe.
+			ContinueEvent(State, NowSeconds);
+			RaiseInsolence(State, Expired.Seat, NowSeconds);
+			return true;
 		}
 		ContinueEvent(State, NowSeconds);
 		return true;

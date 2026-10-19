@@ -270,7 +270,17 @@ namespace Soulbound::Debug
 
 	EDebugEditResult SetInsolence(FMatchState& State, int32 Seat, int32 Level, double NowSeconds)
 	{
-		// TODO(R-INS-1): firma vacía del ciclo rojo de S-016 (B).
-		return EDebugEditResult::InvalidSeat;
+		if (!State.Seats.IsValidIndex(Seat))
+		{
+			return EDebugEditResult::InvalidSeat;
+		}
+		// 5 no es un nivel en el que se quede nadie: la quinta subida es la Furia y la devuelve a 0 (R-INS-3).
+		if (Level < 0 || Level >= Soulbound::Match::MaxInsolence)
+		{
+			return EDebugEditResult::InvalidAmount;
+		}
+		LogEdit(State, EDebugEditKind::SetInsolence, NowSeconds, Seat);
+		State.Seats[Seat].Insolence = Level;
+		return EDebugEditResult::Applied;
 	}
 }

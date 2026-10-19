@@ -54,8 +54,7 @@ namespace Soulbound::Rules
 			return Result;
 		}
 		// R-VAC-1, R-TAB-24: la ficha sale del tablero y no ocupa casilla. R-VAC-4: la cuenta empieza de cero.
-		// TODO(R-VAC-1): el Vacío de la Furia (dentro no funcionan Desvío ni Liberación, y el Warden se niega con frase) es de
-		// la story de la Furia; hoy bFury solo cuenta para la regla de la carrera y para el registro.
+		// El Vacío de la Furia (FSeatState::bFuryVoid) lo marca quien destierra con la Furia (UnleashFury, Match/InsolenceRules.h).
 		FSeatState& SeatState = State.Seats[Seat];
 		SeatState.TileId = INDEX_NONE;
 		SeatState.VoidTurns = 0;
@@ -71,8 +70,9 @@ namespace Soulbound::Rules
 
 	EEffectResult CanReleaseVoid(const FMatchState& State)
 	{
-		// R-EFE-17: sin nadie dentro, no es válida.
-		const bool bSomeoneInside = State.Seats.ContainsByPredicate([](const FSeatState& Seat) { return Seat.IsInVoid(); });
+		// R-EFE-17: sin nadie dentro, no es válida. R-INS-3 (S-016): los del Vacío de la Furia no cuentan, porque no saldrían
+		// (decisión del autor del 19/10/2026: con solo ellos dentro, burla).
+		const bool bSomeoneInside = State.Seats.ContainsByPredicate([](const FSeatState& Seat) { return Seat.IsInVoid() && !Seat.bFuryVoid; });
 		return bSomeoneInside ? EEffectResult::Applied : EEffectResult::NobodyInVoid;
 	}
 
@@ -87,6 +87,12 @@ namespace Soulbound::Rules
 		// máquina de turnos cierra la espera al ver que ya no está dentro (R-VAC-3).
 		for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
 		{
+			// R-INS-3 (S-016): saca a todos menos al del Vacío de la Furia, y el Warden se le niega.
+			if (State.Seats[Seat].IsInVoid() && State.Seats[Seat].bFuryVoid)
+			{
+				LogEvent(State, EMatchEventType::FuryRefusal, NowSeconds, Seat, 1);
+				continue;
+			}
 			LeaveVoid(State, Seat, EVoidExit::Released, NowSeconds);
 		}
 		return EEffectResult::Applied;

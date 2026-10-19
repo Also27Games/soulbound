@@ -4,6 +4,7 @@
 #include "Match/BondRaceRules.h"
 #include "Match/DuelRules.h"
 #include "Match/EffectRules.h"
+#include "Match/InsolenceRules.h"
 #include "Match/RuneRules.h"
 #include "Match/MatchEvents.h"
 #include "Match/ShellGameRules.h"
@@ -241,6 +242,8 @@ namespace
 			CloseChoice(State);
 			Event.bWaitsForAction = false;
 			State.TurnPhase = ETurnPhase::BetweenTurns;
+			// R-INS-2 (S-016): el castigo de quien desatendió y acabó en este duelo o trilero, ahora que ya no está en juego.
+			Soulbound::Rules::DischargePendingPunishments(State, NowSeconds);
 			return;
 		}
 		EnterEnd(State, NowSeconds);
@@ -487,6 +490,8 @@ namespace
 		State.DiceCount = 0;
 		State.Roll = 0;
 		State.ReachableOptions.Reset();
+		// R-INS-2 (S-016): el castigo del reloj de turno, y lo que esperaba a que el asiento dejara de estar en juego, ahora.
+		Soulbound::Rules::DischargePendingPunishments(State, NowSeconds);
 		// R-TUR-9 antes que R-CAR-1: el fin de carrera se mira al acabar cada turno, extra o no. Un turno extra concedido
 		// y empezado antes del límite se juega entero, y la carrera termina al acabarlo. Si el turno que acaba aquí ya
 		// pasó el límite y deja un turno extra pendiente, la carrera termina ahora y ese turno extra se juega después,
@@ -1014,10 +1019,19 @@ namespace Soulbound::Rules
 		{
 			return false;
 		}
-		// TODO(R-TUR-8): cada subida trae un castigo sorteado por nivel y al quinto la Furia, que devuelve el contador
-		// a 0. Es de la story del Warden; aquí solo el contador y su tope.
 		int32& Insolence = State.Seats[Seat].Insolence;
+		const int32 LevelBefore = Insolence;
 		Insolence = FMath::Min(Insolence + 1, Soulbound::Match::MaxInsolence);
+		// S-016 (decisión del autor del 19/10/2026): sin Warden en la partida, sin tabla, no hay castigos: la insolencia solo cuenta.
+		if (State.WardenParams.InsolenceTable.IsEmpty())
+		{
+			return true;
+		}
+		// R-INS-2, R-INS-3: el castigo se sortea ahora, con el nivel anterior, y se aplica cuando el asiento deja de estar en
+		// juego (o a su salida del Vacío, salvo la Furia).
+		FRandomStream Draw = WardenDraw(State);
+		const FPendingPunishment Punishment{Insolence, DrawInsolencePunishment(State.WardenParams, LevelBefore, Draw)};
+		PunishOrDefer(State, Seat, Punishment, NowSeconds);
 		return true;
 	}
 }
