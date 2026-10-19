@@ -134,6 +134,20 @@ struct SOULBOUNDCORE_API FMatchParams
 	 */
 	UPROPERTY()
 	double ShortChoiceClockSeconds = 0.0;
+
+	/**
+	 * Prueba del Warden (R-EFE-10, S-015): dificultad del minijuego de habilidad que juega quien la tiene pendiente al empezar
+	 * su turno. Una de las tres. En datos (wardenTrialDifficulty); valor inicial normal.
+	 */
+	UPROPERTY()
+	ESkillDifficulty WardenTrialDifficulty = ESkillDifficulty::Normal;
+
+	/**
+	 * Duelo contra el Warden (S-015): rendimiento fijo del Warden, de 0 a 1, con el que se bate quien desatiende un Duelo forzado.
+	 * Es lo que decide si el Warden gana la mayoría de las veces. En datos (wardenDuelPerformance); valor inicial 0,75.
+	 */
+	UPROPERTY()
+	double WardenDuelPerformance = 0.0;
 };
 
 /** Por qué se rechazaron unos parámetros de partida. */
@@ -169,7 +183,8 @@ namespace Soulbound::Rules
 	 * escape del Vacío (S-013): la principal de 1 a Soulbound::Match::MaxVoidEscapeSteps peldaños, la de la afinidad de 1 a
 	 * los de la principal, todas con dificultades conocidas; y los de los efectos y eventos del Warden (S-014): rondas de
 	 * Brazal revelado, marca y tope de la Noche de 1 en adelante, reloj base del dilema y reloj corto mayores que cero, e
-	 * incremento por opción del dilema de cero en adelante. Params: los parámetros a comprobar. Devuelve None o
+	 * incremento por opción del dilema de cero en adelante; y los de S-015: la dificultad de la Prueba del Warden, una de las
+	 * tres, y el rendimiento del Warden en su duelo, de 0 a 1. Params: los parámetros a comprobar. Devuelve None o
 	 * MalformedData con el motivo; el campo Params del resultado queda vacío.
 	 */
 	SOULBOUNDCORE_API FMatchParamsLoadResult ValidateMatchParams(const FMatchParams& Params);

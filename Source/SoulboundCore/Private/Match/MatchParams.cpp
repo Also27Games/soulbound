@@ -29,6 +29,20 @@ namespace
 		return static_cast<int32>(Difficulty) < DifficultyCount;
 	}
 
+	/** Lee el nombre de una dificultad ("easy", "normal", "hard"). Devuelve false si no es ninguna. */
+	bool ParseDifficulty(const FString& Name, ESkillDifficulty& OutDifficulty)
+	{
+		for (int32 Candidate = 0; Candidate < DifficultyCount; ++Candidate)
+		{
+			if (Name == DifficultyNames[Candidate])
+			{
+				OutDifficulty = static_cast<ESkillDifficulty>(Candidate);
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/**
 	 * Lee la escalera Field del Vacío: una lista de textos "easy", "normal" o "hard" (S-013). Devuelve false si falta, no es
 	 * una lista o tiene un elemento que no es una de esas dificultades; la longitud la comprueba ValidateMatchParams.
@@ -44,20 +58,12 @@ namespace
 		for (const TSharedPtr<FJsonValue>& Value : *Values)
 		{
 			FString Name;
-			if (!Value.IsValid() || !Value->TryGetString(Name))
+			ESkillDifficulty Difficulty = ESkillDifficulty::Easy;
+			if (!Value.IsValid() || !Value->TryGetString(Name) || !ParseDifficulty(Name, Difficulty))
 			{
 				return false;
 			}
-			int32 Index = INDEX_NONE;
-			for (int32 Candidate = 0; Candidate < DifficultyCount; ++Candidate)
-			{
-				Index = Name == DifficultyNames[Candidate] ? Candidate : Index;
-			}
-			if (Index == INDEX_NONE)
-			{
-				return false;
-			}
-			OutLadder.Add(static_cast<ESkillDifficulty>(Index));
+			OutLadder.Add(Difficulty);
 		}
 		return true;
 	}
@@ -154,6 +160,16 @@ namespace Soulbound::Rules
 		{
 			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-DIR-1: el reloj corto debe ser mayor que cero (es %g)."), Params.ShortChoiceClockSeconds));
 		}
+		// S-015: la Prueba del Warden con una de las tres dificultades; el rendimiento del Warden en su duelo, de 0 a 1.
+		if (!IsKnownDifficulty(Params.WardenTrialDifficulty))
+		{
+			return Reject(EMatchParamsError::MalformedData, TEXT("R-EFE-10: la dificultad de la Prueba del Warden debe ser fácil, normal o difícil."));
+		}
+		if (!(Params.WardenDuelPerformance >= 0.0 && Params.WardenDuelPerformance <= 1.0))
+		{
+			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-DIR-4: el rendimiento del Warden en su duelo debe estar entre 0 y 1 (es %g)."),
+				Params.WardenDuelPerformance));
+		}
 		return FMatchParamsLoadResult();
 	}
 
@@ -184,6 +200,7 @@ namespace Soulbound::Rules
 			{TEXT("dilemmaClockSeconds"), &Params.DilemmaClockSeconds},
 			{TEXT("dilemmaClockPerOptionSeconds"), &Params.DilemmaClockPerOptionSeconds},
 			{TEXT("shortChoiceClockSeconds"), &Params.ShortChoiceClockSeconds},
+			{TEXT("wardenDuelPerformance"), &Params.WardenDuelPerformance},
 		};
 		for (const TPair<const TCHAR*, double*>& Time : Times)
 		{
@@ -218,6 +235,12 @@ namespace Soulbound::Rules
 			{
 				return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("El parámetro \"%s\" falta o no es una lista de dificultades (\"easy\", \"normal\", \"hard\")."), Ladder.Key));
 			}
+		}
+
+		FString TrialDifficulty;
+		if (!Root->TryGetStringField(TEXT("wardenTrialDifficulty"), TrialDifficulty) || !ParseDifficulty(TrialDifficulty, Params.WardenTrialDifficulty))
+		{
+			return Reject(EMatchParamsError::MalformedData, TEXT("El parámetro \"wardenTrialDifficulty\" falta o no es \"easy\", \"normal\" o \"hard\"."));
 		}
 
 		FMatchParamsLoadResult Result = ValidateMatchParams(Params);

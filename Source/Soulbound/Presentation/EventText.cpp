@@ -65,8 +65,8 @@ namespace Soulbound::Presentation
 			return FString::Printf(TEXT("el asiento %d intenta robar a Koschei (asiento %d), que solo tiene una runa: robo anulado"), Event.Seat, Event.OtherSeat);
 		// S-012: el duelo. El minijuego de duelo no existe aún: el rendimiento de cada uno lo da su decisor al azar.
 		case EMatchEventType::DuelChallenged:
-			return FString::Printf(TEXT("DUELO: el asiento %d reta al asiento %d %s"), Event.Seat, Event.OtherSeat,
-				Event.Value == 1 ? TEXT("desde un Nodo de Duelo") : TEXT("con el poder Duelo"));
+			return FString::Printf(TEXT("%s: el asiento %d reta al asiento %d %s"), Event.Value == 2 ? TEXT("DUELO FORZADO") : TEXT("DUELO"), Event.Seat, Event.OtherSeat,
+				Event.Value == 2 ? TEXT("por orden del Warden") : Event.Value == 1 ? TEXT("desde un Nodo de Duelo") : TEXT("con el poder Duelo"));
 		case EMatchEventType::DuelNoRunes:
 			return FString::Printf(TEXT("el asiento %d reta al asiento %d, que no tiene runas: no hay duelo y la acción se pierde"), Event.Seat, Event.OtherSeat);
 		case EMatchEventType::DuelWon:
@@ -124,6 +124,27 @@ namespace Soulbound::Presentation
 			return Event.Detail == static_cast<int32>(EEchoNightEnd::ShadowLaw)
 				? FString(TEXT("LEY DE SOMBRAS: termina la Noche de los Ecos"))
 				: FString(TEXT("termina la Noche de los Ecos por el tope de rondas: los Ecos, a casa"));
+		// S-015: la Prueba del Warden, el Duelo forzado y el Duelo contra el Warden, y el Robo decretado. El minijuego real no
+		// existe aún: la prueba y el rendimiento del jugador los resuelve su decisor al azar.
+		case EMatchEventType::WardenTrialPending:
+			return FString::Printf(TEXT("PRUEBA DEL WARDEN: el asiento %d la jugará al empezar su próximo turno, antes de tirar"), Event.Seat);
+		case EMatchEventType::WardenTrialPassed:
+			return FString::Printf(TEXT("el asiento %d SUPERA la Prueba del Warden (%s, resuelta al azar): su turno sigue"), Event.Seat, *DifficultyText(Event.Value));
+		case EMatchEventType::WardenTrialFailed:
+			return FString::Printf(TEXT("el asiento %d FALLA la Prueba del Warden (%s, resuelta al azar): su turno termina sin tirar"), Event.Seat, *DifficultyText(Event.Value));
+		case EMatchEventType::WardenTrialCancelled:
+			return FString::Printf(TEXT("la Prueba del Warden del asiento %d se ANULA: entra en el Vacío"), Event.Seat);
+		case EMatchEventType::RunesSeized:
+			return FString::Printf(TEXT("el asiento %d se lleva la runa del Dominio %d del asiento %d (todas, sin trilero)"), Event.Seat, Event.Value, Event.OtherSeat);
+		case EMatchEventType::WardenDuelStarted:
+			return FString::Printf(TEXT("DUELO CONTRA EL WARDEN: el asiento %d se bate contra el Warden (rinde %d%%) por %s"), Event.Seat, Event.Value,
+				Event.Detail == 1 ? TEXT("todas sus runas") : TEXT("una de sus runas"));
+		case EMatchEventType::WardenDuelWon:
+			return FString::Printf(TEXT("el WARDEN GANA su duelo al asiento %d: lo que estaba en juego vuelve a su Fuente"), Event.Seat);
+		case EMatchEventType::WardenDuelLost:
+			return FString::Printf(TEXT("el asiento %d GANA el duelo al Warden y no pierde nada"), Event.Seat);
+		case EMatchEventType::RuneTakenByWarden:
+			return FString::Printf(TEXT("el WARDEN ROBA al asiento %d: su runa del Dominio %d vuelve a su Fuente"), Event.Seat, Event.Value);
 		case EMatchEventType::DebugEdit:
 			return Event.Seat == INDEX_NONE ? FString::Printf(TEXT("EDICIÓN DE DEPURACIÓN: %s"), *DebugKindName(Event.Value))
 				: FString::Printf(TEXT("EDICIÓN DE DEPURACIÓN: %s (asiento %d)"), *DebugKindName(Event.Value), Event.Seat);
@@ -206,7 +227,7 @@ namespace Soulbound::Presentation
 		case EWardenEventStart::NotBetweenTurns: return TEXT("los eventos van entre turnos: con SbStepMode 1, cuando la partida espera el siguiente turno");
 		case EWardenEventStart::EventInProgress: return TEXT("ya hay un evento en curso");
 		case EWardenEventStart::MatchOver: return TEXT("la partida ha terminado");
-		case EWardenEventStart::NotImplemented: return TEXT("usa un efecto que llega en otra story (Alto, Consulta forzada, Prueba del Warden, Robo decretado o Duelo forzado)");
+		case EWardenEventStart::NotImplemented: return TEXT("usa un efecto que llega en otra story (Alto o Consulta forzada)");
 		}
 		return TEXT("rechazado");
 	}
@@ -266,6 +287,7 @@ namespace Soulbound::Presentation
 		case EEffectResult::InvalidRune: return TEXT("ese tipo de runa no es una opción");
 		case EEffectResult::NotImplemented: return TEXT("ese efecto llega en otra story");
 		case EEffectResult::AlreadyActive: return TEXT("ya es de noche");
+		case EEffectResult::AlreadyPending: return TEXT("ese asiento ya tiene una Prueba del Warden pendiente");
 		}
 		return TEXT("rechazado");
 	}
@@ -333,6 +355,13 @@ namespace Soulbound::Presentation
 		case EMatchEventType::BracerHidden:
 		case EMatchEventType::EchoNightBegan:
 		case EMatchEventType::EchoNightEnded:
+		// S-015: la Prueba pendiente o anulada, el duelo contra el Warden y la runa que el Warden se lleva.
+		case EMatchEventType::WardenTrialPending:
+		case EMatchEventType::WardenTrialCancelled:
+		case EMatchEventType::WardenDuelStarted:
+		case EMatchEventType::WardenDuelWon:
+		case EMatchEventType::WardenDuelLost:
+		case EMatchEventType::RuneTakenByWarden:
 			return EEventSource::Warden;
 		case EMatchEventType::Bonded:
 		case EMatchEventType::BoardAwakening:

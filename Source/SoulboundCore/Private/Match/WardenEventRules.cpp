@@ -3,6 +3,7 @@
 #include "Match/BondRaceRules.h"
 #include "Match/EffectCatalog.h"
 #include "Match/MatchEvents.h"
+#include "Match/RuneRules.h"
 #include "Match/TurnRules.h"
 #include "Math/RandomStream.h"
 #include "Templates/TypeHash.h"
@@ -67,10 +68,30 @@ namespace
 		return Index == INDEX_NONE ? INDEX_NONE : State.TurnOrder[(Index + 1) % State.TurnOrder.Num()];
 	}
 
-	/** Si la aplicación pide al objetivo una elección: la runa regalada y la runa a perder a elección (R-EFE-11, R-EFE-16). */
+	/**
+	 * Si la aplicación se resuelve objetivo a objetivo, uno tras otro y en orden de asiento: pide al objetivo una elección (la
+	 * runa regalada y la runa a perder a elección, R-EFE-11, R-EFE-16) o juega un trilero con cada víctima (el Robo decretado
+	 * "a todos", R-EFE-12, S-015), que la máquina juega entre turnos.
+	 */
 	bool AsksTarget(const FEffectApplication& Application)
 	{
-		return Application.Effect == EEffect::GiftRune || (Application.Effect == EEffect::LoseRune && Application.Variant == EEffectVariant::Chosen);
+		return Application.Effect == EEffect::GiftRune || Application.Effect == EEffect::DecreedTheft
+			|| (Application.Effect == EEffect::LoseRune && Application.Variant == EEffectVariant::Chosen);
+	}
+
+	/** Si el asiento tiene alguna runa en el Brazal. */
+	bool HasRunes(const FSeatState& Seat)
+	{
+		return Seat.Runes.ContainsByPredicate([](int32 Count) { return Count > 0; });
+	}
+
+	/**
+	 * Si Seat puede ser objeto de lo que el Warden hace por su cuenta cuando se le desatiende (R-DIR-4, S-015): está en el
+	 * tablero y tiene alguna runa. Sin runas no hay duelo ni robo: burla.
+	 */
+	bool CanWardenTakeFrom(const FMatchState& State, int32 Seat)
+	{
+		return State.Seats.IsValidIndex(Seat) && !State.Seats[Seat].IsInVoid() && HasRunes(State.Seats[Seat]);
 	}
 
 	/**
@@ -131,16 +152,52 @@ namespace
 		}
 	}
 
+	/** Un Duelo forzado desatendido (R-DIR-4): Seat se bate contra el Warden; sin runas, burla. */
+	void StartWardenDuel(FMatchState& State, const FEffectApplication& Application, int32 Seat, double NowSeconds)
+	{
+		if (!CanWardenTakeFrom(State, Seat))
+		{
+			Taunt(State, Application, Seat, NowSeconds);
+			return;
+		}
+		Soulbound::Rules::BeginEventWardenDuel(State, Seat, Application.Variant == EEffectVariant::AllRunes, NowSeconds);
+	}
+
+	/** Un Robo decretado desatendido (R-DIR-4): el Warden roba a Seat, una runa suya al azar vuelve a su Fuente; sin runas, burla. */
+	void WardenTakesRune(FMatchState& State, const FEffectApplication& Application, int32 Seat, double NowSeconds)
+	{
+		if (!CanWardenTakeFrom(State, Seat))
+		{
+			Taunt(State, Application, Seat, NowSeconds);
+			return;
+		}
+		FRandomStream Draw = NextDraw(State);
+		const int32 RuneType = Soulbound::Rules::RandomRuneType(State, Seat, Draw);
+		LogEvent(State, EMatchEventType::RuneTakenByWarden, NowSeconds, Seat, RuneType);
+		Soulbound::Rules::ReturnRuneToSource(State, Seat, RuneType, State.Board.FindPowerSource(RuneType), NowSeconds);
+	}
+
 	/**
 	 * Resolución en contra de quien dirige (R-COM-2, decisión del autor del 12/10/2026), sin ninguna elección dentro:
 	 *  - los regalos (Turno extra, Runa regalada, Liberación, Noche de los Ecos) se descartan;
 	 *  - los dañinos con asiento caen sobre quien dirige, y si no valen sobre él, burla (la runa a perder, al azar);
-	 *  - los dañinos sin asiento (Sello, Ley de Sombras) se aplican tal cual.
+	 *  - los dañinos sin asiento (Sello, Ley de Sombras) se aplican tal cual;
+	 *  - el Duelo forzado es un Duelo contra el Warden, y el Robo decretado, que el Warden le roba a él (R-DIR-4, S-015).
 	 */
 	void ApplyAgainstDirector(FMatchState& State, const FEffectApplication& Application, double NowSeconds)
 	{
 		if (Soulbound::Rules::IsGift(Application.Effect))
 		{
+			return;
+		}
+		if (Application.Effect == EEffect::ForcedDuel)
+		{
+			StartWardenDuel(State, Application, State.CurrentEvent.Director, NowSeconds);
+			return;
+		}
+		if (Application.Effect == EEffect::DecreedTheft)
+		{
+			WardenTakesRune(State, Application, State.CurrentEvent.Director, NowSeconds);
 			return;
 		}
 		const int32 Seat = Soulbound::Rules::IsGlobalEffect(Application.Effect) ? INDEX_NONE : State.CurrentEvent.Director;
@@ -180,14 +237,44 @@ namespace
 		}
 		if (Application.Target == EEffectTarget::TwoChosenRivals)
 		{
-			// TODO(R-DIR-1): la elección de dos rivales es de S-015 (solo la usa el Duelo forzado, que ApplyEvent rechaza antes).
-			Taunt(State, Application, Director, NowSeconds);
+			// R-DIR-1, R-EFE-13: quien dirige señala dos rivales válidos, uno tras otro; el primero es el retador. Con menos de
+			// dos válidos, burla (R-DIR-3). Las dos elecciones son ChosenRival; FirstRival dice cuál es cuál.
+			TArray<int32> Rivals = ValidTargets(State, Application.Effect, PointedSeats(State, EEffectTarget::Everyone, Director), Director);
+			Rivals.Remove(Director);
+			if (Rivals.Num() < 2)
+			{
+				Taunt(State, Application, Director, NowSeconds);
+				return;
+			}
+			State.CurrentEvent.FirstRival = INDEX_NONE;
+			OpenEventChoice(State, EChoiceKind::ChosenRival, Director, MoveTemp(Rivals), NowSeconds + State.Params.ShortChoiceClockSeconds);
 			return;
 		}
 		TArray<int32> Targets = ValidTargets(State, Application.Effect, PointedSeats(State, Application.Target, Director), Director);
+		if (Application.Effect == EEffect::DecreedTheft)
+		{
+			// R-EFE-12: cuando elige el Warden ("a todos", "al azar") se salta a los que no tienen runas (cambia R-DIR-2).
+			Targets = Targets.FilterByPredicate([&State](int32 Seat) { return HasRunes(State.Seats[Seat]); });
+		}
 		if (Targets.IsEmpty())
 		{
 			Taunt(State, Application, Director, NowSeconds);
+			return;
+		}
+		if (Application.Effect == EEffect::ForcedDuel)
+		{
+			// R-EFE-13, "dos al azar": dos válidos distintos con el sorteo del evento, y el retador se sortea entre ellos. Quien
+			// dirige puede ser uno de los dos (decisión del autor del 14/10/2026: "al azar" puede caer sobre quien dirige).
+			if (Targets.Num() < 2)
+			{
+				Taunt(State, Application, Director, NowSeconds);
+				return;
+			}
+			const int32 First = Targets[NextDraw(State).RandRange(0, Targets.Num() - 1)];
+			Targets.Remove(First);
+			const int32 Second = Targets[NextDraw(State).RandRange(0, Targets.Num() - 1)];
+			const bool bFirstChallenges = NextDraw(State).RandRange(0, 1) == 0;
+			ApplyOrTaunt(State, Application, bFirstChallenges ? Second : First, bFirstChallenges ? First : Second, INDEX_NONE, NowSeconds);
 			return;
 		}
 		if (Application.Target == EEffectTarget::RandomPlayer)
@@ -215,6 +302,13 @@ namespace
 	{
 		const FEffectApplication Application = ApplicationInProgress(State);
 		const int32 Seat = State.CurrentEvent.PendingTargets[0];
+		if (Application.Effect == EEffect::DecreedTheft)
+		{
+			// R-EFE-12, "a todos": el trilero de esta víctima, entre turnos; el evento sigue con el siguiente cuando acaba.
+			State.CurrentEvent.PendingTargets.RemoveAt(0);
+			ApplyOrTaunt(State, Application, Seat, INDEX_NONE, INDEX_NONE, NowSeconds);
+			return;
+		}
 		const bool bGift = Application.Effect == EEffect::GiftRune;
 		TArray<int32> Options = bGift ? Soulbound::Rules::GiftRuneOptions(State) : Soulbound::Rules::LoseRuneOptions(State, Seat);
 		if (Options.IsEmpty() || Soulbound::Rules::CanApplyEffect(State, Application.Effect, Seat, State.CurrentEvent.Director) != EEffectResult::Applied)
@@ -229,7 +323,8 @@ namespace
 	/** Sigue el evento en curso hasta la siguiente elección o hasta el final (R-COM-3: las aplicaciones, en orden). */
 	void ContinueEvent(FMatchState& State, double NowSeconds)
 	{
-		while (State.CurrentEvent.IsActive() && !State.PendingChoice.IsOpen() && State.CurrentEvent.Option != INDEX_NONE)
+		// S-015: con un duelo o un trilero del evento en curso (bWaitsForAction) la máquina espera; sigue al acabar.
+		while (State.CurrentEvent.IsActive() && !State.PendingChoice.IsOpen() && State.CurrentEvent.Option != INDEX_NONE && !State.CurrentEvent.bWaitsForAction)
 		{
 			FCurrentWardenEvent& Event = State.CurrentEvent;
 			if (!Event.PendingTargets.IsEmpty())
@@ -308,6 +403,16 @@ namespace Soulbound::Rules
 		case EEffect::LoseRune: return CanLoseRune(State, Seat);
 		case EEffect::Banish: return CanBanish(State, Seat, false);
 		case EEffect::GiftRune: return CanGiftRune(State, Seat);
+		case EEffect::WardenTrial: return CanWardenTrial(State, Seat);
+		case EEffect::DecreedTheft: return CanDecreeTheft(State, Seat, Director);
+		case EEffect::ForcedDuel:
+			// R-INT-3: quien dirige no puede estar en el Vacío. Seat puede ser el propio Director (con "dos al azar", 14/10/2026);
+			// que el retador y el retado sean distintos lo comprueba ApplyEffect con el retador real.
+			if (!State.Seats.IsValidIndex(Director))
+			{
+				return EEffectResult::InvalidSeat;
+			}
+			return State.Seats[Director].IsInVoid() ? EEffectResult::InVoid : CanForceDuelTarget(State, Seat);
 		case EEffect::ReleaseVoid:
 			// Global: con alguien dentro. Sobre un asiento: solo si está dentro (filtro de "los del Vacío", decisión del autor).
 			if (Seat == INDEX_NONE)
@@ -329,6 +434,16 @@ namespace Soulbound::Rules
 		{
 			return Check;
 		}
+		// R-EFE-13: con "dos rivales señalados", el retador es el primero señalado (Pointer), no quien dirige.
+		const int32 Challenger = Pointer != INDEX_NONE ? Pointer : Director;
+		if (Effect == EEffect::ForcedDuel)
+		{
+			const EEffectResult DuelCheck = CanForceDuel(State, Seat, Challenger);
+			if (DuelCheck != EEffectResult::Applied)
+			{
+				return DuelCheck;
+			}
+		}
 		const bool bRuneMissing = Effect == EEffect::GiftRune ? !GiftRuneOptions(State).Contains(Rune)
 			: Effect == EEffect::LoseRune && Rune != INDEX_NONE && !LoseRuneOptions(State, Seat).Contains(Rune);
 		if (bRuneMissing)
@@ -337,7 +452,7 @@ namespace Soulbound::Rules
 		}
 		const int32 Target = IsGlobalEffect(Effect) ? INDEX_NONE : Seat;
 		LogEvent(State, EMatchEventType::EffectApplied, NowSeconds, Target, static_cast<int32>(Effect), Pointer, static_cast<int32>(Application.Target));
-		// TODO(R-EFE-0): un switch que crece con cada efecto; los cinco que faltan (S-015, S-016) entran aquí.
+		// TODO(R-EFE-0): un switch que crece con cada efecto; los dos que faltan (Alto y Consulta forzada, S-016, S-017) entran aquí.
 		switch (Effect)
 		{
 		case EEffect::RevealBracer: RevealBracer(State, Seat, NowSeconds); break;
@@ -353,6 +468,9 @@ namespace Soulbound::Rules
 		case EEffect::GiftRune: GiftRune(State, Seat, Rune, NowSeconds); break;
 		case EEffect::ReleaseVoid: ReleaseVoid(State, NowSeconds); break;
 		case EEffect::EchoNight: EchoNight(State, NowSeconds); break;
+		case EEffect::WardenTrial: WardenTrial(State, Seat, NowSeconds); break;
+		case EEffect::DecreedTheft: DecreeTheft(State, Seat, Director, NowSeconds); break;
+		case EEffect::ForcedDuel: ForceDuel(State, Seat, Challenger, Application.Variant == EEffectVariant::AllRunes, NowSeconds); break;
 		default: break;
 		}
 		// R-EFE-8: mandar a casa o al Vacío a un Marcado con un efecto que uno señaló cobra su marca.
@@ -440,6 +558,45 @@ namespace Soulbound::Rules
 		return EWardenEventStart::Started;
 	}
 
+	void SettleWardenDuel(FMatchState& State, const FDuelResult& Result, double NowSeconds)
+	{
+		if (!Result.bAgainstWarden)
+		{
+			return;
+		}
+		// Contra el Warden, quien gana es INDEX_NONE (el Warden) o el jugador; el jugador es el otro asiento del duelo.
+		const bool bWardenWins = Result.Winner == INDEX_NONE;
+		const int32 Player = bWardenWins ? Result.Loser : Result.Winner;
+		if (!State.Seats.IsValidIndex(Player))
+		{
+			return;
+		}
+		if (!bWardenWins)
+		{
+			LogEvent(State, EMatchEventType::WardenDuelLost, NowSeconds, Player);
+			return;
+		}
+		LogEvent(State, EMatchEventType::WardenDuelWon, NowSeconds, Player);
+		// R-RUN-6: lo que estaba en juego vuelve a su Fuente; el Warden no tiene Brazal, no hay trilero.
+		if (Result.bAllRunes)
+		{
+			for (int32 RuneType = 0; RuneType < State.Seats[Player].Runes.Num(); ++RuneType)
+			{
+				while (State.Seats[Player].RuneCountOf(RuneType) > 0
+					&& Soulbound::Rules::ReturnRuneToSource(State, Player, RuneType, State.Board.FindPowerSource(RuneType), NowSeconds))
+				{
+				}
+			}
+			return;
+		}
+		FRandomStream Draw = NextDraw(State);
+		const int32 RuneType = Soulbound::Rules::RandomRuneType(State, Player, Draw);
+		if (RuneType != INDEX_NONE)
+		{
+			Soulbound::Rules::ReturnRuneToSource(State, Player, RuneType, State.Board.FindPowerSource(RuneType), NowSeconds);
+		}
+	}
+
 	bool AdvanceWardenEvent(FMatchState& State, double NowSeconds)
 	{
 		if (!State.CurrentEvent.IsActive())
@@ -470,9 +627,22 @@ namespace Soulbound::Rules
 				break;
 			}
 			case EChoiceKind::ChosenRival:
-				// R-DIR-4: el efecto dañino cae sobre quien no señaló; si no vale sobre él, burla.
-				// TODO(R-DIR-4): con "dos rivales señalados", contra un rival al azar; esa elección es de S-015.
-				ApplyOrTaunt(State, Application, Expired.Seat, INDEX_NONE, INDEX_NONE, NowSeconds);
+				// R-DIR-4: el efecto dañino cae sobre quien no señaló; si no vale sobre él, burla. S-015: un Duelo forzado
+				// desatendido, en la primera señal o en la segunda, es un Duelo contra el Warden; un Robo decretado, que el
+				// Warden le roba a él.
+				State.CurrentEvent.FirstRival = INDEX_NONE;
+				if (Application.Effect == EEffect::ForcedDuel)
+				{
+					StartWardenDuel(State, Application, Expired.Seat, NowSeconds);
+				}
+				else if (Application.Effect == EEffect::DecreedTheft)
+				{
+					WardenTakesRune(State, Application, Expired.Seat, NowSeconds);
+				}
+				else
+				{
+					ApplyOrTaunt(State, Application, Expired.Seat, INDEX_NONE, INDEX_NONE, NowSeconds);
+				}
 				break;
 			case EChoiceKind::GiftRune:
 				// R-DIR-4: el regalo se pierde, con burla.
@@ -506,9 +676,31 @@ namespace Soulbound::Rules
 			LogEvent(State, EMatchEventType::DilemmaChosen, NowSeconds, State.CurrentEvent.Director, Option, INDEX_NONE, 0);
 			break;
 		case EChoiceKind::ChosenRival:
-			// Quien dirige señaló: el efecto es suyo, y una Vuelta al hogar o un Vacío cobran la marca (R-EFE-8).
-			ApplyOrTaunt(State, Application, Option, State.CurrentEvent.Director, INDEX_NONE, NowSeconds);
+		{
+			FCurrentWardenEvent& Event = State.CurrentEvent;
+			if (Application.Target == EEffectTarget::TwoChosenRivals && Event.FirstRival == INDEX_NONE)
+			{
+				// R-EFE-13: el primero señalado será el retador; la segunda señal no lo ofrece ni se ofrece a sí misma.
+				Event.FirstRival = Option;
+				TArray<int32> Rivals = ValidTargets(State, Application.Effect, PointedSeats(State, EEffectTarget::Everyone, Event.Director), Event.Director);
+				Rivals.Remove(Option);
+				Rivals.Remove(Event.Director);
+				if (Rivals.IsEmpty())
+				{
+					Event.FirstRival = INDEX_NONE;
+					Taunt(State, Application, Event.Director, NowSeconds);
+					break;
+				}
+				OpenEventChoice(State, EChoiceKind::ChosenRival, Event.Director, MoveTemp(Rivals), NowSeconds + State.Params.ShortChoiceClockSeconds);
+				break;
+			}
+			// Quien dirige señaló: el efecto es suyo, y una Vuelta al hogar o un Vacío cobran la marca (R-EFE-8). Con dos
+			// rivales señalados, el primero reta al segundo (Pointer es el retador).
+			const int32 Pointer = Application.Target == EEffectTarget::TwoChosenRivals ? Event.FirstRival : Event.Director;
+			Event.FirstRival = INDEX_NONE;
+			ApplyOrTaunt(State, Application, Option, Pointer, INDEX_NONE, NowSeconds);
 			break;
+		}
 		case EChoiceKind::GiftRune:
 		case EChoiceKind::LoseRune:
 		{

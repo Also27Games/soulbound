@@ -111,10 +111,10 @@ bool FEffectsCatalogoCerradoTest::RunTest(const FString& Parameters)
 		{EEffect::SealAgainstRival, S::Medium, {T::ChosenRival, T::Leader}, true},
 		{EEffect::Mark, S::Medium, {T::ChosenRival, T::Leader, T::RandomPlayer}, true},
 		{EEffect::ShadowLaw, S::Medium, {T::Echoes}, true},
-		{EEffect::WardenTrial, S::Medium, {T::ActivePlayer, T::ChosenRival, T::NextPlayer}, false},
+		{EEffect::WardenTrial, S::Medium, {T::ActivePlayer, T::ChosenRival, T::NextPlayer}, true},
 		{EEffect::LoseRune, S::Severe, {T::ActivePlayer, T::ChosenRival, T::Leader, T::Everyone, T::RandomPlayer}, true},
-		{EEffect::DecreedTheft, S::Severe, {T::ChosenRival, T::Everyone, T::RandomPlayer}, false},
-		{EEffect::ForcedDuel, S::Severe, {T::ChosenRival, T::TwoChosenRivals, T::RandomPlayer}, false},
+		{EEffect::DecreedTheft, S::Severe, {T::ChosenRival, T::Everyone, T::RandomPlayer}, true},
+		{EEffect::ForcedDuel, S::Severe, {T::ChosenRival, T::TwoChosenRivals, T::RandomPlayer}, true},
 		{EEffect::Banish, S::Severe, {T::ActivePlayer, T::ChosenRival, T::Leader, T::RandomPlayer}, true},
 		{EEffect::ExtraTurn, S::Gift, {T::ActivePlayer, T::NextPlayer}, true},
 		{EEffect::GiftRune, S::Gift, {T::ActivePlayer, T::NextPlayer, T::RandomPlayer}, true},
@@ -148,7 +148,7 @@ bool FEffectsCatalogoCerradoTest::RunTest(const FString& Parameters)
 		TestTrue(FString::Printf(TEXT("%s: su código se lee"), *Name), Soulbound::Rules::ParseEffectCode(Name, Parsed) && Parsed == Row.Effect);
 		Implemented += Row.bImplemented ? 1 : 0;
 	}
-	TestEqual(TEXT("Trece se aplican en esta story"), Implemented, 13);
+	TestEqual(TEXT("Dieciséis se aplican tras S-015: solo Alto y Consulta forzada esperan a su story"), Implemented, 16);
 	TestEqual(TEXT("Perder una runa: al azar o a elección"), Catalog[AsInt(EEffect::LoseRune)].Variants,
 		TArray<EEffectVariant>{EEffectVariant::Random, EEffectVariant::Chosen});
 	TestEqual(TEXT("Duelo forzado: una runa o todas"), Catalog[AsInt(EEffect::ForcedDuel)].Variants,
@@ -824,8 +824,9 @@ bool FEffectsNocheTopeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// Efectos pendientes de su story: aplicar Alto, Consulta forzada, Prueba del Warden, Robo decretado o Duelo forzado devuelve
-// "no implementado" sin cambiar el estado ni el registro; un evento que los usa, en cualquier opción, se rechaza entero.
+// Efectos pendientes de su story: aplicar Alto o Consulta forzada devuelve "no implementado" sin cambiar el estado ni el
+// registro (desde S-015, la Prueba del Warden, el Robo decretado y el Duelo forzado ya se aplican); un evento que los usa, en
+// cualquier opción, se rechaza entero.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEffectsPendientesTest, "Soulbound.Core.Effects.PendientesDeSuStory",
 	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
@@ -841,9 +842,6 @@ bool FEffectsPendientesTest::RunTest(const FString& Parameters)
 	const TPair<EEffect, EEffectTarget> Pending[] = {
 		{EEffect::Halt, EEffectTarget::ActivePlayer},
 		{EEffect::ForcedOracle, EEffectTarget::ActivePlayer},
-		{EEffect::WardenTrial, EEffectTarget::ActivePlayer},
-		{EEffect::DecreedTheft, EEffectTarget::ChosenRival},
-		{EEffect::ForcedDuel, EEffectTarget::ChosenRival},
 	};
 	for (const TPair<EEffect, EEffectTarget>& Effect : Pending)
 	{
@@ -858,8 +856,8 @@ bool FEffectsPendientesTest::RunTest(const FString& Parameters)
 		TestTrue(FString::Printf(TEXT("%s: el estado y el registro no cambian"), *Name), SameState(Before, F.State));
 	}
 
-	// Un dilema con un Duelo forzado en una de sus opciones se rechaza entero.
-	const FString Id = F.AddEvent(TEXT("con-duelo"), {{App(EEffect::ExtraTurn, EEffectTarget::ActivePlayer)}, {App(EEffect::ForcedDuel, EEffectTarget::ChosenRival)}});
+	// Un dilema con un Alto en una de sus opciones se rechaza entero.
+	const FString Id = F.AddEvent(TEXT("con-alto"), {{App(EEffect::ExtraTurn, EEffectTarget::ActivePlayer)}, {App(EEffect::Halt, EEffectTarget::ActivePlayer)}});
 	const FMatchState Before = F.State;
 	TestEqual(TEXT("El evento se rechaza: no implementado"), AsInt(F.Launch(Id)), AsInt(EWardenEventStart::NotImplemented));
 	TestTrue(TEXT("Sin tocar nada"), SameState(Before, F.State));

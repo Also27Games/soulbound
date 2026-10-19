@@ -16,10 +16,13 @@ namespace Soulbound::Rules
 	bool IsSeatInPlay(const FMatchState& State, int32 Seat)
 	{
 		// Decisión del autor del 08/10/2026: el activo con el turno empezado y los participantes de un duelo o un trilero en
-		// curso. Entre turnos (donde se detiene el paso a paso) nadie lo está.
-		// TODO(R-TUR-11): con las interrupciones del Warden (S-015), un efecto sobre quien está en juego cortará su turno en
+		// curso. Entre turnos (donde se detiene el paso a paso) nadie lo está. S-015: un duelo o un trilero de un evento se
+		// juega entre turnos con la máquina en Duel o ShellGame; el asiento activo (al que le toca el siguiente turno) no
+		// está en juego por eso.
+		// TODO(R-TUR-11): con las interrupciones del Warden (S-016), un efecto sobre quien está en juego cortará su turno en
 		// vez de rechazarse.
-		const bool bActiveInTurn = Seat == State.ActiveSeat && State.TurnPhase != ETurnPhase::BetweenTurns;
+		const bool bEventAction = State.CurrentEvent.IsActive() && State.CurrentEvent.bWaitsForAction;
+		const bool bActiveInTurn = !bEventAction && Seat == State.ActiveSeat && State.TurnPhase != ETurnPhase::BetweenTurns;
 		const bool bInShellGame = State.ShellGame.IsActive() && (Seat == State.ShellGame.Thief || Seat == State.ShellGame.Victim);
 		return bActiveInTurn || State.Duel.IsParticipant(Seat) || bInShellGame;
 	}
@@ -52,11 +55,17 @@ namespace Soulbound::Rules
 		}
 		// R-VAC-1, R-TAB-24: la ficha sale del tablero y no ocupa casilla. R-VAC-4: la cuenta empieza de cero.
 		// TODO(R-VAC-1): el Vacío de la Furia (dentro no funcionan Desvío ni Liberación, y el Warden se niega con frase) es de
-		// S-015; hoy bFury solo cuenta para la regla de la carrera y para el registro.
+		// la story de la Furia; hoy bFury solo cuenta para la regla de la carrera y para el registro.
 		FSeatState& SeatState = State.Seats[Seat];
 		SeatState.TileId = INDEX_NONE;
 		SeatState.VoidTurns = 0;
 		LogEvent(State, EMatchEventType::Banished, NowSeconds, Seat, bFury ? 1 : 0);
+		// R-EFE-10 (S-015): la Prueba del Warden pendiente se anula al entrar en el Vacío; salir de él no la devuelve.
+		if (SeatState.bWardenTrialPending)
+		{
+			SeatState.bWardenTrialPending = false;
+			LogEvent(State, EMatchEventType::WardenTrialCancelled, NowSeconds, Seat);
+		}
 		return EEffectResult::Applied;
 	}
 
@@ -483,6 +492,24 @@ namespace Soulbound::Rules
 		return EEffectResult::Applied;
 	}
 
+	int32 RandomRuneType(const FMatchState& State, int32 Seat, FRandomStream& Random)
+	{
+		if (!State.Seats.IsValidIndex(Seat) || TotalRunes(State.Seats[Seat]) == 0)
+		{
+			return INDEX_NONE;
+		}
+		int32 Pick = Random.RandRange(0, TotalRunes(State.Seats[Seat]) - 1);
+		for (int32 Type = 0; Type < State.Seats[Seat].Runes.Num(); ++Type)
+		{
+			if (Pick < State.Seats[Seat].Runes[Type])
+			{
+				return Type;
+			}
+			Pick -= State.Seats[Seat].Runes[Type];
+		}
+		return INDEX_NONE;
+	}
+
 	TArray<int32> LoseRuneOptions(const FMatchState& State, int32 Seat)
 	{
 		TArray<int32> Types;
@@ -513,12 +540,7 @@ namespace Soulbound::Rules
 		if (RuneType == INDEX_NONE)
 		{
 			// R-EFE-11, al azar: cada runa del Brazal con la misma probabilidad, así los duplicados cuentan.
-			int32 Pick = Random.RandRange(0, TotalRunes(State.Seats[Seat]) - 1);
-			for (int32 Type = 0; Type < State.Seats[Seat].Runes.Num() && RuneType == INDEX_NONE; ++Type)
-			{
-				RuneType = Pick < State.Seats[Seat].Runes[Type] ? Type : INDEX_NONE;
-				Pick -= State.Seats[Seat].Runes[Type];
-			}
+			RuneType = RandomRuneType(State, Seat, Random);
 		}
 		if (!LoseRuneOptions(State, Seat).Contains(RuneType))
 		{
@@ -567,6 +589,97 @@ namespace Soulbound::Rules
 			return Tile.Type == ETileType::PowerSource && Tile.DomainId == RuneType && Tile.RuneReserve > 0;
 		});
 		GrantRuneFromSource(State, Seat, Source, NowSeconds);
+		return EEffectResult::Applied;
+	}
+
+	EEffectResult CanWardenTrial(const FMatchState& State, int32 Seat)
+	{
+		const EEffectResult Check = CheckSeatOnBoard(State, Seat);
+		// R-EFE-10: como mucho una; sobre quien ya la tiene no es válida (el Warden nunca parece equivocarse, 14/10/2026).
+		return Check == EEffectResult::Applied && State.Seats[Seat].bWardenTrialPending ? EEffectResult::AlreadyPending : Check;
+	}
+
+	EEffectResult WardenTrial(FMatchState& State, int32 Seat, double NowSeconds)
+	{
+		const EEffectResult Result = CanWardenTrial(State, Seat);
+		if (Result != EEffectResult::Applied)
+		{
+			return Result;
+		}
+		State.Seats[Seat].bWardenTrialPending = true;
+		LogEvent(State, EMatchEventType::WardenTrialPending, NowSeconds, Seat);
+		return EEffectResult::Applied;
+	}
+
+	bool ApplyWardenTrialResult(FMatchState& State, int32 Seat, bool bPassed, double NowSeconds)
+	{
+		const ESkillDifficulty Difficulty = State.PendingDifficulty;
+		State.PendingTrial = ESkillTrial::None;
+		if (State.Seats.IsValidIndex(Seat))
+		{
+			State.Seats[Seat].bWardenTrialPending = false;
+		}
+		LogEvent(State, bPassed ? EMatchEventType::WardenTrialPassed : EMatchEventType::WardenTrialFailed, NowSeconds, Seat, static_cast<int32>(Difficulty));
+		return bPassed;
+	}
+
+	EEffectResult CanDecreeTheft(const FMatchState& State, int32 Victim, int32 Thief)
+	{
+		// R-INT-3: nadie en el Vacío es ladrón ni víctima; nadie se roba a sí mismo.
+		const EEffectResult ThiefCheck = CheckSeatOnBoard(State, Thief);
+		if (ThiefCheck != EEffectResult::Applied)
+		{
+			return ThiefCheck;
+		}
+		const EEffectResult VictimCheck = CheckSeatOnBoard(State, Victim);
+		if (VictimCheck != EEffectResult::Applied)
+		{
+			return VictimCheck;
+		}
+		return Victim == Thief ? EEffectResult::SelfTarget : EEffectResult::Applied;
+	}
+
+	EEffectResult DecreeTheft(FMatchState& State, int32 Victim, int32 Thief, double NowSeconds)
+	{
+		const EEffectResult Result = CanDecreeTheft(State, Victim, Thief);
+		if (Result != EEffectResult::Applied)
+		{
+			return Result;
+		}
+		// R-EFE-12: el trilero es el de siempre (R-ROB-1 a R-ROB-6), jugado entre turnos por la máquina.
+		BeginEventSteal(State, Thief, Victim, NowSeconds);
+		return EEffectResult::Applied;
+	}
+
+	EEffectResult CanForceDuel(const FMatchState& State, int32 Challenged, int32 Challenger)
+	{
+		const EEffectResult ChallengerCheck = CheckSeatOnBoard(State, Challenger);
+		if (ChallengerCheck != EEffectResult::Applied)
+		{
+			return ChallengerCheck;
+		}
+		if (Challenged == Challenger)
+		{
+			return EEffectResult::SelfTarget;
+		}
+		return CanForceDuelTarget(State, Challenged);
+	}
+
+	EEffectResult CanForceDuelTarget(const FMatchState& State, int32 Seat)
+	{
+		const EEffectResult Check = CheckSeatOnBoard(State, Seat);
+		// R-EFE-13 (decisión del autor del 15/10/2026): el retado tiene al menos una runa; si no, el duelo se anularía.
+		return Check == EEffectResult::Applied && TotalRunes(State.Seats[Seat]) == 0 ? EEffectResult::NoRunes : Check;
+	}
+
+	EEffectResult ForceDuel(FMatchState& State, int32 Challenged, int32 Challenger, bool bAllRunes, double NowSeconds)
+	{
+		const EEffectResult Result = CanForceDuel(State, Challenged, Challenger);
+		if (Result != EEffectResult::Applied)
+		{
+			return Result;
+		}
+		BeginEventDuel(State, Challenger, Challenged, bAllRunes, NowSeconds);
 		return EEffectResult::Applied;
 	}
 

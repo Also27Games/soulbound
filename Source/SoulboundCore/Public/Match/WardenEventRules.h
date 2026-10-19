@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Match/DuelRules.h"
 #include "Match/EffectRules.h"
 #include "Match/MatchState.h"
 
@@ -19,7 +20,7 @@ enum class EWardenEventStart : uint8
 	EventInProgress,
 	/** La partida terminó, o no tiene orden de turno. */
 	MatchOver,
-	/** El evento usa un efecto que es de otra story (Alto, Consulta forzada, Prueba del Warden, Robo decretado, Duelo forzado). */
+	/** El evento usa un efecto que es de otra story (Alto, Consulta forzada al Oráculo). */
 	NotImplemented,
 };
 
@@ -49,8 +50,9 @@ namespace Soulbound::Rules
 	/**
 	 * Si el efecto Effect vale sobre el asiento Seat en un evento que dirige Director (R-DIR-2, R-DIR-3): en el Vacío solo
 	 * Liberación (y Liberación solo para quien está dentro); el resto, la comprobación de cada efecto (Match/EffectRules.h).
-	 * En los efectos globales (IsGlobalEffect) Seat no cuenta: es su comprobación global. NotImplemented en los cinco efectos
-	 * de otras stories. S-014.
+	 * En los efectos globales (IsGlobalEffect) Seat no cuenta: es su comprobación global. NotImplemented en Alto y Consulta
+	 * forzada. Desde S-015: la Prueba del Warden (AlreadyPending sobre quien ya la tiene), el Robo decretado (Seat la víctima,
+	 * Director el ladrón) y el Duelo forzado (Seat el retado, Director el retador; sin runas el retado, NoRunes). S-014.
 	 */
 	SOULBOUNDCORE_API EEffectResult CanApplyEffect(const FMatchState& State, EEffect Effect, int32 Seat, int32 Director);
 
@@ -59,8 +61,10 @@ namespace Soulbound::Rules
 	 * CanApplyEffect y, si vale, registra EffectApplied y aplica el efecto. Pointer: quien señaló a Seat (rival señalado), o
 	 * INDEX_NONE; si lo hay, una Vuelta al hogar o un Vacío cobran su marca (R-EFE-8). Rune: el tipo elegido en Runa regalada y
 	 * Perder una runa "chosen", o INDEX_NONE (al azar al perderla). Random: el sorteo del Warden (Sello, runa al azar).
-	 * Devuelve el resultado de la comprobación; si no es Applied, no cambia nada (NotImplemented en los cinco de otras
-	 * stories). S-014.
+	 * Devuelve el resultado de la comprobación; si no es Applied, no cambia nada (NotImplemented en Alto y Consulta forzada).
+	 * Robo decretado y Duelo forzado empiezan su trilero o su duelo, que la máquina juega entre turnos (S-015); en el Duelo
+	 * forzado, Pointer es el retador (INDEX_NONE: Director), así que con "dos rivales señalados" Seat es el segundo señalado.
+	 * S-014.
 	 */
 	SOULBOUNDCORE_API EEffectResult ApplyEffect(FMatchState& State, const FEffectApplication& Application, int32 Seat, int32 Director, int32 Pointer, int32 Rune,
 		double NowSeconds, FRandomStream& Random);
@@ -101,4 +105,12 @@ namespace Soulbound::Rules
 	 * evento. S-014.
 	 */
 	SOULBOUNDCORE_API void AnswerWardenEventChoice(FMatchState& State, EChoiceKind Kind, int32 Option, double NowSeconds);
+
+	/**
+	 * Lo que deja un Duelo contra el Warden ya resuelto (R-DIR-4, S-015), que la máquina llama con el FDuelResult de
+	 * ResolveDuel: si gana el Warden (Winner INDEX_NONE), registra WardenDuelWon y lo que estaba en juego vuelve a su Fuente
+	 * (R-RUN-6, RuneReturned): una runa del jugador al azar con el sorteo del evento, o todas con AllRunes; si gana el jugador,
+	 * registra WardenDuelLost y no pierde nada. La insolencia ya subió al desatender. Nombre propuesto en S-015.
+	 */
+	SOULBOUNDCORE_API void SettleWardenDuel(FMatchState& State, const FDuelResult& Result, double NowSeconds);
 }

@@ -34,12 +34,12 @@ namespace
 			Def(EEffect::SealAgainstRival, S::Medium, {T::ChosenRival, T::Leader}, true),
 			Def(EEffect::Mark, S::Medium, {T::ChosenRival, T::Leader, T::RandomPlayer}, true),
 			Def(EEffect::ShadowLaw, S::Medium, {T::Echoes}, true),
-			Def(EEffect::WardenTrial, S::Medium, {T::ActivePlayer, T::ChosenRival, T::NextPlayer}, false),
+			Def(EEffect::WardenTrial, S::Medium, {T::ActivePlayer, T::ChosenRival, T::NextPlayer}, true),
 			Def(EEffect::LoseRune, S::Severe, {T::ActivePlayer, T::ChosenRival, T::Leader, T::Everyone, T::RandomPlayer}, true, false, {V::Random, V::Chosen}),
 			// "Activo roba a rival señalado, a todos o al azar": quien roba es siempre el activo; la dirección es la víctima.
-			Def(EEffect::DecreedTheft, S::Severe, {T::ChosenRival, T::Everyone, T::RandomPlayer}, false),
+			Def(EEffect::DecreedTheft, S::Severe, {T::ChosenRival, T::Everyone, T::RandomPlayer}, true),
 			// "Activo contra rival señalado; dos rivales señalados; dos al azar". Lo que está en juego, en la variante.
-			Def(EEffect::ForcedDuel, S::Severe, {T::ChosenRival, T::TwoChosenRivals, T::RandomPlayer}, false, false, {V::OneRune, V::AllRunes}),
+			Def(EEffect::ForcedDuel, S::Severe, {T::ChosenRival, T::TwoChosenRivals, T::RandomPlayer}, true, false, {V::OneRune, V::AllRunes}),
 			Def(EEffect::Banish, S::Severe, {T::ActivePlayer, T::ChosenRival, T::Leader, T::RandomPlayer}, true),
 			Def(EEffect::ExtraTurn, S::Gift, {T::ActivePlayer, T::NextPlayer}, true, true),
 			Def(EEffect::GiftRune, S::Gift, {T::ActivePlayer, T::NextPlayer, T::RandomPlayer}, true),

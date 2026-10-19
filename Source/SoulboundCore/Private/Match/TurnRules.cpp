@@ -227,6 +227,40 @@ namespace
 	}
 
 	/**
+	 * Acaba un duelo o un trilero (S-015). Si lo jugaba un evento del Warden (bWaitsForAction), la máquina vuelve a
+	 * BetweenTurns y el evento sigue en la siguiente llamada, sin terminar ningún turno; si no, termina el turno del activo.
+	 */
+	void FinishAction(FMatchState& State, double NowSeconds)
+	{
+		FCurrentWardenEvent& Event = State.CurrentEvent;
+		if (Event.IsActive() && Event.bWaitsForAction)
+		{
+			CloseChoice(State);
+			Event.bWaitsForAction = false;
+			State.TurnPhase = ETurnPhase::BetweenTurns;
+			return;
+		}
+		EnterEnd(State, NowSeconds);
+	}
+
+	/**
+	 * Start → PreRoll o Prueba del Warden (R-EFE-10): quien la tiene pendiente la juega antes de tirar, con la dificultad de
+	 * los datos y sin plazo (TODO(R-MIN), como el resto de minijuegos). Se llama después de la salida del Vacío, que la anula
+	 * al entrar, así que solo la ve quien juega el turno.
+	 */
+	void EnterAfterStart(FMatchState& State)
+	{
+		if (State.Seats[State.ActiveSeat].bWardenTrialPending)
+		{
+			State.PendingTrial = ESkillTrial::WardenTrial;
+			State.PendingDifficulty = State.Params.WardenTrialDifficulty;
+			State.TurnPhase = ETurnPhase::SkillTrial;
+			return;
+		}
+		EnterPreRoll(State);
+	}
+
+	/**
 	 * El paso de la escalera de escape del turno en curso (R-VAC-2), después de Eco y Desvío: el minijuego con la dificultad
 	 * del peldaño (fase SkillTrial) o, pasado el último, la salida sin jugar (R-VAC-3), que termina el turno.
 	 */
@@ -318,7 +352,7 @@ namespace
 	 * El asiento Thief roba al asiento Victim (R-ECO-4, R-ROB-1; desde S-012 también el ganador de un duelo, R-DUE-5, que
 	 * puede no tener el turno): sin runas o con el robo anulado, termina el turno; si no, la máquina pasa al trilero (fase
 	 * ShellGame), con la elección de Koschei abierta para la víctima si toca (R-ROB-5), con el reloj de elección. El
-	 * trilero termina el turno del asiento activo.
+	 * trilero termina el turno del asiento activo o, si lo juega un evento del Warden (S-015), devuelve la máquina al evento.
 	 */
 	void BeginStealAction(FMatchState& State, int32 Thief, int32 Victim, double NowSeconds)
 	{
@@ -326,7 +360,7 @@ namespace
 		{
 		case EStealStart::NoRunes:
 		case EStealStart::Cancelled:
-			EnterEnd(State, NowSeconds);
+			FinishAction(State, NowSeconds);
 			break;
 		case EStealStart::SafeRunePending:
 			State.TurnPhase = ETurnPhase::ShellGame;
@@ -389,12 +423,12 @@ namespace
 			}
 			CloseChoice(State);
 			Soulbound::Rules::ExpireShellPick(State, NowSeconds);
-			EnterEnd(State, NowSeconds);
+			FinishAction(State, NowSeconds);
 			return true;
 		case EShellGameStage::None:
 		default:
 			// Fase ShellGame sin trilero: no debería pasar; el turno sigue para no quedarse esperando.
-			EnterEnd(State, NowSeconds);
+			FinishAction(State, NowSeconds);
 			return true;
 		}
 	}
@@ -533,7 +567,8 @@ namespace Soulbound::Rules
 				EnterVoidTurn(State, NowSeconds);
 				return true;
 			}
-			EnterPreRoll(State);
+			// R-EFE-10: la Prueba del Warden pendiente, antes de tirar y después de la salida del Vacío.
+			EnterAfterStart(State);
 			return true;
 		case ETurnPhase::PreRoll:
 			if (State.PendingChoice.Kind == EChoiceKind::DiceCount)
@@ -686,6 +721,20 @@ namespace Soulbound::Rules
 			return EIntentResult::WrongPhase;
 		}
 		// TODO(R-MIN): sin plazo en S-008; el minijuego real tendrá su propio tiempo y su propio fallo por agotarlo.
+		if (State.PendingTrial == ESkillTrial::WardenTrial)
+		{
+			// R-EFE-10: superada, el turno sigue con normalidad; fallada, termina sin tirada y sin consumir el sorteo.
+			// TODO(R-EFE-10): el reloj de turno corre durante la Prueba; si debe reiniciarse al superarla es decisión del autor.
+			if (Soulbound::Rules::ApplyWardenTrialResult(State, Seat, bPassed, NowSeconds))
+			{
+				EnterPreRoll(State);
+			}
+			else
+			{
+				EnterEnd(State, NowSeconds);
+			}
+			return EIntentResult::Accepted;
+		}
 		if (State.PendingTrial == ESkillTrial::VoidEscape)
 		{
 			// R-VAC-2, R-VAC-3: superado, a su hogar; fallado, sigue dentro. En los dos casos el turno termina sin tirar.
@@ -790,9 +839,10 @@ namespace Soulbound::Rules
 			Soulbound::Rules::SetAsideSafeRune(State, Option, NowSeconds);
 			break;
 		case EChoiceKind::ShellPick:
-			// R-ROB-3: la runa de la esfera elegida pasa al ladrón; el robo es la acción del turno, que termina.
+			// R-ROB-3: la runa de la esfera elegida pasa al ladrón; el robo es la acción del turno, que termina (o, en un
+			// evento del Warden, devuelve la máquina al evento).
 			Soulbound::Rules::ResolveShellPick(State, Option, NowSeconds);
-			EnterEnd(State, NowSeconds);
+			FinishAction(State, NowSeconds);
 			break;
 		case EChoiceKind::Dilemma:
 		case EChoiceKind::ChosenRival:
@@ -835,17 +885,57 @@ namespace Soulbound::Rules
 		}
 		// R-DUE-1: con los dos rendimientos, el duelo se resuelve. R-DUE-6: el perdedor sin runas ya está en su hogar y la
 		// acción termina. R-DUE-5: si no, el ganador le roba con el trilero, sea retador o retado; el trilero termina el turno
-		// del retador, que es el activo.
+		// del retador, que es el activo. S-015: un duelo de un evento no termina ningún turno (FinishAction); contra el
+		// Warden, lo que pierde el jugador no es un trilero (el Warden no tiene Brazal), y con todas las runas en juego
+		// tampoco lo es (R-EFE-13).
 		const FDuelResult Result = Soulbound::Rules::ResolveDuel(State, NowSeconds);
-		if (Result.bLoserSentHome)
+		if (Result.bAgainstWarden)
 		{
-			EnterEnd(State, NowSeconds);
+			Soulbound::Rules::SettleWardenDuel(State, Result, NowSeconds);
+			FinishAction(State, NowSeconds);
+		}
+		else if (Result.bLoserSentHome)
+		{
+			FinishAction(State, NowSeconds);
+		}
+		else if (Result.bAllRunes)
+		{
+			Soulbound::Rules::SeizeAllRunes(State, Result.Winner, Result.Loser, NowSeconds);
+			FinishAction(State, NowSeconds);
 		}
 		else
 		{
 			BeginStealAction(State, Result.Winner, Result.Loser, NowSeconds);
 		}
 		return EIntentResult::Accepted;
+	}
+
+	void BeginEventSteal(FMatchState& State, int32 Thief, int32 Victim, double NowSeconds)
+	{
+		State.CurrentEvent.bWaitsForAction = true;
+		BeginStealAction(State, Thief, Victim, NowSeconds);
+	}
+
+	void BeginEventDuel(FMatchState& State, int32 Challenger, int32 Challenged, bool bAllRunes, double NowSeconds)
+	{
+		State.CurrentEvent.bWaitsForAction = true;
+		if (Soulbound::Rules::BeginForcedDuel(State, Challenger, Challenged, bAllRunes, NowSeconds) == EDuelStart::NoRunes)
+		{
+			FinishAction(State, NowSeconds);
+			return;
+		}
+		State.TurnPhase = ETurnPhase::Duel;
+	}
+
+	void BeginEventWardenDuel(FMatchState& State, int32 Challenged, bool bAllRunes, double NowSeconds)
+	{
+		State.CurrentEvent.bWaitsForAction = true;
+		if (Soulbound::Rules::BeginWardenDuel(State, Challenged, bAllRunes, NowSeconds) == EDuelStart::NoRunes)
+		{
+			FinishAction(State, NowSeconds);
+			return;
+		}
+		State.TurnPhase = ETurnPhase::Duel;
 	}
 
 	bool GrantExtraTurns(FMatchState& State, int32 Seat, int32 Count)

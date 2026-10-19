@@ -41,13 +41,13 @@ enum class EEffect : uint8
 	Mark,
 	/** Ley de Sombras (`ShadowLaw`, R-EFE-9): medio. Todos los Ecos a su hogar; termina la Noche. */
 	ShadowLaw,
-	/** Prueba del Warden (`WardenTrial`): medio. De S-015. */
+	/** Prueba del Warden (`WardenTrial`, R-EFE-10): medio. S-015. */
 	WardenTrial,
 	/** Perder una runa (`LoseRune`, R-EFE-11): grave. */
 	LoseRune,
-	/** Robo decretado (`DecreedTheft`): grave. De S-015. */
+	/** Robo decretado (`DecreedTheft`, R-EFE-12): grave. S-015. */
 	DecreedTheft,
-	/** Duelo forzado (`ForcedDuel`): grave. De S-015. */
+	/** Duelo forzado (`ForcedDuel`, R-EFE-13): grave. S-015. */
 	ForcedDuel,
 	/** El Vacío (`Banish`, R-EFE-14): grave. */
 	Banish,
@@ -73,7 +73,7 @@ enum class EEffectTarget : uint8
 	ActivePlayer,
 	/** Rival señalado: el activo elige entre los válidos, con el reloj corto. */
 	ChosenRival,
-	/** Dos rivales señalados. Solo se valida en datos en S-014; su elección de dos asientos es de S-015. */
+	/** Dos rivales señalados (solo el Duelo forzado, S-015): quien dirige señala dos, uno tras otro; el primero es el retador. */
 	TwoChosenRivals,
 	/** Líder (glosario `Leader`): más tipos distintos; con empate, más runas; si persiste, todos los empatados. */
 	Leader,
@@ -102,7 +102,7 @@ enum class EEffectSeverity : uint8
 /**
  * Variante de una aplicación (S-014, nombre propuesto): qué forma toma el efecto, para los que tienen más de una. En los
  * datos, el campo `variant`. Perder una runa: "random" o "chosen" (R-EFE-11). Duelo forzado: "one" o "all" (lo que está en
- * juego, decisión del autor del 12/10/2026; el duelo es de S-015). None en el resto.
+ * juego, decisión del autor del 12/10/2026; S-015). None en el resto.
  */
 UENUM()
 enum class EEffectVariant : uint8
@@ -132,7 +132,7 @@ struct SOULBOUNDCORE_API FEffectDef
 	bool bTakesAmount = false;
 	/** Variantes admitidas; la primera es la de por defecto. Vacío: solo None. */
 	TArray<EEffectVariant> Variants;
-	/** Si esta story lo aplica (13 de 18); los otros cinco se cargan y validan, pero aplicarlos es NotImplemented. */
+	/** Si el motor lo aplica (16 de 18 desde S-015); Alto y Consulta forzada se cargan y validan, pero aplicarlos es NotImplemented. */
 	bool bImplemented = false;
 };
 

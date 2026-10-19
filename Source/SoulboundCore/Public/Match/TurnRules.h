@@ -80,6 +80,9 @@ namespace Soulbound::Rules
 	 *    contra un jugador (PlayerAction: retar a duelo, expulsar o robar; S-010, S-012), cada uno con el reloj de
 	 *    elección; sin nada que ofrecer, pasa a End y registra TurnEnded. Con una elección abierta, la espera; agotado su
 	 *    plazo, registra ChoiceExpired y la resuelve como "no".
+	 *  - Start → PreRoll de un asiento con la Prueba del Warden pendiente (S-015, R-EFE-10): después de la salida del Vacío
+	 *    (que la anula al entrar) y antes de tirar, abre la fase SkillTrial con PendingTrial WardenTrial y la dificultad de
+	 *    datos; superada, sigue a PreRoll; fallada, End sin pasar por PreRoll: no consume sorteo, como un turno en el Vacío.
 	 *  - SkillTrial: espera el resultado del minijuego (SubmitSkillTrialResult); no avanza ni cambia nada.
 	 *  - Duel (S-012): espera el rendimiento de los dos participantes (SubmitDuelPerformance); no avanza ni cambia nada.
 	 *  - ShellGame (S-010, R-ROB-2): el trilero. Espera la runa de Koschei (agotada, ChoiceExpired y se juega con todas,
@@ -116,6 +119,8 @@ namespace Soulbound::Rules
 	 * pasa a End si no hay nada que ofrecer. Sin plazo en S-008 (TODO(R-MIN) en TurnRules.cpp).
 	 * Escape del Vacío (S-013, PendingTrial VoidEscape, R-VAC-2, R-VAC-3): superado, el asiento sale a su hogar; fallado,
 	 * sigue dentro. En los dos casos el turno pasa a End sin tirar (ApplyVoidEscapeResult).
+	 * Prueba del Warden (S-015, PendingTrial WardenTrial, R-EFE-10): superada, el turno sigue en PreRoll con normalidad;
+	 * fallada, pasa a End sin tirar y sin consumir el sorteo (ApplyWardenTrialResult).
 	 * bPassed: si superó la prueba. NowSeconds: marca de tiempo de los eventos.
 	 * Devuelve Accepted, o WrongSeat o WrongPhase (también sin prueba pendiente, PendingTrial None, o con un escape que una
 	 * Liberación dejó sin objeto) sin tocar el estado. Nombre propuesto en S-008.
@@ -162,6 +167,32 @@ namespace Soulbound::Rules
 	 * InvalidOption si Performance no está entre 0 y 1. Si no es Accepted, no toca el estado. Nombre propuesto en S-012.
 	 */
 	SOULBOUNDCORE_API EIntentResult SubmitDuelPerformance(FMatchState& State, int32 Seat, double Performance, double NowSeconds);
+
+	// S-015: duelos y trileros que nacen de un evento del Warden. Se juegan en las fases Duel y ShellGame de siempre, con sus
+	// relojes y elecciones, pero entre turnos: no terminan ningún turno ni tocan TurnCount ni el último que jugó. Al acabar,
+	// la máquina vuelve a BetweenTurns y el evento sigue por su siguiente aplicación (FCurrentWardenEvent::bWaitsForAction).
+
+	/**
+	 * Empieza el trilero de un evento (R-EFE-12, R-EFE-13): Thief roba a Victim con BeginSteal. Sin runas la víctima o con el
+	 * robo anulado (Koschei con una runa), no hay trilero y el evento sigue en la misma llamada; si no, la máquina pasa a la
+	 * fase ShellGame, con la elección de Koschei abierta para la víctima si toca (R-ROB-5). No valida: lo hace CanDecreeTheft.
+	 * NowSeconds: marca de los eventos. Nombre propuesto en S-015.
+	 */
+	SOULBOUNDCORE_API void BeginEventSteal(FMatchState& State, int32 Thief, int32 Victim, double NowSeconds);
+
+	/**
+	 * Empieza el Duelo forzado de un evento (R-EFE-13): Challenger reta a Challenged (BeginForcedDuel) y la máquina pasa a la
+	 * fase Duel. Al resolverse, con bAllRunes el ganador se queda todas las runas del perdedor sin trilero; si no, el botín es
+	 * un trilero (R-DUE-5). No valida: lo hace CanForceDuel. Nombre propuesto en S-015.
+	 */
+	SOULBOUNDCORE_API void BeginEventDuel(FMatchState& State, int32 Challenger, int32 Challenged, bool bAllRunes, double NowSeconds);
+
+	/**
+	 * Empieza el Duelo contra el Warden de quien desatendió un Duelo forzado (R-DIR-4, S-015): la máquina pasa a la fase Duel,
+	 * con Challenged de único participante (BeginWardenDuel). Si no tiene runas, no hay duelo y el evento sigue. No valida.
+	 * Nombre propuesto en S-015.
+	 */
+	SOULBOUNDCORE_API void BeginEventWardenDuel(FMatchState& State, int32 Challenged, bool bAllRunes, double NowSeconds);
 
 	/**
 	 * Concede Count turnos extra al asiento Seat (R-TUR-9), sin pasar del tope de los parámetros de partida.

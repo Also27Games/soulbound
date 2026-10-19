@@ -256,7 +256,8 @@ void UMatchHostSubsystem::Advance()
 				Pending.ChoiceKind = EChoiceKind::None;
 				Pending.bDuel = true;
 				Pending.ReadyAtSeconds = Now + DummyResponseSeconds;
-				Pending.ChallengerPerformance = Perform(Challenger);
+				// Contra el Warden (S-015) no hay asiento retador: su rendimiento es un dato del motor y solo rinde el retado.
+				Pending.ChallengerPerformance = State.Duel.bAgainstWarden ? 0.0 : Perform(Challenger);
 				Pending.ChallengedPerformance = Perform(Challenged);
 #if !UE_BUILD_SHIPPING
 				// SbDuel: el resultado fijado sustituye a los dos rendimientos; los decisores ya consumieron su sorteo. Con un
@@ -275,7 +276,10 @@ void UMatchHostSubsystem::Advance()
 			{
 				const int32 Challenger = State.Duel.Challenger;
 				const int32 Challenged = State.Duel.Challenged;
-				bChanged |= Soulbound::Rules::SubmitDuelPerformance(State, Challenger, Pending.ChallengerPerformance, Now) == EIntentResult::Accepted;
+				if (!State.Duel.bAgainstWarden)
+				{
+					bChanged |= Soulbound::Rules::SubmitDuelPerformance(State, Challenger, Pending.ChallengerPerformance, Now) == EIntentResult::Accepted;
+				}
 				bChanged |= Soulbound::Rules::SubmitDuelPerformance(State, Challenged, Pending.ChallengedPerformance, Now) == EIntentResult::Accepted;
 				Pending.bPending = false;
 				// Tras el duelo puede abrirse el trilero del botín, con sus elecciones: se atienden en la vuelta siguiente.
