@@ -723,10 +723,25 @@ def pieza_losa_partida(rng):
     return bm
 
 
-def pieza_losa_nicho(rng):
+def pieza_losa_nicho(rng, con_respaldo=False):
     """Casilla del Nicho, al final del ramal: tarima con forma de ataúd, más alta que las demás, con un
-    hueco negro en el centro. La cabecera (+x) apunta al trono."""
+    hueco negro en el centro. La cabecera (+x) apunta al trono. Con con_respaldo (ronda 6, "el Nicho es
+    el trono"): un respaldo bajo de piedra pegado a la cabecera, con el hueco del emblema mirando a la
+    losa y dos remates; la ficha se posa en la tarima y "se sienta" mirando al Altar."""
     bm, capa = nuevo_bm()
+    if con_respaldo:
+        pm = PIEDRA_MEDIA
+        antes = set(bm.verts)
+        # Bajo (2,6 cm de piedra más los remates): desde el asiento del dueño se sigue viendo la tarima.
+        bloque_tosco(bm, capa, (0.0465, 0, 0.019), (0.012, 0.056, 0.026), rng, pm, (0, 0, 0), 0.2)
+        bloque_tosco(bm, capa, (0.0455, 0, 0.034), (0.010, 0.036, 0.008), rng, pm, (0, 0, 0.03), 0.25)
+        caja(bm, capa, (0.0398, 0, 0.021), (0.0015, 0.020, 0.014), NEGRO)
+        esquirla(bm, capa, (0.046, -0.026, 0.028), 0.020, 0.0042, (0.03, -0.05), rng, pm)
+        esquirla(bm, capa, (0.046, 0.026, 0.028), 0.014, 0.0042, (0.03, 0.05), rng, pm, rota=True)
+        runa(bm, capa, Vector((0.0399, -0.0215, 0.011)), Vector((0, 1, 0)), Vector((0, 0, 1)), RUNAS[0], 0.006, rng)
+        # Ligeramente echado hacia atrás, como el trono.
+        bmesh.ops.rotate(bm, verts=verts_nuevos(bm, antes), cent=(0.041, 0, 0.006),
+                         matrix=Euler((0, 0.10, 0)).to_matrix())
     esquinas = [(-0.036, 0.0), (-0.024, -0.025), (0.024, -0.031), (0.041, 0.0), (0.024, 0.031), (-0.024, 0.025)]
     contorno = contorno_poligono(rng, esquinas, 3)
     anillo = anillo_de(bm, rng, contorno)
@@ -1694,8 +1709,11 @@ class Visibilidad:
         for ob in losas:
             me = ob.data
             if me.name not in self.locales:
-                z_max = max(v.co.z for v in me.vertices)
-                arriba = [v.co.copy() for v in me.vertices if v.co.z >= z_max - 0.0035]
+                # La cara de la losa está por debajo de 2 cm; lo que sobresalga (el respaldo del Nicho-trono,
+                # ronda 6) es estructura, no casilla, y no cuenta como "ver la losa".
+                cara = [v.co.copy() for v in me.vertices if v.co.z < 0.02 and v.co.to_2d().length < 0.038]
+                z_max = max(v.z for v in cara)
+                arriba = [v for v in cara if v.z >= z_max - 0.0035]
                 paso = max(1, len(arriba) // 24)
                 self.locales[me.name] = arriba[::paso]
 
@@ -1904,7 +1922,10 @@ def argumentos():
     # Dónde va el trono respecto a la losa del Nicho (ronda 6, a decidir por el autor): "detras", al fondo
     # del ramal mirando hacia la losa (el jugador ve su respaldo), o "lateral", al lado de la losa y de cara
     # al asiento del jugador (ve su frente y la losa queda libre).
-    ap.add_argument("--trono", choices=("detras", "lateral"), default="detras")
+    # Tercera opción, "nicho" (propuesta del tutor del 19/10/2026): no hay trono aparte; la losa del Nicho
+    # lleva un respaldo bajo y la ficha se sienta en ella mirando al Altar. El trono grande queda para el
+    # Warden, en el Altar.
+    ap.add_argument("--trono", choices=("detras", "lateral", "nicho"), default="detras")
     return ap.parse_args(argv)
 
 
@@ -2003,7 +2024,7 @@ def main():
 
     piezas["losa"] = malla("losa", pieza_losa(rng))
     piezas["losa_partida"] = malla("losa_partida", pieza_losa_partida(rng))
-    piezas["losa_nicho"] = malla("losa_nicho", pieza_losa_nicho(rng))
+    piezas["losa_nicho"] = malla("losa_nicho", pieza_losa_nicho(rng, con_respaldo=args.trono == "nicho"))
     piezas["losa_fuente"] = malla("losa_fuente", pieza_losa_fuente(rng))
     piezas["losa_nodo"] = malla("losa_nodo", pieza_losa_nodo(rng))
     malla_de = {"normal": "losa", "partida": "losa_partida", "nicho": "losa_nicho", "fuente": "losa_fuente",
@@ -2040,9 +2061,11 @@ def main():
                                              (p.x, p.y, terreno.altura(p.x, p.y) - 0.0004), rot, coleccion=dominio))
 
     piezas["trono"] = malla("trono", pieza_trono(rng), ESCALA_TRONO)
-    trono = instanciar("Trono", piezas["trono"], (trono_pos.x, trono_pos.y, SUELO_Z - 0.001),
-                       trono_rot, coleccion=dominio)
-    instancias.append(trono)
+    trono = None
+    if args.trono != "nicho":
+        trono = instanciar("Trono", piezas["trono"], (trono_pos.x, trono_pos.y, SUELO_Z - 0.001),
+                           trono_rot, coleccion=dominio)
+        instancias.append(trono)
     actualizar()
     piezas["brasero"] = malla("brasero", pieza_brasero(rng), ESCALA_BRASERO)
     bz = terreno.altura(brasero_xy.x, brasero_xy.y) - 0.001
@@ -2082,10 +2105,11 @@ def main():
     # del ramal. Se prueban pequeñas variantes (a un lado, más atrás, algo más bajo) hasta que no oculte
     # ninguna, sin acercarse a menos de media losa de margen de ninguna casilla.
     lateral = Vector((-tangente_fin.y, tangente_fin.x, 0))
-    base_trono = trono.location.copy()
-    for dl, da, f in ((0, 0, 1.0), (0.012, 0, 1.0), (-0.012, 0, 1.0), (0, 0.012, 1.0), (0.022, 0, 1.0),
-                      (-0.022, 0, 1.0), (0.012, 0.012, 1.0), (-0.012, 0.012, 1.0), (0, 0, 0.92),
-                      (0.012, 0, 0.92), (-0.012, 0, 0.92), (0, 0, 0.85)):
+    base_trono = trono.location.copy() if trono else trono_pos.copy()
+    for dl, da, f in (() if trono is None else
+                      ((0, 0, 1.0), (0.012, 0, 1.0), (-0.012, 0, 1.0), (0, 0.012, 1.0), (0.022, 0, 1.0),
+                       (-0.022, 0, 1.0), (0.012, 0.012, 1.0), (-0.012, 0.012, 1.0), (0, 0, 0.92),
+                       (0.012, 0, 0.92), (-0.012, 0, 0.92), (0, 0, 0.85))):
         p = base_trono + lateral * dl + tangente_fin * da
         if any((p.to_2d() - c["pos"].to_2d()).length < LOSA_MEDIO + 0.045 * f for c in casillas[:-1]):
             continue
@@ -2096,15 +2120,20 @@ def main():
         if not any(vis.informe(instancias).values()):
             break
     else:
-        trono.location, trono.scale = base_trono, (1, 1, 1)
-        actualizar()
-    if (trono.location - base_trono).length > 1e-6 or trono.scale[0] != 1:
+        if trono:
+            trono.location, trono.scale = base_trono, (1, 1, 1)
+            actualizar()
+    if trono and ((trono.location - base_trono).length > 1e-6 or trono.scale[0] != 1):
         print(f"Trono desplazado {(trono.location - base_trono).length * 100:.1f} cm y escalado "
               f"{trono.scale[0]:.2f} para no ocultar ninguna losa")
-    trono_pos = trono.location.copy()
-    # El cuervo, en la cima partida del pilar derecho del trono, mirando hacia el asiento principal.
+    # El cuervo, en la cima partida del pilar derecho del trono, mirando hacia el asiento principal. Sin
+    # trono (variante "nicho"), en el remate del respaldo de la losa del Nicho.
     piezas["cuervo"] = malla("cuervo", pieza_cuervo(rng))
-    percha = trono.matrix_world @ percha_del_cuervo()
+    if trono:
+        trono_pos = trono.location.copy()
+        percha = trono.matrix_world @ percha_del_cuervo()
+    else:
+        percha = losas[-1].matrix_world @ Vector((0.046, -0.026, 0.048))
     instancias.append(instanciar("Cuervo", piezas["cuervo"], percha,
                                  math.atan2(-1.54 - percha.y, -percha.x) + rng.uniform(-0.5, 0.5), 1.0, dominio))
 
@@ -2118,7 +2147,7 @@ def main():
     objetos_charco = ["hueso", "raiz", "cadena"]
     for i in range(N_CHARCOS):
         piezas[f"charco_{'ABC'[i]}"] = malla(f"charco_{'ABC'[i]}", pieza_charco(rng, objetos_charco[i % 3]))
-    alto_trono = alto_max(trono) - SUELO_Z
+    alto_trono = (alto_max(trono) - SUELO_Z) if trono else 0.20
 
     # Visibilidad de partida: con losas, trono y brasero. Ninguna pieza puede ocultar del todo una losa que
     # ahora se ve desde algún asiento.
