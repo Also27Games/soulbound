@@ -31,7 +31,6 @@ namespace Soulbound::Rules
 	FMatchStartResult StartMatch(const FBoardState& Board, const FMatchParams& Params, const FElectsTable& Elects, int32 PlayerCount, FRandomStream& Random,
 		const FWardenEventTable& WardenEvents, const FWardenParams& WardenParams)
 	{
-		// TODO(R-WAR-10): firma vacía del ciclo rojo de S-016; los parámetros y la semilla del Warden aún no viajan en el estado.
 		using Soulbound::Board::DomainCount;
 
 		if (PlayerCount < Soulbound::Match::MinPlayers || PlayerCount > Soulbound::Match::MaxPlayers)
@@ -59,6 +58,14 @@ namespace Soulbound::Rules
 		{
 			return Fail(EMatchStartError::InvalidWardenEvents, TEXT("Los eventos del Warden no son válidos: ") + EventsValidation.Message);
 		}
+		if (WardenParams.HasWarden())
+		{
+			const FWardenParamsLoadResult WardenValidation = ValidateWardenParams(WardenParams);
+			if (!WardenValidation.IsSuccess())
+			{
+				return Fail(EMatchStartError::InvalidWardenParams, TEXT("Los parámetros del Warden no son válidos: ") + WardenValidation.Message);
+			}
+		}
 
 		FMatchStartResult Result;
 		FMatchState& State = Result.State;
@@ -67,6 +74,15 @@ namespace Soulbound::Rules
 		State.Elects = Elects;
 		// S-014: los eventos del Warden viajan en el estado, como los Elegidos; sin ellos, la partida no tiene eventos.
 		State.WardenEvents = WardenEvents;
+		// S-016 (R-WAR-10): el Warden viaja en el estado con su sorteo propio, la semilla de la partida más 2 (como el anfitrión y
+		// la simulación hasta S-015), sin tocar el sorteo de la partida; los usos de cada evento y la primera evaluación.
+		State.WardenParams = WardenParams;
+		State.Warden.Seed = Random.GetInitialSeed() + 2;
+		for (const FWardenEventDef& Event : WardenEvents.Events)
+		{
+			State.Warden.UsesLeft.Add(Event.MaxUses > 0 ? Event.MaxUses : -1);
+		}
+		State.Warden.NextEvaluationSeconds = WardenParams.EvaluationIntervalSeconds;
 
 		// R-TAB-5: una bolsa con tantos efectos de cada tipo como piden los datos, barajada y repartida a los Nodos
 		// en orden de casilla. ValidateBoard garantiza que hay tantos Nodos como efectos en la bolsa.

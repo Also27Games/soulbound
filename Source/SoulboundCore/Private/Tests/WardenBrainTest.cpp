@@ -64,6 +64,8 @@ bool FWardenSameInputTest::RunTest(const FString& Parameters)
 	{
 		for (int32 Seed = 1; Seed <= 40; ++Seed)
 		{
+			// La última intervención, 10 s antes: así la garantía no obliga y decide la probabilidad del acto.
+			F.State.Warden.LastEffectSeconds = At - 10.0;
 			const FWardenDecision A = F.Evaluate(At, Seed);
 			const FWardenDecision B = F.Evaluate(At, Seed);
 			if (!SameDecision(A, B))
@@ -89,7 +91,7 @@ bool FWardenSameInputTest::RunTest(const FString& Parameters)
 	Soulbound::Rules::EvaluateWarden(CopyA, 400.0, RandomA);
 	Soulbound::Rules::EvaluateWarden(CopyB, 400.0, RandomB);
 	TestTrue(TEXT("Evaluar y aplicar es reproducible"), Soulbound::Tests::SameState(CopyA, CopyB));
-	TestEqual(TEXT("El sorteo del Warden avanzó"), CopyA.Warden.Draws, F.State.Warden.Draws + 1);
+	TestTrue(TEXT("El sorteo del Warden avanzó (uno para decidir y, si lanza, otro para el evento)"), CopyA.Warden.Draws > F.State.Warden.Draws);
 	return true;
 }
 

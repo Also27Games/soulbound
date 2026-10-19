@@ -193,14 +193,19 @@ namespace Soulbound::Rules
 	 * Comprueba una tabla de eventos contra el catálogo (CA-EFE-1, R-EFE-0, R-COM-1): identificadores no vacíos y únicos,
 	 * de una a cuatro opciones con al menos una aplicación cada una, y en cada aplicación una dirección permitida por su
 	 * efecto (None solo en el Sello), una cantidad de 1 a 2 solo donde se admite (1 en el resto) y una variante admitida.
+	 * Desde S-016 (R-SAC-2, InvalidBag): en un evento de un saco, canal golpe o escena, tres pesos no negativos y usos no
+	 * negativos; en todos, una ventana que empieza en 0 o después y no acaba antes de empezar.
 	 * Table: la tabla. Devuelve None o la primera regla incumplida con su motivo; el campo Table del resultado queda vacío.
 	 */
 	SOULBOUNDCORE_API FWardenEventsLoadResult ValidateWardenEvents(const FWardenEventTable& Table);
 
 	/**
 	 * Lee los eventos de un texto JSON y los valida. Se leen enteros o se rechazan enteros. Esquema en
-	 * Content/Data/Events/eventos.json: `events`, una lista de {`id`, `text`, `delivery` ("direct" u "oracle"), `options`},
-	 * cada opción una lista de {`effect`, `target`, `amount` opcional, `variant` opcional}. El Sello va sin `target`.
+	 * Content/Data/Events/eventos.json: `events`, una lista de {`id`, `text`, `delivery` ("direct", "oracle" o, desde S-016,
+	 * "any"), `options`}, cada opción una lista de {`effect`, `target`, `amount` opcional, `variant` opcional}. El Sello va sin
+	 * `target`. Desde S-016, el saco, opcional: `name`, `act` ("I", "II", "III"), `channel` ("strike", "scene"; obligatorio con
+	 * `act`), `weights` (tres números; por defecto 1 en su acto y los siguientes), `maxUses` (de 1 en adelante; sin campo, sin
+	 * límite), `window` ({`from`, `to`}, segundos) y `cutsTurn` (por defecto, el golpe corta y la escena no).
 	 * Devuelve la tabla, o la regla incumplida con su motivo.
 	 */
 	SOULBOUNDCORE_API FWardenEventsLoadResult LoadWardenEventsFromJsonString(const FString& Json);

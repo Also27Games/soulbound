@@ -149,7 +149,7 @@ bool FEffectsCatalogoCerradoTest::RunTest(const FString& Parameters)
 		TestTrue(FString::Printf(TEXT("%s: su código se lee"), *Name), Soulbound::Rules::ParseEffectCode(Name, Parsed) && Parsed == Row.Effect);
 		Implemented += Row.bImplemented ? 1 : 0;
 	}
-	TestEqual(TEXT("Dieciséis se aplican tras S-015: solo Alto y Consulta forzada esperan a su story"), Implemented, 16);
+	TestEqual(TEXT("Diecisiete se aplican desde S-016: solo la Consulta forzada espera a su story"), Implemented, 17);
 	TestEqual(TEXT("Perder una runa: al azar o a elección"), Catalog[AsInt(EEffect::LoseRune)].Variants,
 		TArray<EEffectVariant>{EEffectVariant::Random, EEffectVariant::Chosen});
 	TestEqual(TEXT("Duelo forzado: una runa o todas"), Catalog[AsInt(EEffect::ForcedDuel)].Variants,

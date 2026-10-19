@@ -2,8 +2,10 @@
 
 #include "Decider/Decider.h"
 #include "HAL/PlatformTime.h"
+#include "Match/EffectCatalog.h"
 #include "Match/MatchStart.h"
 #include "Match/TurnRules.h"
+#include "Warden/WardenRules.h"
 
 namespace
 {
@@ -40,6 +42,88 @@ namespace
 		case EChoiceKind::LoseRune: return TEXT("runa a perder");
 		default: return TEXT("?");
 		}
+	}
+
+	/** Nombre de una fase del turno para la crónica (S-016: la fase en que se corta un turno). */
+	const TCHAR* PhaseName(int32 Phase)
+	{
+		switch (static_cast<ETurnPhase>(Phase))
+		{
+		case ETurnPhase::Start: return TEXT("Start, al empezar");
+		case ETurnPhase::PreRoll: return TEXT("PreRoll, antes de tirar");
+		case ETurnPhase::RollAndChoose: return TEXT("RollAndChoose, eligiendo destino");
+		case ETurnPhase::MoveAndResolve: return TEXT("MoveAndResolve, tras mover");
+		default: return TEXT("?");
+		}
+	}
+
+	/** Canal y nombre de un evento del Warden para la crónica (S-016): «golpe "Tropiezo"»; los de prueba, por su identificador. */
+	FString DescribeWardenEvent(const FMatchState& State, int32 EventIndex)
+	{
+		if (!State.WardenEvents.Events.IsValidIndex(EventIndex))
+		{
+			return FString::Printf(TEXT("el evento %d"), EventIndex);
+		}
+		const FWardenEventDef& Event = State.WardenEvents.Events[EventIndex];
+		const TCHAR* Channel = !Event.bInBag ? TEXT("el evento") : Event.Channel == EWardenChannel::Strike ? TEXT("el golpe") : TEXT("la escena");
+		return FString::Printf(TEXT("%s \"%s\""), Channel, *Event.DisplayName());
+	}
+
+	/**
+	 * Cifras del Warden por acto (informe de S-016), contadas del registro: intervenciones con efecto (WardenEventStarted), turnos
+	 * empezados y cortados (por el acto en que empezaron) y el hueco más largo sin golpe ni escena (por el acto en que empieza),
+	 * desde el inicio y hasta EndSeconds. El acto de cada instante sale del tiempo y del fin de la carrera, como CurrentAct.
+	 */
+	TArray<FWardenActReport> WardenReport(const FMatchState& State, double EndSeconds)
+	{
+		TArray<FWardenActReport> Acts;
+		Acts.SetNum(Soulbound::Warden::ActCount);
+		const FWardenParams& Params = State.WardenParams;
+		if (Params.Acts.Num() < Soulbound::Warden::ActCount)
+		{
+			return Acts;
+		}
+		double RaceEnd = TNumericLimits<double>::Max();
+		for (const FMatchEvent& Event : State.EventLog)
+		{
+			if (Event.Type == EMatchEventType::BondRaceEnded)
+			{
+				RaceEnd = Event.ClockSeconds;
+				break;
+			}
+		}
+		auto ActAt = [&Params, RaceEnd](double Seconds)
+		{
+			if (Seconds >= Params.Acts[2].StartSeconds)
+			{
+				return 2;
+			}
+			return Seconds < Params.Acts[1].StartSeconds && Seconds < RaceEnd ? 0 : 1;
+		};
+		double LastEffect = 0.0;
+		int32 TurnAct = 0;
+		for (const FMatchEvent& Event : State.EventLog)
+		{
+			if (Event.Type == EMatchEventType::TurnStarted)
+			{
+				TurnAct = ActAt(Event.ClockSeconds);
+				++Acts[TurnAct].TurnsStarted;
+			}
+			else if (Event.Type == EMatchEventType::TurnInterrupted)
+			{
+				++Acts[TurnAct].TurnsCut;
+			}
+			else if (Event.Type == EMatchEventType::WardenEventStarted)
+			{
+				++Acts[ActAt(Event.ClockSeconds)].EffectInterventions;
+				FWardenActReport& Gap = Acts[ActAt(LastEffect)];
+				Gap.MaxGapSeconds = FMath::Max(Gap.MaxGapSeconds, Event.ClockSeconds - LastEffect);
+				LastEffect = Event.ClockSeconds;
+			}
+		}
+		FWardenActReport& Last = Acts[ActAt(LastEffect)];
+		Last.MaxGapSeconds = FMath::Max(Last.MaxGapSeconds, EndSeconds - LastEffect);
+		return Acts;
 	}
 
 	/** "casilla 17 (Fuente de Poder, Dominio 3)": lo que hace falta para leer adónde va alguien. */
@@ -79,14 +163,16 @@ FSimulationResult FMatchSimulation::Run()
 
 	FSimulationResult Result;
 	// Tres sorteos separados, como en el juego (decisión del autor del 05/10/2026): el de la partida (inicio y dados), el
-	// de los decisores (Seed + 1) y el del cerebro del Warden (Seed + 2, como WardenHostSubsystem). Así la misma semilla da
-	// los mismos dados ocupe quien ocupe cada asiento (grabación y reproducción, GDD 08), aunque un trilero retrase los
-	// turnos respecto a las evaluaciones del Warden (S-010).
+	// de los decisores (Seed + 1) y el del Warden (Seed + 2). Desde S-016 el del Warden vive en el estado (FWardenState, lo
+	// fija StartMatch con la misma semilla más 2), igual en el anfitrión. Así la misma semilla da los mismos dados ocupe
+	// quien ocupe cada asiento con el Warden apagado (grabación y reproducción, GDD 08).
 	FRandomStream Rng(Params.Seed);
 	FRandomStream DeciderRng(Params.Seed + 1);
-	FRandomStream WardenRng(Params.Seed + 2);
-	// En Fase 1 los bots rellenan los huecos: siempre juegan cuatro (R-TAB-6, decisión del autor del 25/09/2026).
-	FMatchStartResult Start = Soulbound::Rules::StartMatch(Params.Board, Params.MatchParams, Params.Elects, Soulbound::Match::MaxPlayers, Rng);
+	// En Fase 1 los bots rellenan los huecos: siempre juegan cuatro (R-TAB-6, decisión del autor del 25/09/2026). S-016: con
+	// los eventos y, si juega, el Warden.
+	const FWardenParams WardenParams = Params.bWardenEnabled ? Params.WardenParams : FWardenParams();
+	FMatchStartResult Start = Soulbound::Rules::StartMatch(Params.Board, Params.MatchParams, Params.Elects, Soulbound::Match::MaxPlayers, Rng,
+		Params.WardenEvents, WardenParams);
 	if (!Start.IsSuccess())
 	{
 		Result.Log.Add(FString::Printf(TEXT("error semilla=%d \"%s\""), Params.Seed, *Start.Message));
@@ -100,7 +186,6 @@ FSimulationResult FMatchSimulation::Run()
 		Params.Seed, *FString::JoinBy(State.TurnOrder, TEXT(", "), [](int32 Seat) { return FString::FromInt(Seat); }),
 		State.Board.Tiles.Num(), State.Params.TurnClockSeconds, Params.DummyResponseSeconds));
 
-	double NextEvaluation = 0.0;
 	double NextTurnEvent = 0.0;
 	FPendingAnswer Pending;
 	int32 LoggedEvents = 0;
@@ -108,7 +193,8 @@ FSimulationResult FMatchSimulation::Run()
 	// Pasa al registro de texto lo que el motor ha dejado en su registro de eventos y la crónica no cuenta ya de otra
 	// forma: agotamientos, turnos saltados, Sellos que caen por el tope y la carrera por el vínculo (vínculos, Despertar,
 	// hogares, vueltas al hogar, victoria del Warden y fin de carrera) y los movimientos (Moved, S-007). Inicio y tirada
-	// los escribe StepTurn, que tiene las opciones; los Sellos que pone o quita el Warden, su propia línea.
+	// los escribe StepTurn, que tiene las opciones. Desde S-016, el Warden real: sus eventos con canal y nombre, sus
+	// comentarios, los turnos que corta con la fase y lo que aplican sus efectos.
 	auto LogNewEvents = [&Result, &State, &LoggedEvents]()
 	{
 		for (; LoggedEvents < State.EventLog.Num(); ++LoggedEvents)
@@ -224,7 +310,58 @@ FSimulationResult FMatchSimulation::Run()
 			else if (Event.Type == EMatchEventType::DuelChallenged)
 			{
 				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d reta al asiento %d a duelo %s"), *Stamp(Event.ClockSeconds), Event.Seat, Event.OtherSeat,
-					Event.Value == 1 ? TEXT("desde un Nodo de Duelo") : TEXT("con el poder Duelo")));
+					Event.Value == 1 ? TEXT("desde un Nodo de Duelo") : Event.Value == 2 ? TEXT("por orden del Warden") : TEXT("con el poder Duelo")));
+			}
+			// S-016: el Warden real.
+			else if (Event.Type == EMatchEventType::WardenEventStarted)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s Warden lanza %s | dirige el asiento %d"), *Stamp(Event.ClockSeconds), *DescribeWardenEvent(State, Event.Value), Event.Seat));
+			}
+			else if (Event.Type == EMatchEventType::WardenRemark)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s Warden comenta (sin frase hasta S-017)"), *Stamp(Event.ClockSeconds)));
+			}
+			else if (Event.Type == EMatchEventType::TurnInterrupted)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    el Warden corta el turno del asiento %d en %s"), *Stamp(Event.ClockSeconds), Event.Seat, PhaseName(Event.Value)));
+			}
+			else if (Event.Type == EMatchEventType::SealPlaced)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    el Warden sella la %s"), *Stamp(Event.ClockSeconds), *DescribeTile(State.Board, Event.Value)));
+			}
+			else if (Event.Type == EMatchEventType::EffectApplied)
+			{
+				const FString Effect = Soulbound::Rules::EffectCode(static_cast<EEffect>(Event.Value));
+				Result.Log.Add(Event.Seat == INDEX_NONE
+					? FString::Printf(TEXT("%s    efecto %s sobre la partida"), *Stamp(Event.ClockSeconds), *Effect)
+					: FString::Printf(TEXT("%s    efecto %s sobre el asiento %d"), *Stamp(Event.ClockSeconds), *Effect, Event.Seat));
+			}
+			else if (Event.Type == EMatchEventType::WardenTaunt)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    el Warden se burla: %s sin objetivo válido"), *Stamp(Event.ClockSeconds),
+					*Soulbound::Rules::EffectCode(static_cast<EEffect>(Event.Value))));
+			}
+			else if (Event.Type == EMatchEventType::DilemmaChosen)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d elige la opción %d del dilema%s"), *Stamp(Event.ClockSeconds), Event.Seat, Event.Value + 1,
+					Event.Detail == 1 ? TEXT(", sorteada en su contra") : TEXT("")));
+			}
+			else if (Event.Type == EMatchEventType::WardenIgnored)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d desatiende al Warden (%s) | insolencia %d"), *Stamp(Event.ClockSeconds), Event.Seat, ChoiceName(Event.Value),
+					State.Seats[Event.Seat].Insolence));
+			}
+			else if (Event.Type == EMatchEventType::Banished)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d, al Vacío"), *Stamp(Event.ClockSeconds), Event.Seat));
+			}
+			else if (Event.Type == EMatchEventType::LeftVoid)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d sale del Vacío"), *Stamp(Event.ClockSeconds), Event.Seat));
+			}
+			else if (Event.Type == EMatchEventType::SentHome)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d, a su hogar: la %s"), *Stamp(Event.ClockSeconds), Event.Seat, *DescribeTile(State.Board, Event.Value)));
 			}
 			else if (Event.Type == EMatchEventType::DuelNoRunes)
 			{
@@ -372,18 +509,37 @@ FSimulationResult FMatchSimulation::Run()
 	// terminada (victoria del Warden, R-CAR-8) no queda nada que simular: ni turnos ni Warden.
 	while (!State.IsMatchOver())
 	{
-		const bool bEvaluationFirst = NextEvaluation <= NextTurnEvent;
-		const double Next = bEvaluationFirst ? NextEvaluation : NextTurnEvent;
+		// S-016 (R-WAR-1): el Warden evalúa en el instante que devolvió en la evaluación anterior, con el mismo contrato que el
+		// anfitrión; una aplazada (R-WAR-7), en cuanto termina lo que la aplazó, que siempre acaba con un suceso del turno.
+		double WardenAt = TNumericLimits<double>::Max();
+		if (State.WardenParams.HasWarden())
+		{
+			WardenAt = !State.Warden.bDeferred ? State.Warden.NextEvaluationSeconds
+				: Soulbound::Rules::IsWardenDeferred(State) ? TNumericLimits<double>::Max() : State.ClockSeconds;
+		}
+		const bool bEvaluationFirst = WardenAt <= NextTurnEvent;
+		const double Next = bEvaluationFirst ? WardenAt : NextTurnEvent;
 		if (Next > Params.DurationSeconds)
 		{
 			break;
 		}
-		State.ClockSeconds = Next;
+		State.ClockSeconds = FMath::Max(State.ClockSeconds, Next);
 
 		if (bEvaluationFirst)
 		{
-			// TODO(R-WAR-1): firma vacía del ciclo rojo de S-016; el cerebro real entra con su implementación.
-			NextEvaluation = TNumericLimits<double>::Max();
+			const int32 TurnsBefore = State.TurnCount;
+			const FWardenDecision Decision = Soulbound::Rules::EvaluateWarden(State, State.ClockSeconds, Rng);
+			LogNewEvents();
+			// Un turno cortado deja sin objeto el destino que el decisor tenía preparado; y lo que el Warden lanza (el evento,
+			// sus elecciones, el turno siguiente) se atiende ya.
+			if (State.TurnCount != TurnsBefore)
+			{
+				Pending.bPending = false;
+			}
+			if (Decision.IsIntervention())
+			{
+				NextTurnEvent = FMath::Min(NextTurnEvent, State.ClockSeconds);
+			}
 		}
 		else
 		{
@@ -393,6 +549,12 @@ FSimulationResult FMatchSimulation::Run()
 	}
 
 	Result.Turns = State.TurnCount;
+	Result.Evaluations = State.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::WardenEvaluated; }).Num();
+	Result.WardenActs = WardenReport(State, State.IsMatchOver() ? State.ClockSeconds : Params.DurationSeconds);
+	for (const FWardenActReport& Act : Result.WardenActs)
+	{
+		Result.Interventions += Act.EffectInterventions;
+	}
 	Result.Log.Add(FString::Printf(TEXT("Fin | %d turnos | %d evaluaciones del Warden | %d intervenciones"), Result.Turns, Result.Evaluations, Result.Interventions));
 	for (const int32 Seat : State.TurnOrder)
 	{
