@@ -157,7 +157,7 @@ bool FPowersEchoDiceChoiceTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	TestTrue(TEXT("La carrera termina"), Soulbound::Rules::EndBondRace(F.State, F.Now, F.Random));
+	TestTrue(TEXT("La carrera termina"), Soulbound::Rules::EndBondRace(F.State, F.Now));
 	constexpr int32 Echo = 1;
 	if (!TestEqual(TEXT("El asiento 1 queda Eco"), static_cast<int32>(F.State.Seats[Echo].Role), static_cast<int32>(ESeatRole::LostEcho)))
 	{
@@ -364,7 +364,7 @@ bool FPowersFixedDrawsTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	TestTrue(TEXT("La carrera termina"), Soulbound::Rules::EndBondRace(Base.State, Base.Now, Base.Random));
+	TestTrue(TEXT("La carrera termina"), Soulbound::Rules::EndBondRace(Base.State, Base.Now));
 	Base.GivePower(0, EPower::Haste);
 	Base.GivePower(1, EPower::Haste);
 	Base.GivePower(2, EPower::Haste);
@@ -618,7 +618,7 @@ bool FPowersExpelHomeTest::RunTest(const FString& Parameters)
 	F.FinishTurn();
 
 	// Eco tras la carrera → el Nicho Cerrado de su Dominio asignado.
-	TestTrue(TEXT("La carrera termina"), Soulbound::Rules::EndBondRace(F.State, F.Now, F.Random));
+	TestTrue(TEXT("La carrera termina"), Soulbound::Rules::EndBondRace(F.State, F.Now));
 	const int32 Echo = 3;
 	const int32 EchoHome = F.State.Board.FindNiche(F.State.Seats[Echo].DomainId);
 	F.State.Seats[Echo].TileId = Normal[2];

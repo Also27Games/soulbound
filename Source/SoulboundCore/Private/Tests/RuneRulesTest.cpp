@@ -411,7 +411,7 @@ bool FRunesEchoAfterRaceTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	TestTrue(TEXT("La carrera termina"), Soulbound::Rules::EndBondRace(F.State, F.Now, F.Random));
+	TestTrue(TEXT("La carrera termina"), Soulbound::Rules::EndBondRace(F.State, F.Now));
 	const int32 Home = F.State.Seats[FirstEcho].DomainId;
 	if (!TestTrue(TEXT("El Eco tiene un Dominio Olvidado como hogar"), F.State.Board.Domains.IsValidIndex(Home)))
 	{
@@ -454,7 +454,7 @@ bool FRunesLiberationRuneTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Durante la carrera, un Eco no tiene poderes"), Soulbound::Rules::GetActivePowers(F.State, FirstEcho).IsEmpty());
 	F.State.Seats[FirstEcho].Runes[2] = 0;
 
-	TestTrue(TEXT("La carrera termina"), Soulbound::Rules::EndBondRace(F.State, F.Now, F.Random));
+	TestTrue(TEXT("La carrera termina"), Soulbound::Rules::EndBondRace(F.State, F.Now));
 	const int32 Home = F.State.Seats[FirstEcho].DomainId;
 	if (!TestTrue(TEXT("El Eco tiene un Dominio Olvidado como hogar"), F.State.Board.Domains.IsValidIndex(Home)))
 	{

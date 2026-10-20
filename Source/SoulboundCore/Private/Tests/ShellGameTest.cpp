@@ -47,7 +47,7 @@ namespace
 			return false;
 		}
 		const bool bBonded = bKoscheiVictim ? F.Bond(Test, 0, KoscheiDomain) : F.BondAny(Test, 0) != INDEX_NONE;
-		if (!bBonded || F.BondAny(Test, 1) == INDEX_NONE || !Test.TestTrue(TEXT("La carrera termina"), Soulbound::Rules::EndBondRace(F.State, F.Now, F.Random)))
+		if (!bBonded || F.BondAny(Test, 1) == INDEX_NONE || !Test.TestTrue(TEXT("La carrera termina"), Soulbound::Rules::EndBondRace(F.State, F.Now)))
 		{
 			return false;
 		}
@@ -210,7 +210,7 @@ bool FShellGameNoStealOfferTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("En carrera, el turno termina"), AsInt(F.State.TurnPhase), AsInt(ETurnPhase::BetweenTurns));
 	TestTrue(TEXT("En carrera, StealTargets está vacío"), Soulbound::Rules::StealTargets(F.State, Thief).IsEmpty());
 
-	if (F.BondAny(*this, 1) == INDEX_NONE || !TestTrue(TEXT("La carrera termina"), Soulbound::Rules::EndBondRace(F.State, F.Now, F.Random)))
+	if (F.BondAny(*this, 1) == INDEX_NONE || !TestTrue(TEXT("La carrera termina"), Soulbound::Rules::EndBondRace(F.State, F.Now)))
 	{
 		return false;
 	}

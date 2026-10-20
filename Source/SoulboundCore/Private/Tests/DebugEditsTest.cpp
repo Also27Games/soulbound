@@ -361,7 +361,7 @@ bool FDebugEndRaceTest::RunTest(const FString& Parameters)
 			ByEdit.State = ByRule.State;
 			ByEdit.Random = ByRule.Random;
 		}
-		TestTrue(TEXT("La regla termina la carrera"), Soulbound::Rules::EndBondRace(ByRule.State, 50.0, ByRule.Random));
+		TestTrue(TEXT("La regla termina la carrera"), Soulbound::Rules::EndBondRace(ByRule.State, 50.0));
 		TestEqual(TEXT("La edición termina la carrera"), Soulbound::Debug::EndRace(ByEdit.State, 50.0, ByEdit.Random), EDebugEditResult::Applied);
 		TestTrue(bWithElect ? TEXT("Con un Elegido: mismo estado") : TEXT("Sin Elegidos: mismo estado"), SameState(ByRule.State, WithoutDebugEvents(ByEdit.State)));
 		TestEqual(TEXT("Deja un evento de depuración"), DebugEventCount(ByEdit.State), 1);
