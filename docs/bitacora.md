@@ -4,6 +4,27 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo de la story; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera.
 
+## S-019. Tablero en 3D desde datos (20/10/2026, rama `main`)
+
+- **Qué se pidió**: que la vista coloque las piezas del kit de arte (prueba C, ronda 6) desde los datos del tablero: una losa por casilla, senderos por conexión, la cuña de cada Dominio, el Altar, las estructuras de las casillas especiales, las cadenas de los Sellos, la carta de cada ficha y la lámpara (R-VIS-1 a 9). Las formas básicas de hoy hacen de respaldo, y el código se desarrolla y se prueba sin assets.
+- **Qué se decidió**: dos funciones puras en el módulo de juego. `ComputeBoardLayout` saca, del tablero y de los parámetros, todo lo que no cambia en la partida. `ComputeBoardViewState` saca del `FMatchState` qué se enseña. El actor solo las lee. El autor resolvió las siete dudas del plan (20/10):
+  - escalar desde el borde del Altar: con la escala desde el centro, el Altar pisaba las seis losas vecinas y no cabía ningún tramo de sendero;
+  - el lado de la estructura en el centro del mayor hueco entre conexiones; con dos en línea recta, en perpendicular hacia fuera del Altar;
+  - `NicheThrone` para el trono, porque "Trono" (`Throne`) es el asiento del jugador;
+  - carta para todos, con el rol en el brillo de un aro en su base;
+  - las distancias reales de `kit.json`;
+  - las referencias en Config (`UCLASS(Config=Game)`), donde vacía significa sin pieza;
+  - la vista sentada a 180°.
+- **Cómo funciona**: la vista carga las referencias blandas al iniciar y avisa una vez de cada pieza que falta. Las losas y los senderos van en mallas instanciadas. La forma básica de cada casilla queda oculta pero sigue recibiendo el clic. Las estructuras, las runas y las cadenas se crean ocultas y las enseña el estado de vista. La lámpara y el cielo se crean en partida. C alterna la cenital con la vista sentada; L oculta etiquetas y halos.
+- **Dudas y resolución**: las siete del plan, del autor (arriba). Al probar sin assets apareció una más: el peón por defecto del modo de juego (una esfera de 70 cm) tapaba la cámara a escala de mesa, y la vista ahora lo oculta. Las etiquetas pasan de 1,4 a 1,8 cm porque no se leían a 1280x800.
+- **Tests**: 11 nuevos (`Soulbound.Game.Presentation.Tablero3D`: seis de colocación y cinco de estado de vista), vistos en rojo con las firmas vacías (commit aparte) y en verde a la primera con la implementación. Total: 269 en verde, los 258 de antes intactos. Además, una prueba de humo en el juego sin assets (cenital, C y L) con capturas.
+- **Pendiente**:
+  - los manuales con el kit, cuando el autor lo importe: orientación de la carta y del Altar, ranuras "Emisivo" y "Tenue", suelo de las cuñas a cota 0;
+  - aviso: las luces son móviles porque se crean en partida; las estáticas, por la Steam Deck, llegan con la Cripta;
+  - para empaquetar hará falta cocinar `/Game/Art/Tablero` (las referencias en Config no se cocinan solas);
+  - lo que se pierde con el color por vértice (color del Dominio, apagado del Olvidado, negro del Sello) queda para los seis Dominios con tema propio.
+- **Proceso**: tiempo: una sesión; preguntas que pararon al agente: una parada (el plan, con siete dudas); correcciones tras fusionar: por anotar. Build y tests: compiló a la primera en las tres tandas, los 11 tests en verde a la primera tras implementar; la prueba de humo descubrió el peón.
+
 ## S-016 (B). Warden I: insolencia y Furia (19/10/2026, rama `main`, story S-016)
 
 - **Qué se pidió**: la segunda parte de la story S-016 (el PR A ya está fusionado). La insolencia con castigo: cada subida trae un castigo inmediato al insolente, sorteado por gravedad con la tabla de datos según el nivel anterior (R-INS-1, 2). A la quinta, la Furia: el Vacío de la Furia, con Desvío que no funciona, una Liberación que saca a los demás y a él no, y la cuenta reiniciada (R-INS-3). También `SbInsolence`, la insolencia y la Furia en la leyenda y las Furias en el informe.
