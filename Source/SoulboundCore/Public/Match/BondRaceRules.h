@@ -44,11 +44,11 @@ namespace Soulbound::Rules
 	 *    Olvidado distinto como hogar (HomeAssigned); el Eco que esté en un Dominio con dueño vuelve a su hogar
 	 *    (ReturnedHome, decisión del autor del 01/10/2026); la partida pasa a la caza de runas.
 	 *  - Se registra el fin (BondRaceEnded, con el número de Elegidos).
-	 * NowSeconds: marca de tiempo de los eventos. Random: el sorteo de la partida; desde S-016 no se usa: el reparto de
-	 * hogares baraja con su propia semilla (FMatchState::HomeAssignmentSeed), misma semilla, misma asignación, y no toca los
-	 * dados. Devuelve false, sin cambiar nada, si la partida no está en la carrera.
+	 * 	  NowSeconds: marca de tiempo de los eventos. El reparto de hogares baraja con su propia semilla
+	 *	  (FMatchState::HomeAssignmentSeed): misma semilla, misma asignación, y no toca los dados (S-016).
+	 *	  Devuelve false, sin cambiar nada, si la partida no está en la carrera.
 	 */
-	SOULBOUNDCORE_API bool EndBondRace(FMatchState& State, double NowSeconds, FRandomStream& Random);
+	SOULBOUNDCORE_API bool EndBondRace(FMatchState& State, double NowSeconds);
 
 	/**
 	 * Casilla hogar del asiento Seat (R-TAB-13): el Nicho de su Dominio si lo tiene (el reclamado si es Elegido, desde

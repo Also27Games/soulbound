@@ -171,7 +171,7 @@ namespace Soulbound::Debug
 			return EDebugEditResult::NotInBondRace;
 		}
 		LogEdit(State, EDebugEditKind::EndRace, NowSeconds, INDEX_NONE);
-		Soulbound::Rules::EndBondRace(State, NowSeconds, Random);
+		Soulbound::Rules::EndBondRace(State, NowSeconds);
 		return EDebugEditResult::Applied;
 	}
 

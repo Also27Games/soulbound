@@ -470,7 +470,7 @@ namespace
 		// llega con los eventos programados de S-017 (decisión del autor del 19/10/2026); hasta entonces la carrera termina al
 		// acabar el turno en curso. El corte ya existe (InterruptTurn): faltará llamarlo desde el evento programado.
 		return State.MatchPhase == EMatchPhase::BondRace && NowSeconds >= State.Params.RaceDurationSeconds
-			&& Soulbound::Rules::EndBondRace(State, NowSeconds, Random);
+			&& Soulbound::Rules::EndBondRace(State, NowSeconds);
 	}
 
 	/** End → BetweenTurns: turno extra del mismo asiento (R-TUR-9) o siguiente del orden (R-TUR-1). */

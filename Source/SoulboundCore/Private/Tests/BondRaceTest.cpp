@@ -478,7 +478,7 @@ bool FBondRaceEndOfRaceTest::RunTest(const FString& Parameters)
 		}
 		const int32 ForgottenAtStart = CountDomains(State, EDomainState::Forgotten);
 		const double RaceEnd = State.Params.RaceDurationSeconds;
-		TestTrue(TEXT("E = 0: la carrera termina"), Soulbound::Rules::EndBondRace(State, RaceEnd, Random));
+		TestTrue(TEXT("E = 0: la carrera termina"), Soulbound::Rules::EndBondRace(State, RaceEnd));
 		TestTrue(TEXT("E = 0: la partida termina"), State.IsMatchOver());
 		TestEqual(TEXT("E = 0: con victoria del Warden"), static_cast<int32>(State.Outcome), static_cast<int32>(EMatchOutcome::WardenVictory));
 		TestEqual(TEXT("E = 0: no se olvida ningún Dominio más"), CountDomains(State, EDomainState::Forgotten), ForgottenAtStart);
@@ -488,7 +488,7 @@ bool FBondRaceEndOfRaceTest::RunTest(const FString& Parameters)
 		TestFalse(TEXT("E = 0: la máquina de turnos no avanza"), Soulbound::Rules::AdvanceTurn(State, RaceEnd + 100.0, Random));
 		TestNotEqual(TEXT("E = 0: ninguna intención se acepta"),
 			static_cast<int32>(Soulbound::Rules::SubmitDestinationIntent(State, State.ActiveSeat, State.Board.FindAltar(), RaceEnd + 100.0)), static_cast<int32>(EIntentResult::Accepted));
-		TestFalse(TEXT("E = 0: ni la carrera termina otra vez"), Soulbound::Rules::EndBondRace(State, RaceEnd + 100.0, Random));
+		TestFalse(TEXT("E = 0: ni la carrera termina otra vez"), Soulbound::Rules::EndBondRace(State, RaceEnd + 100.0));
 		TestTrue(TEXT("E = 0: el estado no cambia"), Soulbound::Tests::SameState(Before, State));
 
 		// Y el Warden no actúa sobre una partida terminada (decisión del autor del 01/10/2026). Generador con semilla 1. Desde
@@ -526,7 +526,7 @@ bool FBondRaceEndOfRaceTest::RunTest(const FString& Parameters)
 			{
 				return false;
 			}
-			TestTrue(Context + TEXT(": la carrera termina"), Soulbound::Rules::EndBondRace(State, State.Params.RaceDurationSeconds, Random));
+			TestTrue(Context + TEXT(": la carrera termina"), Soulbound::Rules::EndBondRace(State, State.Params.RaceDurationSeconds));
 			TestEqual(Context + TEXT(": pasa a la caza de runas"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::RuneHunt));
 			TestEqual(Context + TEXT(": sin resultado aún"), static_cast<int32>(State.Outcome), static_cast<int32>(EMatchOutcome::Undecided));
 			TestEqual(Context + TEXT(": 6 menos E Olvidados"), CountDomains(State, EDomainState::Forgotten), Soulbound::Board::DomainCount - Elects);
@@ -563,7 +563,7 @@ bool FBondRaceEndOfRaceTest::RunTest(const FString& Parameters)
 			FRandomStream RandomAgain;
 			FMatchState Again;
 			StartWithElects(*this, Seed, Elects, RandomAgain, Again);
-			Soulbound::Rules::EndBondRace(Again, Again.Params.RaceDurationSeconds, RandomAgain);
+			Soulbound::Rules::EndBondRace(Again, Again.Params.RaceDurationSeconds);
 			for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
 			{
 				TestEqual(Context + TEXT(": misma semilla, mismo Dominio asignado"), Again.Seats[Seat].DomainId, State.Seats[Seat].DomainId);
@@ -604,7 +604,7 @@ bool FBondRaceEchoReturnsHomeTest::RunTest(const FString& Parameters)
 	const int32 Altar = State.Board.FindAltar();
 	TestEqual(TEXT("C sigue en el Altar"), State.Seats[C].TileId, Altar);
 
-	Soulbound::Rules::EndBondRace(State, State.Params.RaceDurationSeconds, Random);
+	Soulbound::Rules::EndBondRace(State, State.Params.RaceDurationSeconds);
 	TestEqual(TEXT("B, Eco en un Dominio con dueño, vuelve a su hogar"), State.Seats[B].TileId, Soulbound::Rules::HomeTile(State, B));
 	TestEqual(TEXT("C, en el Altar, no se mueve"), State.Seats[C].TileId, Altar);
 	TestEqual(TEXT("D, en un Olvidado, no se mueve"), State.Seats[D].TileId, ClosedNiche);
@@ -650,7 +650,7 @@ bool FBondRaceHomeTileTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Elegido durante la carrera: su Nicho"), Soulbound::Rules::HomeTile(State, A), State.Board.FindNiche(Domain));
 	TestEqual(TEXT("Eco durante la carrera: el Altar"), Soulbound::Rules::HomeTile(State, B), Altar);
 
-	Soulbound::Rules::EndBondRace(State, State.Params.RaceDurationSeconds, Random);
+	Soulbound::Rules::EndBondRace(State, State.Params.RaceDurationSeconds);
 	TestEqual(TEXT("Elegido tras la carrera: su Nicho"), Soulbound::Rules::HomeTile(State, A), State.Board.FindNiche(Domain));
 	const int32 Assigned = State.Seats[B].DomainId;
 	if (TestTrue(TEXT("Eco tras la carrera: tiene Dominio asignado"), State.Board.Domains.IsValidIndex(Assigned)))
@@ -693,7 +693,7 @@ bool FBondRaceEchoConfinementTest::RunTest(const FString& Parameters)
 	}
 	TestFalse(TEXT("Elegido en carrera: sin confinamiento"), Soulbound::Rules::MakeMoverTraits(State, A).bConfinedToForgotten);
 	const double RaceEnd = State.Params.RaceDurationSeconds;
-	Soulbound::Rules::EndBondRace(State, RaceEnd, Random);
+	Soulbound::Rules::EndBondRace(State, RaceEnd);
 
 	const FMoverTraits Echo = Soulbound::Rules::MakeMoverTraits(State, C);
 	TestTrue(TEXT("Eco tras la carrera: confinado"), Echo.bConfinedToForgotten);
@@ -793,7 +793,7 @@ bool FBondRaceEventLogTest::RunTest(const FString& Parameters)
 		}
 
 		const double RaceEnd = State.Params.RaceDurationSeconds;
-		Soulbound::Rules::EndBondRace(State, RaceEnd, Random);
+		Soulbound::Rules::EndBondRace(State, RaceEnd);
 		const TArray<FMatchEvent> Homes = EventsOfType(State, EMatchEventType::HomeAssigned);
 		TestEqual(TEXT("Un hogar asignado por Eco"), Homes.Num(), 2);
 		for (const FMatchEvent& Home : Homes)
@@ -820,7 +820,7 @@ bool FBondRaceEventLogTest::RunTest(const FString& Parameters)
 		}
 		const double RaceEnd = State.Params.RaceDurationSeconds;
 		const int32 Before = State.EventLog.Num();
-		Soulbound::Rules::EndBondRace(State, RaceEnd, Random);
+		Soulbound::Rules::EndBondRace(State, RaceEnd);
 		if (TestEqual(TEXT("Sin vínculos: dos eventos"), State.EventLog.Num(), Before + 2))
 		{
 			const FMatchEvent& Victory = State.EventLog[Before];

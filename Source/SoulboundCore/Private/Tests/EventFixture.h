@@ -77,7 +77,7 @@ namespace Soulbound::Tests
 			{
 				return false;
 			}
-			if (!Test.TestTrue(TEXT("La carrera termina"), Soulbound::Rules::EndBondRace(State, Now, Random)))
+			if (!Test.TestTrue(TEXT("La carrera termina"), Soulbound::Rules::EndBondRace(State, Now)))
 			{
 				return false;
 			}
