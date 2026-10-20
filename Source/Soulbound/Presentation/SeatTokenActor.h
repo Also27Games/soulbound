@@ -14,7 +14,9 @@ class UTextRenderComponent;
  * Ficha de un asiento en pantalla (Token; nombre propuesto en S-005 para el glosario): una esfera básica del motor
  * con el color del asiento, que pasa a cono cuando el asiento es Elegido (S-006). Lleva el número del asiento escrito
  * encima. Si es el asiento activo (S-007) se eleva, gira despacio y un aro del color del asiento (el SeatRing) rodea
- * su casilla. Adaptador de presentación, sin reglas: la coloca, le da forma y la activa la vista según el estado.
+ * su casilla. Desde S-019, con la carta de prueba del kit si está (la pieza no se escala ni se tiñe: es una sola malla con
+ * color por vértice) y un aro del color del asiento en su base: tenue para un Eco, vivo para un Elegido. La raíz de la
+ * ficha es su base, sobre la losa. Adaptador de presentación, sin reglas: la coloca, le da forma y la activa la vista.
  */
 UCLASS(NotBlueprintable)
 class SOULBOUND_API ASeatTokenActor : public AActor
@@ -30,21 +32,34 @@ public:
 	void SetSeat(int32 InSeat) { Seat = InSeat; }
 	int32 GetSeat() const { return Seat; }
 
-	/** Pinta la ficha, su número y su aro. */
+	/** Pinta la ficha (sin carta), su número, el aro del activo y el aro del rol. */
 	void SetColor(const FLinearColor& Color);
 
-	/** Forma de Elegido (cono) o de Eco (esfera). Conserva el color. */
+	/** Forma de Elegido (cono) o de Eco (esfera); con la carta, el aro del rol vivo o tenue. Conserva el color. */
 	void SetElectShape(bool bElect);
 
 	/**
-	 * Parámetros de la presentación que da la vista: letra del número, elevación y giro del asiento activo, y el aro
-	 * (diámetro y grosor, en cm). Se llama una vez al crear la ficha.
+	 * Parámetros de la presentación que da la vista: letra del número, elevación y giro del asiento activo, el aro del activo
+	 * (diámetro y grosor), el crecimiento del activo y el diámetro de la ficha de formas básicas, en cm. Se llama una vez al
+	 * crear la ficha.
 	 */
-	void Configure(float InLabelSize, float InLift, float InSpinDegreesPerSecond, float InRingDiameter, float InRingWidth, float InActiveScale);
+	void Configure(float InLabelSize, float InLift, float InSpinDegreesPerSecond, float InRingDiameter, float InRingWidth, float InActiveScale, float InTokenDiameter);
+
+	/**
+	 * Cambia la forma básica por la carta del kit (S-019, R-VIS-6) y le pone el aro del rol en la base: su diámetro es
+	 * RoleRingScale por la huella de la carta, su grosor RoleRingWidth (cm), y un Eco lo lleva con EchoBrightness del brillo
+	 * de un Elegido. RoleRingMaterial necesita un parámetro de color "Color". Devuelve el componente de la carta para que la
+	 * vista le ponga los materiales del kit.
+	 */
+	UStaticMeshComponent* UseCard(UStaticMesh* Card, UMaterialInterface* RoleRingMaterial, float RoleRingScale, float RoleRingWidth, float EchoBrightness);
+
+	/** Enseña u oculta el número del asiento (la tecla de las capturas, S-019). */
+	void SetLabelVisible(bool bVisible);
 
 	/**
 	 * Lleva la ficha a Location deslizándola en línea recta desde donde esté, en SlideSeconds. La primera vez, o con
-	 * SlideSeconds a 0, la coloca sin deslizar. Es solo presentación: el estado ya está en el destino.
+	 * SlideSeconds a 0, la coloca sin deslizar. Location es la base de la ficha, sobre la losa. Es solo presentación: el
+	 * estado ya está en el destino.
 	 */
 	void MoveTo(const FVector& Location, float SlideSeconds);
 
@@ -52,7 +67,9 @@ public:
 	void SetActive(bool bInActive);
 
 private:
-	void BuildRing();
+	/** Un aro de segmentos (las formas básicas del motor no traen un anillo) bajo Parent, a la altura Z. */
+	void BuildRing(USceneComponent* Parent, TArray<TObjectPtr<UStaticMeshComponent>>& OutSegments, float Diameter, float Width, float Z);
+	void PaintRoleRing();
 
 	UPROPERTY()
 	TObjectPtr<USceneComponent> Pivot;
@@ -69,8 +86,15 @@ private:
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> RingSegments;
 
+	/** Aro del rol en la base de la carta (S-019); vacío sin carta. */
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> RoleRingSegments;
+
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> BaseMaterial;
+
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> RoleRingMaterial;
 
 	UPROPERTY()
 	TObjectPtr<UStaticMesh> EchoMesh;
@@ -87,13 +111,17 @@ private:
 	float SlideElapsed = 0.f;
 	bool bPlaced = false;
 	FLinearColor RingColor = FLinearColor::White;
-	float Lift = 45.f;
+	float Lift = 2.5f;
 	float ActiveScale = 1.3f;
 	float CurrentScale = 1.f;
 	float SpinDegreesPerSecond = 90.f;
-	float RingDiameter = 130.f;
-	float RingWidth = 8.f;
+	float RingDiameter = 8.5f;
+	float RingWidth = 0.5f;
+	float TokenDiameter = 2.2f;
 	float CurrentLift = 0.f;
+	float EchoBrightness = 0.5f;
 	int32 Seat = INDEX_NONE;
 	bool bActive = false;
+	bool bCard = false;
+	bool bElect = false;
 };

@@ -31,6 +31,12 @@ public:
 	/** Forma de la losa: cuadrada (cubo) o redonda (cilindro, la de origen). Conserva el color. S-007: el tipo se ve por la forma. */
 	void SetSquareShape(bool bSquare);
 
+	/**
+	 * Con la losa del kit encima (S-019), la forma básica no se ve pero conserva su colisión: sigue recibiendo el clic del
+	 * controlador. Sin ella, la forma básica es el respaldo y se ve como siempre.
+	 */
+	void SetKitSlabShown(bool bShown);
+
 private:
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> Mesh;

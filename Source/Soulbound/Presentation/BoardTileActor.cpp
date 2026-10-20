@@ -41,3 +41,9 @@ void ABoardTileActor::SetSquareShape(bool bSquare)
 		Mesh->SetStaticMesh(Wanted);
 	}
 }
+
+void ABoardTileActor::SetKitSlabShown(bool bShown)
+{
+	// La visibilidad no toca la colisión: el trazado del ratón sigue encontrando la casilla.
+	Mesh->SetVisibility(!bShown);
+}

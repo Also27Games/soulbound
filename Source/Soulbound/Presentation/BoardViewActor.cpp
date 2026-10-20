@@ -3,6 +3,7 @@
 #include "../Match/MatchHostSubsystem.h"
 #include "../Warden/WardenHostSubsystem.h"
 #include "BoardTileActor.h"
+#include "BoardViewState.h"
 #include "ChroniclePanel.h"
 #include "EventText.h"
 #include "LegendPanel.h"
@@ -13,7 +14,11 @@
 #include "SeatTokenActor.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
+#include "Components/InputComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SceneComponent.h"
+#include "Components/SkyLightComponent.h"
+#include "Components/SpotLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/Engine.h"
@@ -21,6 +26,7 @@
 #include "Engine/PostProcessVolume.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Materials/MaterialInterface.h"
 #include "TimerManager.h"
@@ -28,15 +34,30 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogSoulboundView, Log, All);
+
 namespace
 {
-	/** Casilla a la altura del suelo; las conexiones y las fichas se miden desde aquí. */
-	constexpr float TileThickness = 10.f;
-	constexpr float EdgeThickness = 4.f;
+	// Medidas de las formas de respaldo que no son parámetros (de S-005 a S-007), por 6,3/175 desde S-019: la mesa mide lo
+	// que mide el kit. El grosor de la losa es LayoutParams.SlabTop.
+	constexpr float EdgeThickness = 0.15f;
 	/** Alto de las marcas de tipo sobre la losa. */
-	constexpr float InlayHeight = 6.f;
+	constexpr float InlayHeight = 0.22f;
+	/** Holgura de los textos sobre las marcas. */
+	constexpr float TextClearance = 0.1f;
+	/** Altura y alto del halo de alcanzable y del aro de Olvidado, bajo la losa. */
+	constexpr float HaloZ = 0.07f;
+	constexpr float HaloHeight = 0.15f;
+	constexpr float ForgottenRingZ = 0.1f;
+	constexpr float ForgottenRingHeight = 0.22f;
 	/** Segmentos del aro de un Nicho reclamado. */
 	constexpr int32 NicheRingSegmentCount = 24;
+
+	/** Ruta inicial de una pieza o un material del kit, según kit.json (R-VIS-8). */
+	FSoftObjectPath KitPath(const TCHAR* Name)
+	{
+		return FSoftObjectPath(FString::Printf(TEXT("/Game/Art/Tablero/%s.%s"), Name, Name));
+	}
 
 	/** Clave base de los mensajes de pantalla de esta vista: una línea por clave, se sustituyen al refrescar. */
 	constexpr uint64 TextKeyBase = 0x53420500;
@@ -469,6 +490,28 @@ ABoardViewActor::ABoardViewActor()
 	SphereMesh = Sphere.Succeeded() ? Sphere.Object : nullptr;
 	BaseMaterial = Material.Succeeded() ? Material.Object : nullptr;
 
+	// Piezas y materiales del kit (S-019, R-VIS-8), con los nombres de kit.json. Config los sustituye si DefaultGame.ini los trae.
+	SlabMesh = KitPath(TEXT("SM_losa"));
+	CrackedSlabMesh = KitPath(TEXT("SM_losa_partida"));
+	NicheSlabMesh = KitPath(TEXT("SM_losa_nicho"));
+	SourceSlabMesh = KitPath(TEXT("SM_losa_fuente"));
+	NodeSlabMesh = KitPath(TEXT("SM_losa_nodo"));
+	PathSegmentMesh = KitPath(TEXT("SM_sendero"));
+	PedestalMesh = KitPath(TEXT("SM_peana"));
+	PlainFloorMesh = KitPath(TEXT("SM_suelo_liso"));
+	AltarMesh = KitPath(TEXT("SM_altar"));
+	NicheThroneMesh = KitPath(TEXT("SM_trono"));
+	PylonMesh = KitPath(TEXT("SM_pilon"));
+	FloatingRuneMesh = KitPath(TEXT("SM_runa_flotante"));
+	PlanarArchMesh = KitPath(TEXT("SM_nodo_planar"));
+	DuelSwordsMesh = KitPath(TEXT("SM_nodo_duelo"));
+	OracleOrbMesh = KitPath(TEXT("SM_nodo_oraculo"));
+	SealChainsMesh = KitPath(TEXT("SM_sello"));
+	TokenCardMesh = KitPath(TEXT("SM_ficha_prueba"));
+	VertexColorMaterial = KitPath(TEXT("M_ColorVertice"));
+	EmissiveMaterial = KitPath(TEXT("M_Emisivo"));
+	DimMaterial = KitPath(TEXT("M_Tenue"));
+
 	// Seis tonos a 60 grados de tono entre sí, del mismo brillo medio, para distinguirse a un metro.
 	DomainColors = {
 		FLinearColor(0.03f, 0.15f, 0.90f), // 0 azul
@@ -505,12 +548,24 @@ void ABoardViewActor::Initialize(UMatchHostSubsystem* InHost)
 		return;
 	}
 
-	TilePositions = ComputeTilePositions();
+	// S-019: la colocación es una función pura del tablero; la vista solo la lee.
+	LoadKit();
+	Layout = Soulbound::Presentation::ComputeBoardLayout(InHost->GetState().Board, LayoutParams);
+	if (!Layout.bRadial)
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Vista del tablero: el trazado no es radial (dos Dominios en el mismo sector o uno repartido en más de 60 grados); las cuñas van de 60 en 60 por identificador de Dominio."));
+	}
+	TilePositions.Reset(Layout.Tiles.Num());
+	for (const FTileLayout& Tile : Layout.Tiles)
+	{
+		TilePositions.Add(Tile.Location);
+	}
 	BuildEdges();
 	BuildTiles();
+	BuildKit();
 	BuildTokens();
 	BuildCamera();
-	BuildPostProcess();
+	BuildLighting();
 	BuildOverlay();
 	Refresh();
 
@@ -539,55 +594,245 @@ void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
-TArray<FVector> ABoardViewActor::ComputeTilePositions() const
+const TSoftObjectPtr<UStaticMesh>& ABoardViewActor::KitReference(EBoardKitPiece Piece, const TCHAR*& OutName) const
 {
-	const FBoardState& Board = Host->GetState().Board;
-	TArray<FVector> Positions;
-	Positions.SetNum(Board.Tiles.Num());
-
-	const bool bAllPositioned = Board.Tiles.FindByPredicate([](const FTileState& Tile) { return !Tile.bHasLayoutPosition; }) == nullptr;
-	if (bAllPositioned)
+	switch (Piece)
 	{
-		// El editor dibuja con la Y hacia abajo; la cámara cenital tiene el +X del mundo hacia arriba de la pantalla.
-		FVector2D Min(TNumericLimits<double>::Max(), TNumericLimits<double>::Max());
-		FVector2D Max(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Lowest());
-		for (const FTileState& Tile : Board.Tiles)
-		{
-			Min = FVector2D(FMath::Min(Min.X, Tile.LayoutPosition.X), FMath::Min(Min.Y, Tile.LayoutPosition.Y));
-			Max = FVector2D(FMath::Max(Max.X, Tile.LayoutPosition.X), FMath::Max(Max.Y, Tile.LayoutPosition.Y));
-		}
-		const FVector2D Center = (Min + Max) * 0.5;
-		for (const FTileState& Tile : Board.Tiles)
-		{
-			Positions[Tile.TileId] = FVector(-(Tile.LayoutPosition.Y - Center.Y) * PositionScale, (Tile.LayoutPosition.X - Center.X) * PositionScale, 0.0);
-		}
-		return Positions;
+	case EBoardKitPiece::Slab: OutName = TEXT("losa"); return SlabMesh;
+	case EBoardKitPiece::CrackedSlab: OutName = TEXT("losa partida"); return CrackedSlabMesh;
+	case EBoardKitPiece::NicheSlab: OutName = TEXT("losa del Nicho"); return NicheSlabMesh;
+	case EBoardKitPiece::SourceSlab: OutName = TEXT("losa de la Fuente"); return SourceSlabMesh;
+	case EBoardKitPiece::NodeSlab: OutName = TEXT("losa del Nodo"); return NodeSlabMesh;
+	case EBoardKitPiece::PathSegment: OutName = TEXT("sendero"); return PathSegmentMesh;
+	case EBoardKitPiece::Pedestal: OutName = TEXT("peana"); return PedestalMesh;
+	case EBoardKitPiece::PlainFloor: OutName = TEXT("suelo liso"); return PlainFloorMesh;
+	case EBoardKitPiece::Altar: OutName = TEXT("Altar"); return AltarMesh;
+	case EBoardKitPiece::NicheThrone: OutName = TEXT("trono"); return NicheThroneMesh;
+	case EBoardKitPiece::Pylon: OutName = TEXT("pilón"); return PylonMesh;
+	case EBoardKitPiece::FloatingRune: OutName = TEXT("runa flotante"); return FloatingRuneMesh;
+	case EBoardKitPiece::PlanarArch: OutName = TEXT("arco Planar"); return PlanarArchMesh;
+	case EBoardKitPiece::DuelSwords: OutName = TEXT("espadas de Duelo"); return DuelSwordsMesh;
+	case EBoardKitPiece::OracleOrb: OutName = TEXT("orbe del Oráculo"); return OracleOrbMesh;
+	case EBoardKitPiece::SealChains: OutName = TEXT("cadenas del Sello"); return SealChainsMesh;
+	case EBoardKitPiece::TokenCard:
+	default: OutName = TEXT("carta de la ficha"); return TokenCardMesh;
 	}
+}
 
-	// Sin posiciones en el archivo: el Altar en el centro y cada Dominio en un sector del anillo, en filas de cinco.
-	constexpr int32 PerRow = 5;
-	constexpr float FirstRowRadius = 600.f;
-	constexpr float RowSpacing = 350.f;
-	constexpr float AngleStepDegrees = 12.f;
-	TArray<int32> IndexInDomain;
-	IndexInDomain.Init(0, Soulbound::Board::DomainCount);
-	for (const FTileState& Tile : Board.Tiles)
+UStaticMesh* ABoardViewActor::KitMesh(EBoardKitPiece Piece) const
+{
+	const int32 Index = static_cast<int32>(Piece);
+	return KitMeshes.IsValidIndex(Index) ? KitMeshes[Index].Get() : nullptr;
+}
+
+EBoardKitPiece ABoardViewActor::SlabPiece(EBoardSlab Slab)
+{
+	switch (Slab)
 	{
-		if (Tile.DomainId == INDEX_NONE)
+	case EBoardSlab::Cracked: return EBoardKitPiece::CrackedSlab;
+	case EBoardSlab::Niche: return EBoardKitPiece::NicheSlab;
+	case EBoardSlab::PowerSource: return EBoardKitPiece::SourceSlab;
+	case EBoardSlab::PowerNode: return EBoardKitPiece::NodeSlab;
+	case EBoardSlab::Altar: return EBoardKitPiece::Altar;
+	case EBoardSlab::Normal:
+	default: return EBoardKitPiece::Slab;
+	}
+}
+
+EBoardKitPiece ABoardViewActor::StructurePiece(EBoardStructure Structure)
+{
+	switch (Structure)
+	{
+	case EBoardStructure::NicheThrone: return EBoardKitPiece::NicheThrone;
+	case EBoardStructure::Pylon: return EBoardKitPiece::Pylon;
+	case EBoardStructure::PlanarArch: return EBoardKitPiece::PlanarArch;
+	case EBoardStructure::DuelSwords: return EBoardKitPiece::DuelSwords;
+	case EBoardStructure::OracleOrb: return EBoardKitPiece::OracleOrb;
+	case EBoardStructure::None:
+	default: return EBoardKitPiece::Count;
+	}
+}
+
+void ABoardViewActor::LoadKit()
+{
+	// R-VIS-8: cada pieza que falte se avisa una vez, aquí, al iniciar; la vista usa la forma básica de hoy para ese elemento.
+	KitMeshes.Init(nullptr, static_cast<int32>(EBoardKitPiece::Count));
+	int32 Missing = 0;
+	for (int32 Index = 0; Index < KitMeshes.Num(); ++Index)
+	{
+		const EBoardKitPiece Piece = static_cast<EBoardKitPiece>(Index);
+		const TCHAR* Name = TEXT("");
+		const TSoftObjectPtr<UStaticMesh>& Reference = KitReference(Piece, Name);
+		if (Reference.IsNull())
 		{
-			Positions[Tile.TileId] = FVector::ZeroVector;
+			// Vacía: no hay pieza. Con el trono es una variante de diseño ("el Nicho es el trono"), no un fallo.
+			if (Piece != EBoardKitPiece::NicheThrone)
+			{
+				UE_LOG(LogSoulboundView, Warning, TEXT("Vista del tablero: la pieza %s no está configurada; se usa la forma básica."), Name);
+				++Missing;
+			}
 			continue;
 		}
-		const int32 K = IndexInDomain[Tile.DomainId]++;
-		const float Angle = FMath::DegreesToRadians(Tile.DomainId * (360.f / Soulbound::Board::DomainCount) + ((K % PerRow) - PerRow / 2) * AngleStepDegrees);
-		const float Radius = FirstRowRadius + (K / PerRow) * RowSpacing;
-		Positions[Tile.TileId] = FVector(FMath::Cos(Angle) * Radius, FMath::Sin(Angle) * Radius, 0.f);
+		KitMeshes[Index] = Reference.LoadSynchronous();
+		if (!KitMeshes[Index])
+		{
+			UE_LOG(LogSoulboundView, Warning, TEXT("Vista del tablero: la pieza %s (%s) no existe; se usa la forma básica."), Name, *Reference.ToString());
+			++Missing;
+		}
 	}
-	return Positions;
+	bNicheThroneConfigured = !NicheThroneMesh.IsNull();
+	if (!bNicheThroneConfigured)
+	{
+		UE_LOG(LogSoulboundView, Log, TEXT("Vista del tablero: sin trono configurado; el Nicho no lleva estructura."));
+	}
+
+	auto LoadMaterial = [&Missing](const TSoftObjectPtr<UMaterialInterface>& Reference, const TCHAR* Name) -> UMaterialInterface*
+	{
+		UMaterialInterface* Material = Reference.IsNull() ? nullptr : Reference.LoadSynchronous();
+		if (!Material)
+		{
+			UE_LOG(LogSoulboundView, Warning, TEXT("Vista del tablero: falta el material %s (%s); las piezas llevan el suyo."), Name, *Reference.ToString());
+			++Missing;
+		}
+		return Material;
+	};
+	KitVertexColorMaterial = LoadMaterial(VertexColorMaterial, TEXT("de color por vértice"));
+	KitEmissiveMaterial = LoadMaterial(EmissiveMaterial, TEXT("emisivo"));
+	KitDimMaterial = LoadMaterial(DimMaterial, TEXT("tenue"));
+	if (Missing > 0)
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Vista del tablero: faltan %d piezas o materiales del kit; el tablero usa formas básicas donde faltan."), Missing);
+	}
+}
+
+void ABoardViewActor::ApplyKitMaterials(UStaticMeshComponent& Component) const
+{
+	const UStaticMesh* Mesh = Component.GetStaticMesh();
+	if (!Mesh)
+	{
+		return;
+	}
+	const TArray<FStaticMaterial>& Slots = Mesh->GetStaticMaterials();
+	for (int32 Index = 0; Index < FMath::Max(1, Slots.Num()); ++Index)
+	{
+		const FString Slot = Slots.IsValidIndex(Index) ? Slots[Index].MaterialSlotName.ToString() : FString();
+		UMaterialInterface* Material = !EmissiveSlotTag.IsEmpty() && Slot.Contains(EmissiveSlotTag) ? KitEmissiveMaterial.Get()
+			: !DimSlotTag.IsEmpty() && Slot.Contains(DimSlotTag) ? KitDimMaterial.Get()
+			: KitVertexColorMaterial.Get();
+		if (Material)
+		{
+			Component.SetMaterial(Index, Material);
+		}
+	}
+}
+
+UStaticMeshComponent* ABoardViewActor::AddKitPiece(UStaticMesh* Mesh, const FVector& Location, float Yaw, bool bVisible)
+{
+	UStaticMeshComponent* Component = NewObject<UStaticMeshComponent>(this);
+	Component->SetStaticMesh(Mesh);
+	Component->SetupAttachment(GetRootComponent());
+	Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	// Las piezas del kit no se escalan (R-VIS-1): un metro del kit son 100 cm.
+	Component->SetRelativeLocationAndRotation(Location, FRotator(0.f, Yaw, 0.f));
+	Component->SetVisibility(bVisible);
+	ApplyKitMaterials(*Component);
+	Component->RegisterComponent();
+	return Component;
+}
+
+void ABoardViewActor::BuildKit()
+{
+	const FBoardState& Board = Host->GetState().Board;
+
+	// R-VIS-2: la peana y el suelo liso de cada Dominio, girados a su sector, con el centro en el Altar.
+	for (const FDomainWedgeLayout& Wedge : Layout.Wedges)
+	{
+		for (const EBoardKitPiece Piece : {EBoardKitPiece::Pedestal, EBoardKitPiece::PlainFloor})
+		{
+			if (UStaticMesh* Mesh = KitMesh(Piece))
+			{
+				KitFixedPieces.Add(AddKitPiece(Mesh, FVector::ZeroVector, Wedge.Yaw, true));
+			}
+		}
+	}
+
+	// R-VIS-3: una losa por casilla, una malla instanciada por pieza; el Altar es su pieza propia.
+	TMap<EBoardKitPiece, UInstancedStaticMeshComponent*> Instances;
+	auto InstancesOf = [this, &Instances](EBoardKitPiece Piece) -> UInstancedStaticMeshComponent*
+	{
+		if (UInstancedStaticMeshComponent** Found = Instances.Find(Piece))
+		{
+			return *Found;
+		}
+		UInstancedStaticMeshComponent* Component = NewObject<UInstancedStaticMeshComponent>(this);
+		Component->SetStaticMesh(KitMesh(Piece));
+		Component->SetupAttachment(GetRootComponent());
+		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		ApplyKitMaterials(*Component);
+		Component->RegisterComponent();
+		KitInstances.Add(Component);
+		Instances.Add(Piece, Component);
+		return Component;
+	};
+	for (const FTileState& Tile : Board.Tiles)
+	{
+		const FTileLayout& Placed = Layout.Tiles[Tile.TileId];
+		const EBoardKitPiece Piece = SlabPiece(Placed.Slab);
+		if (!TileHasKitSlab.IsValidIndex(Tile.TileId) || !TileHasKitSlab[Tile.TileId])
+		{
+			continue; // la forma básica de BuildTiles hace de respaldo
+		}
+		if (Placed.Slab == EBoardSlab::Altar)
+		{
+			KitFixedPieces.Add(AddKitPiece(KitMesh(Piece), Placed.Location, Placed.Yaw, true));
+		}
+		else
+		{
+			InstancesOf(Piece)->AddInstance(FTransform(FRotator(0.f, Placed.Yaw, 0.f), Placed.Location), false);
+		}
+	}
+
+	// R-VIS-4: los tramos de sendero de cada conexión, en una sola malla instanciada.
+	if (KitMesh(EBoardKitPiece::PathSegment))
+	{
+		UInstancedStaticMeshComponent* Paths = InstancesOf(EBoardKitPiece::PathSegment);
+		for (const FPathSegmentLayout& Segment : Layout.PathSegments)
+		{
+			Paths->AddInstance(FTransform(FRotator(0.f, Segment.Yaw, 0.f), Segment.Location), false);
+		}
+	}
+
+	// R-VIS-5: estructuras, runas flotantes y cadenas, ocultas hasta que el estado de vista las pide (RefreshKit).
+	Structures.Init(nullptr, Board.Tiles.Num());
+	FloatingRunes.Init(nullptr, Board.Tiles.Num());
+	SealChains.Init(nullptr, Board.Tiles.Num());
+	for (const FTileState& Tile : Board.Tiles)
+	{
+		const FTileLayout& Placed = Layout.Tiles[Tile.TileId];
+		if (UStaticMesh* Mesh = KitMesh(StructurePiece(Placed.Structure)))
+		{
+			Structures[Tile.TileId] = AddKitPiece(Mesh, Placed.StructureLocation, Placed.StructureYaw, false);
+		}
+		if (Placed.Structure == EBoardStructure::Pylon && KitMesh(EBoardKitPiece::FloatingRune))
+		{
+			FloatingRunes[Tile.TileId] = AddKitPiece(KitMesh(EBoardKitPiece::FloatingRune), Placed.StructureLocation + FVector(0.f, 0.f, LayoutParams.FloatingRuneHeight),
+				Placed.StructureYaw, false);
+		}
+		// El Altar no se sella (glosario "Sello"); las cadenas, sobre la cara superior de la losa.
+		if (Tile.Type != ETileType::Altar && KitMesh(EBoardKitPiece::SealChains))
+		{
+			SealChains[Tile.TileId] = AddKitPiece(KitMesh(EBoardKitPiece::SealChains), Placed.Location + FVector(0.f, 0.f, LayoutParams.SlabTop), Placed.Yaw, false);
+		}
+	}
 }
 
 void ABoardViewActor::BuildEdges()
 {
+	// S-019: con la pieza del sendero, los tramos del kit (BuildKit); la tira básica es el respaldo.
+	if (KitMesh(EBoardKitPiece::PathSegment))
+	{
+		return;
+	}
 	const FBoardState& Board = Host->GetState().Board;
 	for (const FTileState& Tile : Board.Tiles)
 	{
@@ -622,7 +867,8 @@ void ABoardViewActor::BuildTiles()
 	const FBoardState& Board = Host->GetState().Board;
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	TileTops.Init(TileThickness, Board.Tiles.Num());
+	TileTops.Init(LayoutParams.SlabTop, Board.Tiles.Num());
+	TileHasKitSlab.Init(false, Board.Tiles.Num());
 	Inlays.Init(nullptr, Board.Tiles.Num());
 	InlayOutlines.Init(nullptr, Board.Tiles.Num());
 	InlayOutlinesB.Init(nullptr, Board.Tiles.Num());
@@ -655,8 +901,17 @@ void ABoardViewActor::BuildTiles()
 	{
 		const FVector Position = TilePositions[Tile.TileId];
 		const bool bAltar = Tile.Type == ETileType::Altar;
-		const float Thickness = bAltar ? AltarThickness : TileThickness;
-		const float Diameter = TileDiameter * (bAltar ? AltarScale : 1.f);
+		// S-019: si está la pieza de la losa (o del Altar), la forma básica queda oculta y solo recibe el clic.
+		UStaticMesh* KitSlab = Layout.Tiles.IsValidIndex(Tile.TileId) ? KitMesh(SlabPiece(Layout.Tiles[Tile.TileId].Slab)) : nullptr;
+		TileHasKitSlab[Tile.TileId] = KitSlab != nullptr;
+		// La cara superior es la cota de la ficha (R-VIS-3): la de la losa del kit, o el alto de la pieza del Altar.
+		float Thickness = bAltar ? AltarThickness : LayoutParams.SlabTop;
+		if (bAltar && KitSlab)
+		{
+			const FBoxSphereBounds Bounds = KitSlab->GetBounds();
+			Thickness = Bounds.Origin.Z + Bounds.BoxExtent.Z;
+		}
+		const float Diameter = bAltar ? LayoutParams.AltarApothem * 2.f : SlabSize();
 		TileTops[Tile.TileId] = Thickness;
 
 		// El tipo se ve por la silueta: Nicho cuadrado, Nodo en rombo, Altar grande y alto, el resto redondo.
@@ -678,30 +933,32 @@ void ABoardViewActor::BuildTiles()
 		{
 			Actor->SetTileId(Tile.TileId);
 			Actor->SetSquareShape(Tile.Type == ETileType::Niche || Tile.Type == ETileType::PowerNode);
+			Actor->SetKitSlabShown(KitSlab != nullptr);
 			Actor->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
 		}
 		TileActors.Add(Actor);
 
 		// Halo de "alcanzable": un disco por debajo de la losa, más ancho, que solo se ve en el borde. La losa
 		// conserva su color; el halo se enciende cuando la tirada la permite.
-		UStaticMeshComponent* Halo = AddShape(CylinderMesh, Position + FVector(0.f, 0.f, 2.f), FRotator::ZeroRotator, FVector(Diameter * HaloScale, Diameter * HaloScale, 4.f));
+		UStaticMeshComponent* Halo = AddShape(CylinderMesh, Position + FVector(0.f, 0.f, HaloZ), FRotator::ZeroRotator, FVector(Diameter * HaloScale, Diameter * HaloScale, HaloHeight));
 		Soulbound::Presentation::SetComponentColor(*Halo, BaseMaterial, ReachableColor);
 		Halo->SetVisibility(false);
 		Halos[Tile.TileId] = Halo;
 
 		// Aro de Dominio Olvidado: más alto que el halo, para que se vea también en una casilla alcanzable.
-		UStaticMeshComponent* Ring = AddShape(CylinderMesh, Position + FVector(0.f, 0.f, 3.f), FRotator::ZeroRotator, FVector(Diameter * ForgottenRingScale, Diameter * ForgottenRingScale, 6.f));
+		UStaticMeshComponent* Ring = AddShape(CylinderMesh, Position + FVector(0.f, 0.f, ForgottenRingZ), FRotator::ZeroRotator,
+			FVector(Diameter * ForgottenRingScale, Diameter * ForgottenRingScale, ForgottenRingHeight));
 		Soulbound::Presentation::SetComponentColor(*Ring, BaseMaterial, ForgottenRingColor);
 		Ring->SetVisibility(false);
 		ForgottenRings[Tile.TileId] = Ring;
 
 		// Marca del tipo sobre la losa, del tamaño justo para no tapar la ficha del centro, con contorno negro
-		// para que se distinga sobre cualquier Dominio.
-		const float Inlay = TileDiameter * InlayScale;
+		// para que se distinga sobre cualquier Dominio. Con la losa del kit no hace falta: la pieza ya dice el tipo.
+		const float Inlay = SlabSize() * InlayScale;
 		const float Outline = Inlay * OutlineScale;
 		const FVector OnTop = Position + FVector(0.f, 0.f, Thickness);
 		const FVector Mid = OnTop + FVector(0.f, 0.f, InlayHeight * 0.5f);
-		switch (Tile.Type)
+		switch (KitSlab ? ETileType::Normal : Tile.Type)
 		{
 		case ETileType::Niche:
 			InlayOutlines[Tile.TileId] = AddShape(CubeMesh, OnTop + FVector(0.f, 0.f, InlayHeight * 0.4f), FRotator::ZeroRotator, FVector(Outline, Outline, InlayHeight * 0.8f));
@@ -748,7 +1005,7 @@ void ABoardViewActor::BuildTiles()
 		// El texto del motor se ve desde +X: tumbado con el frente hacia arriba (pitch 90) y la cabeza hacia +X, arriba
 		// de la pantalla (yaw 180). Con pitch -90 se veía por detrás, como en un espejo.
 		Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
-		Label->SetWorldLocation(OnTop + FVector(-Diameter * LabelOffsetFraction * (bAltar ? 1.f : 1.f), 0.f, InlayHeight + 3.f));
+		Label->SetWorldLocation(OnTop + FVector(-Diameter * LabelOffsetFraction, 0.f, InlayHeight + TextClearance));
 		Label->SetText(FText::FromString(TileLabelText(Board, Tile)));
 		Labels[Tile.TileId] = Label;
 
@@ -765,7 +1022,7 @@ void ABoardViewActor::BuildTiles()
 			Reserve->SetWorldSize(NicheNumberSize);
 			Reserve->SetTextRenderColor(SourceReserveColor);
 			Reserve->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
-			Reserve->SetWorldLocation(OnTop + FVector(0.f, 0.f, InlayHeight + 3.f));
+			Reserve->SetWorldLocation(OnTop + FVector(0.f, 0.f, InlayHeight + TextClearance));
 			Reserve->SetText(FText::GetEmpty());
 			SourceReserves[Tile.TileId] = Reserve;
 		}
@@ -788,20 +1045,20 @@ void ABoardViewActor::BuildTiles()
 				Text->SetWorldLocation(OnTop + Offset);
 				return Text;
 			};
-			NicheNames[Tile.TileId] = AddText(NicheNameSize, FVector(Diameter * NicheNameOffsetFraction, 0.f, InlayHeight + 3.f));
+			NicheNames[Tile.TileId] = AddText(NicheNameSize, FVector(Diameter * NicheNameOffsetFraction, 0.f, InlayHeight + TextClearance));
 			NicheNames[Tile.TileId]->SetText(FText::FromString(ElectName(Host->GetState(), Tile.DomainId)));
-			NicheNumbers[Tile.TileId] = AddText(NicheNumberSize, FVector(0.f, 0.f, InlayHeight + 3.f));
+			NicheNumbers[Tile.TileId] = AddText(NicheNumberSize, FVector(0.f, 0.f, InlayHeight + TextClearance));
 			NicheNumbers[Tile.TileId]->SetText(FText::GetEmpty());
 
 			// Aro del asiento: segmentos en círculo alrededor de la casilla, apagados hasta que se reclama.
-			const float RingRadius = TileDiameter * NicheRingRadiusScale;
+			const float RingRadius = SlabSize() * NicheRingRadiusScale;
 			const float SegmentLength = 2.f * PI * RingRadius / NicheRingSegmentCount * 1.15f;
 			NicheRingFirst[Tile.TileId] = NicheRingSegments.Num();
 			for (int32 Index = 0; Index < NicheRingSegmentCount; ++Index)
 			{
 				const float Angle = 2.f * PI * Index / NicheRingSegmentCount;
-				UStaticMeshComponent* Segment = AddShape(CubeMesh, Position + FVector(FMath::Cos(Angle) * RingRadius, FMath::Sin(Angle) * RingRadius, 3.f),
-					FRotator(0.f, FMath::RadiansToDegrees(Angle) + 90.f, 0.f), FVector(SegmentLength, NicheRingWidth, 6.f));
+				UStaticMeshComponent* Segment = AddShape(CubeMesh, Position + FVector(FMath::Cos(Angle) * RingRadius, FMath::Sin(Angle) * RingRadius, ForgottenRingZ),
+					FRotator(0.f, FMath::RadiansToDegrees(Angle) + 90.f, 0.f), FVector(SegmentLength, NicheRingWidth, ForgottenRingHeight));
 				Soulbound::Presentation::SetComponentColor(*Segment, BaseMaterial, FLinearColor::White);
 				Segment->SetVisibility(false);
 				NicheRingSegments.Add(Segment);
@@ -814,14 +1071,19 @@ void ABoardViewActor::BuildTokens()
 {
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	UStaticMesh* Card = KitMesh(EBoardKitPiece::TokenCard);
 	for (int32 Seat = 0; Seat < Host->GetState().Seats.Num(); ++Seat)
 	{
-		ASeatTokenActor* Token = GetWorld()->SpawnActor<ASeatTokenActor>(ASeatTokenActor::StaticClass(),
-			FTransform(FRotator::ZeroRotator, FVector::ZeroVector, FVector(TokenDiameter / 100.f)), Params);
+		ASeatTokenActor* Token = GetWorld()->SpawnActor<ASeatTokenActor>(ASeatTokenActor::StaticClass(), FTransform::Identity, Params);
 		if (Token)
 		{
 			Token->SetSeat(Seat);
-			Token->Configure(TokenLabelSize, ActiveLift, ActiveSpinDegreesPerSecond, RingDiameter, RingWidth, ActiveScale);
+			Token->Configure(TokenLabelSize, ActiveLift, ActiveSpinDegreesPerSecond, RingDiameter, RingWidth, ActiveScale, TokenDiameter);
+			// R-VIS-6: la carta de prueba del kit, con el color del asiento en el aro de su base (sin carta, la esfera o el cono).
+			if (UStaticMeshComponent* CardMesh = Token->UseCard(Card, KitEmissiveMaterial, TokenRingScale, TokenRingWidth, EchoRingBrightness))
+			{
+				ApplyKitMaterials(*CardMesh);
+			}
 			Token->SetColor(SeatColor(Seat));
 			Token->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
 		}
@@ -831,15 +1093,9 @@ void ABoardViewActor::BuildTokens()
 
 void ABoardViewActor::BuildCamera()
 {
-	FVector2D Min(TNumericLimits<double>::Max(), TNumericLimits<double>::Max());
-	FVector2D Max(TNumericLimits<double>::Lowest(), TNumericLimits<double>::Lowest());
-	for (const FVector& Position : TilePositions)
-	{
-		Min = FVector2D(FMath::Min(Min.X, Position.X), FMath::Min(Min.Y, Position.Y));
-		Max = FVector2D(FMath::Max(Max.X, Position.X), FMath::Max(Max.Y, Position.Y));
-	}
-	BoardCenter = (Min + Max) * 0.5;
-	BoardHalf = (Max - Min) * 0.5 + FVector2D(TileDiameter * AltarScale * 0.5f + RingDiameter * 0.1f);
+	// R-VIS-9: la cenital de siempre, ajustada a la mesa, con el Altar en el centro.
+	BoardCenter = FVector2D::ZeroVector;
+	BoardHalf = FVector2D(LayoutParams.TableRadius);
 
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -850,6 +1106,18 @@ void ABoardViewActor::BuildCamera()
 		Camera->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
 	}
 	UpdateCamera();
+
+	// La vista sentada del asiento humano: fuera del borde de la mesa, sobre ella, inclinada hacia abajo y girada al centro.
+	// No es la cámara de la interfaz (R-CAM-1 a 5).
+	const float Yaw = SeatedViewYawDegrees;
+	const FVector2D Direction(FMath::Cos(FMath::DegreesToRadians(Yaw)), FMath::Sin(FMath::DegreesToRadians(Yaw)));
+	const FVector Location(Direction * (LayoutParams.TableRadius + SeatedViewDistance), SeatedViewHeight);
+	SeatedCamera = GetWorld()->SpawnActor<ACameraActor>(ACameraActor::StaticClass(), FTransform(FRotator(-SeatedViewPitchDegrees, Yaw + 180.f, 0.f), Location), Params);
+	if (SeatedCamera)
+	{
+		SeatedCamera->GetCameraComponent()->SetFieldOfView(60.f);
+		SeatedCamera->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
+	}
 }
 
 void ABoardViewActor::UpdateCamera()
@@ -882,7 +1150,7 @@ void ABoardViewActor::UpdateCamera()
 	Camera->SetActorLocation(FVector(BoardCenter.X, BoardCenter.Y + ShiftY, Height));
 }
 
-void ABoardViewActor::BuildPostProcess()
+void ABoardViewActor::BuildLighting()
 {
 	// Exposición manual fija en un volumen sin límites, generado por código: el nivel del spike lleva la suya
 	// automática y los colores salían pastel. Prioridad alta para ganar a cualquier otro volumen del mapa.
@@ -898,6 +1166,27 @@ void ABoardViewActor::BuildPostProcess()
 		PostProcess->Settings.bOverride_AutoExposureBias = true;
 		PostProcess->Settings.AutoExposureBias = ExposureEV100;
 	}
+
+	// R-VIS-7: la lámpara sobre la mesa, un foco cenital, y un cielo tenue; sin sol ni cielo visible. Se crean en partida,
+	// así que son luces móviles.
+	// TODO(R-VIS-7): las luces estáticas (precalculadas, por la Steam Deck) llegan con la Cripta; hasta entonces, móviles.
+	Lamp = NewObject<USpotLightComponent>(this);
+	Lamp->SetupAttachment(GetRootComponent());
+	Lamp->SetMobility(EComponentMobility::Movable);
+	Lamp->SetRelativeLocationAndRotation(FVector(0.f, 0.f, LampHeight), FRotator(-90.f, 0.f, 0.f));
+	Lamp->SetIntensityUnits(ELightUnits::Candelas);
+	Lamp->SetIntensity(LampIntensityCandelas);
+	Lamp->SetInnerConeAngle(LampInnerConeDegrees);
+	Lamp->SetOuterConeAngle(LampOuterConeDegrees);
+	Lamp->RegisterComponent();
+
+	SkyLight = NewObject<USkyLightComponent>(this);
+	SkyLight->SetupAttachment(GetRootComponent());
+	SkyLight->SetMobility(EComponentMobility::Movable);
+	SkyLight->SourceType = ESkyLightSourceType::SLS_CapturedScene;
+	SkyLight->SetIntensity(SkyLightIntensity);
+	SkyLight->RegisterComponent();
+	SkyLight->RecaptureSky();
 }
 
 void ABoardViewActor::BuildOverlay()
@@ -943,6 +1232,15 @@ void ABoardViewActor::BuildOverlay()
 			{NicheFreeColor, TEXT("N Nicho: casilla cuadrada con cubo")},
 			{SourceColor, TEXT("F Fuente: casilla redonda con cruz")},
 			{NodeColor, TEXT("X Nodo: rombo con esfera")}}});
+	// S-019: con el kit, la losa de cada tipo y su estructura dicen el tipo (las formas básicas quedan donde falta la pieza).
+	if (TileHasKitSlab.Contains(true))
+	{
+		Rows.Add({TEXT("Con el kit (color por vértice: sin color de Dominio en la losa)"),
+			{{NicheFreeColor, TEXT("Nicho: losa con cabecera y trono")},
+				{SourceColor, TEXT("Fuente: pilón, con runa mientras tiene reserva")},
+				{NodeColor, TEXT("Nodo: losa con puntas; desde el Despertar, arco, espadas u orbe")},
+				{SealedColor, TEXT("sellada: cadenas sobre la losa")}}});
+	}
 	Rows.Add({TEXT("Nicho (el cubo)"),
 		{{NicheFreeColor, TEXT("Libre")}, {SeatColor(0), TEXT("Reclamado: aro y número del asiento")}, {NicheClosedColor, TEXT("Cerrado")}}});
 	Rows.Add({TEXT("Estado de la casilla"),
@@ -951,7 +1249,10 @@ void ABoardViewActor::BuildOverlay()
 			{ForgottenRingColor, TEXT("Dominio Olvidado: casillas apagadas con aro gris oscuro")}}});
 	// Una fila por asiento, con su rol al día: Eco (esfera) o Elegido (cono), y el Dominio que lleva.
 	FLegendRow Seats;
-	Seats.Title = TEXT("Asientos (el número va en la ficha): esfera = Eco, cono = Elegido. El activo crece, sube, gira y lleva aro");
+	// S-019: con la carta del kit, el rol va en el aro de su base (decisión del autor del 20/10/2026).
+	Seats.Title = KitMesh(EBoardKitPiece::TokenCard)
+		? TEXT("Asientos (el número va sobre la carta): aro tenue = Eco, aro vivo = Elegido. El activo crece, sube, gira y lleva aro")
+		: TEXT("Asientos (el número va en la ficha): esfera = Eco, cono = Elegido. El activo crece, sube, gira y lleva aro");
 	for (int32 Seat = 0; Seat < Host->GetState().Seats.Num(); ++Seat)
 	{
 		FLegendChip Chip;
@@ -1102,7 +1403,7 @@ void ABoardViewActor::Refresh()
 		}
 		if (UStaticMeshComponent* Halo = Halos.IsValidIndex(Tile.TileId) ? Halos[Tile.TileId].Get() : nullptr)
 		{
-			Halo->SetVisibility(Reachable.Contains(Tile.TileId));
+			Halo->SetVisibility(Reachable.Contains(Tile.TileId) && !bOverlayHidden);
 		}
 
 		UStaticMeshComponent* Inlay = Inlays.IsValidIndex(Tile.TileId) ? Inlays[Tile.TileId].Get() : nullptr;
@@ -1160,7 +1461,19 @@ void ABoardViewActor::Refresh()
 			const bool bDepletedSource = Tile.Type == ETileType::PowerSource && State.Board.Phase == EBoardPhase::Awakened && Tile.RuneReserve <= 0;
 			Label->SetTextRenderColor(Tile.bSealed ? FColor::Red : bDepletedSource ? FColor(130, 130, 130) : FColor::White);
 		}
+		// S-019 (R-VIS-9): la tecla de las capturas oculta todas las etiquetas de la casilla.
+		for (const TArray<TObjectPtr<UTextRenderComponent>>* Texts : {&Labels, &NicheNames, &NicheNumbers, &SourceReserves})
+		{
+			if (UTextRenderComponent* Text = Texts->IsValidIndex(Tile.TileId) ? (*Texts)[Tile.TileId].Get() : nullptr)
+			{
+				Text->SetVisibility(!bOverlayHidden);
+			}
+		}
 	}
+
+	// S-019: estructuras, runas flotantes, cadenas y fichas fuera en el Vacío, según el estado de vista.
+	const FBoardViewState View = Soulbound::Presentation::ComputeBoardViewState(State, bNicheThroneConfigured);
+	RefreshKit(View);
 
 	// Asiento activo: solo mientras dura su turno; entre turnos no juega nadie.
 	const bool bSomeoneActive = !State.IsMatchOver() && State.TurnPhase != ETurnPhase::BetweenTurns;
@@ -1175,7 +1488,8 @@ void ABoardViewActor::Refresh()
 			continue;
 		}
 		// S-013 (R-TAB-24): en el Vacío la ficha sale del tablero; se oculta y reaparece en su hogar al salir.
-		Token->SetActorHiddenInGame(State.Seats[Seat].IsInVoid());
+		Token->SetActorHiddenInGame(!View.TokensOnBoard.IsValidIndex(Seat) || !View.TokensOnBoard[Seat]);
+		Token->SetLabelVisible(!bOverlayHidden);
 		if (!TilePositions.IsValidIndex(TileId))
 		{
 			continue;
@@ -1194,15 +1508,89 @@ void ABoardViewActor::Refresh()
 		if (Sharing > 1)
 		{
 			const float Angle = 2.f * PI * MyIndex / Sharing;
-			Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * (TileDiameter * 0.28f);
+			Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * (SlabSize() * 0.28f);
 		}
-		Token->MoveTo(TilePositions[TileId] + Offset + FVector(0.f, 0.f, TileTops[TileId] + TokenDiameter * 0.5f), TokenSlideSeconds);
-		// Elegido: cono; Eco: esfera (criterio manual "Vínculo visible").
+		// La base de la ficha, posada en la cara superior de la losa (R-VIS-3, R-VIS-6).
+		Token->MoveTo(TilePositions[TileId] + Offset + FVector(0.f, 0.f, TileTops[TileId]), TokenSlideSeconds);
+		// Elegido: cono, o aro vivo con la carta; Eco: esfera, o aro tenue (criterio manual "Vínculo visible").
 		Token->SetElectShape(State.Seats[Seat].Role == ESeatRole::Elect);
 		Token->SetActive(bSomeoneActive && Seat == State.ActiveSeat);
 	}
 
 	RefreshChronicle(State);
+}
+
+void ABoardViewActor::RefreshKit(const FBoardViewState& View)
+{
+	// R-VIS-5: lo que cambia con la partida se lee del estado de vista; la vista no decide nada.
+	for (int32 TileId = 0; TileId < View.Tiles.Num(); ++TileId)
+	{
+		const FTileViewState& Shown = View.Tiles[TileId];
+		if (UStaticMeshComponent* Structure = Structures.IsValidIndex(TileId) ? Structures[TileId].Get() : nullptr)
+		{
+			Structure->SetVisibility(Shown.Structure != EBoardStructure::None);
+		}
+		if (UStaticMeshComponent* Rune = FloatingRunes.IsValidIndex(TileId) ? FloatingRunes[TileId].Get() : nullptr)
+		{
+			Rune->SetVisibility(Shown.bFloatingRune);
+		}
+		if (UStaticMeshComponent* Chains = SealChains.IsValidIndex(TileId) ? SealChains[TileId].Get() : nullptr)
+		{
+			Chains->SetVisibility(Shown.bSealChains);
+		}
+	}
+}
+
+void ABoardViewActor::ToggleSeatedView()
+{
+	bSeatedView = !bSeatedView;
+	ApplyViewTarget();
+}
+
+void ABoardViewActor::ToggleOverlay()
+{
+	bOverlayHidden = !bOverlayHidden;
+	Refresh();
+}
+
+void ABoardViewActor::ApplyViewTarget()
+{
+	ACameraActor* Wanted = bSeatedView && SeatedCamera ? SeatedCamera.Get() : Camera.Get();
+	if (!Wanted)
+	{
+		return;
+	}
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		APlayerController* Controller = It->Get();
+		if (!Controller || !Controller->IsLocalController())
+		{
+			continue;
+		}
+		if (Controller->GetViewTarget() != Wanted)
+		{
+			Controller->SetViewTarget(Wanted);
+		}
+		// S-019: a escala de mesa, el peón por defecto del modo de juego (una esfera de 70 cm en el PlayerStart) tapa las
+		// cámaras. La vista no lo usa: lo oculta y le quita la colisión, para que tampoco se coma el clic en las casillas.
+		APawn* Pawn = Controller->GetPawn();
+		if (Pawn && !Pawn->IsHidden())
+		{
+			Pawn->SetActorHiddenInGame(true);
+			Pawn->SetActorEnableCollision(false);
+		}
+		// S-019 (R-VIS-9): las teclas de la vista, enlazadas a la tecla sin assets de entrada, como las del controlador.
+		if (!bInputBound)
+		{
+			EnableInput(Controller);
+			if (InputComponent)
+			{
+				InputComponent->BindKey(SeatedViewKey, IE_Pressed, this, &ABoardViewActor::ToggleSeatedView);
+				InputComponent->BindKey(OverlayToggleKey, IE_Pressed, this, &ABoardViewActor::ToggleOverlay);
+				bInputBound = true;
+			}
+		}
+	}
 }
 
 void ABoardViewActor::ShowText(int32 Line, const FColor& Color, const FString& Text) const
@@ -1223,17 +1611,11 @@ void ABoardViewActor::TickHud()
 	}
 	const FMatchState& State = HostPtr->GetState();
 
-	// La cámara es la vista del jugador local. Se pone al iniciar la partida, o en cuanto exista el controlador.
+	// La cámara es la vista del jugador local. Se pone al iniciar la partida, o en cuanto exista el controlador. Desde
+	// S-019, la cenital o la sentada, según la tecla.
 	if (Camera)
 	{
-		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
-		{
-			APlayerController* Controller = It->Get();
-			if (Controller && Controller->IsLocalController() && Controller->GetViewTarget() != Camera)
-			{
-				Controller->SetViewTarget(Camera);
-			}
-		}
+		ApplyViewTarget();
 		// Si la ventana cambia de tamaño, el tablero se recoloca en el hueco de los paneles.
 		if (const UGameViewportClient* Client = GetWorld()->GetGameViewport())
 		{

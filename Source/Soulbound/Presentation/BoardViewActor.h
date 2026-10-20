@@ -2,8 +2,11 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "InputCoreTypes.h"
+#include "BoardLayout.h"
 #include "BoardViewActor.generated.h"
 
+struct FBoardViewState;
 struct FMatchState;
 class ABoardTileActor;
 class ACameraActor;
@@ -11,11 +14,37 @@ class APostProcessVolume;
 class ASeatTokenActor;
 class SChroniclePanel;
 class SWidget;
+class UInstancedStaticMeshComponent;
 class UMaterialInterface;
 class UMatchHostSubsystem;
+class USkyLightComponent;
+class USpotLightComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 class UTextRenderComponent;
+
+/** Pieza del kit de arte del tablero (S-019, R-VIS-8): una por referencia configurable de la vista. */
+enum class EBoardKitPiece : uint8
+{
+	Slab,
+	CrackedSlab,
+	NicheSlab,
+	SourceSlab,
+	NodeSlab,
+	PathSegment,
+	Pedestal,
+	PlainFloor,
+	Altar,
+	NicheThrone,
+	Pylon,
+	FloatingRune,
+	PlanarArch,
+	DuelSwords,
+	OracleOrb,
+	SealChains,
+	TokenCard,
+	Count,
+};
 
 /**
  * Vista de depuración de la partida (S-005; nombre propuesto): genera desde los datos, al iniciar la partida, las
@@ -31,9 +60,15 @@ class UTextRenderComponent;
  * (SeatRing), y el panel de crónica (ChroniclePanel) con todos los sucesos.
  * Desde S-009 enseña la elección pendiente: una línea de petición con las opciones numeradas y el tiempo que queda, el
  * halo en los Nodos a los que se puede saltar, y el efecto de cada Nodo en su etiqueta tras el Despertar.
- * Sin arte: formas básicas del motor, texto del motor y Slate. Nada se coloca a mano en el mapa.
+ * Desde S-019 coloca el kit de arte desde los datos sobre una mesa de radio de datos (BoardLayout): una losa por casilla,
+ * senderos por conexión, la cuña de cada Dominio, el Altar, las estructuras de las casillas especiales, las cadenas de los
+ * Sellos y la carta de cada ficha, con la lámpara de la mesa; lo que cambia con la partida sale del estado de vista
+ * (BoardViewState). Cada pieza es una referencia blanda en Config (DefaultGame.ini, sección
+ * [/Script/Soulbound.BoardViewActor]): vacía, no hay pieza; puesta pero inexistente, la forma básica de hoy como respaldo y
+ * un aviso en el registro. Formas básicas, texto del motor y Slate siguen encima. Nada se coloca a mano en el mapa: el
+ * decorado del autor vive en el nivel, fuera de esta vista.
  */
-UCLASS(NotBlueprintable)
+UCLASS(NotBlueprintable, Config = Game)
 class SOULBOUND_API ABoardViewActor : public AActor
 {
 	GENERATED_BODY()
@@ -46,23 +81,26 @@ public:
 
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
-	// ---- Tamaños ----
+	// ---- Mesa (S-019) ----
 
-	/** Centímetros del mundo por unidad de posición del archivo del tablero. Valor inicial 3. */
-	UPROPERTY(EditAnywhere, Category = "Vista")
-	float PositionScale = 3.f;
+	/**
+	 * Medidas de la mesa y del kit para colocar el tablero (R-VIS-1 a 5): radio de mesa, losa, Altar, tramo de sendero, losas
+	 * partidas y distancias de las estructuras. Valores iniciales en FBoardLayoutParams. Las formas de respaldo miden lo
+	 * mismo que las piezas: la losa básica, 2 por SlabHalfSize; el Altar básico, 2 por AltarApothem.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Vista|Mesa")
+	FBoardLayoutParams LayoutParams;
 
-	/** Diámetro de una casilla, en cm. Valor inicial 175: el tablero de 35 casillas deja como mínimo 210 entre centros. */
-	UPROPERTY(EditAnywhere, Category = "Vista")
-	float TileDiameter = 175.f;
+	// ---- Tamaños de las formas de respaldo y de las marcas. Desde S-019, los de S-005 a S-007 por 6,3/175: la mesa mide
+	// lo que mide el kit. ----
 
-	/** Grosor de la tira de una conexión, en cm. Valor inicial 22. */
+	/** Grosor de la tira de una conexión (respaldo sin sendero), en cm. Valor inicial 0,8 (22 antes de S-019). */
 	UPROPERTY(EditAnywhere, Category = "Vista")
-	float EdgeWidth = 22.f;
+	float EdgeWidth = 0.8f;
 
-	/** Diámetro de una ficha, en cm. Valor inicial 62. */
+	/** Diámetro de una ficha de formas básicas (respaldo sin carta), en cm. Valor inicial 2,2 (62 antes de S-019). */
 	UPROPERTY(EditAnywhere, Category = "Vista")
-	float TokenDiameter = 62.f;
+	float TokenDiameter = 2.2f;
 
 	/** Segundos que tarda la ficha en deslizarse en línea recta de su casilla a la de destino. 0 la coloca sin deslizar. Valor inicial 0,5. */
 	UPROPERTY(EditAnywhere, Category = "Vista")
@@ -72,13 +110,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista")
 	float HudIntervalSeconds = 0.25f;
 
-	/** El Altar mide esto por el diámetro de una casilla. Valor inicial 1,6. */
+	/** Grosor del Altar de respaldo, en cm (las losas, LayoutParams.SlabTop). Valor inicial 0,8 (22 antes de S-019). Con la pieza, su alto. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
-	float AltarScale = 1.6f;
-
-	/** Grosor de la losa del Altar, en cm (las demás miden 10). Valor inicial 22. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
-	float AltarThickness = 22.f;
+	float AltarThickness = 0.8f;
 
 	/** Diámetro de la marca del tipo (cubo del Nicho, cruz de la Fuente, esfera del Nodo) por el de la casilla. Valor inicial 0,6. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
@@ -102,37 +136,40 @@ public:
 
 	// ---- Etiquetas ----
 
-	/** Alto de la letra de la etiqueta de casilla (TileLabel), en cm. Valor inicial 40: "N D3·41" mide unos 155 cm y la casilla 175. */
+	/**
+	 * Alto de la letra de la etiqueta de casilla (TileLabel), en cm. Valor inicial 1,8 (40 antes de S-019): "N D3·41" mide
+	 * unos 7 y las losas más juntas del tablero de 35 distan 9,2; a 1,4 no se leía a 1280x800.
+	 */
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
-	float LabelSize = 40.f;
+	float LabelSize = 1.8f;
 
 	/** Distancia de la etiqueta al centro, hacia abajo de la pantalla, por el diámetro de la casilla. Valor inicial 0,4. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
 	float LabelOffsetFraction = 0.4f;
 
-	/** Alto de la letra del número de la ficha, en cm. Valor inicial 40. */
+	/** Alto de la letra del número de la ficha, en cm. Valor inicial 1,4 (40 antes de S-019). */
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
-	float TokenLabelSize = 40.f;
+	float TokenLabelSize = 1.4f;
 
 	/** Radio del aro del asiento en un Nicho reclamado, por el diámetro de la casilla. Valor inicial 0,7. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
 	float NicheRingRadiusScale = 0.7f;
 
-	/** Ancho del aro del Nicho reclamado, en cm. Valor inicial 12. */
+	/** Ancho del aro del Nicho reclamado, en cm. Valor inicial 0,45 (12 antes de S-019). */
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
-	float NicheRingWidth = 12.f;
+	float NicheRingWidth = 0.45f;
 
-	/** Alto de la letra del número de asiento sobre el cubo del Nicho reclamado, en cm. Valor inicial 60. */
+	/** Alto de la letra del número de asiento sobre el cubo del Nicho reclamado, en cm. Valor inicial 2,2 (60 antes de S-019). */
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
-	float NicheNumberSize = 60.f;
+	float NicheNumberSize = 2.2f;
 
 	/** Color del contador de reserva de las Fuentes (S-008): azul claro, para que no se confunda con la etiqueta blanca. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	FColor SourceReserveColor = FColor(70, 170, 255);
 
-	/** Alto de la letra del nombre del Elegido en la etiqueta del Nicho, en cm. Valor inicial 30. */
+	/** Alto de la letra del nombre del Elegido en la etiqueta del Nicho, en cm. Valor inicial 1,1 (30 antes de S-019). */
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
-	float NicheNameSize = 30.f;
+	float NicheNameSize = 1.1f;
 
 	/** Distancia del nombre al centro del Nicho, hacia arriba de la pantalla, por el diámetro de la casilla. Valor inicial 0,55. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
@@ -140,9 +177,9 @@ public:
 
 	// ---- Asiento activo ----
 
-	/** Cuánto sube la ficha del asiento activo, en cm. Valor inicial 70. */
+	/** Cuánto sube la ficha del asiento activo, en cm. Valor inicial 2,5 (70 antes de S-019). */
 	UPROPERTY(EditAnywhere, Category = "Vista|Asiento activo")
-	float ActiveLift = 70.f;
+	float ActiveLift = 2.5f;
 
 	/** Cuánto crece la ficha activa (1 = nada). Se ve desde arriba mejor que la elevación. Valor inicial 1,3. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Asiento activo")
@@ -152,13 +189,27 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Asiento activo")
 	float ActiveSpinDegreesPerSecond = 90.f;
 
-	/** Diámetro del aro de color (SeatRing) bajo la ficha activa, en cm. Valor inicial 235. */
+	/** Diámetro del aro de color (SeatRing) bajo la ficha activa, en cm. Valor inicial 8,5 (235 antes de S-019). */
 	UPROPERTY(EditAnywhere, Category = "Vista|Asiento activo")
-	float RingDiameter = 235.f;
+	float RingDiameter = 8.5f;
 
-	/** Ancho del aro, en cm. Valor inicial 14. */
+	/** Ancho del aro, en cm. Valor inicial 0,5 (14 antes de S-019). */
 	UPROPERTY(EditAnywhere, Category = "Vista|Asiento activo")
-	float RingWidth = 14.f;
+	float RingWidth = 0.5f;
+
+	// ---- Ficha con la carta del kit (S-019, R-VIS-6) ----
+
+	/** Diámetro del aro del rol en la base de la carta, por la huella de la carta. Valor inicial 1,25. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Ficha")
+	float TokenRingScale = 1.25f;
+
+	/** Ancho del aro del rol, en cm. Valor inicial 0,25. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Ficha")
+	float TokenRingWidth = 0.25f;
+
+	/** Brillo del aro del rol de un Eco, por el de un Elegido (decisión del autor del 20/10/2026). Valor inicial 0,5. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Ficha", meta = (ClampMin = "0", ClampMax = "1"))
+	float EchoRingBrightness = 0.5f;
 
 	// ---- Paneles ----
 
@@ -178,11 +229,136 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Paneles")
 	float CameraMargin = 1.04f;
 
-	// ---- Exposición ----
+	// ---- Luz y exposición (S-019, R-VIS-7: los valores de la prueba de conjunto) ----
 
-	/** Exposición manual fija del volumen de posproceso, como EV100: sube la imagen al bajar. Valor inicial 9, a ajustar en PIE. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Exposicion")
-	float ExposureEV100 = 9.f;
+	/** Exposición manual fija del volumen de posproceso, como EV100: sube la imagen al bajar. Valor inicial 4 (9 antes de S-019). */
+	UPROPERTY(EditAnywhere, Category = "Vista|Luz")
+	float ExposureEV100 = 4.f;
+
+	/** Intensidad de la lámpara sobre la mesa (foco cenital), en candelas. Valor inicial 600. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Luz")
+	float LampIntensityCandelas = 600.f;
+
+	/** Cono interior de la lámpara, en grados. Valor inicial 15. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Luz")
+	float LampInnerConeDegrees = 15.f;
+
+	/** Cono exterior de la lámpara, en grados. Valor inicial 25. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Luz")
+	float LampOuterConeDegrees = 25.f;
+
+	/** Altura de la lámpara sobre la mesa, en cm. Valor inicial 200. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Luz")
+	float LampHeight = 200.f;
+
+	/** Intensidad del cielo tenue (luz de cielo, sin cielo visible ni sol). Valor inicial 0,5. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Luz")
+	float SkyLightIntensity = 0.5f;
+
+	// ---- Cámaras y teclas (S-019, R-VIS-9) ----
+
+	/** Tecla que alterna la cenital con la vista sentada del asiento humano. Valor inicial C. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Camara")
+	FKey SeatedViewKey = EKeys::C;
+
+	/** Tecla que oculta y muestra etiquetas y halos, para las capturas. Valor inicial L. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Camara")
+	FKey OverlayToggleKey = EKeys::L;
+
+	/** Dónde se sienta el humano alrededor de la mesa, en grados desde el +X de la mesa. Valor inicial 180: el borde de abajo de la cenital. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Camara")
+	float SeatedViewYawDegrees = 180.f;
+
+	/** Altura de la vista sentada sobre la mesa, en cm. Valor inicial 60. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Camara")
+	float SeatedViewHeight = 60.f;
+
+	/** Distancia de la vista sentada fuera del borde de la mesa, en cm. Valor inicial 80. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Camara")
+	float SeatedViewDistance = 80.f;
+
+	/** Inclinación de la vista sentada hacia abajo, en grados; el giro, hacia el centro. Valor inicial 30. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Camara")
+	float SeatedViewPitchDegrees = 30.f;
+
+	// ---- Kit de arte (S-019, R-VIS-8): referencias blandas en Config, con valores iniciales en /Game/Art/Tablero/ según
+	// kit.json. Vacía, sin pieza; puesta pero inexistente, la forma básica de hoy y un aviso en el registro. ----
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> SlabMesh;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> CrackedSlabMesh;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> NicheSlabMesh;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> SourceSlabMesh;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> NodeSlabMesh;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> PathSegmentMesh;
+
+	/** Peana de la cuña de un Dominio. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> PedestalMesh;
+
+	/** Suelo liso de la cuña de un Dominio. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> PlainFloorMesh;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> AltarMesh;
+
+	/** El trono del Nicho. Vacío si gana la variante "el Nicho es el trono": entonces no hay trono. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> NicheThroneMesh;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> PylonMesh;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> FloatingRuneMesh;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> PlanarArchMesh;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> DuelSwordsMesh;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> OracleOrbMesh;
+
+	/** Las cadenas del Sello, sobre la losa. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> SealChainsMesh;
+
+	/** La carta de prueba de la ficha. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UStaticMesh> TokenCardMesh;
+
+	/** Material con el color por vértice en Base Color: el de todas las ranuras del kit salvo las emisivas y las tenues. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UMaterialInterface> VertexColorMaterial;
+
+	/** Material emisivo (cian), con un parámetro de color "Color": las ranuras emisivas del kit y el aro del rol de la ficha. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UMaterialInterface> EmissiveMaterial;
+
+	/** Material tenue (cian): las ranuras tenues del kit. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
+	TSoftObjectPtr<UMaterialInterface> DimMaterial;
+
+	/** Una ranura de material del kit cuyo nombre contiene esto lleva el material emisivo. Valor inicial "Emisivo". */
+	UPROPERTY(EditAnywhere, Category = "Vista|Kit")
+	FString EmissiveSlotTag = TEXT("Emisivo");
+
+	/** Una ranura de material del kit cuyo nombre contiene esto lleva el material tenue. Valor inicial "Tenue". */
+	UPROPERTY(EditAnywhere, Category = "Vista|Kit")
+	FString DimSlotTag = TEXT("Tenue");
 
 	// ---- Colores. Seis Dominios con tonos separados; tipos y estados contrastados con ellos. ----
 
@@ -250,14 +426,41 @@ public:
 	FLinearColor DebugLineColor = FLinearColor(1.f, 0.f, 1.f);
 
 private:
-	/** Posición en el mundo de cada casilla: la del archivo escalada, o un anillo por Dominio si falta alguna. */
-	TArray<FVector> ComputeTilePositions() const;
+	/** Carga las piezas del kit (S-019) y avisa una vez en el registro por cada una que falte. */
+	void LoadKit();
+	/** Referencia configurada de una pieza y su nombre para el registro. */
+	const TSoftObjectPtr<UStaticMesh>& KitReference(EBoardKitPiece Piece, const TCHAR*& OutName) const;
+	/** La pieza cargada, o nula si no está (respaldo). */
+	UStaticMesh* KitMesh(EBoardKitPiece Piece) const;
+	/** La pieza del kit de una losa. */
+	static EBoardKitPiece SlabPiece(EBoardSlab Slab);
+	/** La pieza del kit de una estructura; Count con None. */
+	static EBoardKitPiece StructurePiece(EBoardStructure Structure);
+	/** Pone a cada ranura de la pieza su material del kit: emisivo, tenue o color por vértice según el nombre de la ranura. */
+	void ApplyKitMaterials(UStaticMeshComponent& Component) const;
+	/** Un componente de una pieza del kit en la mesa, sin colisión; oculto si bVisible es falso. */
+	UStaticMeshComponent* AddKitPiece(UStaticMesh* Mesh, const FVector& Location, float Yaw, bool bVisible);
+
 	void BuildEdges();
 	void BuildTiles();
+	/** Las piezas del kit que haya: cuñas, Altar, losas, senderos, estructuras, runas flotantes y cadenas (S-019). */
+	void BuildKit();
 	void BuildTokens();
 	void BuildCamera();
-	void BuildPostProcess();
+	/** Volumen de exposición fija, lámpara y cielo tenue (S-019, R-VIS-7). */
+	void BuildLighting();
 	void BuildOverlay();
+
+	/** Enseña lo que pide el estado de vista: estructuras, runas flotantes y cadenas (S-019, R-VIS-5). */
+	void RefreshKit(const FBoardViewState& View);
+	/** Alterna la cenital y la vista sentada (S-019, R-VIS-9). */
+	void ToggleSeatedView();
+	/** Oculta o enseña etiquetas y halos (S-019, R-VIS-9). */
+	void ToggleOverlay();
+	/** Pone como vista del jugador local la cámara que toca, y le engancha las teclas de la vista la primera vez. */
+	void ApplyViewTarget();
+	/** Lado de la losa de respaldo: el de la pieza. */
+	float SlabSize() const { return LayoutParams.SlabHalfSize * 2.f; }
 
 	/** Coloca la cámara cenital para que el tablero quepa en el hueco que dejan los paneles, con el tamaño actual del viewport. */
 	void UpdateCamera();
@@ -276,7 +479,16 @@ private:
 	TWeakObjectPtr<UMatchHostSubsystem> Host;
 	FDelegateHandle ChangedHandle;
 	FTimerHandle HudTimer;
+	/** Colocación del tablero en la mesa, calculada una vez al iniciar (S-019). */
+	FBoardLayout Layout;
 	TArray<FVector> TilePositions;
+	/** Si la casilla lleva la losa del kit (su forma básica queda oculta, para el clic). */
+	TArray<bool> TileHasKitSlab;
+	/** Si el trono está configurado: referencia no vacía, exista o no el asset (R-VIS-5, R-VIS-8). */
+	bool bNicheThroneConfigured = false;
+	bool bSeatedView = false;
+	bool bOverlayHidden = false;
+	bool bInputBound = false;
 	/** Altura de la cara superior de cada casilla. */
 	TArray<float> TileTops;
 	FVector2D BoardCenter = FVector2D::ZeroVector;
@@ -356,6 +568,49 @@ private:
 	UPROPERTY()
 	TObjectPtr<ACameraActor> Camera;
 
+	/** Vista sentada del asiento humano (S-019, R-VIS-9). */
+	UPROPERTY()
+	TObjectPtr<ACameraActor> SeatedCamera;
+
 	UPROPERTY()
 	TObjectPtr<APostProcessVolume> PostProcess;
+
+	UPROPERTY()
+	TObjectPtr<USpotLightComponent> Lamp;
+
+	UPROPERTY()
+	TObjectPtr<USkyLightComponent> SkyLight;
+
+	/** Las piezas del kit cargadas, indexadas por EBoardKitPiece; nula la que falta. */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMesh>> KitMeshes;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInterface> KitVertexColorMaterial;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInterface> KitEmissiveMaterial;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInterface> KitDimMaterial;
+
+	/** Losas y senderos del kit, una malla instanciada por pieza. */
+	UPROPERTY()
+	TArray<TObjectPtr<UInstancedStaticMeshComponent>> KitInstances;
+
+	/** Cuñas y Altar del kit. */
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> KitFixedPieces;
+
+	/** Estructura junto a cada casilla (nula si no lleva o falta la pieza). */
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> Structures;
+
+	/** Runa flotante sobre el pilón de cada Fuente (nula en las demás o si falta la pieza). */
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> FloatingRunes;
+
+	/** Cadenas del Sello sobre cada casilla que se puede sellar (nula en las demás o si falta la pieza). */
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> SealChains;
 };
