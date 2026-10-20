@@ -23,11 +23,11 @@ namespace Soulbound::Dice
 /** Qué pasó con una intención de destino (glosario "Intención"). Solo Accepted cambia el estado. Nombre propuesto en S-003. */
 enum class EIntentResult : uint8
 {
-	/** Válida: la ficha se mueve y el turno pasa a MoveAndResolve. */
+	/** Válida: cambia el estado (en la de destino, desde S-020, el turno pasa al movimiento en curso, Moving). */
 	Accepted,
 	/** No es el asiento al que le toca. */
 	WrongSeat,
-	/** El turno no está esperando destino (fase distinta de RollAndChoose). */
+	/** El turno no está esperando esa intención (en la de destino, fase distinta de RollAndChoose). */
 	WrongPhase,
 	/** La casilla no está entre las alcanzables con la tirada (R-TUR-7). */
 	Unreachable,
@@ -78,6 +78,9 @@ namespace Soulbound::Rules
 	 *  - En RollAndChoose: sin casillas alcanzables, pasa a MoveAndResolve sin mover (R-TAB-18), salvo con la oferta de
 	 *    repetir abierta, que se espera (agotada, ChoiceExpired, sin castigo); con el reloj agotado, registra
 	 *    TurnClockExpired, sube la insolencia y pasa a End sin mover (R-TUR-8); si no, espera la intención.
+	 *  - Moving (S-020): espera la intención de avance de la siguiente casilla del camino (SubmitMoveProgress); pasado
+	 *    FMatchParams::MoveStepSeconds desde la anterior (o desde confirmar destino), entra en ella el motor (salvaguarda), una
+	 *    casilla por llamada. En la última registra Moved y pasa a MoveAndResolve.
 	 *  - MoveAndResolve: resuelve el Nicho de destino (R-CAR-4, ResolveNicheLanding) y la Fuente (R-RUN-2,
 	 *    ResolvePowerSourceLanding, solo si el asiento se ha movido). Si un Elegido llega a la Fuente de un Dominio
 	 *    Olvidado, pasa a SkillTrial. Después (R-INT-1) ofrece el salto planar (PlanarJump) y, como mucho, una acción
@@ -108,11 +111,13 @@ namespace Soulbound::Rules
 	SOULBOUNDCORE_API bool AdvanceTurn(FMatchState& State, double NowSeconds, FRandomStream& Random);
 
 	/**
-	 * Intención de destino del asiento Seat (R-TUR-7): la única forma de mover una ficha en un turno.
-	 * Se valida asiento, fase, reloj y casilla; si no es válida se descarta sin castigo y sin tocar el estado.
-	 * Aceptada, cierra la oferta de repetir si estaba abierta (R-TUR-6).
-	 * TileId: casilla elegida. NowSeconds: instante en que llega la intención.
-	 * Devuelve Accepted si la ficha se movió y el turno pasó a MoveAndResolve, o el motivo del rechazo.
+	 * Intención de destino del asiento Seat (R-TUR-7): la única forma de empezar a mover una ficha en un turno.
+	 * Se valida asiento, fase, reloj y casilla, que debe estar entre las alcanzables y tener camino (MovementPath; sin él,
+	 * Unreachable, S-020); si no es válida se descarta sin castigo y sin tocar el estado. Aceptada, cierra la oferta de repetir
+	 * si estaba abierta (R-TUR-6), para el reloj de turno (R-TUR-8: cubre hasta confirmar), guarda el camino en
+	 * FMatchState::Movement y pasa a Moving (S-020): la ficha aún no se ha movido.
+	 * TileId: casilla elegida. NowSeconds: instante en que llega la intención; arranca el plazo de la salvaguarda.
+	 * Devuelve Accepted si el turno pasó a Moving, o el motivo del rechazo.
 	 */
 	SOULBOUNDCORE_API EIntentResult SubmitDestinationIntent(FMatchState& State, int32 Seat, int32 TileId, double NowSeconds);
 
@@ -210,7 +215,7 @@ namespace Soulbound::Rules
 	SOULBOUNDCORE_API void BeginEventWardenDuel(FMatchState& State, int32 Challenged, bool bAllRunes, double NowSeconds);
 
 	/**
-	 * Si el turno en curso se puede cortar ahora (R-TUR-11, S-016): fase Start, PreRoll, RollAndChoose o MoveAndResolve. Nunca
+	 * Si el turno en curso se puede cortar ahora (R-TUR-11, S-016): fase Start, PreRoll, RollAndChoose, Moving (S-020) o MoveAndResolve. Nunca
 	 * en Duel, ShellGame ni SkillTrial (ahí el Warden aplaza, R-WAR-7), ni entre turnos ni en End. Nombre propuesto en S-016.
 	 */
 	SOULBOUNDCORE_API bool CanInterruptTurn(const FMatchState& State);
@@ -219,7 +224,8 @@ namespace Soulbound::Rules
 	 * Corta el turno en curso (glosario "Corte", R-TUR-11, R-TAB-26, S-016): registra TurnInterrupted con la fase, cierra las
 	 * elecciones abiertas, pierde la tirada pendiente respetando el consumo fijo (si el turno llegó a PreRoll, saca de Random
 	 * los valores que falten: los cuatro en PreRoll, los dos de la repetición si siguen pendientes), deja la ficha donde está
-	 * (su casilla ya resolvió al llegar), termina el turno (TurnEnded) y lo deja entre turnos como cualquier fin de turno
+	 * (su casilla ya resolvió al llegar; a medio camino, en Moving, la última en la que entró, sin resolverla y con el resto del
+	 * camino descartado, R-TAB-26, S-020), termina el turno (TurnEnded) y lo deja entre turnos como cualquier fin de turno
 	 * (turno extra, siguiente del orden, fin de carrera). El cortado queda como el último que jugó (LastTurnSeat).
 	 * NowSeconds: marca de los eventos. Random: el sorteo de la partida. Devuelve false, sin cambiar nada, si CanInterruptTurn
 	 * no lo permite. Nombre propuesto en S-016.

@@ -253,9 +253,13 @@ bool FMovingSafeguardTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	const int32 From = F.State.EventLog.Num();
+	// El plazo de cada casilla cuenta desde la entrada en la anterior (o desde confirmar destino).
+	TArray<double> DueTimes;
+	double Due = Confirmed;
 	for (int32 Index = 0; Index < Path.Num(); ++Index)
 	{
-		const double Due = Confirmed + Step * (Index + 1);
+		Due += Step;
+		DueTimes.Add(Due);
 		const FMatchState Before = F.State;
 		TestFalse(FString::Printf(TEXT("Casilla %d: antes del plazo no avanza"), Index + 1), Soulbound::Rules::AdvanceTurn(F.State, Due - 0.01, F.Random));
 		TestTrue(FString::Printf(TEXT("Casilla %d: ... ni cambia nada"), Index + 1), Soulbound::Tests::SameState(Before, F.State));
@@ -268,12 +272,12 @@ bool FMovingSafeguardTest::RunTest(const FString& Parameters)
 		for (int32 Index = 0; Index < Path.Num(); ++Index)
 		{
 			TestTrue(FString::Printf(TEXT("TileEntered %d: la casilla, a su hora"), Index + 1),
-				Entered[Index].Value == Path[Index] && FMath::IsNearlyEqual(Entered[Index].ClockSeconds, Confirmed + Step * (Index + 1)));
+				Entered[Index].Value == Path[Index] && Entered[Index].ClockSeconds == DueTimes[Index]);
 		}
 	}
 	TestEqual(TEXT("Llega: Moved"), CountSince(F, From, EMatchEventType::Moved), 1);
 	TestEqual(TEXT("Llega: a resolver la casilla"), AsInt(F.State.TurnPhase), AsInt(ETurnPhase::MoveAndResolve));
-	F.Now = Confirmed + Step * Path.Num();
+	F.Now = Due;
 	F.FinishTurn();
 
 	// Una intención a tiempo y el resto por la salvaguarda: el plazo de la siguiente cuenta desde la intención.

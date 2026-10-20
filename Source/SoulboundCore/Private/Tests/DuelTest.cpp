@@ -683,6 +683,7 @@ bool FDuelFixedDrawsTest::RunTest(const FString& Parameters)
 						F.State.Seats[1].Runes[1] = FMath::Max(F.State.Seats[1].Runes[1], 2);
 					}
 					Soulbound::Rules::SubmitDestinationIntent(F.State, F.State.ActiveSeat, Destination, F.Now);
+					Soulbound::Tests::CompleteMovement(F.State, F.Now);
 				}
 				else if (F.State.TurnPhase == ETurnPhase::RollAndChoose)
 				{

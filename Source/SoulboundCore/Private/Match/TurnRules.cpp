@@ -454,6 +454,30 @@ namespace
 		State.TurnPhase = ETurnPhase::Duel;
 	}
 
+	/**
+	 * La ficha del asiento activo entra en la siguiente casilla de su camino (S-020, R-TUR-7), por su intención de avance o por
+	 * la salvaguarda: la casilla es su posición y queda TileEntered. Las de paso no resuelven nada. En la última se registra Moved,
+	 * el movimiento termina y el turno pasa a MoveAndResolve, donde la casilla resuelve; si no, arranca el plazo de la siguiente.
+	 */
+	void EnterNextTile(FMatchState& State, double NowSeconds)
+	{
+		FMovementState& Movement = State.Movement;
+		const int32 Seat = State.ActiveSeat;
+		const int32 TileId = Movement.NextTile();
+		State.Seats[Seat].TileId = TileId;
+		State.bActiveSeatMoved = true;
+		++Movement.EnteredCount;
+		LogEvent(State, EMatchEventType::TileEntered, NowSeconds, Seat, TileId);
+		if (Movement.NextTile() != INDEX_NONE)
+		{
+			Movement.StepDeadlineSeconds = NowSeconds + State.Params.MoveStepSeconds;
+			return;
+		}
+		State.Movement = FMovementState();
+		LogEvent(State, EMatchEventType::Moved, NowSeconds, Seat, TileId);
+		State.TurnPhase = ETurnPhase::MoveAndResolve;
+	}
+
 	/** El paso que sigue a cerrar una elección de MoveAndResolve: tras el salto, la acción; tras la acción, el fin. */
 	EChoiceKind StepAfter(EChoiceKind Closed)
 	{
@@ -641,6 +665,15 @@ namespace Soulbound::Rules
 			}
 			return false;
 		}
+		case ETurnPhase::Moving:
+			// S-020, salvaguarda: si la presentación no ha entregado el avance de la siguiente casilla en su plazo, entra el motor.
+			// Una casilla por llamada; el plazo de la siguiente cuenta desde ahora.
+			if (NowSeconds < State.Movement.StepDeadlineSeconds)
+			{
+				return false;
+			}
+			EnterNextTile(State, NowSeconds);
+			return true;
 		case ETurnPhase::MoveAndResolve:
 			// Salto planar o acción contra jugador pendientes: se espera su intención; agotado el reloj de elección, es un
 			// "no" sin castigo, se registra y el turno sigue (decisión del autor del 04/10/2026).
@@ -717,21 +750,43 @@ namespace Soulbound::Rules
 		{
 			return EIntentResult::Unreachable;
 		}
+		// S-020 (R-TAB-14): el camino sale de las mismas reglas que las alcanzables. Una alcanzable sin camino solo puede venir de
+		// un estado tocado a mano entre la tirada y la confirmación (SbSeal): se rechaza (decisión del autor del 20/10/2026).
+		TArray<int32> Path = Soulbound::Rules::MovementPath(State.Board, State.Seats[Seat].TileId, State.Roll, MakeMoverTraits(State, Seat), TileId);
+		if (Path.IsEmpty())
+		{
+			return EIntentResult::Unreachable;
+		}
 		// R-TUR-6: confirmar destino cierra la oferta de repetir; sus valores del sorteo se sacan en MoveAndResolve.
 		if (State.PendingChoice.Kind == EChoiceKind::Reroll)
 		{
 			CloseChoice(State);
 		}
-		State.Seats[Seat].TileId = TileId;
-		State.bActiveSeatMoved = true;
-		LogEvent(State, EMatchEventType::Moved, NowSeconds, Seat, TileId);
-		State.TurnPhase = ETurnPhase::MoveAndResolve;
+		// S-020: la ficha aún no se mueve; recorre el camino en la fase Moving, casilla a casilla (SubmitMoveProgress).
+		State.Movement.Path = MoveTemp(Path);
+		State.Movement.EnteredCount = 0;
+		State.Movement.StepDeadlineSeconds = NowSeconds + State.Params.MoveStepSeconds;
+		State.TurnPhase = ETurnPhase::Moving;
 		return EIntentResult::Accepted;
 	}
 
 	EIntentResult SubmitMoveProgress(FMatchState& State, int32 Seat, int32 TileId, double NowSeconds)
 	{
-		return EIntentResult::WrongPhase;
+		// Glosario "Intención": asiento, fase y la siguiente casilla del camino; si no, se descarta sin castigo.
+		if (!HasTurnOrder(State) || Seat != State.ActiveSeat)
+		{
+			return EIntentResult::WrongSeat;
+		}
+		if (State.TurnPhase != ETurnPhase::Moving || !State.Movement.IsActive())
+		{
+			return EIntentResult::WrongPhase;
+		}
+		if (TileId != State.Movement.NextTile())
+		{
+			return EIntentResult::NotNextTile;
+		}
+		EnterNextTile(State, NowSeconds);
+		return EIntentResult::Accepted;
 	}
 
 	EIntentResult SubmitSkillTrialResult(FMatchState& State, int32 Seat, bool bPassed, double NowSeconds)
@@ -974,6 +1029,7 @@ namespace Soulbound::Rules
 		case ETurnPhase::Start:
 		case ETurnPhase::PreRoll:
 		case ETurnPhase::RollAndChoose:
+		case ETurnPhase::Moving:
 		case ETurnPhase::MoveAndResolve:
 			return true;
 		default:
@@ -1001,7 +1057,9 @@ namespace Soulbound::Rules
 		}
 		LogEvent(State, EMatchEventType::TurnInterrupted, NowSeconds, State.ActiveSeat, static_cast<int32>(Phase));
 		// R-TUR-11: la ficha se queda donde está; el turno termina como cualquier otro (turno extra, siguiente, fin de carrera), y
-		// el cortado es el activo del evento que lo cortó (el último que jugó).
+		// el cortado es el activo del evento que lo cortó (el último que jugó). R-TAB-26 (S-020): a medio camino, "donde está" es
+		// la última casilla en la que entró (o el origen), que no resuelve; el resto del camino se descarta.
+		State.Movement = FMovementState();
 		State.PendingTrial = ESkillTrial::None;
 		State.LastTurnSeat = State.ActiveSeat;
 		EnterEnd(State, NowSeconds);
