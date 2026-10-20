@@ -78,7 +78,8 @@ namespace
 		case ETurnPhase::Start: return TEXT("inicio");
 		case ETurnPhase::PreRoll: return TEXT("antes de tirar");
 		case ETurnPhase::RollAndChoose: return TEXT("tirada y destino");
-		case ETurnPhase::MoveAndResolve: return TEXT("movimiento");
+		case ETurnPhase::Moving: return TEXT("movimiento, por el camino");
+		case ETurnPhase::MoveAndResolve: return TEXT("llegada y casilla");
 		case ETurnPhase::SkillTrial: return TEXT("minijuego (Fuente, escape del Vacío o Prueba del Warden)");
 		case ETurnPhase::ShellGame: return TEXT("trilero");
 		case ETurnPhase::Duel: return TEXT("duelo");
@@ -569,6 +570,8 @@ void ABoardViewActor::Initialize(UMatchHostSubsystem* InHost)
 	BuildCamera();
 	BuildLighting();
 	BuildOverlay();
+	// S-020: los movimientos anteriores a la vista no se recorren.
+	TokenLogCursor = InHost->GetState().EventLog.Num();
 	Refresh();
 
 	ChangedHandle = InHost->OnMatchStateChanged.AddUObject(this, &ABoardViewActor::Refresh);
@@ -1088,6 +1091,7 @@ void ABoardViewActor::BuildTokens()
 			}
 			Token->SetColor(SeatColor(Seat));
 			Token->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
+			Token->OnTileEntered.BindUObject(this, &ABoardViewActor::OnTokenTileEntered);
 		}
 		TokenActors.Add(Token);
 	}
@@ -1509,8 +1513,70 @@ void ABoardViewActor::Refresh()
 	const FBoardViewState View = Soulbound::Presentation::ComputeBoardViewState(State, bNicheThroneConfigured);
 	RefreshKit(View);
 
+	RefreshTokens(State);
+	RefreshChronicle(State);
+}
+
+FVector ABoardViewActor::TokenBase(int32 TileId) const
+{
+	return TilePositions.IsValidIndex(TileId) ? TilePositions[TileId] + FVector(0.f, 0.f, TileTops.IsValidIndex(TileId) ? TileTops[TileId] : 0.f) : FVector::ZeroVector;
+}
+
+void ABoardViewActor::OnTokenTileEntered(int32 Seat, int32 TileId, bool bLast)
+{
+	UMatchHostSubsystem* HostPtr = Host.Get();
+	if (!HostPtr || !HostPtr->HasMatch())
+	{
+		return;
+	}
+	// R-TAB-26: la presentación dice al motor en qué casilla ha entrado la ficha del humano. Aceptada, el anfitrión avisa y la
+	// vista se refresca sola; si no (la salvaguarda llegó antes, o el turno se cortó), al acabar el recorrido se recoloca.
+	if (Seat == HostPtr->GetHumanSeat() && HostPtr->SubmitHumanMoveProgress(TileId) == EIntentResult::Accepted)
+	{
+		return;
+	}
+	if (bLast)
+	{
+		RefreshTokens(HostPtr->GetState());
+	}
+}
+
+void ABoardViewActor::RefreshTokens(const FMatchState& State)
+{
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (!HostPtr)
+	{
+		return;
+	}
 	// Asiento activo: solo mientras dura su turno; entre turnos no juega nadie.
 	const bool bSomeoneActive = !State.IsMatchOver() && State.TurnPhase != ETurnPhase::BetweenTurns;
+	// S-013, S-019: qué fichas están en el tablero (fuera, en el Vacío). Se mira aquí porque las fichas también se recolocan al
+	// acabar un recorrido, sin pasar por Refresh.
+	const FBoardViewState View = Soulbound::Presentation::ComputeBoardViewState(State, bNicheThroneConfigured);
+
+	// S-020: casillas en las que ha entrado cada asiento desde el último refresco. Las de un dummy son su camino entero, que
+	// entregó al confirmar: su ficha lo repite. Las del humano las entra su propia ficha (o la salvaguarda).
+	TArray<TArray<int32>> Entered;
+	Entered.SetNum(State.Seats.Num());
+	for (; TokenLogCursor < State.EventLog.Num(); ++TokenLogCursor)
+	{
+		const FMatchEvent& Event = State.EventLog[TokenLogCursor];
+		if (Event.Type == EMatchEventType::TileEntered && Entered.IsValidIndex(Event.Seat))
+		{
+			Entered[Event.Seat].Add(Event.Value);
+		}
+	}
+	const int32 HumanSeat = HostPtr->GetHumanSeat();
+	const bool bHumanMoving = State.TurnPhase == ETurnPhase::Moving && State.ActiveSeat == HumanSeat;
+	auto BasesOf = [this](const TArray<int32>& Tiles)
+	{
+		TArray<FVector> Bases;
+		for (const int32 Tile : Tiles)
+		{
+			Bases.Add(TokenBase(Tile));
+		}
+		return Bases;
+	};
 
 	// Fichas: sobre su casilla y, si comparten casilla, repartidas en un círculo pequeño.
 	for (int32 Seat = 0; Seat < State.Seats.Num() && Seat < TokenActors.Num(); ++Seat)
@@ -1526,8 +1592,51 @@ void ABoardViewActor::Refresh()
 		Token->SetLabelVisible(!bOverlayHidden);
 		if (!TilePositions.IsValidIndex(TileId))
 		{
+			Token->StopWalk();
 			continue;
 		}
+		Token->SetElectShape(State.Seats[Seat].Role == ESeatRole::Elect);
+		Token->SetActive(bSomeoneActive && Seat == State.ActiveSeat);
+
+		// S-020 (R-TAB-26): el humano recorre lo que le queda del camino, y cada llegada es su intención de avance. Si el motor
+		// va por delante (la salvaguarda entró en una casilla a la que la ficha no había llegado), la ficha se coloca donde dice el
+		// estado, sin animar, y sigue desde ahí.
+		if (Seat == HumanSeat && bHumanMoving)
+		{
+			const TArray<int32>& Path = State.Movement.Path;
+			const int32 Done = FMath::Clamp(State.Movement.EnteredCount, 0, Path.Num());
+			const TArray<int32> Remaining(Path.GetData() + Done, Path.Num() - Done);
+			if (Token->RemainingWalk() != Remaining)
+			{
+				if (Token->IsWalking())
+				{
+					Token->StopWalk();
+					Token->MoveTo(TokenBase(TileId), 0.f);
+				}
+				Token->WalkPath(Remaining, BasesOf(Remaining), TokenStepSeconds);
+			}
+			continue;
+		}
+		// Un dummy entregó su camino entero al confirmar: su ficha lo repite desde donde esté, solo como presentación.
+		if (Seat != HumanSeat && !Entered[Seat].IsEmpty())
+		{
+			Token->WalkPath(Entered[Seat], BasesOf(Entered[Seat]), TokenStepSeconds);
+			continue;
+		}
+		if (Token->IsWalking())
+		{
+			// Un recorrido que el estado deja atrás: el humano cortado a medio camino o llegado por la salvaguarda, o un dummy al que
+			// otra cosa (un evento, una expulsión) mueve antes de acabar de repetir su camino. La ficha va donde dice el estado, sin
+			// animar. Si no, el dummy sigue repitiendo su camino.
+			const TArray<int32> Left = Token->RemainingWalk();
+			if (Seat != HumanSeat && Left.Last() == TileId)
+			{
+				continue;
+			}
+			Token->StopWalk();
+			Token->MoveTo(TokenBase(TileId), 0.f);
+		}
+
 		int32 Sharing = 0;
 		int32 MyIndex = 0;
 		for (int32 Other = 0; Other < State.Seats.Num(); ++Other)
@@ -1544,14 +1653,10 @@ void ABoardViewActor::Refresh()
 			const float Angle = 2.f * PI * MyIndex / Sharing;
 			Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * (SlabSize() * 0.28f);
 		}
-		// La base de la ficha, posada en la cara superior de la losa (R-VIS-3, R-VIS-6).
-		Token->MoveTo(TilePositions[TileId] + Offset + FVector(0.f, 0.f, TileTops[TileId]), TokenSlideSeconds);
-		// Elegido: cono, o aro vivo con la carta; Eco: esfera, o aro tenue (criterio manual "Vínculo visible").
-		Token->SetElectShape(State.Seats[Seat].Role == ESeatRole::Elect);
-		Token->SetActive(bSomeoneActive && Seat == State.ActiveSeat);
+		// La base de la ficha, posada en la cara superior de la losa (R-VIS-3, R-VIS-6). Lo que no es un movimiento (Vacío, hogar,
+		// Expulsión, salto planar) desliza en línea recta; tras recorrer un camino, solo el reparto de la casilla compartida.
+		Token->MoveTo(TokenBase(TileId) + Offset, TokenSlideSeconds);
 	}
-
-	RefreshChronicle(State);
 }
 
 void ABoardViewActor::RefreshKit(const FBoardViewState& View)

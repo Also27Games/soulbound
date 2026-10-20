@@ -73,6 +73,13 @@ public:
 	EIntentResult SubmitHumanIntent(int32 TileId);
 
 	/**
+	 * Intención de avance del asiento humano (S-020): la vista la entrega al ver entrar su ficha en cada casilla del camino. Se
+	 * entrega tal cual a SubmitMoveProgress; una que no vale (la salvaguarda ya entró en esa casilla, o el turno se cortó) se
+	 * descarta sin castigo. Devuelve lo que dijo el motor.
+	 */
+	EIntentResult SubmitHumanMoveProgress(int32 TileId);
+
+	/**
 	 * Respuesta del asiento humano a su elección pendiente (S-009): dados, repetir, salto, acción contra un jugador, runa
 	 * de Koschei o esfera del trilero (S-010), también cuando no tiene el turno. Se entrega tal cual a SubmitChoiceIntent,
 	 * como el destino: el motor decide si vale. Kind: el tipo de elección que contesta. Option: una respuesta válida
@@ -171,6 +178,14 @@ public:
 	 * vuelve a detenerse al acabar el evento, antes del siguiente turno.
 	 */
 	FDebugEditOutcome DebugLaunchEvent(const FString& EventId);
+
+	/**
+	 * Lanza el evento del Warden EventId como golpe ahora (S-020, SbStrike, Soulbound::Debug::StrikeEvent): corta el turno en curso,
+	 * con el sorteo de la partida para el consumo fijo, y el evento entra en el hueco con el sorteo del Warden; sin turno en curso,
+	 * como DebugLaunchEvent. En un duelo, un trilero o un minijuego se rechaza. Como DebugLaunchEvent, reanuda el reloj del paso a
+	 * paso si el evento espera una elección.
+	 */
+	FDebugEditOutcome DebugStrikeEvent(const FString& EventId);
 #endif
 
 	/** Se lanza tras cada cambio del estado. */
@@ -205,7 +220,8 @@ public:
 	int32 HumanSeat = 0;
 
 	/**
-	 * Segundos que tarda un dummy en confirmar su destino desde que tiene la tirada, y en contestar cada elección (S-009).
+	 * Segundos que tarda un dummy en confirmar su destino desde que tiene la tirada, y en contestar cada elección (S-009). Su
+	 * camino lo entrega entero al confirmar (S-020): la ficha lo recorre después, solo como presentación.
 	 * Valor inicial 5 (como en la simulación, S-003); menor que el reloj de elección, así un dummy nunca lo agota. Si el
 	 * plazo de una elección es más corto (la esfera del trilero, S-010), contesta a la mitad de lo que queda.
 	 */

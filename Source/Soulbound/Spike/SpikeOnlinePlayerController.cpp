@@ -562,6 +562,24 @@ void ASpikeOnlinePlayerController::SbEvent(FString Id)
 #endif
 }
 
+void ASpikeOnlinePlayerController::SbStrike(FString Id)
+{
+#if !UE_BUILD_SHIPPING
+	UMatchHostSubsystem* Host = GetDebugHost();
+	if (!Host)
+	{
+		return;
+	}
+	if (Id.IsEmpty())
+	{
+		Say(TEXT("[Depuración] Uso: SbStrike <id> (SbEvents lista los eventos)"));
+		return;
+	}
+	// S-020: el corte y el evento los hace el motor (Soulbound::Debug::StrikeEvent), con los dos sorteos que guarda el anfitrión.
+	ReportDebugEdit(Host->DebugStrikeEvent(Id));
+#endif
+}
+
 void ASpikeOnlinePlayerController::SbEvents()
 {
 #if !UE_BUILD_SHIPPING
@@ -652,10 +670,10 @@ void ASpikeOnlinePlayerController::SbHelp()
 #if !UE_BUILD_SHIPPING
 	Say(TEXT("[Depuración] Comandos: SbGiveRune <asiento> <tipo> [n] | SbTakeRune <asiento> <tipo> [n] | SbMove <asiento> <casilla> | "
 		"SbBond <asiento> <dominio> | SbSeal <casilla> | SbUnseal <casilla> | SbEndRace | SbRoll <n> | SbTrial pass|fail | "
-		"SbDuel win|lose | SbTurn <asiento> | SbBanish <asiento> | SbRelease | SbSendHome <asiento> | SbInsolence <asiento> <n> | SbEvent <id> | SbEvents | SbWardenMode off|auto | "
+		"SbDuel win|lose | SbTurn <asiento> | SbBanish <asiento> | SbRelease | SbSendHome <asiento> | SbInsolence <asiento> <n> | SbEvent <id> | SbStrike <id> | SbEvents | SbWardenMode off|auto | "
 		"SbSeatedView [<altura_cm> <distancia_cm> <inclinación_grados> [<ángulo_grados>]] | SbHelp. "
 		"Los asientos van de 0 a 3 y el tipo de runa es el Dominio de 0 a 5. SbBanish y SbSendHome no valen con quien está jugando su turno, "
-		"y SbEvent solo entre turnos: con SbStepMode 1."));
+		"y SbEvent solo entre turnos: con SbStepMode 1. SbStrike corta el turno en curso, también a medio camino."));
 	// S-019: las teclas de la vista, las que tenga configuradas; las de ocultar son independientes y se combinan.
 	if (const ABoardViewActor* View = FindBoardView())
 	{
