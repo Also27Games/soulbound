@@ -105,6 +105,13 @@ namespace Soulbound::Presentation
 		case EMatchEventType::WardenEvaluated:
 		case EMatchEventType::WardenDecided:
 			return FString();
+		// S-016 (B): la insolencia con castigo y la Furia. Lo que hace el castigo va en la línea siguiente (EFECTO o BURLA).
+		case EMatchEventType::InsolencePunished:
+			return FString::Printf(TEXT("CASTIGO por insolencia: el asiento %d llega a %d (%s)"), Event.Seat, Event.Value, *InsolencePunishmentText(Event.Detail));
+		case EMatchEventType::FuryUnleashed:
+			return FString::Printf(TEXT("FURIA DEL WARDEN: el asiento %d, al Vacío de la Furia (sin Desvío ni Liberación); su insolencia vuelve a 0"), Event.Seat);
+		case EMatchEventType::FuryRefusal:
+			return FString::Printf(TEXT("el Warden SE NIEGA: %s no sirve en el Vacío de la Furia del asiento %d"), Event.Value == 0 ? TEXT("Desvío (la runa no se gasta)") : TEXT("la Liberación"), Event.Seat);
 		case EMatchEventType::DilemmaChosen:
 			return Event.Detail == 1
 				? FString::Printf(TEXT("el Warden sortea la opción %d del dilema EN CONTRA del asiento %d"), Event.Value + 1, Event.Seat)
@@ -183,6 +190,7 @@ namespace Soulbound::Presentation
 		case EDebugEditKind::ReleaseVoid: return TEXT("Liberación del Vacío");
 		case EDebugEditKind::SendHome: return TEXT("Vuelta al hogar");
 		case EDebugEditKind::LaunchEvent: return TEXT("lanzar un evento del Warden");
+		case EDebugEditKind::SetInsolence: return TEXT("fijar la insolencia");
 		}
 		return TEXT("edición desconocida");
 	}
@@ -268,6 +276,18 @@ namespace Soulbound::Presentation
 		}
 	}
 
+	FString InsolencePunishmentText(int32 Kind)
+	{
+		switch (static_cast<EInsolencePunishment>(Kind))
+		{
+		case EInsolencePunishment::Light: return TEXT("castigo leve");
+		case EInsolencePunishment::Medium: return TEXT("castigo medio");
+		case EInsolencePunishment::Severe: return TEXT("castigo grave");
+		case EInsolencePunishment::Fury: return TEXT("la FURIA");
+		}
+		return TEXT("castigo");
+	}
+
 	FString TurnCutLossText(int32 Phase)
 	{
 		// R-TUR-11: lo que pierde depende de por dónde iba: antes de mover, la tirada; tras mover, la tirada ya se usó.
@@ -314,7 +334,7 @@ namespace Soulbound::Presentation
 		case EEffectResult::InVoid: return TEXT("ese asiento está en el Vacío: solo la Liberación lo saca");
 		case EEffectResult::InPlay: return TEXT("ese asiento está en juego (su turno, o un duelo o trilero en curso): hazlo entre turnos, con SbStepMode 1");
 		case EEffectResult::AlreadyHome: return TEXT("ese asiento ya está en su hogar");
-		case EEffectResult::NobodyInVoid: return TEXT("no hay nadie en el Vacío");
+		case EEffectResult::NobodyInVoid: return TEXT("no hay nadie en el Vacío que pueda salir (a quien está en el Vacío de la Furia no le saca una Liberación)");
 		case EEffectResult::BondRace: return TEXT("durante la carrera nadie va al Vacío (solo por la Furia)");
 		case EEffectResult::NoRunes: return TEXT("ese asiento no tiene runas");
 		case EEffectResult::NoReserve: return TEXT("ninguna Fuente tiene reserva");
@@ -403,6 +423,10 @@ namespace Soulbound::Presentation
 		// S-016: el corte de un golpe y el comentario.
 		case EMatchEventType::TurnInterrupted:
 		case EMatchEventType::WardenRemark:
+		// S-016 (B): los castigos de insolencia, la Furia y sus negativas.
+		case EMatchEventType::InsolencePunished:
+		case EMatchEventType::FuryUnleashed:
+		case EMatchEventType::FuryRefusal:
 			return EEventSource::Warden;
 		case EMatchEventType::Bonded:
 		case EMatchEventType::BoardAwakening:

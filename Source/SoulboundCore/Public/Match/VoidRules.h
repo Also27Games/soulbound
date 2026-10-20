@@ -13,7 +13,8 @@
 namespace Soulbound::Rules
 {
 	/**
-	 * Escalera de escape del asiento Seat (R-VAC-2, R-ELE-2): la de la afinidad VoidEscape (Mictlantecuhtli,
+	 * Escalera de escape del asiento Seat (R-VAC-2, R-ELE-2): en el Vacío de la Furia, la suya para todos
+	 * (FMatchParams::FuryEscapeLadder, R-INS-3, S-016); si no, la de la afinidad VoidEscape (Mictlantecuhtli,
 	 * FMatchParams::VoidEscapeAffinityLadder) si la tiene, y si no la principal (FMatchParams::VoidEscapeLadder). El peldaño
 	 * del turno n dentro es el elemento n - 1; el turno siguiente al último sale sin jugar. Nombre propuesto en S-013.
 	 */

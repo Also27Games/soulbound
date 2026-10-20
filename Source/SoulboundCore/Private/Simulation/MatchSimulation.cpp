@@ -359,6 +359,20 @@ FSimulationResult FMatchSimulation::Run()
 			{
 				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d sale del Vacío"), *Stamp(Event.ClockSeconds), Event.Seat));
 			}
+			// S-016 (B): la insolencia con castigo y la Furia.
+			else if (Event.Type == EMatchEventType::InsolencePunished)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    el Warden castiga la insolencia %d del asiento %d"), *Stamp(Event.ClockSeconds), Event.Value, Event.Seat));
+			}
+			else if (Event.Type == EMatchEventType::FuryUnleashed)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    FURIA del Warden contra el asiento %d"), *Stamp(Event.ClockSeconds), Event.Seat));
+			}
+			else if (Event.Type == EMatchEventType::FuryRefusal)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    el Warden se niega en el Vacío de la Furia del asiento %d (%s)"), *Stamp(Event.ClockSeconds), Event.Seat,
+					Event.Value == 0 ? TEXT("Desvío") : TEXT("Liberación")));
+			}
 			else if (Event.Type == EMatchEventType::SentHome)
 			{
 				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d, a su hogar: la %s"), *Stamp(Event.ClockSeconds), Event.Seat, *DescribeTile(State.Board, Event.Value)));
@@ -555,6 +569,7 @@ FSimulationResult FMatchSimulation::Run()
 	{
 		Result.Interventions += Act.EffectInterventions;
 	}
+	Result.Furies = State.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::FuryUnleashed; }).Num();
 	Result.Log.Add(FString::Printf(TEXT("Fin | %d turnos | %d evaluaciones del Warden | %d intervenciones"), Result.Turns, Result.Evaluations, Result.Interventions));
 	for (const int32 Seat : State.TurnOrder)
 	{

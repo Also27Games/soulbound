@@ -31,6 +31,8 @@ enum class EDebugEditKind : uint8
 	SendHome,
 	/** Lanzar un evento del Warden (S-014, SbEvent). */
 	LaunchEvent,
+	/** Fijar la insolencia de un asiento (S-016, SbInsolence). */
+	SetInsolence,
 };
 
 /** Resultado de una edición de depuración (S-011, nombre propuesto). Solo Applied cambia el estado. */
@@ -158,4 +160,11 @@ namespace Soulbound::Debug
 	 * los del evento. Random: el sorteo del Warden, nunca el de la partida.
 	 */
 	SOULBOUNDCORE_API EWardenEventStart LaunchEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random);
+
+	/**
+	 * Fija la insolencia del asiento Seat en Level (S-016, SbInsolence), de 0 a Soulbound::Match::MaxInsolence - 1, sin castigo:
+	 * la siguiente subida trae el de su nivel (con 4, la Furia). Aplicada, deja DebugEdit con el asiento. Devuelve InvalidSeat o
+	 * InvalidAmount (nivel fuera de rango) sin tocar nada, o Applied.
+	 */
+	SOULBOUNDCORE_API EDebugEditResult SetInsolence(FMatchState& State, int32 Seat, int32 Level, double NowSeconds);
 }

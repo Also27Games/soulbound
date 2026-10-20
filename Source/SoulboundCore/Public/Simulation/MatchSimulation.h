@@ -64,6 +64,8 @@ struct SOULBOUNDCORE_API FSimulationResult
 	int32 Interventions = 0;
 	/** Cifras del Warden por acto (S-016), indexadas por EAct. */
 	TArray<FWardenActReport> WardenActs;
+	/** Furias del Warden en la partida (FuryUnleashed, R-INS-3, S-016). */
+	int32 Furies = 0;
 	/** Tiempo real que tardó la simulación. */
 	double WallSeconds = 0.0;
 	FMatchState FinalState;

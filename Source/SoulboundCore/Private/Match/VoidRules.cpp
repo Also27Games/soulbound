@@ -1,6 +1,7 @@
 #include "Match/VoidRules.h"
 
 #include "Match/BondRaceRules.h"
+#include "Match/InsolenceRules.h"
 #include "Match/MatchEvents.h"
 #include "Match/RuneRules.h"
 
@@ -10,6 +11,12 @@ namespace Soulbound::Rules
 {
 	const TArray<ESkillDifficulty>& VoidEscapeLadderFor(const FMatchState& State, int32 Seat)
 	{
+		// R-INS-3 (decisión del autor del 20/10/2026): la Furia castiga al jugador, no al personaje: en su Vacío todos juegan su
+		// escalera, también Mictlantecuhtli.
+		if (State.Seats.IsValidIndex(Seat) && State.Seats[Seat].bFuryVoid)
+		{
+			return State.Params.FuryEscapeLadder;
+		}
 		// R-ELE-2: Mictlantecuhtli empieza en fácil y sale como máximo al segundo turno; los dos valores, en datos.
 		return HasAffinity(State, Seat, EAffinity::VoidEscape) ? State.Params.VoidEscapeAffinityLadder : State.Params.VoidEscapeLadder;
 	}
@@ -24,7 +31,10 @@ namespace Soulbound::Rules
 		FSeatState& SeatState = State.Seats[Seat];
 		SeatState.TileId = HomeTile(State, Seat);
 		SeatState.VoidTurns = 0;
+		SeatState.bFuryVoid = false;
 		LogEvent(State, EMatchEventType::LeftVoid, NowSeconds, Seat, static_cast<int32>(Reason));
+		// R-INS-2 (S-016): lo que se le aplazó dentro, ya fuera (si sale en su turno, al terminarlo).
+		DischargeVoidPunishments(State, Seat, NowSeconds);
 		return true;
 	}
 
@@ -51,6 +61,12 @@ namespace Soulbound::Rules
 		const int32 RuneType = DeflectionRuneType(State, Seat);
 		if (!State.Seats.IsValidIndex(Seat) || !State.Seats[Seat].IsInVoid() || RuneType == INDEX_NONE)
 		{
+			return false;
+		}
+		// R-INS-3 (S-016): en el Vacío de la Furia, Desvío se ofrece pero no funciona: la runa no se consume y el Warden se niega.
+		if (State.Seats[Seat].bFuryVoid)
+		{
+			LogEvent(State, EMatchEventType::FuryRefusal, NowSeconds, Seat, 0);
 			return false;
 		}
 		// R-POD-6, R-RUN-6: la runa sacrificada vuelve a la reserva de su Fuente; si era la última, Desvío se pierde en el

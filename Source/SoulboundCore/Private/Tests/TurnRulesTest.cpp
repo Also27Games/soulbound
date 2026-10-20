@@ -397,10 +397,10 @@ bool FTurnClockTest::RunTest(const FString& Parameters)
 		}
 		for (int32 Raise = 0; Raise < Soulbound::Match::MaxInsolence + 2; ++Raise)
 		{
-			Soulbound::Rules::RaiseInsolence(State, 0);
+			Soulbound::Rules::RaiseInsolence(State, 0, 1.0);
 		}
 		TestEqual(TEXT("La insolencia se queda en su tope"), State.Seats[0].Insolence, Soulbound::Match::MaxInsolence);
-		TestFalse(TEXT("Un asiento inexistente no tiene insolencia"), Soulbound::Rules::RaiseInsolence(State, Soulbound::Match::SeatCount));
+		TestFalse(TEXT("Un asiento inexistente no tiene insolencia"), Soulbound::Rules::RaiseInsolence(State, Soulbound::Match::SeatCount, 1.0));
 	}
 	return true;
 }

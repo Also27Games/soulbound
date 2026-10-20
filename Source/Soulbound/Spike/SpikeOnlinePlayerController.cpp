@@ -487,6 +487,21 @@ void ASpikeOnlinePlayerController::SbBanish(FString Seat)
 #endif
 }
 
+void ASpikeOnlinePlayerController::SbInsolence(FString Seat, FString Level)
+{
+#if !UE_BUILD_SHIPPING
+	int32 SeatId = 0;
+	int32 LevelValue = 0;
+	if (UMatchHostSubsystem* Host = GetDebugHost())
+	{
+		if (ParseDebugInt(Seat, TEXT("asiento"), TEXT("SbInsolence <asiento> <n>"), SeatId) && ParseDebugInt(Level, TEXT("insolencia"), TEXT("SbInsolence <asiento> <n>"), LevelValue))
+		{
+			ReportDebugEdit(Host->DebugSetInsolence(SeatId, LevelValue));
+		}
+	}
+#endif
+}
+
 void ASpikeOnlinePlayerController::SbRelease()
 {
 #if !UE_BUILD_SHIPPING
@@ -577,7 +592,7 @@ void ASpikeOnlinePlayerController::SbHelp()
 #if !UE_BUILD_SHIPPING
 	Say(TEXT("[Depuración] Comandos: SbGiveRune <asiento> <tipo> [n] | SbTakeRune <asiento> <tipo> [n] | SbMove <asiento> <casilla> | "
 		"SbBond <asiento> <dominio> | SbSeal <casilla> | SbUnseal <casilla> | SbEndRace | SbRoll <n> | SbTrial pass|fail | "
-		"SbDuel win|lose | SbTurn <asiento> | SbBanish <asiento> | SbRelease | SbSendHome <asiento> | SbEvent <id> | SbEvents | SbWardenMode off|auto | SbHelp. "
+		"SbDuel win|lose | SbTurn <asiento> | SbBanish <asiento> | SbRelease | SbSendHome <asiento> | SbInsolence <asiento> <n> | SbEvent <id> | SbEvents | SbWardenMode off|auto | SbHelp. "
 		"Los asientos van de 0 a 3 y el tipo de runa es el Dominio de 0 a 5. SbBanish y SbSendHome no valen con quien está jugando su turno, "
 		"y SbEvent solo entre turnos: con SbStepMode 1."));
 #endif

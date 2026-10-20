@@ -552,6 +552,21 @@ FDebugEditOutcome UMatchHostSubsystem::DebugBanish(int32 Seat)
 	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("asiento %d desterrado al Vacío"), Seat) : Soulbound::Presentation::DescribeEffectResult(Result));
 }
 
+FDebugEditOutcome UMatchHostSubsystem::DebugSetInsolence(int32 Seat, int32 Level)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	const EDebugEditResult Result = Soulbound::Debug::SetInsolence(State, Seat, Level, State.ClockSeconds);
+	const bool bApplied = Result == EDebugEditResult::Applied;
+	return FinishDebugEdit(bApplied, bApplied
+		? FString::Printf(TEXT("asiento %d con insolencia %d: la siguiente subida trae el castigo de su nivel%s"), Seat, Level, Level == Soulbound::Match::MaxInsolence - 1 ? TEXT(" (la Furia)") : TEXT(""))
+		: Result == EDebugEditResult::InvalidAmount ? FString::Printf(TEXT("la insolencia se fija de 0 a %d"), Soulbound::Match::MaxInsolence - 1)
+		: Soulbound::Presentation::DescribeDebugResult(Result));
+}
+
 FDebugEditOutcome UMatchHostSubsystem::DebugRelease()
 {
 	if (!bHasMatch)

@@ -102,6 +102,15 @@ struct SOULBOUNDCORE_API FMatchParams
 	UPROPERTY()
 	TArray<ESkillDifficulty> VoidEscapeAffinityLadder;
 
+	/**
+	 * Escalera del Vacío de la Furia (R-INS-3, S-016, decisión del autor del 20/10/2026): la Furia castiga al jugador, no al
+	 * personaje, y dentro de su Vacío todos juegan esta, sin la salida del Eco ni la afinidad de Mictlantecuhtli. La misma regla
+	 * que la principal: de 1 a Soulbound::Match::MaxVoidEscapeSteps peldaños. En datos (furyEscapeLadder); valor inicial difícil,
+	 * difícil, normal.
+	 */
+	UPROPERTY()
+	TArray<ESkillDifficulty> FuryEscapeLadder;
+
 	/** Revelar Brazal (R-EFE-2, S-014): rondas que dura revelado. Entero de 1 en adelante. En datos; valor inicial 1. */
 	UPROPERTY()
 	int32 RevealBracerRounds = 0;
@@ -181,7 +190,7 @@ namespace Soulbound::Rules
 	 * y tiempos del trilero (muestra, mezcla y elección de esfera) mayores que cero, topes enteros mayores o iguales que
 	 * cero, al menos un intercambio en la mezcla, el margen del duelo entre 0 y 1, el 1 excluido (S-012), y las escaleras de
 	 * escape del Vacío (S-013): la principal de 1 a Soulbound::Match::MaxVoidEscapeSteps peldaños, la de la afinidad de 1 a
-	 * los de la principal, todas con dificultades conocidas; y los de los efectos y eventos del Warden (S-014): rondas de
+	 * los de la principal y, desde S-016, la del Vacío de la Furia como la principal, todas con dificultades conocidas; y los de los efectos y eventos del Warden (S-014): rondas de
 	 * Brazal revelado, marca y tope de la Noche de 1 en adelante, reloj base del dilema y reloj corto mayores que cero, e
 	 * incremento por opción del dilema de cero en adelante; y los de S-015: la dificultad de la Prueba del Warden, una de las
 	 * tres, y el rendimiento del Warden en su duelo, de 0 a 1. Params: los parámetros a comprobar. Devuelve None o

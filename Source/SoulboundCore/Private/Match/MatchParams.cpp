@@ -128,8 +128,16 @@ namespace Soulbound::Rules
 			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-ELE-2: la escalera de escape de Mictlantecuhtli debe tener de 1 a %d peldaños, los de la principal (tiene %d)."),
 				Steps, AffinitySteps));
 		}
-		const bool bKnown = Params.VoidEscapeLadder.FindByPredicate([](ESkillDifficulty Difficulty) { return !IsKnownDifficulty(Difficulty); }) == nullptr
-			&& Params.VoidEscapeAffinityLadder.FindByPredicate([](ESkillDifficulty Difficulty) { return !IsKnownDifficulty(Difficulty); }) == nullptr;
+		// R-INS-3 (S-016, decisión del autor del 20/10/2026): la del Vacío de la Furia, validada como la principal.
+		const int32 FurySteps = Params.FuryEscapeLadder.Num();
+		if (FurySteps < 1 || FurySteps > Soulbound::Match::MaxVoidEscapeSteps)
+		{
+			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-INS-3: la escalera de escape del Vacío de la Furia debe tener de 1 a %d peldaños (tiene %d)."),
+				Soulbound::Match::MaxVoidEscapeSteps, FurySteps));
+		}
+		const auto IsUnknown = [](ESkillDifficulty Difficulty) { return !IsKnownDifficulty(Difficulty); };
+		const bool bKnown = Params.VoidEscapeLadder.FindByPredicate(IsUnknown) == nullptr && Params.VoidEscapeAffinityLadder.FindByPredicate(IsUnknown) == nullptr
+			&& Params.FuryEscapeLadder.FindByPredicate(IsUnknown) == nullptr;
 		if (!bKnown)
 		{
 			return Reject(EMatchParamsError::MalformedData, TEXT("R-VAC-2: las escaleras de escape del Vacío solo admiten las dificultades fácil, normal y difícil."));
@@ -228,6 +236,7 @@ namespace Soulbound::Rules
 		const TPair<const TCHAR*, TArray<ESkillDifficulty>*> Ladders[] = {
 			{TEXT("voidEscapeLadder"), &Params.VoidEscapeLadder},
 			{TEXT("voidEscapeAffinityLadder"), &Params.VoidEscapeAffinityLadder},
+			{TEXT("furyEscapeLadder"), &Params.FuryEscapeLadder},
 		};
 		for (const TPair<const TCHAR*, TArray<ESkillDifficulty>*>& Ladder : Ladders)
 		{

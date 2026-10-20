@@ -64,9 +64,9 @@ namespace Soulbound::Rules
 	 *  - Start → PreRoll: con Celeridad (R-TUR-4) abre la elección de dados (DiceCount), con el plazo del reloj de turno;
 	 *    sin ella, un dado sin elección.
 	 *  - Start de un asiento en el Vacío (S-013, R-TUR-3, R-VAC-2), antes de nada y en este orden: su cuenta de turnos
-	 *    dentro sube uno; un Eco sale a su hogar y el turno pasa a End (R-ECO-5); quien tiene Desvío recibe la elección
+	 *    dentro sube uno; un Eco sale a su hogar y el turno pasa a End (R-ECO-5), salvo en el Vacío de la Furia, donde juega la escalera como todos (S-016); quien tiene Desvío recibe la elección
 	 *    Deflection con el plazo del reloj de turno (agotada, ChoiceExpired y es "no", sin castigo; R-POD-6); si no, o si
-	 *    dice que no, el minijuego de escape con la dificultad del peldaño de su escalera (fase SkillTrial) o, pasado el
+	 *    dice que no, el minijuego de escape con la dificultad del peldaño de su escalera (VoidEscapeLadderFor; en el Vacío de la Furia, la de la Furia) (fase SkillTrial) o, pasado el
 	 *    último, la salida sin jugar y End (R-VAC-3). Si una Liberación lo saca mientras espera (Desvío o escape), la
 	 *    espera se cierra y el turno pasa a End. Nada de esto toca el sorteo de la partida.
 	 *  - En PreRoll con la elección de dados abierta: espera la intención (SubmitChoiceIntent); con el reloj de turno
@@ -226,8 +226,11 @@ namespace Soulbound::Rules
 	SOULBOUNDCORE_API bool GrantLostTurns(FMatchState& State, int32 Seat, int32 Count);
 
 	/**
-	 * Sube un nivel la insolencia del asiento Seat, sin pasar de Soulbound::Match::MaxInsolence.
-	 * El castigo de cada nivel y la Furia son de la story del Warden. Devuelve false si el asiento no existe.
+	 * Sube un nivel la insolencia del asiento Seat, sin pasar de Soulbound::Match::MaxInsolence (R-INS-1). Desde S-016, con
+	 * Warden en la partida, cada subida trae su castigo (R-INS-2, R-INS-3, Match/InsolenceRules.h), sorteado ahora con el nivel
+	 * anterior: se aplica en el acto si el asiento no está en juego ni en el Vacío; si está en juego, al dejar de estarlo
+	 * (FSeatState::PendingPunishments); si está en el Vacío, a su salida (VoidPunishments), salvo la Furia. Sin Warden, solo
+	 * cuenta. NowSeconds: marca de los eventos (cambio de firma de S-016, hecho a mano). Devuelve false si el asiento no existe.
 	 */
-	SOULBOUNDCORE_API bool RaiseInsolence(FMatchState& State, int32 Seat);
+	SOULBOUNDCORE_API bool RaiseInsolence(FMatchState& State, int32 Seat, double NowSeconds);
 }
