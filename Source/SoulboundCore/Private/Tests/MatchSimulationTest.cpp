@@ -358,7 +358,8 @@ bool FMatchSimulationChronicleTest::RunTest(const FString& Parameters)
 		RolledTurnsEnded += Event.Type == EMatchEventType::TurnEnded && bRolled ? 1 : 0;
 		if (Event.Type == EMatchEventType::TurnInterrupted)
 		{
-			CutAfterRolling += Event.Value == static_cast<int32>(ETurnPhase::RollAndChoose) || Event.Value == static_cast<int32>(ETurnPhase::MoveAndResolve) ? 1 : 0;
+			CutAfterRolling += Event.Value == static_cast<int32>(ETurnPhase::RollAndChoose) || Event.Value == static_cast<int32>(ETurnPhase::Moving)
+				|| Event.Value == static_cast<int32>(ETurnPhase::MoveAndResolve) ? 1 : 0;
 			CutAfterMoving += Event.Value == static_cast<int32>(ETurnPhase::MoveAndResolve) ? 1 : 0;
 		}
 	}
@@ -367,6 +368,20 @@ bool FMatchSimulationChronicleTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Cada movimiento del registro tiene su línea de crónica"), CountLines(TEXT(" va a la casilla ")), CountEvents(Result.FinalState, EMatchEventType::Moved));
 	TestEqual(TEXT("Cada turno con tirada cuenta cómo acabó"), CountLines(TEXT(" va a la casilla ")) + CountLines(TEXT(" no puede moverse")) + CountLines(TEXT(" agota el reloj"))
 		+ CutAfterRolling - CutAfterMoving, RolledTurnsEnded);
+	// S-020 (decisión del autor del 20/10/2026): una línea por movimiento con su camino, y en ella cada casilla en la que entró.
+	TestEqual(TEXT("Cada movimiento tiene su línea de camino"), CountLines(TEXT(" camino del asiento ")), CountEvents(Result.FinalState, EMatchEventType::Moved));
+	int32 PathTiles = 0;
+	for (const FString& Line : Result.Log)
+	{
+		FString Tiles;
+		if (Line.Contains(TEXT(" camino del asiento "), ESearchCase::CaseSensitive) && Line.Split(TEXT(": "), nullptr, &Tiles))
+		{
+			TArray<FString> Parts;
+			PathTiles += Tiles.ParseIntoArray(Parts, TEXT(", "));
+		}
+	}
+	TestEqual(TEXT("Las líneas de camino cuentan cada casilla entrada"), PathTiles, CountEvents(Result.FinalState, EMatchEventType::TileEntered));
+	TestTrue(TEXT("Se entra en casillas"), PathTiles > 0);
 	// S-010: con esta semilla, un salto rechazado abría la acción en el Nodo y la simulación se quedaba esperándola hasta
 	// el final (defecto de S-009). Al acabar, ninguna elección puede seguir abierta con su plazo vencido.
 	const FPendingChoice& Left = Result.FinalState.PendingChoice;

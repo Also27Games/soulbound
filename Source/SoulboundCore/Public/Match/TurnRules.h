@@ -35,6 +35,8 @@ enum class EIntentResult : uint8
 	ClockExpired,
 	/** La opción no está entre las de la elección pendiente, o es "no" en una elección que no lo admite (S-009). */
 	InvalidOption,
+	/** Intención de avance (S-020) de una casilla que no es la siguiente del camino: fuera de orden o de otro camino. */
+	NotNextTile,
 };
 
 /**
@@ -113,6 +115,17 @@ namespace Soulbound::Rules
 	 * Devuelve Accepted si la ficha se movió y el turno pasó a MoveAndResolve, o el motivo del rechazo.
 	 */
 	SOULBOUNDCORE_API EIntentResult SubmitDestinationIntent(FMatchState& State, int32 Seat, int32 TileId, double NowSeconds);
+
+	/**
+	 * Intención de avance del asiento Seat (S-020, R-TUR-7): la ficha entra en la casilla TileId de su camino. La entrega la
+	 * presentación al ver entrar la ficha, una por casilla y en orden; la simulación y los dummies, el camino entero en el acto.
+	 * Se valida asiento, fase (Moving) y que TileId sea la siguiente del camino; si no, se descarta sin castigo y sin tocar el
+	 * estado. Aceptada, la ficha pasa a esa casilla y se registra TileEntered; en la última se registra Moved y el turno pasa a
+	 * MoveAndResolve, donde la casilla resuelve. Las casillas de paso no resuelven nada.
+	 * TileId: casilla en la que entra. NowSeconds: instante en que llega; arranca el plazo de la salvaguarda de la siguiente.
+	 * Devuelve Accepted, WrongSeat, WrongPhase o NotNextTile. Nombre propuesto en S-020.
+	 */
+	SOULBOUNDCORE_API EIntentResult SubmitMoveProgress(FMatchState& State, int32 Seat, int32 TileId, double NowSeconds);
 
 	/**
 	 * Resultado del minijuego de habilidad del asiento Seat (R-TAB-7), la única forma de salir de SkillTrial, como la

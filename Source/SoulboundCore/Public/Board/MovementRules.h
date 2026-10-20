@@ -35,6 +35,15 @@ namespace Soulbound::Rules
 	SOULBOUNDCORE_API TArray<int32> ReachableTiles(const FBoardState& Board, int32 FromTile, int32 Roll, const FMoverTraits& Mover);
 
 	/**
+	 * Camino del movimiento desde FromTile hasta ToTile con la tirada Roll (R-TAB-14, S-020): uno de los caminos que hacen a
+	 * ToTile alcanzable, con las mismas reglas y la misma búsqueda que ReachableTiles (R-TAB-16, R-TAB-17, R-TAB-20): sin repetir
+	 * casillas, todas transitables, de longitud exactamente Roll, o menor si acaba en el Altar o ante un Sello. Determinista: el
+	 * primero que encuentra la búsqueda recorriendo los vecinos en orden ascendente.
+	 * Devuelve las casillas en orden, sin el origen y acabando en ToTile; vacío si ToTile no está entre las alcanzables.
+	 */
+	SOULBOUNDCORE_API TArray<int32> MovementPath(const FBoardState& Board, int32 FromTile, int32 Roll, const FMoverTraits& Mover, int32 ToTile);
+
+	/**
 	 * Criterio único de transitabilidad (R-TAB-21): una casilla es transitable para el jugador si no está sellada o
 	 * tiene Paso Libre, y, si está confinado a los Olvidados, si no pertenece a un Dominio con dueño (el Altar sí).
 	 */

@@ -64,6 +64,11 @@ namespace Soulbound::Rules
 		return !Board.Tiles[TileId].bSealed || Mover.bFreePassage;
 	}
 
+	TArray<int32> MovementPath(const FBoardState& Board, int32 FromTile, int32 Roll, const FMoverTraits& Mover, int32 ToTile)
+	{
+		return TArray<int32>();
+	}
+
 	TArray<int32> ReachableTiles(const FBoardState& Board, int32 FromTile, int32 Roll, const FMoverTraits& Mover)
 	{
 		TArray<int32> Result;

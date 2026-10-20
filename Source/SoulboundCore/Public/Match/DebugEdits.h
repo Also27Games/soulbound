@@ -33,6 +33,8 @@ enum class EDebugEditKind : uint8
 	LaunchEvent,
 	/** Fijar la insolencia de un asiento (S-016, SbInsolence). */
 	SetInsolence,
+	/** Lanzar un evento del Warden como golpe, cortando el turno en curso (S-020, SbStrike). */
+	StrikeEvent,
 };
 
 /** Resultado de una edición de depuración (S-011, nombre propuesto). Solo Applied cambia el estado. */
@@ -160,6 +162,17 @@ namespace Soulbound::Debug
 	 * los del evento. Random: el sorteo del Warden, nunca el de la partida.
 	 */
 	SOULBOUNDCORE_API EWardenEventStart LaunchEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random);
+
+	/**
+	 * Lanza el evento del Warden EventId como golpe ahora (S-020, SbStrike): con un turno en curso que se puede cortar
+	 * (CanInterruptTurn), lo corta (InterruptTurn, con MatchRandom: el consumo fijo del sorteo de la partida) y el evento entra
+	 * en el hueco con el cortado como activo y como evento que llega cortando (vale el Alto); sin turno en curso, como LaunchEvent.
+	 * Se comprueba antes de cortar: si el evento no empezaría, no se corta nada. Aplicada, el evento de depuración va antes que
+	 * el corte. WardenRandom: el sorteo del Warden. Como LaunchEvent, no gasta usos ni cuenta para la garantía.
+	 * Devuelve Started, el motivo de CanApplyEvent o NotBetweenTurns si el turno está en una fase que no se corta (Duel,
+	 * ShellGame, SkillTrial, End); si no es Started, no cambia nada.
+	 */
+	SOULBOUNDCORE_API EWardenEventStart StrikeEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& MatchRandom, FRandomStream& WardenRandom);
 
 	/**
 	 * Fija la insolencia del asiento Seat en Level (S-016, SbInsolence), de 0 a Soulbound::Match::MaxInsolence - 1, sin castigo:

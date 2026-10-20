@@ -4,6 +4,7 @@
   "maxLostTurns": 2,
   "raceDurationSeconds": 300,
   "choiceClockSeconds": 10,
+  "moveStepSeconds": 0.6,
   "shellRevealSeconds": 2,
   "shellShuffleSeconds": 4,
   "shellSwapCount": 8,

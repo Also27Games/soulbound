@@ -268,6 +268,11 @@ namespace Soulbound::Debug
 		return Soulbound::Rules::ApplyEvent(State, EventId, NowSeconds, Random);
 	}
 
+	EWardenEventStart StrikeEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& MatchRandom, FRandomStream& WardenRandom)
+	{
+		return EWardenEventStart::NotBetweenTurns;
+	}
+
 	EDebugEditResult SetInsolence(FMatchState& State, int32 Seat, int32 Level, double NowSeconds)
 	{
 		if (!State.Seats.IsValidIndex(Seat))

@@ -729,6 +729,11 @@ namespace Soulbound::Rules
 		return EIntentResult::Accepted;
 	}
 
+	EIntentResult SubmitMoveProgress(FMatchState& State, int32 Seat, int32 TileId, double NowSeconds)
+	{
+		return EIntentResult::WrongPhase;
+	}
+
 	EIntentResult SubmitSkillTrialResult(FMatchState& State, int32 Seat, bool bPassed, double NowSeconds)
 	{
 		if (!HasTurnOrder(State) || Seat != State.ActiveSeat)

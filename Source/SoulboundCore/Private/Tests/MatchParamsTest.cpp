@@ -3,7 +3,7 @@
 // elección, desde S-010 los del trilero (R-ROB-2), desde S-012 el margen de Shuten-dōji en el duelo (R-ELE-2) y desde S-013
 // las escaleras de escape del Vacío (R-VAC-2, R-VAC-6) y desde S-014 los de los efectos y eventos del Warden (R-EFE-2, R-EFE-8,
 // R-EFE-18, R-COM-2, reloj corto) y desde S-015 la dificultad de la Prueba del Warden (R-EFE-10) y el rendimiento del Warden
-// en su duelo salen de Content/Data/Match/partida.json; un archivo mal formado se rechaza con motivo,
+// en su duelo, y desde S-020 la salvaguarda del movimiento, salen de Content/Data/Match/partida.json; un archivo mal formado se rechaza con motivo,
 // igual que el tablero.
 // Filtro: "Soulbound.Core.Match.Params".
 
@@ -31,6 +31,9 @@ namespace
 	const TCHAR* const EventFields = TEXT("\"revealBracerRounds\": 1, \"markRounds\": 3, \"echoNightMaxRounds\": 8, \"dilemmaClockSeconds\": 8, ")
 		TEXT("\"dilemmaClockPerOptionSeconds\": 3, \"shortChoiceClockSeconds\": 6");
 
+	/** La salvaguarda del movimiento (S-020) con un valor válido, para añadir a un JSON de parámetros. */
+	const TCHAR* const MoveField = TEXT("\"moveStepSeconds\": 0.6");
+
 	/** Los dos de la Prueba del Warden y el duelo contra el Warden (S-015) con valores válidos, para añadir a un JSON de parámetros. */
 	const TCHAR* const WardenFields = TEXT("\"wardenTrialDifficulty\": \"normal\", \"wardenDuelPerformance\": 0.75");
 
@@ -52,54 +55,62 @@ namespace
 	 */
 	FString WithShell(const TCHAR* Json)
 	{
-		return Append(Append(Append(Append(Append(Append(FString(Json), ShellFields), DuelField), VoidFields), EventFields), WardenFields), FuryField);
+		return Append(Append(Append(Append(Append(Append(Append(FString(Json), ShellFields), DuelField), VoidFields), EventFields), WardenFields), FuryField), MoveField);
 	}
 
 	/** Parámetros válidos de S-009, con el margen del duelo, las escaleras y los de los eventos y sin los del trilero, para los casos de S-010. */
 	FString BaseWith(const TCHAR* ShellPart)
 	{
-		return Append(Append(FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s, %s, %s%s%s }"),
-			DuelField, VoidFields, EventFields, *ShellPart ? TEXT(", ") : TEXT(""), ShellPart), WardenFields), FuryField);
+		return Append(Append(Append(FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s, %s, %s%s%s }"),
+			DuelField, VoidFields, EventFields, *ShellPart ? TEXT(", ") : TEXT(""), ShellPart), WardenFields), FuryField), MoveField);
 	}
 
 	/** Parámetros válidos hasta S-010, con las escaleras y los de los eventos, sin el margen del duelo y DuelPart en su lugar, para los casos de S-012. */
 	FString DuelCase(const TCHAR* DuelPart)
 	{
-		const FString Base = Append(Append(FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s, %s, %s }"),
-			ShellFields, VoidFields, EventFields), WardenFields), FuryField);
+		const FString Base = Append(Append(Append(FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s, %s, %s }"),
+			ShellFields, VoidFields, EventFields), WardenFields), FuryField), MoveField);
 		return *DuelPart ? Append(Base, DuelPart) : Base;
 	}
 
 	/** Parámetros válidos hasta S-012 y los de los eventos, sin las escaleras del Vacío y VoidPart en su lugar, para los casos de S-013. */
 	FString VoidCase(const TCHAR* VoidPart)
 	{
-		const FString Base = Append(Append(FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s, %s, %s }"),
-			ShellFields, DuelField, EventFields), WardenFields), FuryField);
+		const FString Base = Append(Append(Append(FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s, %s, %s }"),
+			ShellFields, DuelField, EventFields), WardenFields), FuryField), MoveField);
 		return *VoidPart ? Append(Base, VoidPart) : Base;
 	}
 
 	/** Parámetros válidos hasta S-013 sin los de los eventos, y EventPart en su lugar, para los casos de S-014. */
 	FString EventCase(const TCHAR* EventPart)
 	{
-		const FString Base = Append(Append(FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s, %s, %s }"),
-			ShellFields, DuelField, VoidFields), WardenFields), FuryField);
+		const FString Base = Append(Append(Append(FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s, %s, %s }"),
+			ShellFields, DuelField, VoidFields), WardenFields), FuryField), MoveField);
 		return *EventPart ? Append(Base, EventPart) : Base;
 	}
 
 	/** Parámetros válidos hasta S-014 y WardenPart en lugar de los de la Prueba y el duelo del Warden, para los casos de S-015. */
 	FString WardenCase(const TCHAR* WardenPart)
 	{
-		const FString Base = FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s, %s, %s, %s, %s }"),
-			ShellFields, DuelField, VoidFields, EventFields, FuryField);
+		const FString Base = Append(FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s, %s, %s, %s, %s }"),
+			ShellFields, DuelField, VoidFields, EventFields, FuryField), MoveField);
 		return *WardenPart ? Append(Base, WardenPart) : Base;
 	}
 
 	/** Parámetros válidos hasta S-015 y FuryPart en lugar de la escalera del Vacío de la Furia, para los casos de S-016. */
 	FString FuryCase(const TCHAR* FuryPart)
 	{
-		const FString Base = Append(FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s, %s, %s, %s }"),
-			ShellFields, DuelField, VoidFields, EventFields), WardenFields);
+		const FString Base = Append(Append(FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s, %s, %s, %s }"),
+			ShellFields, DuelField, VoidFields, EventFields), WardenFields), MoveField);
 		return *FuryPart ? Append(Base, FuryPart) : Base;
+	}
+
+	/** Parámetros válidos hasta S-016 y MovePart en lugar de la salvaguarda del movimiento, para los casos de S-020. */
+	FString MoveCase(const TCHAR* MovePart)
+	{
+		const FString Base = Append(Append(FString::Printf(TEXT("{ \"turnClockSeconds\": 30, \"maxExtraTurns\": 2, \"maxLostTurns\": 2, \"raceDurationSeconds\": 300, \"choiceClockSeconds\": 10, %s, %s, %s, %s }"),
+			ShellFields, DuelField, VoidFields, EventFields), WardenFields), FuryField);
+		return *MovePart ? Append(Base, MovePart) : Base;
 	}
 
 	/** Los seis de los eventos (S-014) válidos con Name cambiado a Value: para los casos que prueban uno de ellos. */
@@ -159,6 +170,8 @@ bool FMatchParamsLoadTest::RunTest(const FString& Parameters)
 	// S-015 (R-EFE-10, Duelo contra el Warden): con sus valores iniciales de la story.
 	TestEqual(TEXT("Prueba del Warden: normal"), static_cast<int32>(FromFile.WardenTrialDifficulty), static_cast<int32>(ESkillDifficulty::Normal));
 	TestEqual(TEXT("Rendimiento del Warden en su duelo: 0,75"), FromFile.WardenDuelPerformance, 0.75);
+	// S-020 (CA-MOV-3): la salvaguarda del movimiento, con su valor inicial de la story.
+	TestEqual(TEXT("Salvaguarda del movimiento: 0,6 s"), FromFile.MoveStepSeconds, 0.6);
 
 	// Los valores salen del texto, no del código: con otros valores en el JSON, otros parámetros.
 	const FMatchParamsLoadResult Other = Soulbound::Rules::LoadMatchParamsFromJsonString(
@@ -166,7 +179,7 @@ bool FMatchParamsLoadTest::RunTest(const FString& Parameters)
 		TEXT("\"shellRevealSeconds\": 1.5, \"shellShuffleSeconds\": 3, \"shellSwapCount\": 11, \"shellPickSeconds\": 6.5, \"duelAdvantageMargin\": 0.4, ")
 		TEXT("\"voidEscapeLadder\": [\"normal\", \"easy\"], \"voidEscapeAffinityLadder\": [\"hard\", \"normal\"], ")
 		TEXT("\"revealBracerRounds\": 2, \"markRounds\": 4, \"echoNightMaxRounds\": 5, \"dilemmaClockSeconds\": 9.5, \"dilemmaClockPerOptionSeconds\": 0, \"shortChoiceClockSeconds\": 4.5, ")
-		TEXT("\"wardenTrialDifficulty\": \"hard\", \"wardenDuelPerformance\": 0.4, \"furyEscapeLadder\": [\"normal\"] }"));
+		TEXT("\"wardenTrialDifficulty\": \"hard\", \"wardenDuelPerformance\": 0.4, \"furyEscapeLadder\": [\"normal\"], \"moveStepSeconds\": 1.25 }"));
 	if (TestTrue(FString::Printf(TEXT("Otros valores cargan (%s)"), *Other.Message), Other.IsSuccess()))
 	{
 		TestEqual(TEXT("Reloj de turno leído del texto"), Other.Params.TurnClockSeconds, 12.5);
@@ -190,6 +203,7 @@ bool FMatchParamsLoadTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Dificultad de la Prueba leída del texto"), static_cast<int32>(Other.Params.WardenTrialDifficulty), static_cast<int32>(ESkillDifficulty::Hard));
 		TestEqual(TEXT("Rendimiento del Warden leído del texto"), Other.Params.WardenDuelPerformance, 0.4);
 		TestTrue(TEXT("Escalera de la Furia leída del texto"), Other.Params.FuryEscapeLadder == TArray<ESkillDifficulty>{ESkillDifficulty::Normal});
+		TestEqual(TEXT("Salvaguarda del movimiento leída del texto"), Other.Params.MoveStepSeconds, 1.25);
 	}
 
 	// S-013 (decisión del autor del 08/10/2026): la principal de 1 a 3 peldaños; la de la afinidad, de 1 a los de la principal.
@@ -310,6 +324,11 @@ bool FMatchParamsRejectTest::RunTest(const FString& Parameters)
 		{TEXT("escalera de la Furia de cuatro peldaños"), FuryCase(TEXT("\"furyEscapeLadder\": [\"hard\", \"hard\", \"normal\", \"easy\"]"))},
 		{TEXT("escalera de la Furia con una dificultad desconocida"), FuryCase(TEXT("\"furyEscapeLadder\": [\"hard\", \"imposible\"]"))},
 		{TEXT("escalera de la Furia que no es lista"), FuryCase(TEXT("\"furyEscapeLadder\": \"hard\""))},
+		// S-020 (CA-MOV-3): la salvaguarda del movimiento, obligatoria y mayor que cero.
+		{TEXT("falta la salvaguarda del movimiento"), MoveCase(TEXT(""))},
+		{TEXT("salvaguarda del movimiento a cero"), MoveCase(TEXT("\"moveStepSeconds\": 0"))},
+		{TEXT("salvaguarda del movimiento negativa"), MoveCase(TEXT("\"moveStepSeconds\": -0.6"))},
+		{TEXT("salvaguarda del movimiento como texto"), MoveCase(TEXT("\"moveStepSeconds\": \"0.6\""))},
 	};
 	for (const TPair<FString, FString>& Case : Cases)
 	{
@@ -330,6 +349,8 @@ bool FMatchParamsRejectTest::RunTest(const FString& Parameters)
 	TestTrue(FString::Printf(TEXT("La base con los de la Prueba y el duelo del Warden carga (%s)"), *ValidWarden.Message), ValidWarden.IsSuccess());
 	const FMatchParamsLoadResult ValidFury = Soulbound::Rules::LoadMatchParamsFromJsonString(FuryCase(FuryField));
 	TestTrue(FString::Printf(TEXT("La base con la escalera de la Furia carga (%s)"), *ValidFury.Message), ValidFury.IsSuccess());
+	const FMatchParamsLoadResult ValidMove = Soulbound::Rules::LoadMatchParamsFromJsonString(MoveCase(MoveField));
+	TestTrue(FString::Printf(TEXT("La base con la salvaguarda del movimiento carga (%s)"), *ValidMove.Message), ValidMove.IsSuccess());
 
 	const FMatchParamsLoadResult Missing = Soulbound::Rules::LoadMatchParamsFromFile(
 		FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data/Match/no_existe.json")));

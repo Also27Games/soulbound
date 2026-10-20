@@ -139,6 +139,23 @@ namespace Soulbound::Tests
 		return IsWaiting();
 	}
 
+	/**
+	 * Entrega en NowSeconds, en orden, las intenciones de avance que faltan del movimiento en curso del asiento activo (S-020),
+	 * como la simulación y los dummies: el camino entero en el acto. Sin movimiento en curso no hace nada. Devuelve false si el
+	 * motor rechaza alguna.
+	 */
+	inline bool CompleteMovement(FMatchState& State, double NowSeconds)
+	{
+		while (State.TurnPhase == ETurnPhase::Moving)
+		{
+			if (Soulbound::Rules::SubmitMoveProgress(State, State.ActiveSeat, State.Movement.NextTile(), NowSeconds) != EIntentResult::Accepted)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
 	/** Dominios con el Nicho en el estado pedido, en orden de identificador. */
 	inline TArray<int32> DomainsWithNiche(const FMatchState& State, ENicheState NicheState)
 	{
