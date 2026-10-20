@@ -11,6 +11,12 @@ namespace Soulbound::Rules
 {
 	const TArray<ESkillDifficulty>& VoidEscapeLadderFor(const FMatchState& State, int32 Seat)
 	{
+		// R-INS-3 (decisión del autor del 20/10/2026): la Furia castiga al jugador, no al personaje: en su Vacío todos juegan su
+		// escalera, también Mictlantecuhtli.
+		if (State.Seats.IsValidIndex(Seat) && State.Seats[Seat].bFuryVoid)
+		{
+			return State.Params.FuryEscapeLadder;
+		}
 		// R-ELE-2: Mictlantecuhtli empieza en fácil y sale como máximo al segundo turno; los dos valores, en datos.
 		return HasAffinity(State, Seat, EAffinity::VoidEscape) ? State.Params.VoidEscapeAffinityLadder : State.Params.VoidEscapeLadder;
 	}

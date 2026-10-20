@@ -289,14 +289,15 @@ namespace
 
 	/**
 	 * Start de un asiento en el Vacío (R-TUR-3, R-VAC-2), antes de nada y en este orden: su cuenta sube uno; un Eco sale sin
-	 * jugar (R-ECO-5); quien tiene Desvío elige si lo usa (R-POD-6), bajo el reloj de turno y también en el turno en que
+	 * jugar (R-ECO-5), salvo en el Vacío de la Furia (S-016); quien tiene Desvío elige si lo usa (R-POD-6), bajo el reloj de turno y también en el turno en que
 	 * saldría solo (decisión del autor del 08/10/2026); si no, la escalera. Sin dados: nada de esto toca el sorteo.
 	 */
 	void EnterVoidTurn(FMatchState& State, double NowSeconds)
 	{
 		const int32 Seat = State.ActiveSeat;
 		++State.Seats[Seat].VoidTurns;
-		if (State.Seats[Seat].Role == ESeatRole::LostEcho)
+		// R-INS-3 (decisión del autor del 20/10/2026): en el Vacío de la Furia no vale la salida del Eco; juega la escalera.
+		if (State.Seats[Seat].Role == ESeatRole::LostEcho && !State.Seats[Seat].bFuryVoid)
 		{
 			Soulbound::Rules::LeaveVoid(State, Seat, EVoidExit::Echo, NowSeconds);
 			EnterEnd(State, NowSeconds);
