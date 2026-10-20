@@ -11,6 +11,7 @@
   "duelAdvantageMargin": 0.15,
   "voidEscapeLadder": ["hard", "normal", "easy"],
   "voidEscapeAffinityLadder": ["easy"],
+  "furyEscapeLadder": ["hard", "hard", "normal"],
   "revealBracerRounds": 1,
   "markRounds": 3,
   "echoNightMaxRounds": 8,

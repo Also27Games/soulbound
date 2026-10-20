@@ -486,20 +486,19 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInsolenceFuryEscapeTest, "Soulbound.Core.Insol
 
 bool FInsolenceFuryEscapeTest::RunTest(const FString& Parameters)
 {
-	// CA-INS-2 (R-INS-3, R-VAC-2): del Vacío de la Furia se sale como siempre, superando el escape, y Mictlantecuhtli conserva su
-	// escalera (empieza en fácil).
+	// CA-INS-2 (R-INS-3, R-VAC-2): del Vacío de la Furia se sale como siempre, superando el escape. Desde la decisión del autor
+	// del 20/10/2026, con la escalera de la Furia (LaFuriaIgualaATodos); hasta entonces, con la de cada uno.
 	FWardenFixture F;
 	if (!F.StartWithWarden(*this))
 	{
 		return false;
 	}
-	// Fenrir con la afinidad de Mictlantecuhtli: lo que el test necesita es su escalera.
-	F.State.Elects.Elects[FenrirDomain].Affinity = EAffinity::VoidEscape;
 	F.State.Seats[Fenrir].Insolence = 4;
 	Soulbound::Rules::RaiseInsolence(F.State, Fenrir, F.Now);
 	F.BeginTurn(Fenrir);
 	TestEqual(TEXT("Escape del Vacío"), AsInt(F.State.PendingTrial), AsInt(ESkillTrial::VoidEscape));
-	TestEqual(TEXT("Con su escalera: fácil"), AsInt(F.State.PendingDifficulty), AsInt(F.State.Params.VoidEscapeAffinityLadder[0]));
+	TestEqual(TEXT("Con la escalera de la Furia"), AsInt(F.State.PendingDifficulty),
+		F.State.Params.FuryEscapeLadder.IsValidIndex(0) ? AsInt(F.State.Params.FuryEscapeLadder[0]) : INDEX_NONE);
 	TestEqual(TEXT("Lo supera"), AsInt(Soulbound::Rules::SubmitSkillTrialResult(F.State, Fenrir, true, F.Now)), AsInt(EIntentResult::Accepted));
 	TestFalse(TEXT("Sale"), F.State.Seats[Fenrir].IsInVoid());
 	TestFalse(TEXT("Y su Vacío deja de ser de la Furia"), F.State.Seats[Fenrir].bFuryVoid);
@@ -528,6 +527,71 @@ bool FInsolenceFuryInsideTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Su Vacío es de la Furia"), F.State.Seats[Koschei].IsInVoid() && F.State.Seats[Koschei].bFuryVoid);
 	TestEqual(TEXT("La cuenta vuelve a 0"), F.State.Seats[Koschei].VoidTurns, 0);
 	TestEqual(TEXT("Insolencia 0"), F.State.Seats[Koschei].Insolence, 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInsolenceFuryEqualsAllTest, "Soulbound.Core.Insolence.LaFuriaIgualaATodos",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FInsolenceFuryEqualsAllTest::RunTest(const FString& Parameters)
+{
+	// R-INS-3 (decisión del autor del 20/10/2026): la Furia castiga al jugador, no al personaje; el Vacío de la Furia es otro sitio
+	// con sus reglas e iguala a todos. Un Eco no sale en su primer turno sin jugar (R-ECO-5) y Mictlantecuhtli no usa su escalera:
+	// los dos juegan la de la Furia (furyEscapeLadder: difícil, difícil, normal) y salen al cuarto turno, como siempre. Fuera de
+	// la Furia, el Eco sale sin jugar y Mictlantecuhtli juega fácil.
+	const ESkillDifficulty Ladder[] = {ESkillDifficulty::Hard, ESkillDifficulty::Hard, ESkillDifficulty::Normal};
+	{
+		FWardenFixture F;
+		if (!F.StartWithWarden(*this))
+		{
+			return false;
+		}
+		// Fenrir con la afinidad de Mictlantecuhtli: lo que el test necesita es su escalera.
+		F.State.Elects.Elects[FenrirDomain].Affinity = EAffinity::VoidEscape;
+		for (const int32 Seat : {FWardenFixture::EchoA, Fenrir})
+		{
+			const FString Who = Seat == Fenrir ? TEXT("Mictlantecuhtli") : TEXT("Eco");
+			F.State.Seats[Seat].Insolence = 4;
+			Soulbound::Rules::RaiseInsolence(F.State, Seat, F.Now);
+			if (!TestTrue(FString::Printf(TEXT("%s: en el Vacío de la Furia"), *Who), F.State.Seats[Seat].IsInVoid() && F.State.Seats[Seat].bFuryVoid))
+			{
+				continue;
+			}
+			for (int32 Turn = 1; Turn <= 3; ++Turn)
+			{
+				F.BeginTurn(Seat);
+				TestEqual(FString::Printf(TEXT("%s, turno %d dentro: juega el escape"), *Who, Turn), AsInt(F.State.PendingTrial), AsInt(ESkillTrial::VoidEscape));
+				TestEqual(FString::Printf(TEXT("%s, turno %d dentro: la dificultad de la escalera de la Furia"), *Who, Turn), AsInt(F.State.PendingDifficulty), AsInt(Ladder[Turn - 1]));
+				Soulbound::Rules::SubmitSkillTrialResult(F.State, Seat, false, F.Now);
+				TestTrue(FString::Printf(TEXT("%s, turno %d dentro: lo falla y sigue dentro"), *Who, Turn), F.State.Seats[Seat].IsInVoid());
+			}
+			const int32 Before = F.State.EventLog.Num();
+			F.BeginTurn(Seat);
+			const TArray<FMatchEvent> Left = F.Since(Before, EMatchEventType::LeftVoid);
+			if (TestEqual(FString::Printf(TEXT("%s: al cuarto turno sale"), *Who), Left.Num(), 1))
+			{
+				TestEqual(FString::Printf(TEXT("%s: sin jugar, por el tope"), *Who), Left[0].Value, AsInt(EVoidExit::TurnLimit));
+			}
+		}
+	}
+	{
+		FWardenFixture F;
+		if (!F.StartWithWarden(*this))
+		{
+			return false;
+		}
+		F.State.Elects.Elects[FenrirDomain].Affinity = EAffinity::VoidEscape;
+		F.MoveAway(FWardenFixture::EchoA);
+		Soulbound::Rules::Banish(F.State, FWardenFixture::EchoA, false, F.Now);
+		int32 Before = F.State.EventLog.Num();
+		F.BeginTurn(FWardenFixture::EchoA);
+		const TArray<FMatchEvent> Left = F.Since(Before, EMatchEventType::LeftVoid);
+		TestTrue(TEXT("Fuera de la Furia, el Eco sale en su primer turno sin jugar"), Left.Num() == 1 && Left[0].Value == AsInt(EVoidExit::Echo));
+		F.MoveAway(Fenrir);
+		Soulbound::Rules::Banish(F.State, Fenrir, false, F.Now);
+		F.BeginTurn(Fenrir);
+		TestEqual(TEXT("Fuera de la Furia, Mictlantecuhtli juega fácil"), AsInt(F.State.PendingDifficulty), AsInt(ESkillDifficulty::Easy));
+	}
 	return true;
 }
 
