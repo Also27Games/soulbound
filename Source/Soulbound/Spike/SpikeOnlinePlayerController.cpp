@@ -299,6 +299,17 @@ void ASpikeOnlinePlayerController::ReportDebugEdit(const FDebugEditOutcome& Outc
 {
 	Say(FString::Printf(TEXT("[Depuración] %s%s"), Outcome.bApplied ? TEXT("") : TEXT("RECHAZADO: "), *Outcome.Message));
 }
+
+ABoardViewActor* ASpikeOnlinePlayerController::FindBoardView() const
+{
+	// La vista del tablero vive en el mundo del anfitrión; es presentación, así que no hace falta editar la partida.
+	if (UWorld* World = GetWorld())
+	{
+		TActorIterator<ABoardViewActor> It(World);
+		return It ? *It : nullptr;
+	}
+	return nullptr;
+}
 #endif
 
 void ASpikeOnlinePlayerController::SbGiveRune(FString Seat, FString RuneType, FString Count)
@@ -594,13 +605,7 @@ void ASpikeOnlinePlayerController::SbSeatedView(FString Height, FString Distance
 #if !UE_BUILD_SHIPPING
 	static const TCHAR* Usage = TEXT("SbSeatedView <altura_cm> <distancia_cm> <inclinación_grados> [<ángulo_grados>: 180 abajo, menos a la derecha, más a la izquierda], "
 		"o sin argumentos para ver los valores");
-	// La vista del tablero vive en el mundo del anfitrión; es presentación, así que no hace falta editar la partida.
-	ABoardViewActor* View = nullptr;
-	if (UWorld* World = GetWorld())
-	{
-		TActorIterator<ABoardViewActor> It(World);
-		View = It ? *It : nullptr;
-	}
+	ABoardViewActor* View = FindBoardView();
 	if (!View)
 	{
 		Say(TEXT("[Depuración] No hay vista del tablero en este mundo."));
@@ -651,5 +656,10 @@ void ASpikeOnlinePlayerController::SbHelp()
 		"SbSeatedView [<altura_cm> <distancia_cm> <inclinación_grados> [<ángulo_grados>]] | SbHelp. "
 		"Los asientos van de 0 a 3 y el tipo de runa es el Dominio de 0 a 5. SbBanish y SbSendHome no valen con quien está jugando su turno, "
 		"y SbEvent solo entre turnos: con SbStepMode 1."));
+	// S-019: las teclas de la vista, las que tenga configuradas; las de ocultar son independientes y se combinan.
+	if (const ABoardViewActor* View = FindBoardView())
+	{
+		Say(FString::Printf(TEXT("[Depuración] Teclas de la vista: %s."), *View->DescribeViewKeys()));
+	}
 #endif
 }

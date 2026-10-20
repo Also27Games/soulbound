@@ -61,6 +61,8 @@ namespace
 
 	/** Clave base de los mensajes de pantalla de esta vista: una línea por clave, se sustituyen al refrescar. */
 	constexpr uint64 TextKeyBase = 0x53420500;
+	/** Líneas de texto de pantalla de esta vista (claves TextKeyBase + 0 a + 12), para quitarlas todas a la vez. */
+	constexpr int32 DebugTextLineCount = 13;
 
 	/** Atenuado de una casilla de un Dominio Olvidado: mismo tono, más oscuro. */
 	FLinearColor Dimmed(const FLinearColor& Color, float Factor)
@@ -1172,7 +1174,9 @@ void ABoardViewActor::UpdateCamera()
 	constexpr float Fov = 60.f;
 	const float Aspect = Viewport.X / Viewport.Y;
 	const float HalfTan = FMath::Tan(FMath::DegreesToRadians(Fov * 0.5f));
-	const float FreeFraction = 1.f - FMath::Clamp(PanelWidthPixels / static_cast<float>(Viewport.X), 0.f, 0.6f);
+	// Con los paneles ocultos (tecla H), el tablero usa todo el ancho.
+	const float PanelPixels = bPanelsHidden ? 0.f : PanelWidthPixels;
+	const float FreeFraction = 1.f - FMath::Clamp(PanelPixels / static_cast<float>(Viewport.X), 0.f, 0.6f);
 	const float Height = CameraMargin * FMath::Max(BoardHalf.Y / (FreeFraction * HalfTan), BoardHalf.X * Aspect / HalfTan);
 	// La pantalla crece hacia +Y a la derecha: para que el tablero quede a la izquierda, la cámara se corre hacia +Y.
 	const float VisibleHalfWidth = Height * HalfTan;
@@ -1583,6 +1587,41 @@ void ABoardViewActor::ToggleOverlay()
 	Refresh();
 }
 
+void ABoardViewActor::TogglePanels()
+{
+	bPanelsHidden = !bPanelsHidden;
+	if (Overlay.IsValid())
+	{
+		Overlay->SetVisibility(bPanelsHidden ? EVisibility::Collapsed : EVisibility::SelfHitTestInvisible);
+	}
+	UpdateCamera();
+}
+
+void ABoardViewActor::ToggleDebugText()
+{
+	bDebugTextHidden = !bDebugTextHidden;
+	if (bDebugTextHidden && GEngine)
+	{
+		// Sin esperar a que caduquen: solo las líneas de esta vista, no los mensajes del controlador. De la última a la primera:
+		// el motor reutiliza los huecos liberados en orden inverso, y así, al volver, cada línea ocupa el suyo y el orden se
+		// conserva (de la primera a la última, volvían del revés).
+		for (int32 Line = DebugTextLineCount - 1; Line >= 0; --Line)
+		{
+			GEngine->RemoveOnScreenDebugMessage(TextKeyBase + Line);
+		}
+	}
+	else
+	{
+		TickHud();
+	}
+}
+
+FString ABoardViewActor::DescribeViewKeys() const
+{
+	return FString::Printf(TEXT("%s vista sentada | %s etiquetas y halos | %s paneles | %s texto de depuración"), *SeatedViewKey.GetDisplayName().ToString(),
+		*OverlayToggleKey.GetDisplayName().ToString(), *PanelsToggleKey.GetDisplayName().ToString(), *DebugTextToggleKey.GetDisplayName().ToString());
+}
+
 void ABoardViewActor::ApplyViewTarget()
 {
 	ACameraActor* Wanted = bSeatedView && SeatedCamera ? SeatedCamera.Get() : Camera.Get();
@@ -1617,6 +1656,8 @@ void ABoardViewActor::ApplyViewTarget()
 			{
 				InputComponent->BindKey(SeatedViewKey, IE_Pressed, this, &ABoardViewActor::ToggleSeatedView);
 				InputComponent->BindKey(OverlayToggleKey, IE_Pressed, this, &ABoardViewActor::ToggleOverlay);
+				InputComponent->BindKey(PanelsToggleKey, IE_Pressed, this, &ABoardViewActor::TogglePanels);
+				InputComponent->BindKey(DebugTextToggleKey, IE_Pressed, this, &ABoardViewActor::ToggleDebugText);
 				bInputBound = true;
 			}
 		}
@@ -1625,7 +1666,8 @@ void ABoardViewActor::ApplyViewTarget()
 
 void ABoardViewActor::ShowText(int32 Line, const FColor& Color, const FString& Text) const
 {
-	if (GEngine)
+	// S-019: la tecla del texto de depuración lo oculta todo, la línea de petición incluida.
+	if (GEngine && !bDebugTextHidden)
 	{
 		// Se sustituye por clave en cada refresco; si la vista deja de refrescar, el mensaje caduca a los dos intervalos.
 		GEngine->AddOnScreenDebugMessage(TextKeyBase + Line, HudIntervalSeconds * 2.f + 0.1f, Color, Text);
@@ -1738,11 +1780,11 @@ void ABoardViewActor::TickHud()
 	// Paso a paso (S-007): lo que espera, bien visible.
 	if (bStepWait)
 	{
-		ShowText(2, FColor::Yellow, TEXT("PASO A PASO: espacio para el siguiente turno"));
+		ShowText(2, FColor::Yellow, FString::Printf(TEXT("PASO A PASO: espacio para el siguiente turno | teclas: %s"), *DescribeViewKeys()));
 	}
 	else if (HostPtr->IsStepMode())
 	{
-		ShowText(2, FColor(200, 200, 90), TEXT("PASO A PASO activo: la partida se detendra al acabar este turno"));
+		ShowText(2, FColor(200, 200, 90), FString::Printf(TEXT("PASO A PASO activo: la partida se detendra al acabar este turno | teclas: %s"), *DescribeViewKeys()));
 	}
 
 	const FString Sealed = State.Board.SealedTiles.IsEmpty()

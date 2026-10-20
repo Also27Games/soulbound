@@ -255,15 +255,27 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Luz")
 	float SkyLightIntensity = 0.5f;
 
-	// ---- Cámaras y teclas (S-019, R-VIS-9) ----
+	// ---- Cámaras y teclas (S-019, R-VIS-9). Las teclas, en Config (DefaultGame.ini, sección [/Script/Soulbound.BoardViewActor]).
+	// Las de ocultar son independientes y se combinan. ----
 
 	/** Tecla que alterna la cenital con la vista sentada del asiento humano. Valor inicial C. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Camara")
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey SeatedViewKey = EKeys::C;
 
 	/** Tecla que oculta y muestra etiquetas y halos, para las capturas. Valor inicial L. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Camara")
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey OverlayToggleKey = EKeys::L;
+
+	/** Tecla que oculta y muestra los paneles de Slate (leyenda y crónica); ocultos, la cenital usa todo el ancho. Valor inicial H. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	FKey PanelsToggleKey = EKeys::H;
+
+	/** Tecla que oculta y muestra el texto de depuración de arriba a la izquierda (turno, reloj, Warden, semilla, asientos, petición). Valor inicial T. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	FKey DebugTextToggleKey = EKeys::T;
+
+	/** Las teclas de la vista y lo que hace cada una, en una línea (para SbHelp y la línea del paso a paso). */
+	FString DescribeViewKeys() const;
 
 	// La vista sentada, en Config (DefaultGame.ini, sección [/Script/Soulbound.BoardViewActor]) para ajustarla sin compilar;
 	// en partida, con SbSeatedView.
@@ -473,6 +485,10 @@ private:
 	void PlaceSeatedCamera();
 	/** Oculta o enseña etiquetas y halos (S-019, R-VIS-9). */
 	void ToggleOverlay();
+	/** Oculta o enseña la leyenda y la crónica, y recoloca la cenital en el hueco que queda. */
+	void TogglePanels();
+	/** Oculta o enseña el texto de depuración de pantalla; al ocultarlo, lo quita ya. */
+	void ToggleDebugText();
 	/** Pone como vista del jugador local la cámara que toca, y le engancha las teclas de la vista la primera vez. */
 	void ApplyViewTarget();
 	/** Lado de la losa de respaldo: el de la pieza. */
@@ -504,6 +520,8 @@ private:
 	bool bNicheThroneConfigured = false;
 	bool bSeatedView = false;
 	bool bOverlayHidden = false;
+	bool bPanelsHidden = false;
+	bool bDebugTextHidden = false;
 	bool bInputBound = false;
 	/** Altura de la cara superior de cada casilla. */
 	TArray<float> TileTops;

@@ -4,6 +4,7 @@
 #include "GameFramework/PlayerController.h"
 #include "SpikeOnlinePlayerController.generated.h"
 
+class ABoardViewActor;
 class UA27OnlineSubsystem;
 class UMatchHostSubsystem;
 struct FDebugEditOutcome;
@@ -188,6 +189,9 @@ private:
 
 	/** Dice en pantalla (y en el log) qué hizo una edición o por qué se rechazó. */
 	void ReportDebugEdit(const FDebugEditOutcome& Outcome) const;
+
+	/** La vista del tablero de este mundo (S-019), o null si no hay. Es presentación: no pide autoridad ni partida. */
+	ABoardViewActor* FindBoardView() const;
 #endif
 
 	UFUNCTION()
