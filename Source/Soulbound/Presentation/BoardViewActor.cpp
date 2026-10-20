@@ -1130,11 +1130,15 @@ void ABoardViewActor::PlaceSeatedCamera()
 	SeatedCamera->SetActorLocationAndRotation(Location, FRotator(-SeatedViewPitchDegrees, Yaw + 180.f, 0.f));
 }
 
-void ABoardViewActor::SetSeatedView(float Height, float Distance, float PitchDegrees)
+void ABoardViewActor::SetSeatedView(float Height, float Distance, float PitchDegrees, TOptional<float> YawDegrees)
 {
 	SeatedViewHeight = Height;
 	SeatedViewDistance = Distance;
 	SeatedViewPitchDegrees = PitchDegrees;
+	if (YawDegrees.IsSet())
+	{
+		SeatedViewYawDegrees = YawDegrees.GetValue();
+	}
 	PlaceSeatedCamera();
 	bSeatedView = true;
 	ApplyViewTarget();

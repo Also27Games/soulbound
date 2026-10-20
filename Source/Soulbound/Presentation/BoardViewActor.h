@@ -286,9 +286,11 @@ public:
 
 	/**
 	 * Cambia la vista sentada al instante (SbSeatedView) y entra en ella si no está activa: altura sobre la mesa y distancia
-	 * fuera del borde, en cm, e inclinación hacia abajo, en grados. No toca el ángulo del asiento ni guarda nada en Config.
+	 * fuera del borde, en cm, inclinación hacia abajo y, si viene, el ángulo del asiento, en grados (180 es el borde de abajo
+	 * de la cenital; menos, hacia la derecha de la pantalla; más, hacia la izquierda). Sin ángulo, conserva el que tiene. No
+	 * guarda nada en Config.
 	 */
-	void SetSeatedView(float Height, float Distance, float PitchDegrees);
+	void SetSeatedView(float Height, float Distance, float PitchDegrees, TOptional<float> YawDegrees = {});
 
 	/** Los cuatro valores actuales de la vista sentada, en una línea, y si está activa. */
 	FString DescribeSeatedView() const;

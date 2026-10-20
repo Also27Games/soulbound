@@ -589,10 +589,11 @@ void ASpikeOnlinePlayerController::SbWardenMode(FString Mode)
 #endif
 }
 
-void ASpikeOnlinePlayerController::SbSeatedView(FString Height, FString Distance, FString Pitch)
+void ASpikeOnlinePlayerController::SbSeatedView(FString Height, FString Distance, FString Pitch, FString Yaw)
 {
 #if !UE_BUILD_SHIPPING
-	static const TCHAR* Usage = TEXT("SbSeatedView <altura_cm> <distancia_cm> <inclinación_grados>, o sin argumentos para ver los valores");
+	static const TCHAR* Usage = TEXT("SbSeatedView <altura_cm> <distancia_cm> <inclinación_grados> [<ángulo_grados>: 180 abajo, menos a la derecha, más a la izquierda], "
+		"o sin argumentos para ver los valores");
 	// La vista del tablero vive en el mundo del anfitrión; es presentación, así que no hace falta editar la partida.
 	ABoardViewActor* View = nullptr;
 	if (UWorld* World = GetWorld())
@@ -605,7 +606,7 @@ void ASpikeOnlinePlayerController::SbSeatedView(FString Height, FString Distance
 		Say(TEXT("[Depuración] No hay vista del tablero en este mundo."));
 		return;
 	}
-	if (Height.IsEmpty() && Distance.IsEmpty() && Pitch.IsEmpty())
+	if (Height.IsEmpty() && Distance.IsEmpty() && Pitch.IsEmpty() && Yaw.IsEmpty())
 	{
 		Say(FString::Printf(TEXT("[Depuración] Vista sentada: %s"), *View->DescribeSeatedView()));
 		return;
@@ -618,13 +619,25 @@ void ASpikeOnlinePlayerController::SbSeatedView(FString Height, FString Distance
 		Say(FString::Printf(TEXT("[Depuración] Hacen falta los tres números. Uso: %s"), Usage));
 		return;
 	}
+	// El ángulo del asiento es opcional: sin él, la cámara sigue en el lado de la mesa en que estaba.
+	TOptional<float> YawDegrees;
+	if (!Yaw.IsEmpty())
+	{
+		float Parsed = 0.f;
+		if (!LexTryParseString(Parsed, *Yaw))
+		{
+			Say(FString::Printf(TEXT("[Depuración] El ángulo debe ser un número, no \"%s\". Uso: %s"), *Yaw, Usage));
+			return;
+		}
+		YawDegrees = Parsed;
+	}
 	// Una inclinación de 90° o más mira del revés; una distancia negativa metería la cámara dentro de la mesa.
 	if (DistanceCm < 0.f || PitchDegrees <= -90.f || PitchDegrees >= 90.f)
 	{
 		Say(FString::Printf(TEXT("[Depuración] RECHAZADO: la distancia no puede ser negativa y la inclinación va entre -90 y 90 grados. Uso: %s"), Usage));
 		return;
 	}
-	View->SetSeatedView(HeightCm, DistanceCm, PitchDegrees);
+	View->SetSeatedView(HeightCm, DistanceCm, PitchDegrees, YawDegrees);
 	Say(FString::Printf(TEXT("[Depuración] Vista sentada: %s"), *View->DescribeSeatedView()));
 #endif
 }
@@ -635,7 +648,7 @@ void ASpikeOnlinePlayerController::SbHelp()
 	Say(TEXT("[Depuración] Comandos: SbGiveRune <asiento> <tipo> [n] | SbTakeRune <asiento> <tipo> [n] | SbMove <asiento> <casilla> | "
 		"SbBond <asiento> <dominio> | SbSeal <casilla> | SbUnseal <casilla> | SbEndRace | SbRoll <n> | SbTrial pass|fail | "
 		"SbDuel win|lose | SbTurn <asiento> | SbBanish <asiento> | SbRelease | SbSendHome <asiento> | SbInsolence <asiento> <n> | SbEvent <id> | SbEvents | SbWardenMode off|auto | "
-		"SbSeatedView [<altura_cm> <distancia_cm> <inclinación_grados>] | SbHelp. "
+		"SbSeatedView [<altura_cm> <distancia_cm> <inclinación_grados> [<ángulo_grados>]] | SbHelp. "
 		"Los asientos van de 0 a 3 y el tipo de runa es el Dominio de 0 a 5. SbBanish y SbSendHome no valen con quien está jugando su turno, "
 		"y SbEvent solo entre turnos: con SbStepMode 1."));
 #endif
