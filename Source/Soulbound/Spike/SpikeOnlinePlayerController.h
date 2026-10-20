@@ -4,6 +4,7 @@
 #include "GameFramework/PlayerController.h"
 #include "SpikeOnlinePlayerController.generated.h"
 
+class ABoardViewActor;
 class UA27OnlineSubsystem;
 class UMatchHostSubsystem;
 struct FDebugEditOutcome;
@@ -136,6 +137,16 @@ public:
 	UFUNCTION(Exec)
 	void SbWardenMode(FString Mode);
 
+	/**
+	 * SbSeatedView <altura_cm> <distancia_cm> <inclinación_grados> [<ángulo_grados>]: cambia la vista sentada de la vista del
+	 * tablero (el ángulo del asiento, opcional: 180 es el borde de abajo de la cenital; menos, hacia la derecha; más, hacia la
+	 * izquierda) al
+	 * instante y entra en ella si no está activa (S-019); sin argumentos, dice los valores actuales. Solo presentación: no
+	 * toca el estado ni guarda nada (los valores de inicio están en Config). Cuerpo vacío en Shipping.
+	 */
+	UFUNCTION(Exec)
+	void SbSeatedView(FString Height, FString Distance, FString Pitch, FString Yaw);
+
 	/** SbHelp: lista los comandos de depuración con su sintaxis. */
 	UFUNCTION(Exec)
 	void SbHelp();
@@ -178,6 +189,9 @@ private:
 
 	/** Dice en pantalla (y en el log) qué hizo una edición o por qué se rechazó. */
 	void ReportDebugEdit(const FDebugEditOutcome& Outcome) const;
+
+	/** La vista del tablero de este mundo (S-019), o null si no hay. Es presentación: no pide autoridad ni partida. */
+	ABoardViewActor* FindBoardView() const;
 #endif
 
 	UFUNCTION()
