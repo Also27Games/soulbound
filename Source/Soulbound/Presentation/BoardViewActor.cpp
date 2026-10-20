@@ -1107,17 +1107,43 @@ void ABoardViewActor::BuildCamera()
 	}
 	UpdateCamera();
 
-	// La vista sentada del asiento humano: fuera del borde de la mesa, sobre ella, inclinada hacia abajo y girada al centro.
-	// No es la cámara de la interfaz (R-CAM-1 a 5).
-	const float Yaw = SeatedViewYawDegrees;
-	const FVector2D Direction(FMath::Cos(FMath::DegreesToRadians(Yaw)), FMath::Sin(FMath::DegreesToRadians(Yaw)));
-	const FVector Location(Direction * (LayoutParams.TableRadius + SeatedViewDistance), SeatedViewHeight);
-	SeatedCamera = GetWorld()->SpawnActor<ACameraActor>(ACameraActor::StaticClass(), FTransform(FRotator(-SeatedViewPitchDegrees, Yaw + 180.f, 0.f), Location), Params);
+	// La vista sentada del asiento humano. No es la cámara de la interfaz (R-CAM-1 a 5).
+	SeatedCamera = GetWorld()->SpawnActor<ACameraActor>(ACameraActor::StaticClass(), FTransform::Identity, Params);
 	if (SeatedCamera)
 	{
 		SeatedCamera->GetCameraComponent()->SetFieldOfView(60.f);
 		SeatedCamera->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
 	}
+	PlaceSeatedCamera();
+}
+
+void ABoardViewActor::PlaceSeatedCamera()
+{
+	if (!SeatedCamera)
+	{
+		return;
+	}
+	// Fuera del borde de la mesa, sobre ella, inclinada hacia abajo y girada al centro (R-VIS-9).
+	const float Yaw = SeatedViewYawDegrees;
+	const FVector2D Direction(FMath::Cos(FMath::DegreesToRadians(Yaw)), FMath::Sin(FMath::DegreesToRadians(Yaw)));
+	const FVector Location(Direction * (LayoutParams.TableRadius + SeatedViewDistance), SeatedViewHeight);
+	SeatedCamera->SetActorLocationAndRotation(Location, FRotator(-SeatedViewPitchDegrees, Yaw + 180.f, 0.f));
+}
+
+void ABoardViewActor::SetSeatedView(float Height, float Distance, float PitchDegrees)
+{
+	SeatedViewHeight = Height;
+	SeatedViewDistance = Distance;
+	SeatedViewPitchDegrees = PitchDegrees;
+	PlaceSeatedCamera();
+	bSeatedView = true;
+	ApplyViewTarget();
+}
+
+FString ABoardViewActor::DescribeSeatedView() const
+{
+	return FString::Printf(TEXT("altura %.1f cm, distancia al borde %.1f cm, inclinación %.1f°, ángulo del asiento %.1f° (%s)"), SeatedViewHeight, SeatedViewDistance,
+		SeatedViewPitchDegrees, SeatedViewYawDegrees, bSeatedView ? TEXT("activa") : TEXT("inactiva: tecla C"));
 }
 
 void ABoardViewActor::UpdateCamera()

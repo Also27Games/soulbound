@@ -136,6 +136,14 @@ public:
 	UFUNCTION(Exec)
 	void SbWardenMode(FString Mode);
 
+	/**
+	 * SbSeatedView <altura_cm> <distancia_cm> <inclinación_grados>: cambia la vista sentada de la vista del tablero al
+	 * instante y entra en ella si no está activa (S-019); sin argumentos, dice los valores actuales. Solo presentación: no
+	 * toca el estado ni guarda nada (los valores de inicio están en Config). Cuerpo vacío en Shipping.
+	 */
+	UFUNCTION(Exec)
+	void SbSeatedView(FString Height, FString Distance, FString Pitch);
+
 	/** SbHelp: lista los comandos de depuración con su sintaxis. */
 	UFUNCTION(Exec)
 	void SbHelp();

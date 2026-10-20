@@ -265,21 +265,33 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Camara")
 	FKey OverlayToggleKey = EKeys::L;
 
+	// La vista sentada, en Config (DefaultGame.ini, sección [/Script/Soulbound.BoardViewActor]) para ajustarla sin compilar;
+	// en partida, con SbSeatedView.
+
 	/** Dónde se sienta el humano alrededor de la mesa, en grados desde el +X de la mesa. Valor inicial 180: el borde de abajo de la cenital. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Camara")
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	float SeatedViewYawDegrees = 180.f;
 
 	/** Altura de la vista sentada sobre la mesa, en cm. Valor inicial 60. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Camara")
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	float SeatedViewHeight = 60.f;
 
 	/** Distancia de la vista sentada fuera del borde de la mesa, en cm. Valor inicial 80. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Camara")
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	float SeatedViewDistance = 80.f;
 
 	/** Inclinación de la vista sentada hacia abajo, en grados; el giro, hacia el centro. Valor inicial 30. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Camara")
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	float SeatedViewPitchDegrees = 30.f;
+
+	/**
+	 * Cambia la vista sentada al instante (SbSeatedView) y entra en ella si no está activa: altura sobre la mesa y distancia
+	 * fuera del borde, en cm, e inclinación hacia abajo, en grados. No toca el ángulo del asiento ni guarda nada en Config.
+	 */
+	void SetSeatedView(float Height, float Distance, float PitchDegrees);
+
+	/** Los cuatro valores actuales de la vista sentada, en una línea, y si está activa. */
+	FString DescribeSeatedView() const;
 
 	// ---- Kit de arte (S-019, R-VIS-8): referencias blandas en Config, con valores iniciales en /Game/Art/Tablero/ según
 	// kit.json. Vacía, sin pieza; puesta pero inexistente, la forma básica de hoy y un aviso en el registro. ----
@@ -455,6 +467,8 @@ private:
 	void RefreshKit(const FBoardViewState& View);
 	/** Alterna la cenital y la vista sentada (S-019, R-VIS-9). */
 	void ToggleSeatedView();
+	/** Coloca la cámara sentada con los parámetros actuales: fuera del borde, sobre la mesa, inclinada y girada al centro. */
+	void PlaceSeatedCamera();
 	/** Oculta o enseña etiquetas y halos (S-019, R-VIS-9). */
 	void ToggleOverlay();
 	/** Pone como vista del jugador local la cámara que toca, y le engancha las teclas de la vista la primera vez. */
