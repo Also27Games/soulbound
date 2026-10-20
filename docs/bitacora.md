@@ -4,6 +4,44 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo de la story; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera.
 
+## S-020. Movimiento por el camino y corte a medio camino (20/10/2026, rama `main`)
+
+- **Qué se pidió**: que el motor conozca el camino del movimiento y lleve una fase de movimiento en curso, para que un golpe del Warden pueda caer a medio camino (R-TAB-26): la ficha se queda en la última casilla en la que entró, sin resolverla. La vista recorre el camino casilla a casilla y dice al motor en qué casilla entra. Además, el comando `SbStrike`.
+- **Qué se decidió**: el autor resolvió las seis dudas del plan (20/10):
+  - una alcanzable sin camino se rechaza con `Unreachable`;
+  - las fichas de los dummies repiten su camino como presentación;
+  - la crónica del juego no lista `TileEntered`;
+  - `SbMove` durante el movimiento queda como aviso;
+  - el reloj de turno no se toca;
+  - `SbStrike` en un duelo, un trilero o un minijuego se rechaza.
+
+  Sus dos decisiones de partida: una línea por movimiento con el camino en la crónica de la simulación, y 0,3 s por casilla. Nombres propuestos: `MovementPath`, `ETurnPhase::Moving`, `FMovementState`, `SubmitMoveProgress` con `NotNextTile`, `TileEntered`, `moveStepSeconds` y `TokenStepSeconds`.
+- **Cómo funciona**:
+  - **Búsqueda**: una sola para alcanzables y caminos (`WalkPaths`), con los vecinos en orden ascendente.
+  - **Confirmar destino**: guarda el camino y pasa a `Moving`, sin mover la ficha.
+  - **Avance**: cada intención de avance en orden mueve la ficha y deja `TileEntered`; la última deja `Moved` y pasa a `MoveAndResolve`, que resuelve como antes.
+  - **Salvaguarda**: sin avance en 0,6 s desde la casilla anterior, `AdvanceTurn` entra en la siguiente.
+  - **Corte**: en `Moving` descarta el camino.
+  - **Simulación y dummies**: entregan el camino en el acto.
+  - **Vista**: la ficha del humano recorre el camino y avisa al anfitrión en cada casilla; si el estado va por delante o corta, se coloca donde dice el estado.
+- **Dudas y resolución**: las seis del plan (arriba). Al implementar:
+  - el montaje `LandOn` de los tests dejaba en cualquier casilla con tirada 1, que ya no tiene camino; ahora prepara el movimiento a mano con el destino como único paso;
+  - un script de apoyo del agente se llamaba `token.py` y tapaba el módulo de Python del mismo nombre; se renombró.
+- **Tests**:
+  - 10 nuevos, vistos en rojo con las firmas vacías (commit aparte): tres de `MovementPath`, tres de `Moving`, tres del corte (`Warden.Cut`) y `Debug.GolpeAhora`. Junto a ellos se ampliaron tres existentes, que también fallaron: los dos de parámetros y la crónica.
+  - `LaUltimaCasillaResuelve` pasaba con las firmas vacías y se endureció para comprobar `Moving` tras confirmar.
+  - Adaptados, por confirmar destino y avanzar a reloj fijo: seis de `Match.Turn` (`CincoFasesEnOrden` comprueba ahora seis fases), tres de `BondRace`, `Duel.SorteoNoDependeDeLosDuelos`, `ShellGame.SorteoNoDependeDeLosRobos`, `Powers.ConsumoFijoDelSorteo` y los montajes `LandOn` y `FinishTurn`.
+  - Total: 279 en verde. La simulación juega los mismos 463 turnos.
+  - Prueba de humo en el juego, con capturas: los dummies llegan a sus destinos y la ficha del humano recorre Altar, D0-1, D0-3 y D0-6 por los senderos.
+- **Pendiente**:
+  - los tres manuales en PIE (recorrido con el kit, `SbStrike pierdes-un-turno` a medio camino, golpe natural con el Warden en `auto`), para el autor;
+  - avisos: `SbMove` en `Moving` deja seguir el camino viejo; la ficha de un dummy puede seguir repitiendo su camino un instante después de que el motor siga.
+- **Proceso**:
+  - tiempo: una sesión;
+  - preguntas que pararon al agente: una parada (el plan, con seis dudas);
+  - correcciones tras fusionar: por anotar;
+  - build y tests: el build pasó a la primera. Los tests no: tras implementar cayeron los montajes que confirmaban destino (esperado) y la salvaguarda nueva, por redondeo del test; se corrigieron.
+
 ## S-019. Tablero en 3D desde datos (20/10/2026, rama `main`)
 
 - **Qué se pidió**: que la vista coloque las piezas del kit de arte (prueba C, ronda 6) desde los datos del tablero: una losa por casilla, senderos por conexión, la cuña de cada Dominio, el Altar, las estructuras de las casillas especiales, las cadenas de los Sellos, la carta de cada ficha y la lámpara (R-VIS-1 a 9). Las formas básicas de hoy hacen de respaldo, y el código se desarrolla y se prueba sin assets.
