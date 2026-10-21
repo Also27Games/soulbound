@@ -54,6 +54,14 @@ struct SOULBOUND_API FBoardLayoutParams
 	UPROPERTY(EditAnywhere, Category = "Mesa")
 	float KitTableRadius = 74.f;
 
+	/**
+	 * Cota de la cara del suelo del kit sobre la mesa, en cm (R-VIS-3): lo que se coloca sobre el suelo (losas, senderos,
+	 * estructuras) sube esa altura; el Altar no, su base está en la mesa. Valor inicial 0: sin kit, las formas de respaldo
+	 * van a cota 0. Con el kit, 3,4: la cara de la losa (0,55 más) queda por encima del relieve máximo de la tierra (3,9).
+	 */
+	UPROPERTY(EditAnywhere, Category = "Mesa")
+	float KitFloorHeight = 0.f;
+
 	/** Apotema del Altar, de su centro al borde de una cara (sus vértices están a 17,3). Valor inicial 15. */
 	UPROPERTY(EditAnywhere, Category = "Mesa")
 	float AltarApothem = 15.f;

@@ -143,6 +143,49 @@ bool FBoardLayoutWedgeFloorScaleTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// CA-VIS-1 (R-VIS-3): lo que se posa sobre el suelo del kit sube su cota: con KitFloorHeight 3,4, toda losa, toda estructura y
+// todo tramo de sendero están a z = 3,4 y el Altar, a 0; con 0, todo a 0.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLayoutKitFloorHeightTest, "Soulbound.Game.Presentation.Tablero3D.CotaDelSueloDelKit", LayoutTestFlags)
+bool FBoardLayoutKitFloorHeightTest::RunTest(const FString& Parameters)
+{
+	FBoardState Board;
+	if (!LoadBoard35(*this, Board))
+	{
+		return false;
+	}
+	AssignNodeEffects(Board);
+	for (const float Height : {3.4f, 0.f})
+	{
+		FBoardLayoutParams Params;
+		Params.KitFloorHeight = Height;
+		const FBoardLayout Layout = Soulbound::Presentation::ComputeBoardLayout(Board, Params);
+		if (!TestEqual(TEXT("Una colocación por casilla"), Layout.Tiles.Num(), Board.Tiles.Num()))
+		{
+			return false;
+		}
+		int32 Structures = 0;
+		for (const FTileState& Tile : Board.Tiles)
+		{
+			const FTileLayout& Placed = Layout.Tiles[Tile.TileId];
+			const float Expected = Board.IsAltar(Tile.TileId) ? 0.f : Height;
+			TestTrue(FString::Printf(TEXT("Cota %.1f: la losa %d está a z = %.2f (%.2f)"), Height, Tile.TileId, Expected, Placed.Location.Z), FMath::IsNearlyEqual(Placed.Location.Z, Expected, 0.0001f));
+			if (Placed.Structure != EBoardStructure::None)
+			{
+				++Structures;
+				TestTrue(FString::Printf(TEXT("Cota %.1f: la estructura de la casilla %d está a z = %.2f (%.2f)"), Height, Tile.TileId, Height, Placed.StructureLocation.Z),
+					FMath::IsNearlyEqual(Placed.StructureLocation.Z, Height, 0.0001f));
+			}
+		}
+		TestTrue(TEXT("El tablero tiene estructuras que comprobar"), Structures > 0);
+		TestTrue(TEXT("El tablero tiene tramos de sendero que comprobar"), Layout.PathSegments.Num() > 0);
+		for (const FPathSegmentLayout& Segment : Layout.PathSegments)
+		{
+			TestTrue(FString::Printf(TEXT("Cota %.1f: el tramo %d-%d está a z = %.2f (%.2f)"), Height, Segment.TileA, Segment.TileB, Height, Segment.Location.Z), FMath::IsNearlyEqual(Segment.Location.Z, Height, 0.0001f));
+		}
+	}
+	return true;
+}
+
 // CA-VIS-1 (R-VIS-2): cada cuña gira al ángulo medio de sus casillas vistas desde el Altar; seis ángulos distintos separados
 // unos 60° (entre 45 y 75 de una a la siguiente).
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLayoutWedgesTest, "Soulbound.Game.Presentation.Tablero3D.CunasAlAnguloMedio", LayoutTestFlags)
