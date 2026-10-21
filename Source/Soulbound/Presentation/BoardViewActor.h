@@ -262,7 +262,7 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey SeatedViewKey = EKeys::C;
 
-	/** Tecla que oculta y muestra etiquetas y halos, para las capturas. Valor inicial L. */
+	/** Tecla que oculta y muestra etiquetas para las capturas. Valor inicial L. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey OverlayToggleKey = EKeys::L;
 
@@ -483,7 +483,7 @@ private:
 	void ToggleSeatedView();
 	/** Coloca la cámara sentada con los parámetros actuales: fuera del borde, sobre la mesa, inclinada y girada al centro. */
 	void PlaceSeatedCamera();
-	/** Oculta o enseña etiquetas y halos (S-019, R-VIS-9). */
+	/** Oculta o enseña etiquetas (S-019, R-VIS-9). */
 	void ToggleOverlay();
 	/** Oculta o enseña la leyenda y la crónica, y recoloca la cenital en el hueco que queda. */
 	void TogglePanels();

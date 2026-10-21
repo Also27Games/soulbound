@@ -1437,7 +1437,7 @@ void ABoardViewActor::Refresh()
 		}
 		if (UStaticMeshComponent* Halo = Halos.IsValidIndex(Tile.TileId) ? Halos[Tile.TileId].Get() : nullptr)
 		{
-			Halo->SetVisibility(Reachable.Contains(Tile.TileId) && !bOverlayHidden);
+			Halo->SetVisibility(Reachable.Contains(Tile.TileId));
 		}
 
 		UStaticMeshComponent* Inlay = Inlays.IsValidIndex(Tile.TileId) ? Inlays[Tile.TileId].Get() : nullptr;
@@ -1618,7 +1618,7 @@ void ABoardViewActor::ToggleDebugText()
 
 FString ABoardViewActor::DescribeViewKeys() const
 {
-	return FString::Printf(TEXT("%s vista sentada | %s etiquetas y halos | %s paneles | %s texto de depuración"), *SeatedViewKey.GetDisplayName().ToString(),
+	return FString::Printf(TEXT("%s vista sentada | %s etiquetas | %s paneles | %s texto de depuración"), *SeatedViewKey.GetDisplayName().ToString(),
 		*OverlayToggleKey.GetDisplayName().ToString(), *PanelsToggleKey.GetDisplayName().ToString(), *DebugTextToggleKey.GetDisplayName().ToString());
 }
 
