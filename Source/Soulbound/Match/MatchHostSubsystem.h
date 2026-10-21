@@ -73,11 +73,14 @@ public:
 	EIntentResult SubmitHumanIntent(int32 TileId);
 
 	/**
-	 * Intención de avance del asiento humano (S-020): la vista la entrega al ver entrar su ficha en cada casilla del camino. Se
-	 * entrega tal cual a SubmitMoveProgress; una que no vale (la salvaguarda ya entró en esa casilla, o el turno se cortó) se
-	 * descarta sin castigo. Devuelve lo que dijo el motor.
+	 * Intención de avance del asiento Seat (S-020), sea humano o dummy (decisión del autor del 21/10/2026): la vista la entrega al
+	 * ver entrar su ficha en cada casilla del camino. Se entrega tal cual a SubmitMoveProgress, que solo acepta la del asiento
+	 * activo; una que no vale (la salvaguarda ya entró en esa casilla, o el turno se cortó) se descarta sin castigo. Devuelve lo
+	 * que dijo el motor.
 	 */
-	EIntentResult SubmitHumanMoveProgress(int32 TileId);
+	// TODO(R-RED-1): con red, el avance lo entrega la presentación del servidor; si un cliente llega a entregarlo, el servidor tendrá
+	// que comprobar que el asiento es suyo, como con el resto de intenciones.
+	EIntentResult SubmitMoveProgress(int32 Seat, int32 TileId);
 
 	/**
 	 * Respuesta del asiento humano a su elección pendiente (S-009): dados, repetir, salto, acción contra un jugador, runa
@@ -221,7 +224,7 @@ public:
 
 	/**
 	 * Segundos que tarda un dummy en confirmar su destino desde que tiene la tirada, y en contestar cada elección (S-009). Su
-	 * camino lo entrega entero al confirmar (S-020): la ficha lo recorre después, solo como presentación.
+	 * camino lo recorre su ficha, que entrega el avance de cada casilla como la del humano (S-020, decisión del autor del 21/10/2026).
 	 * Valor inicial 5 (como en la simulación, S-003); menor que el reloj de elección, así un dummy nunca lo agota. Si el
 	 * plazo de una elección es más corto (la esfera del trilero, S-010), contesta a la mitad de lo que queda.
 	 */

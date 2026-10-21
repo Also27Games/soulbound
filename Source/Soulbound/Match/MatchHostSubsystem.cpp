@@ -204,13 +204,10 @@ void UMatchHostSubsystem::Advance()
 			}
 			if (Now >= Pending.ReadyAtSeconds && Pending.TileId != INDEX_NONE)
 			{
+				// S-020 (decisión del autor del 21/10/2026): el camino no se entrega aquí; lo recorre la ficha del dummy, que entrega
+				// el avance de cada casilla como la del humano (SubmitMoveProgress), y sin presentación lo cubre la salvaguarda.
 				bChanged |= Soulbound::Rules::SubmitDestinationIntent(State, Seat, Pending.TileId, Now) == EIntentResult::Accepted;
 				Pending.bPending = false;
-				// S-020: un dummy entrega el camino entero nada más confirmar; su ficha lo recorre después, como presentación.
-				while (State.TurnPhase == ETurnPhase::Moving
-					&& Soulbound::Rules::SubmitMoveProgress(State, Seat, State.Movement.NextTile(), Now) == EIntentResult::Accepted)
-				{
-				}
 			}
 		}
 		else if (State.TurnPhase == ETurnPhase::SkillTrial)
@@ -362,7 +359,7 @@ EIntentResult UMatchHostSubsystem::SubmitHumanIntent(int32 TileId)
 	return Result;
 }
 
-EIntentResult UMatchHostSubsystem::SubmitHumanMoveProgress(int32 TileId)
+EIntentResult UMatchHostSubsystem::SubmitMoveProgress(int32 Seat, int32 TileId)
 {
 	if (!bHasMatch)
 	{
@@ -370,7 +367,7 @@ EIntentResult UMatchHostSubsystem::SubmitHumanMoveProgress(int32 TileId)
 	}
 	const double Now = MatchSeconds();
 	State.ClockSeconds = Now;
-	const EIntentResult Result = Soulbound::Rules::SubmitMoveProgress(State, HumanSeat, TileId, Now);
+	const EIntentResult Result = Soulbound::Rules::SubmitMoveProgress(State, Seat, TileId, Now);
 	if (Result == EIntentResult::Accepted)
 	{
 		OnMatchStateChanged.Broadcast();

@@ -12,7 +12,7 @@ class UTextRenderComponent;
 
 /**
  * La ficha de un asiento ha llegado a una casilla de su recorrido (S-020): asiento, casilla y si es la última. La vista lo
- * convierte en la intención de avance del humano; en un recorrido de repetición (los dummies), solo recoloca al acabar.
+ * convierte en la intención de avance de ese asiento, humano o dummy.
  */
 DECLARE_DELEGATE_ThreeParams(FOnTokenTileEntered, int32 /*Seat*/, int32 /*TileId*/, bool /*bLast*/);
 

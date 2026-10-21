@@ -570,8 +570,6 @@ void ABoardViewActor::Initialize(UMatchHostSubsystem* InHost)
 	BuildCamera();
 	BuildLighting();
 	BuildOverlay();
-	// S-020: los movimientos anteriores a la vista no se recorren.
-	TokenLogCursor = InHost->GetState().EventLog.Num();
 	Refresh();
 
 	ChangedHandle = InHost->OnMatchStateChanged.AddUObject(this, &ABoardViewActor::Refresh);
@@ -1529,9 +1527,10 @@ void ABoardViewActor::OnTokenTileEntered(int32 Seat, int32 TileId, bool bLast)
 	{
 		return;
 	}
-	// R-TAB-26: la presentación dice al motor en qué casilla ha entrado la ficha del humano. Aceptada, el anfitrión avisa y la
-	// vista se refresca sola; si no (la salvaguarda llegó antes, o el turno se cortó), al acabar el recorrido se recoloca.
-	if (Seat == HostPtr->GetHumanSeat() && HostPtr->SubmitHumanMoveProgress(TileId) == EIntentResult::Accepted)
+	// R-TAB-26: la presentación dice al motor en qué casilla ha entrado la ficha, sea del humano o de un dummy (decisión del autor
+	// del 21/10/2026). Aceptada, el anfitrión avisa y la vista se refresca sola; si no (la salvaguarda llegó antes, o el turno se
+	// cortó), al acabar el recorrido se recoloca.
+	if (HostPtr->SubmitMoveProgress(Seat, TileId) == EIntentResult::Accepted)
 	{
 		return;
 	}
@@ -1554,20 +1553,8 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 	// acabar un recorrido, sin pasar por Refresh.
 	const FBoardViewState View = Soulbound::Presentation::ComputeBoardViewState(State, bNicheThroneConfigured);
 
-	// S-020: casillas en las que ha entrado cada asiento desde el último refresco. Las de un dummy son su camino entero, que
-	// entregó al confirmar: su ficha lo repite. Las del humano las entra su propia ficha (o la salvaguarda).
-	TArray<TArray<int32>> Entered;
-	Entered.SetNum(State.Seats.Num());
-	for (; TokenLogCursor < State.EventLog.Num(); ++TokenLogCursor)
-	{
-		const FMatchEvent& Event = State.EventLog[TokenLogCursor];
-		if (Event.Type == EMatchEventType::TileEntered && Entered.IsValidIndex(Event.Seat))
-		{
-			Entered[Event.Seat].Add(Event.Value);
-		}
-	}
-	const int32 HumanSeat = HostPtr->GetHumanSeat();
-	const bool bHumanMoving = State.TurnPhase == ETurnPhase::Moving && State.ActiveSeat == HumanSeat;
+	// S-020: el asiento que se mueve, humano o dummy (decisión del autor del 21/10/2026).
+	const int32 MovingSeat = State.TurnPhase == ETurnPhase::Moving ? State.ActiveSeat : INDEX_NONE;
 	auto BasesOf = [this](const TArray<int32>& Tiles)
 	{
 		TArray<FVector> Bases;
@@ -1598,10 +1585,10 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 		Token->SetElectShape(State.Seats[Seat].Role == ESeatRole::Elect);
 		Token->SetActive(bSomeoneActive && Seat == State.ActiveSeat);
 
-		// S-020 (R-TAB-26): el humano recorre lo que le queda del camino, y cada llegada es su intención de avance. Si el motor
-		// va por delante (la salvaguarda entró en una casilla a la que la ficha no había llegado), la ficha se coloca donde dice el
-		// estado, sin animar, y sigue desde ahí.
-		if (Seat == HumanSeat && bHumanMoving)
+		// S-020 (R-TAB-26): la ficha del que se mueve recorre lo que le queda del camino, y cada llegada es su intención de avance.
+		// Si el motor va por delante (la salvaguarda entró en una casilla a la que la ficha no había llegado), la ficha se coloca
+		// donde dice el estado, sin animar, y sigue desde ahí.
+		if (Seat == MovingSeat)
 		{
 			const TArray<int32>& Path = State.Movement.Path;
 			const int32 Done = FMath::Clamp(State.Movement.EnteredCount, 0, Path.Num());
@@ -1617,22 +1604,10 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 			}
 			continue;
 		}
-		// Un dummy entregó su camino entero al confirmar: su ficha lo repite desde donde esté, solo como presentación.
-		if (Seat != HumanSeat && !Entered[Seat].IsEmpty())
-		{
-			Token->WalkPath(Entered[Seat], BasesOf(Entered[Seat]), TokenSpeed);
-			continue;
-		}
 		if (Token->IsWalking())
 		{
-			// Un recorrido que el estado deja atrás: el humano cortado a medio camino o llegado por la salvaguarda, o un dummy al que
-			// otra cosa (un evento, una expulsión) mueve antes de acabar de repetir su camino. La ficha va donde dice el estado, sin
-			// animar. Si no, el dummy sigue repitiendo su camino.
-			const TArray<int32> Left = Token->RemainingWalk();
-			if (Seat != HumanSeat && Left.Last() == TileId)
-			{
-				continue;
-			}
+			// Un recorrido que el estado deja atrás: cortado a medio camino o llegado por la salvaguarda. La ficha va donde dice el
+			// estado, sin animar.
 			Token->StopWalk();
 			Token->MoveTo(TokenBase(TileId), 0.f);
 		}
