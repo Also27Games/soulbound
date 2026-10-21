@@ -117,6 +117,32 @@ bool FBoardLayoutTableTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// CA-VIS-1 (R-VIS-1): el suelo de cada cuña se escala con el radio de mesa para el que está hecho el kit: con la mesa de 120 y
+// el kit de 74, 120/74; con la mesa igual al radio del kit, 1; y 1 si el radio del kit no es positivo.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLayoutWedgeFloorScaleTest, "Soulbound.Game.Presentation.Tablero3D.EscalaDelSueloDeLaCuna", LayoutTestFlags)
+bool FBoardLayoutWedgeFloorScaleTest::RunTest(const FString& Parameters)
+{
+	FBoardState Board;
+	if (!LoadBoard35(*this, Board))
+	{
+		return false;
+	}
+	FBoardLayoutParams Params;
+	Params.KitTableRadius = 74.f;
+	Params.TableRadius = 120.f;
+	TestTrue(TEXT("Mesa de 120 con kit de 74: el suelo se escala 120/74"),
+		FMath::IsNearlyEqual(Soulbound::Presentation::ComputeBoardLayout(Board, Params).WedgeFloorScale, 120.f / 74.f, 0.0001f));
+
+	Params.TableRadius = 74.f;
+	TestTrue(TEXT("Mesa igual al radio del kit: el suelo no se escala"),
+		FMath::IsNearlyEqual(Soulbound::Presentation::ComputeBoardLayout(Board, Params).WedgeFloorScale, 1.f, 0.0001f));
+
+	Params.KitTableRadius = 0.f;
+	TestTrue(TEXT("Radio del kit no positivo: el suelo no se escala"),
+		FMath::IsNearlyEqual(Soulbound::Presentation::ComputeBoardLayout(Board, Params).WedgeFloorScale, 1.f, 0.0001f));
+	return true;
+}
+
 // CA-VIS-1 (R-VIS-2): cada cuña gira al ángulo medio de sus casillas vistas desde el Altar; seis ángulos distintos separados
 // unos 60° (entre 45 y 75 de una a la siguiente).
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLayoutWedgesTest, "Soulbound.Game.Presentation.Tablero3D.CunasAlAnguloMedio", LayoutTestFlags)

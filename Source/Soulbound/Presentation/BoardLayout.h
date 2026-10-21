@@ -47,6 +47,13 @@ struct SOULBOUND_API FBoardLayoutParams
 	UPROPERTY(EditAnywhere, Category = "Mesa")
 	float TableRadius = 74.f;
 
+	/**
+	 * Radio de mesa para el que está hecho el kit (R-VIS-1): el suelo de cada cuña (`peana` y `suelo_liso`) se escala por
+	 * TableRadius / KitTableRadius. Con un valor no positivo no se escala. Valor inicial 74.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Mesa")
+	float KitTableRadius = 74.f;
+
 	/** Apotema del Altar, de su centro al borde de una cara (sus vértices están a 17,3). Valor inicial 15. */
 	UPROPERTY(EditAnywhere, Category = "Mesa")
 	float AltarApothem = 15.f;
@@ -170,6 +177,9 @@ struct SOULBOUND_API FBoardLayout
 
 	/** Centímetros de la mesa por unidad de posición del editor (R-VIS-1). */
 	float Scale = 0.f;
+
+	/** Escala en X e Y del suelo de las cuñas (`peana` y `suelo_liso`): TableRadius / KitTableRadius, 1 si éste no es positivo (R-VIS-1). */
+	float WedgeFloorScale = 1.f;
 
 	/** Falso si el trazado no es radial (R-VIS-2): la vista lo avisa y las cuñas van de 60 en 60. */
 	bool bRadial = true;

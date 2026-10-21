@@ -735,7 +735,7 @@ UStaticMeshComponent* ABoardViewActor::AddKitPiece(UStaticMesh* Mesh, const FVec
 	Component->SetStaticMesh(Mesh);
 	Component->SetupAttachment(GetRootComponent());
 	Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	// Las piezas del kit no se escalan (R-VIS-1): un metro del kit son 100 cm.
+	// Las piezas del kit no se escalan (R-VIS-1), salvo el suelo de la cuña (BuildKit): un metro del kit son 100 cm.
 	Component->SetRelativeLocationAndRotation(Location, FRotator(0.f, Yaw, 0.f));
 	Component->SetVisibility(bVisible);
 	ApplyKitMaterials(*Component);
@@ -747,14 +747,17 @@ void ABoardViewActor::BuildKit()
 {
 	const FBoardState& Board = Host->GetState().Board;
 
-	// R-VIS-2: la peana y el suelo liso de cada Dominio, girados a su sector, con el centro en el Altar.
+	// R-VIS-2: la peana y el suelo liso de cada Dominio, girados a su sector, con el centro en el Altar y a la escala del suelo.
 	for (const FDomainWedgeLayout& Wedge : Layout.Wedges)
 	{
 		for (const EBoardKitPiece Piece : {EBoardKitPiece::Pedestal, EBoardKitPiece::PlainFloor})
 		{
 			if (UStaticMesh* Mesh = KitMesh(Piece))
 			{
-				KitFixedPieces.Add(AddKitPiece(Mesh, FVector::ZeroVector, Wedge.Yaw, true));
+				UStaticMeshComponent* Floor = AddKitPiece(Mesh, FVector::ZeroVector, Wedge.Yaw, true);
+				// R-VIS-1: el suelo de la cuña se escala en X e Y al radio de la mesa; el resto del kit, no.
+				Floor->SetRelativeScale3D(FVector(Layout.WedgeFloorScale, Layout.WedgeFloorScale, 1.f));
+				KitFixedPieces.Add(Floor);
 			}
 		}
 	}

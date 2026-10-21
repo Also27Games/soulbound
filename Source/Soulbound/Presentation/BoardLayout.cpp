@@ -303,6 +303,7 @@ FBoardLayout Soulbound::Presentation::ComputeBoardLayout(const FBoardState& Boar
 	}
 	const float Inner = Params.AltarApothem + Params.AltarGap;
 	Layout.Scale = Farthest > 0.f ? FMath::Max(0.f, (Params.TableRadius - Inner - Params.SlabHalfSize) / Farthest) : 0.f;
+	Layout.WedgeFloorScale = Params.KitTableRadius > 0.f ? Params.TableRadius / Params.KitTableRadius : 1.f;
 	Layout.Tiles.SetNum(Board.Tiles.Num());
 	for (const FTileState& Tile : Board.Tiles)
 	{
