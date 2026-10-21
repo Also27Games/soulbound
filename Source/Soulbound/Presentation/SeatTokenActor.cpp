@@ -201,7 +201,7 @@ void ASeatTokenActor::MoveTo(const FVector& Location, float SlideSeconds)
 	SlideElapsed = 0.f;
 }
 
-void ASeatTokenActor::WalkPath(const TArray<int32>& Tiles, const TArray<FVector>& Points, float StepSeconds)
+void ASeatTokenActor::WalkPath(const TArray<int32>& Tiles, const TArray<FVector>& Points, float Speed)
 {
 	++WalkGeneration;
 	WalkTiles = Tiles;
@@ -209,7 +209,7 @@ void ASeatTokenActor::WalkPath(const TArray<int32>& Tiles, const TArray<FVector>
 	WalkPoints.SetNum(WalkTiles.Num());
 	WalkIndex = 0;
 	WalkElapsed = 0.f;
-	WalkStepSeconds = FMath::Max(StepSeconds, KINDA_SMALL_NUMBER);
+	WalkSpeed = FMath::Max(Speed, KINDA_SMALL_NUMBER);
 	WalkSegmentStart = GetActorLocation();
 	// El recorrido manda: el deslizamiento que hubiera se da por terminado donde esté.
 	SlideTarget = WalkPoints.IsEmpty() ? SlideTarget : WalkPoints.Last();
@@ -220,6 +220,11 @@ void ASeatTokenActor::WalkPath(const TArray<int32>& Tiles, const TArray<FVector>
 TArray<int32> ASeatTokenActor::RemainingWalk() const
 {
 	return IsWalking() ? TArray<int32>(WalkTiles.GetData() + WalkIndex, WalkTiles.Num() - WalkIndex) : TArray<int32>();
+}
+
+float ASeatTokenActor::WalkSegmentSeconds() const
+{
+	return IsWalking() ? FVector::Dist(WalkSegmentStart, WalkPoints[WalkIndex]) / WalkSpeed : 0.f;
 }
 
 void ASeatTokenActor::StopWalk()
@@ -233,14 +238,14 @@ void ASeatTokenActor::StopWalk()
 void ASeatTokenActor::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	// S-020: el recorrido, tramo a tramo. Llegar a una casilla avisa, y el aviso puede cambiar o cortar el recorrido (la vista
-	// entrega la intención, el motor avanza y la vista se refresca): entonces este Tick no sigue con el viejo.
+	// S-020: el recorrido, tramo a tramo y a velocidad constante. Llegar a una casilla avisa, y el aviso puede cambiar o cortar
+	// el recorrido (la vista entrega la intención, el motor avanza y la vista se refresca): entonces este Tick no sigue con el viejo.
 	if (IsWalking())
 	{
 		WalkElapsed += DeltaSeconds;
-		while (IsWalking() && WalkElapsed >= WalkStepSeconds)
+		while (IsWalking() && WalkElapsed >= WalkSegmentSeconds())
 		{
-			WalkElapsed -= WalkStepSeconds;
+			WalkElapsed -= WalkSegmentSeconds();
 			const int32 Generation = WalkGeneration;
 			const int32 Tile = WalkTiles[WalkIndex];
 			const bool bLast = WalkIndex == WalkTiles.Num() - 1;
@@ -259,7 +264,7 @@ void ASeatTokenActor::Tick(float DeltaSeconds)
 		}
 		if (IsWalking())
 		{
-			SetActorLocation(FMath::Lerp(WalkSegmentStart, WalkPoints[WalkIndex], WalkElapsed / WalkStepSeconds));
+			SetActorLocation(FMath::Lerp(WalkSegmentStart, WalkPoints[WalkIndex], WalkElapsed / WalkSegmentSeconds()));
 		}
 	}
 	else if (bPlaced && SlideElapsed < SlideDuration)

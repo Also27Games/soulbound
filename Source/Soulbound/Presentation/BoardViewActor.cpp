@@ -1613,14 +1613,14 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 					Token->StopWalk();
 					Token->MoveTo(TokenBase(TileId), 0.f);
 				}
-				Token->WalkPath(Remaining, BasesOf(Remaining), TokenStepSeconds);
+				Token->WalkPath(Remaining, BasesOf(Remaining), TokenSpeed);
 			}
 			continue;
 		}
 		// Un dummy entregó su camino entero al confirmar: su ficha lo repite desde donde esté, solo como presentación.
 		if (Seat != HumanSeat && !Entered[Seat].IsEmpty())
 		{
-			Token->WalkPath(Entered[Seat], BasesOf(Entered[Seat]), TokenStepSeconds);
+			Token->WalkPath(Entered[Seat], BasesOf(Entered[Seat]), TokenSpeed);
 			continue;
 		}
 		if (Token->IsWalking())

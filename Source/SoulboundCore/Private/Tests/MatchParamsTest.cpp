@@ -32,7 +32,7 @@ namespace
 		TEXT("\"dilemmaClockPerOptionSeconds\": 3, \"shortChoiceClockSeconds\": 6");
 
 	/** La salvaguarda del movimiento (S-020) con un valor válido, para añadir a un JSON de parámetros. */
-	const TCHAR* const MoveField = TEXT("\"moveStepSeconds\": 0.6");
+	const TCHAR* const MoveField = TEXT("\"moveStepSeconds\": 2.5");
 
 	/** Los dos de la Prueba del Warden y el duelo contra el Warden (S-015) con valores válidos, para añadir a un JSON de parámetros. */
 	const TCHAR* const WardenFields = TEXT("\"wardenTrialDifficulty\": \"normal\", \"wardenDuelPerformance\": 0.75");
@@ -170,8 +170,8 @@ bool FMatchParamsLoadTest::RunTest(const FString& Parameters)
 	// S-015 (R-EFE-10, Duelo contra el Warden): con sus valores iniciales de la story.
 	TestEqual(TEXT("Prueba del Warden: normal"), static_cast<int32>(FromFile.WardenTrialDifficulty), static_cast<int32>(ESkillDifficulty::Normal));
 	TestEqual(TEXT("Rendimiento del Warden en su duelo: 0,75"), FromFile.WardenDuelPerformance, 0.75);
-	// S-020 (CA-MOV-3): la salvaguarda del movimiento, con su valor inicial de la story.
-	TestEqual(TEXT("Salvaguarda del movimiento: 0,6 s"), FromFile.MoveStepSeconds, 0.6);
+	// S-020 (CA-MOV-3): la salvaguarda del movimiento, con su valor inicial (2,5 s desde la corrección del autor del 21/10/2026).
+	TestEqual(TEXT("Salvaguarda del movimiento: 2,5 s"), FromFile.MoveStepSeconds, 2.5);
 
 	// Los valores salen del texto, no del código: con otros valores en el JSON, otros parámetros.
 	const FMatchParamsLoadResult Other = Soulbound::Rules::LoadMatchParamsFromJsonString(
@@ -327,8 +327,8 @@ bool FMatchParamsRejectTest::RunTest(const FString& Parameters)
 		// S-020 (CA-MOV-3): la salvaguarda del movimiento, obligatoria y mayor que cero.
 		{TEXT("falta la salvaguarda del movimiento"), MoveCase(TEXT(""))},
 		{TEXT("salvaguarda del movimiento a cero"), MoveCase(TEXT("\"moveStepSeconds\": 0"))},
-		{TEXT("salvaguarda del movimiento negativa"), MoveCase(TEXT("\"moveStepSeconds\": -0.6"))},
-		{TEXT("salvaguarda del movimiento como texto"), MoveCase(TEXT("\"moveStepSeconds\": \"0.6\""))},
+		{TEXT("salvaguarda del movimiento negativa"), MoveCase(TEXT("\"moveStepSeconds\": -2.5"))},
+		{TEXT("salvaguarda del movimiento como texto"), MoveCase(TEXT("\"moveStepSeconds\": \"2.5\""))},
 	};
 	for (const TPair<FString, FString>& Case : Cases)
 	{

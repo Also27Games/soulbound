@@ -72,10 +72,11 @@ public:
 
 	/**
 	 * Recorre el camino Tiles (S-020, R-TAB-26): desde donde esté, en línea recta hasta Points[0], después hasta Points[1]... (las
-	 * bases sobre las losas, por donde van los senderos), StepSeconds por tramo. Al llegar a cada una avisa por OnTileEntered.
+	 * bases sobre las losas, por donde van los senderos), a velocidad constante Speed (cm por segundo): cada tramo dura su
+	 * longitud entre Speed, así el tramo largo del Altar no sale disparado. Al llegar a cada una avisa por OnTileEntered.
 	 * Sustituye al recorrido o al deslizamiento que hubiera. Es solo presentación: quien decide qué pasa es el motor.
 	 */
-	void WalkPath(const TArray<int32>& Tiles, const TArray<FVector>& Points, float StepSeconds);
+	void WalkPath(const TArray<int32>& Tiles, const TArray<FVector>& Points, float Speed);
 
 	/** Si está recorriendo un camino. */
 	bool IsWalking() const { return WalkIndex < WalkTiles.Num(); }
@@ -131,13 +132,16 @@ private:
 	UPROPERTY()
 	TObjectPtr<UStaticMesh> CubeMesh;
 
-	/** Recorrido en curso (S-020): casillas, sus puntos, por cuál va, cuánto lleva del tramo y cuánto dura cada uno. */
+	/** Duración del tramo en curso del recorrido: su longitud entre WalkSpeed. */
+	float WalkSegmentSeconds() const;
+
+	/** Recorrido en curso (S-020): casillas, sus puntos, por cuál va, cuánto lleva del tramo y a qué velocidad (cm/s) va. */
 	TArray<int32> WalkTiles;
 	TArray<FVector> WalkPoints;
 	int32 WalkIndex = 0;
 	FVector WalkSegmentStart = FVector::ZeroVector;
 	float WalkElapsed = 0.f;
-	float WalkStepSeconds = 0.3f;
+	float WalkSpeed = 13.f;
 	/** Sube con cada recorrido nuevo o cortado: si cambia durante un aviso, el aviso cambió el recorrido y Tick no sigue con el viejo. */
 	int32 WalkGeneration = 0;
 

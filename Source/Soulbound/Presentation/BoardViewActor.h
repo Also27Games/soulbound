@@ -105,18 +105,20 @@ public:
 	/**
 	 * Segundos que tarda la ficha en deslizarse en línea recta a su casilla cuando la lleva algo que no es un movimiento (Vacío,
 	 * hogar, Expulsión, salto planar, depuración). 0 la coloca sin deslizar. Valor inicial 0,5. Desde S-020, un movimiento
-	 * recorre su camino (TokenStepSeconds).
+	 * recorre su camino (TokenSpeed).
 	 */
 	UPROPERTY(EditAnywhere, Category = "Vista")
 	float TokenSlideSeconds = 0.5f;
 
 	/**
-	 * Segundos que tarda la ficha en cada casilla de su camino (S-020): recorre el camino tramo a tramo, en línea recta entre
-	 * centros, y al entrar en cada casilla la del humano entrega su intención de avance. Valor inicial 0,3 (decisión del autor
-	 * del 20/10/2026), la mitad de la salvaguarda del motor (moveStepSeconds, 0,6 en partida.json).
+	 * Velocidad de la ficha por su camino, en cm por segundo (S-020): recorre el camino tramo a tramo, en línea recta entre
+	 * centros y a velocidad constante, y al entrar en cada casilla la del humano entrega su intención de avance. Valor inicial 13
+	 * (decisión del autor del 21/10/2026, probando en PIE): unos 0,6 s entre losas vecinas y unos 2 s en el tramo del Altar, que
+	 * la salvaguarda del motor cubre (moveStepSeconds, 2,5 en partida.json). Sustituye al tiempo fijo por tramo, con el que el
+	 * tramo del Altar salía disparado.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Vista")
-	float TokenStepSeconds = 0.3f;
+	float TokenSpeed = 13.f;
 
 	/** Segundos entre refrescos del texto y de la cámara. Valor inicial 0,25 (4 Hz). */
 	UPROPERTY(EditAnywhere, Category = "Vista")
