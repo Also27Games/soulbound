@@ -52,6 +52,7 @@ namespace
 		case ETurnPhase::Start: return TEXT("Start, al empezar");
 		case ETurnPhase::PreRoll: return TEXT("PreRoll, antes de tirar");
 		case ETurnPhase::RollAndChoose: return TEXT("RollAndChoose, eligiendo destino");
+		case ETurnPhase::Moving: return TEXT("Moving, a medio camino");
 		case ETurnPhase::MoveAndResolve: return TEXT("MoveAndResolve, tras mover");
 		default: return TEXT("?");
 		}
@@ -189,13 +190,16 @@ FSimulationResult FMatchSimulation::Run()
 	double NextTurnEvent = 0.0;
 	FPendingAnswer Pending;
 	int32 LoggedEvents = 0;
+	// Casillas en las que ha entrado la ficha en el movimiento en curso (S-020), para la línea del camino.
+	TArray<int32> EnteredTiles;
 
 	// Pasa al registro de texto lo que el motor ha dejado en su registro de eventos y la crónica no cuenta ya de otra
 	// forma: agotamientos, turnos saltados, Sellos que caen por el tope y la carrera por el vínculo (vínculos, Despertar,
 	// hogares, vueltas al hogar, victoria del Warden y fin de carrera) y los movimientos (Moved, S-007). Inicio y tirada
 	// los escribe StepTurn, que tiene las opciones. Desde S-016, el Warden real: sus eventos con canal y nombre, sus
-	// comentarios, los turnos que corta con la fase y lo que aplican sus efectos.
-	auto LogNewEvents = [&Result, &State, &LoggedEvents]()
+	// comentarios, los turnos que corta con la fase y lo que aplican sus efectos. Desde S-020, tras cada movimiento, una línea
+	// con su camino (decisión del autor del 20/10/2026), de los TileEntered que lo preceden.
+	auto LogNewEvents = [&Result, &State, &LoggedEvents, &EnteredTiles]()
 	{
 		for (; LoggedEvents < State.EventLog.Num(); ++LoggedEvents)
 		{
@@ -207,9 +211,16 @@ FSimulationResult FMatchSimulation::Run()
 			{
 				Result.Log.Add(FString::Printf(TEXT("%s    cae el Sello de la %s"), *Stamp(Event.ClockSeconds), *DescribeTile(State.Board, Event.Value)));
 			}
-			if (Event.Type == EMatchEventType::Moved)
+			if (Event.Type == EMatchEventType::TileEntered)
+			{
+				EnteredTiles.Add(Event.Value);
+			}
+			else if (Event.Type == EMatchEventType::Moved)
 			{
 				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d va a la %s"), *Stamp(Event.ClockSeconds), Event.Seat, *DescribeTile(State.Board, Event.Value)));
+				Result.Log.Add(FString::Printf(TEXT("%s    camino del asiento %d: %s"), *Stamp(Event.ClockSeconds), Event.Seat,
+					*FString::JoinBy(EnteredTiles, TEXT(", "), [](int32 Tile) { return FString::FromInt(Tile); })));
+				EnteredTiles.Reset();
 			}
 			else if (Event.Type == EMatchEventType::TurnClockExpired)
 			{
@@ -324,6 +335,8 @@ FSimulationResult FMatchSimulation::Run()
 			else if (Event.Type == EMatchEventType::TurnInterrupted)
 			{
 				Result.Log.Add(FString::Printf(TEXT("%s    el Warden corta el turno del asiento %d en %s"), *Stamp(Event.ClockSeconds), Event.Seat, PhaseName(Event.Value)));
+				// A medio camino (S-020) no hay línea de camino: el movimiento no llegó.
+				EnteredTiles.Reset();
 			}
 			else if (Event.Type == EMatchEventType::SealPlaced)
 			{
@@ -468,6 +481,16 @@ FSimulationResult FMatchSimulation::Run()
 						*DescribeTile(State.Board, State.Seats[State.ActiveSeat].TileId)));
 				}
 				Pending.bPending = false;
+			}
+			// S-020: la simulación entrega el camino entero en el acto, como los dummies del anfitrión; la salvaguarda no llega a
+			// correr y la duración de un turno no cambia.
+			if (State.TurnPhase == ETurnPhase::Moving)
+			{
+				if (Soulbound::Rules::SubmitMoveProgress(State, State.ActiveSeat, State.Movement.NextTile(), Now) != EIntentResult::Accepted)
+				{
+					return TNumericLimits<double>::Max();
+				}
+				continue;
 			}
 			if (State.TurnPhase == ETurnPhase::SkillTrial)
 			{

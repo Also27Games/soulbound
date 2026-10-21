@@ -126,6 +126,14 @@ public:
 	UFUNCTION(Exec)
 	void SbEvent(FString Id);
 
+	/**
+	 * SbStrike <id>: lanza el evento del Warden con ese identificador como golpe ahora (S-020): corta el turno en curso, también a
+	 * medio camino, y el evento entra en el hueco con el cortado como activo; sin turno en curso, como SbEvent. En un duelo, un
+	 * trilero o un minijuego se rechaza. Para probar el corte a medio camino sin esperar al cerebro. Cuerpo vacío en Shipping.
+	 */
+	UFUNCTION(Exec)
+	void SbStrike(FString Id);
+
 	/** SbEvents: lista los identificadores de los eventos del Warden cargados, con su texto (S-014). */
 	UFUNCTION(Exec)
 	void SbEvents();

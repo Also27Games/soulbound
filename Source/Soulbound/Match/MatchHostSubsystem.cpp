@@ -204,6 +204,8 @@ void UMatchHostSubsystem::Advance()
 			}
 			if (Now >= Pending.ReadyAtSeconds && Pending.TileId != INDEX_NONE)
 			{
+				// S-020 (decisión del autor del 21/10/2026): el camino no se entrega aquí; lo recorre la ficha del dummy, que entrega
+				// el avance de cada casilla como la del humano (SubmitMoveProgress), y sin presentación lo cubre la salvaguarda.
 				bChanged |= Soulbound::Rules::SubmitDestinationIntent(State, Seat, Pending.TileId, Now) == EIntentResult::Accepted;
 				Pending.bPending = false;
 			}
@@ -350,6 +352,22 @@ EIntentResult UMatchHostSubsystem::SubmitHumanIntent(int32 TileId)
 	const double Now = MatchSeconds();
 	State.ClockSeconds = Now;
 	const EIntentResult Result = Soulbound::Rules::SubmitDestinationIntent(State, HumanSeat, TileId, Now);
+	if (Result == EIntentResult::Accepted)
+	{
+		OnMatchStateChanged.Broadcast();
+	}
+	return Result;
+}
+
+EIntentResult UMatchHostSubsystem::SubmitMoveProgress(int32 Seat, int32 TileId)
+{
+	if (!bHasMatch)
+	{
+		return EIntentResult::WrongPhase;
+	}
+	const double Now = MatchSeconds();
+	State.ClockSeconds = Now;
+	const EIntentResult Result = Soulbound::Rules::SubmitMoveProgress(State, Seat, TileId, Now);
 	if (Result == EIntentResult::Accepted)
 	{
 		OnMatchStateChanged.Broadcast();
@@ -611,6 +629,36 @@ FDebugEditOutcome UMatchHostSubsystem::DebugLaunchEvent(const FString& EventId)
 	const FDebugEditOutcome Outcome = FinishDebugEdit(bApplied, bApplied
 		? FString::Printf(TEXT("evento \"%s\" lanzado%s"), *EventId, State.CurrentEvent.IsActive() ? TEXT(": espera una elección") : TEXT(" y aplicado"))
 		: Soulbound::Presentation::DescribeWardenEventStart(Result));
+	if (bApplied)
+	{
+		Advance();
+	}
+	return Outcome;
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugStrikeEvent(const FString& EventId)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	const bool bTurnInProgress = State.TurnPhase != ETurnPhase::BetweenTurns;
+	FRandomStream WardenRandom = Soulbound::Rules::WardenDraw(State);
+	const EWardenEventStart Result = Soulbound::Debug::StrikeEvent(State, EventId, State.ClockSeconds, MatchRng, WardenRandom);
+	const bool bApplied = Result == EWardenEventStart::Started;
+	if (bApplied && State.CurrentEvent.IsActive() && StepClock.bHeld)
+	{
+		StepClock.Resume(GetWorld()->GetTimeSeconds());
+	}
+	// Con un turno en curso, NotBetweenTurns es que está en una fase que no se corta (decisión del autor del 20/10/2026).
+	const FString Rejection = bTurnInProgress && Result == EWardenEventStart::NotBetweenTurns
+		? FString(TEXT("el turno está en un duelo, un trilero o un minijuego, que no se cortan: prueba cuando termine"))
+		: Soulbound::Presentation::DescribeWardenEventStart(Result);
+	const FDebugEditOutcome Outcome = FinishDebugEdit(bApplied, bApplied
+		? FString::Printf(TEXT("golpe \"%s\" %s%s"), *EventId, bTurnInProgress ? TEXT("corta el turno") : TEXT("lanzado entre turnos"),
+			State.CurrentEvent.IsActive() ? TEXT(": espera una elección") : TEXT(" y aplicado"))
+		: Rejection);
 	if (bApplied)
 	{
 		Advance();

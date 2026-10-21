@@ -60,6 +60,15 @@ struct SOULBOUNDCORE_API FMatchParams
 	UPROPERTY()
 	double ChoiceClockSeconds = 0.0;
 
+	/**
+	 * Salvaguarda del movimiento (S-020): segundos que espera la máquina el avance de cada casilla del camino antes de entrar en
+	 * ella por su cuenta, para que una presentación lenta o ausente no pare la partida. Mayor que cero. En datos
+	 * (moveStepSeconds); valor inicial 2,5 (decisión del autor del 21/10/2026; 0,6 en S-020): cubre el tramo más largo de la
+	 * animación de la ficha, el del Altar, unos 2 s a su velocidad (ABoardViewActor::TokenSpeed).
+	 */
+	UPROPERTY()
+	double MoveStepSeconds = 0.0;
+
 	/** Trilero (R-ROB-2, S-010): segundos de la muestra, con las runas de la víctima a la vista. En datos; valor inicial 2. */
 	UPROPERTY()
 	double ShellRevealSeconds = 0.0;

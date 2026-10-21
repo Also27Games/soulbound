@@ -46,6 +46,14 @@ enum class ETurnPhase : uint8
 	/** Tirada y elección de destino, un solo paso (R-TUR-7): espera la intención del asiento activo. */
 	RollAndChoose,
 	/**
+	 * Movimiento en curso (R-TUR-7, R-TAB-26, S-020): la ficha recorre el camino de su destino (FMatchState::Movement) casilla a
+	 * casilla. La máquina espera una intención de avance por casilla (SubmitMoveProgress), en orden; si no llega en
+	 * FMatchParams::MoveStepSeconds, AdvanceTurn entra en ella por su cuenta (salvaguarda). Al entrar en la última pasa a
+	 * MoveAndResolve. Se puede cortar: la ficha se queda en la última casilla en la que entró, sin resolverla. Nombre propuesto
+	 * en S-020.
+	 */
+	Moving,
+	/**
 	 * Movimiento y resolución de la casilla de destino (R-INT-1): primero el efecto de la casilla (Nicho, Fuente y su
 	 * minijuego), después el salto planar y después, como mucho, una acción contra un jugador. El salto y la acción son
 	 * elecciones pendientes con su propio reloj (S-009).
@@ -394,6 +402,35 @@ struct SOULBOUNDCORE_API FDuelState
 	}
 };
 
+/**
+ * Movimiento en curso (S-020, nombre propuesto): el camino del destino confirmado y cuántas casillas de él ha entrado la ficha.
+ * Lo escribe SubmitDestinationIntent al confirmar destino (fase Moving), lo avanzan SubmitMoveProgress y la salvaguarda de
+ * AdvanceTurn, y lo vacían la llegada a la última casilla y el corte (InterruptTurn). Solo lo escriben las reglas de
+ * Match/TurnRules.h.
+ */
+USTRUCT()
+struct SOULBOUNDCORE_API FMovementState
+{
+	GENERATED_BODY()
+
+	/** Camino del movimiento (R-TAB-14, MovementPath): las casillas por las que pasa, sin el origen y acabando en el destino. */
+	UPROPERTY()
+	TArray<int32> Path;
+
+	/** Casillas del camino en las que ya ha entrado la ficha, de 0 a Path.Num(); la ficha está en Path[EnteredCount - 1]. */
+	UPROPERTY()
+	int32 EnteredCount = 0;
+
+	/** Plazo de la salvaguarda (FMatchParams::MoveStepSeconds): si no llega el avance de la siguiente casilla, la entra el motor. */
+	UPROPERTY()
+	double StepDeadlineSeconds = 0.0;
+
+	bool IsActive() const { return !Path.IsEmpty(); }
+
+	/** Siguiente casilla del camino en la que entrará la ficha; INDEX_NONE si no hay movimiento o ya llegó. */
+	int32 NextTile() const { return Path.IsValidIndex(EnteredCount) ? Path[EnteredCount] : INDEX_NONE; }
+};
+
 /** Rol de un asiento (R-CAR-2, R-CAR-5): todos empiezan Eco Perdido; quien reclama un Nicho es Elegido para siempre. Nombre propuesto en S-006. */
 UENUM()
 enum class ESeatRole : uint8
@@ -479,9 +516,9 @@ enum class EMatchEventType : uint8
 	/** Fin de la carrera (R-CAR-1, R-CAR-8); Value es el número de Elegidos; sin asiento. Nombre propuesto en S-006. */
 	BondRaceEnded,
 	/**
-	 * Un asiento mueve su ficha: el motor acepta su intención de destino (SubmitDestinationIntent); Value es la casilla
-	 * de destino. Va antes de los eventos de resolver la casilla (Bonded...). Añadido por el autor en S-007 para la
-	 * vista y la crónica; el camino casilla a casilla queda para la story del Warden. Nombre propuesto en S-007.
+	 * Un asiento termina su movimiento: la ficha entra en la última casilla de su camino (desde S-020; antes, al aceptar la
+	 * intención de destino); Value es la casilla de destino. Va justo después del último TileEntered y antes de los eventos de
+	 * resolver la casilla (Bonded...). Un movimiento cortado a medio camino no lo deja. Nombre propuesto en S-007.
 	 */
 	Moved,
 	/** Un asiento obtiene una runa (R-RUN-2); Value es el tipo de runa. Nombre propuesto en S-008. */
@@ -643,6 +680,11 @@ enum class EMatchEventType : uint8
 	 * WardenEvaluated. Sin asiento. Nombre propuesto en S-016.
 	 */
 	WardenDecided,
+	/**
+	 * La ficha de un asiento entra en una casilla de su camino (S-020, R-TAB-26): por su intención de avance o por la salvaguarda;
+	 * Value es la casilla. Uno por casilla, en orden; el de la última va justo antes de Moved. Nombre propuesto en S-020.
+	 */
+	TileEntered,
 	/** Comentario del Warden (glosario `Remark`, R-WAR-4, S-016): sin texto ni efecto; el tipo y la frase son de S-017. Sin asiento. */
 	WardenRemark,
 	/**
@@ -1026,6 +1068,10 @@ struct SOULBOUNDCORE_API FMatchState
 	UPROPERTY()
 	TArray<int32> ReachableOptions;
 
+	/** Movimiento en curso (S-020): el camino del destino y por dónde va; vacío fuera de la fase Moving. */
+	UPROPERTY()
+	FMovementState Movement;
+
 	/** Turnos terminados, incluidos los agotados; los saltados por turnos perdidos no cuentan. */
 	UPROPERTY()
 	int32 TurnCount = 0;
@@ -1040,8 +1086,8 @@ struct SOULBOUNDCORE_API FMatchState
 
 	/**
 	 * Si el asiento activo ha movido su ficha en el turno en curso (R-RUN-3: quedarse en una Fuente sin casillas
-	 * alcanzables no cuenta como llegada). Lo pone SubmitDestinationIntent y lo limpia el inicio de cada turno, los
-	 * extra incluidos. Nombre propuesto en S-008.
+	 * alcanzables no cuenta como llegada). Lo pone la entrada en la primera casilla del camino (S-020; antes,
+	 * SubmitDestinationIntent) y lo limpia el inicio de cada turno, los extra incluidos. Nombre propuesto en S-008.
 	 */
 	UPROPERTY()
 	bool bActiveSeatMoved = false;

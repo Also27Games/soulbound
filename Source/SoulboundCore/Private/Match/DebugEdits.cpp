@@ -6,6 +6,7 @@
 #include "Match/RuneRules.h"
 #include "Match/TurnRules.h"
 #include "Board/SealRules.h"
+#include "Math/RandomStream.h"
 
 namespace
 {
@@ -266,6 +267,39 @@ namespace Soulbound::Debug
 		}
 		LogEdit(State, EDebugEditKind::LaunchEvent, NowSeconds, INDEX_NONE);
 		return Soulbound::Rules::ApplyEvent(State, EventId, NowSeconds, Random);
+	}
+
+	EWardenEventStart StrikeEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& MatchRandom, FRandomStream& WardenRandom)
+	{
+		// Sin turno en curso, como SbEvent.
+		if (State.TurnPhase == ETurnPhase::BetweenTurns)
+		{
+			const EWardenEventStart Check = Soulbound::Rules::CanApplyEvent(State, EventId);
+			if (Check != EWardenEventStart::Started)
+			{
+				return Check;
+			}
+			LogEdit(State, EDebugEditKind::StrikeEvent, NowSeconds, INDEX_NONE);
+			return Soulbound::Rules::ApplyEvent(State, EventId, NowSeconds, WardenRandom);
+		}
+		// Decisión del autor del 20/10/2026: en un duelo, un trilero o un minijuego no se corta; se rechaza.
+		if (!Soulbound::Rules::CanInterruptTurn(State))
+		{
+			return EWardenEventStart::NotBetweenTurns;
+		}
+		// Se comprueba el evento como quedaría tras el corte, sobre una copia, para no cortar un turno por un evento que no empieza.
+		FMatchState AfterCut = State;
+		FRandomStream Unused(0);
+		Soulbound::Rules::InterruptTurn(AfterCut, NowSeconds, Unused);
+		const EWardenEventStart Check = Soulbound::Rules::CanApplyEvent(AfterCut, EventId);
+		if (Check != EWardenEventStart::Started)
+		{
+			return Check;
+		}
+		// Como un golpe del Warden (ApplyWardenDecision): corta, y el evento entra en el hueco con el cortado como activo.
+		LogEdit(State, EDebugEditKind::StrikeEvent, NowSeconds, INDEX_NONE);
+		Soulbound::Rules::InterruptTurn(State, NowSeconds, MatchRandom);
+		return Soulbound::Rules::ApplyEvent(State, EventId, NowSeconds, WardenRandom, true);
 	}
 
 	EDebugEditResult SetInsolence(FMatchState& State, int32 Seat, int32 Level, double NowSeconds)

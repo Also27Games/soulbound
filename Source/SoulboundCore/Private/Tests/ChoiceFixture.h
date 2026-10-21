@@ -108,7 +108,7 @@ namespace Soulbound::Tests
 
 		/**
 		 * Termina el turno en curso: "no" a lo que lo admita, la primera opción en lo que no (dados, runa de Koschei, esfera),
-		 * siempre por el asiento al que se le pide (S-010); primer destino, minijuego fallado, la muestra y la mezcla del
+		 * siempre por el asiento al que se le pide (S-010); primer destino con su camino entero (S-020), minijuego fallado, la muestra y la mezcla del
 		 * trilero dejando pasar su tiempo y, en un duelo (S-012), rendimiento 0 de quien falte.
 		 */
 		void FinishTurn()
@@ -136,6 +136,11 @@ namespace Soulbound::Tests
 				else if (State.TurnPhase == ETurnPhase::RollAndChoose && !State.ReachableOptions.IsEmpty())
 				{
 					Soulbound::Rules::SubmitDestinationIntent(State, State.ActiveSeat, State.ReachableOptions[0], Now);
+				}
+				else if (State.TurnPhase == ETurnPhase::Moving)
+				{
+					// S-020: el camino entero en el acto, como los dummies.
+					CompleteMovement(State, Now);
 				}
 				Advance();
 			}

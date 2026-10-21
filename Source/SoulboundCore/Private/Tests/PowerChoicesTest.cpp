@@ -416,6 +416,7 @@ bool FPowersFixedDrawsTest::RunTest(const FString& Parameters)
 				else if (F.State.TurnPhase == ETurnPhase::RollAndChoose && !F.State.ReachableOptions.IsEmpty())
 				{
 					Soulbound::Rules::SubmitDestinationIntent(F.State, Seat, F.State.ReachableOptions[0], F.Now);
+					Soulbound::Tests::CompleteMovement(F.State, F.Now);
 				}
 				else if (F.State.TurnPhase == ETurnPhase::RollAndChoose)
 				{
