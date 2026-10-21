@@ -86,9 +86,10 @@ public:
 	/**
 	 * Medidas de la mesa y del kit para colocar el tablero (R-VIS-1 a 5): radio de mesa, losa, Altar, tramo de sendero, losas
 	 * partidas y distancias de las estructuras. Valores iniciales en FBoardLayoutParams. Las formas de respaldo miden lo
-	 * mismo que las piezas: la losa básica, 2 por SlabHalfSize; el Altar básico, 2 por AltarApothem.
+	 * mismo que las piezas: la losa básica, 2 por SlabHalfSize; el Altar básico, 2 por AltarApothem. En Config
+	 * (DefaultGame.ini, sección [/Script/Soulbound.BoardViewActor]) para ajustarlo sin compilar.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Vista|Mesa")
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Mesa")
 	FBoardLayoutParams LayoutParams;
 
 	// ---- Tamaños de las formas de respaldo y de las marcas. Desde S-019, los de S-005 a S-007 por 6,3/175: la mesa mide
@@ -244,29 +245,30 @@ public:
 	float CameraMargin = 1.04f;
 
 	// ---- Luz y exposición (S-019, R-VIS-7: los valores de la prueba de conjunto) ----
+	// En Config (DefaultGame.ini, sección [/Script/Soulbound.BoardViewActor]) para ajustarlos sin compilar.
 
 	/** Exposición manual fija del volumen de posproceso, como EV100: sube la imagen al bajar. Valor inicial 4 (9 antes de S-019). */
-	UPROPERTY(EditAnywhere, Category = "Vista|Luz")
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Luz")
 	float ExposureEV100 = 4.f;
 
 	/** Intensidad de la lámpara sobre la mesa (foco cenital), en candelas. Valor inicial 600. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Luz")
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Luz")
 	float LampIntensityCandelas = 600.f;
 
 	/** Cono interior de la lámpara, en grados. Valor inicial 15. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Luz")
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Luz")
 	float LampInnerConeDegrees = 15.f;
 
 	/** Cono exterior de la lámpara, en grados. Valor inicial 25. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Luz")
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Luz")
 	float LampOuterConeDegrees = 25.f;
 
 	/** Altura de la lámpara sobre la mesa, en cm. Valor inicial 200. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Luz")
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Luz")
 	float LampHeight = 200.f;
 
 	/** Intensidad del cielo tenue (luz de cielo, sin cielo visible ni sol). Valor inicial 0,5. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Luz")
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Luz")
 	float SkyLightIntensity = 0.5f;
 
 	// ---- Cámaras y teclas (S-019, R-VIS-9). Las teclas, en Config (DefaultGame.ini, sección [/Script/Soulbound.BoardViewActor]).
