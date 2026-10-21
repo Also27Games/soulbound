@@ -142,16 +142,16 @@ def wedge_v2(domain):
              ("OR1", "OR2"), ("OL2", "X1"), ("OR2", "X4"), ("X1", "X2"), ("X2", "X3"), ("X3", "X4"), ("IM", "N"), ("IM", "OR1"))
         links = ("IL", "IR", "X1", "X4")
     elif domain == 2:
-        # C. Escalera: dos carriles con tres travesaños (c2, M1 y M2) y dos diagonales; el Nicho cuelga del travesaño
-        # central hacia el Altar y la Fuente es el travesaño del fondo.
+        # C. Escalera: dos carriles con tres travesaños (por c2, por la Fuente M1 y por M2) más la fila exterior; sin
+        # diagonales ni cubo, para que no se parezca a la estrella (corrección del autor del 21/10). El Nicho cuelga
+        # de la columna, entre los dos carriles.
         add("c2", 190, 0)
         add("L1", 265, -80); add("L2", 345, -100); add("L3", 425, -110)
         add("R1", 265, 80); add("R2", 345, 100); add("R3", 425, 110)
-        add("M1", 350, 0); add("M2", 430, 0, "powerSource"); add("N", 268, 0, "niche")
+        add("M1", 350, 0, "powerSource"); add("M2", 430, 0); add("N", 268, 0, "niche")
         add("X1", 495, -165); add("X2", 508, 0, "powerNode"); add("X3", 495, 165)
         link(("c1", "c2"), ("c2", "L1"), ("c2", "R1"), ("L1", "L2"), ("L2", "L3"), ("R1", "R2"), ("R2", "R3"), ("L2", "M1"),
-             ("M1", "R2"), ("L1", "M1"), ("R1", "M1"), ("L3", "M2"), ("M2", "R3"), ("N", "M1"), ("L3", "X1"), ("X1", "X2"),
-             ("X2", "X3"), ("R3", "X3"))
+             ("M1", "R2"), ("L3", "M2"), ("M2", "R3"), ("N", "c2"), ("L3", "X1"), ("X1", "X2"), ("X2", "X3"), ("R3", "X3"))
         links = ("L1", "R1", "X1", "X3")
     elif domain == 3:
         # D. Espiral: el anillo gira y, desde el fondo, un brazo vuelve hacia dentro (B1-S1) hasta el Nicho, que queda
