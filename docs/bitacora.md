@@ -36,6 +36,7 @@ La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar
 - **Pendiente**:
   - los tres manuales en PIE (recorrido con el kit, `SbStrike pierdes-un-turno` a medio camino, golpe natural con el Warden en `auto`), para el autor;
   - avisos: `SbMove` en `Moving` deja seguir el camino viejo; la ficha de un dummy puede seguir repitiendo su camino un instante después de que el motor siga.
+- **Añadido antes de fusionar** (pedido del autor, 21/10): probando en PIE, la ficha salía disparada del Altar y luego se ralentizaba, porque el tiempo por tramo era fijo (0,3 s) y el primer tramo mide 27 cm frente a los 8 de uno normal. La ficha pasa a velocidad constante: cada tramo dura su longitud entre `TokenSpeed` (13 cm/s, unos 0,6 s entre losas vecinas, el ritmo que eligió el autor), que sustituye a `TokenStepSeconds`. La salvaguarda (`moveStepSeconds`) pasa de 0,6 a 2,5 s para cubrir el tramo del Altar, unos 2 s a esa velocidad. La regla del motor no cambia.
 - **Proceso**:
   - tiempo: una sesión;
   - preguntas que pararon al agente: una parada (el plan, con seis dudas);
