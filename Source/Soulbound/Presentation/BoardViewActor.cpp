@@ -78,7 +78,8 @@ namespace
 		case ETurnPhase::Start: return TEXT("inicio");
 		case ETurnPhase::PreRoll: return TEXT("antes de tirar");
 		case ETurnPhase::RollAndChoose: return TEXT("tirada y destino");
-		case ETurnPhase::MoveAndResolve: return TEXT("movimiento");
+		case ETurnPhase::Moving: return TEXT("movimiento, por el camino");
+		case ETurnPhase::MoveAndResolve: return TEXT("llegada y casilla");
 		case ETurnPhase::SkillTrial: return TEXT("minijuego (Fuente, escape del Vacío o Prueba del Warden)");
 		case ETurnPhase::ShellGame: return TEXT("trilero");
 		case ETurnPhase::Duel: return TEXT("duelo");
@@ -1088,6 +1089,7 @@ void ABoardViewActor::BuildTokens()
 			}
 			Token->SetColor(SeatColor(Seat));
 			Token->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
+			Token->OnTileEntered.BindUObject(this, &ABoardViewActor::OnTokenTileEntered);
 		}
 		TokenActors.Add(Token);
 	}
@@ -1437,7 +1439,7 @@ void ABoardViewActor::Refresh()
 		}
 		if (UStaticMeshComponent* Halo = Halos.IsValidIndex(Tile.TileId) ? Halos[Tile.TileId].Get() : nullptr)
 		{
-			Halo->SetVisibility(Reachable.Contains(Tile.TileId) && !bOverlayHidden);
+			Halo->SetVisibility(Reachable.Contains(Tile.TileId));
 		}
 
 		UStaticMeshComponent* Inlay = Inlays.IsValidIndex(Tile.TileId) ? Inlays[Tile.TileId].Get() : nullptr;
@@ -1509,8 +1511,59 @@ void ABoardViewActor::Refresh()
 	const FBoardViewState View = Soulbound::Presentation::ComputeBoardViewState(State, bNicheThroneConfigured);
 	RefreshKit(View);
 
+	RefreshTokens(State);
+	RefreshChronicle(State);
+}
+
+FVector ABoardViewActor::TokenBase(int32 TileId) const
+{
+	return TilePositions.IsValidIndex(TileId) ? TilePositions[TileId] + FVector(0.f, 0.f, TileTops.IsValidIndex(TileId) ? TileTops[TileId] : 0.f) : FVector::ZeroVector;
+}
+
+void ABoardViewActor::OnTokenTileEntered(int32 Seat, int32 TileId, bool bLast)
+{
+	UMatchHostSubsystem* HostPtr = Host.Get();
+	if (!HostPtr || !HostPtr->HasMatch())
+	{
+		return;
+	}
+	// R-TAB-26: la presentación dice al motor en qué casilla ha entrado la ficha, sea del humano o de un dummy (decisión del autor
+	// del 21/10/2026). Aceptada, el anfitrión avisa y la vista se refresca sola; si no (la salvaguarda llegó antes, o el turno se
+	// cortó), al acabar el recorrido se recoloca.
+	if (HostPtr->SubmitMoveProgress(Seat, TileId) == EIntentResult::Accepted)
+	{
+		return;
+	}
+	if (bLast)
+	{
+		RefreshTokens(HostPtr->GetState());
+	}
+}
+
+void ABoardViewActor::RefreshTokens(const FMatchState& State)
+{
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (!HostPtr)
+	{
+		return;
+	}
 	// Asiento activo: solo mientras dura su turno; entre turnos no juega nadie.
 	const bool bSomeoneActive = !State.IsMatchOver() && State.TurnPhase != ETurnPhase::BetweenTurns;
+	// S-013, S-019: qué fichas están en el tablero (fuera, en el Vacío). Se mira aquí porque las fichas también se recolocan al
+	// acabar un recorrido, sin pasar por Refresh.
+	const FBoardViewState View = Soulbound::Presentation::ComputeBoardViewState(State, bNicheThroneConfigured);
+
+	// S-020: el asiento que se mueve, humano o dummy (decisión del autor del 21/10/2026).
+	const int32 MovingSeat = State.TurnPhase == ETurnPhase::Moving ? State.ActiveSeat : INDEX_NONE;
+	auto BasesOf = [this](const TArray<int32>& Tiles)
+	{
+		TArray<FVector> Bases;
+		for (const int32 Tile : Tiles)
+		{
+			Bases.Add(TokenBase(Tile));
+		}
+		return Bases;
+	};
 
 	// Fichas: sobre su casilla y, si comparten casilla, repartidas en un círculo pequeño.
 	for (int32 Seat = 0; Seat < State.Seats.Num() && Seat < TokenActors.Num(); ++Seat)
@@ -1526,8 +1579,39 @@ void ABoardViewActor::Refresh()
 		Token->SetLabelVisible(!bOverlayHidden);
 		if (!TilePositions.IsValidIndex(TileId))
 		{
+			Token->StopWalk();
 			continue;
 		}
+		Token->SetElectShape(State.Seats[Seat].Role == ESeatRole::Elect);
+		Token->SetActive(bSomeoneActive && Seat == State.ActiveSeat);
+
+		// S-020 (R-TAB-26): la ficha del que se mueve recorre lo que le queda del camino, y cada llegada es su intención de avance.
+		// Si el motor va por delante (la salvaguarda entró en una casilla a la que la ficha no había llegado), la ficha se coloca
+		// donde dice el estado, sin animar, y sigue desde ahí.
+		if (Seat == MovingSeat)
+		{
+			const TArray<int32>& Path = State.Movement.Path;
+			const int32 Done = FMath::Clamp(State.Movement.EnteredCount, 0, Path.Num());
+			const TArray<int32> Remaining(Path.GetData() + Done, Path.Num() - Done);
+			if (Token->RemainingWalk() != Remaining)
+			{
+				if (Token->IsWalking())
+				{
+					Token->StopWalk();
+					Token->MoveTo(TokenBase(TileId), 0.f);
+				}
+				Token->WalkPath(Remaining, BasesOf(Remaining), TokenSpeed);
+			}
+			continue;
+		}
+		if (Token->IsWalking())
+		{
+			// Un recorrido que el estado deja atrás: cortado a medio camino o llegado por la salvaguarda. La ficha va donde dice el
+			// estado, sin animar.
+			Token->StopWalk();
+			Token->MoveTo(TokenBase(TileId), 0.f);
+		}
+
 		int32 Sharing = 0;
 		int32 MyIndex = 0;
 		for (int32 Other = 0; Other < State.Seats.Num(); ++Other)
@@ -1544,14 +1628,10 @@ void ABoardViewActor::Refresh()
 			const float Angle = 2.f * PI * MyIndex / Sharing;
 			Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * (SlabSize() * 0.28f);
 		}
-		// La base de la ficha, posada en la cara superior de la losa (R-VIS-3, R-VIS-6).
-		Token->MoveTo(TilePositions[TileId] + Offset + FVector(0.f, 0.f, TileTops[TileId]), TokenSlideSeconds);
-		// Elegido: cono, o aro vivo con la carta; Eco: esfera, o aro tenue (criterio manual "Vínculo visible").
-		Token->SetElectShape(State.Seats[Seat].Role == ESeatRole::Elect);
-		Token->SetActive(bSomeoneActive && Seat == State.ActiveSeat);
+		// La base de la ficha, posada en la cara superior de la losa (R-VIS-3, R-VIS-6). Lo que no es un movimiento (Vacío, hogar,
+		// Expulsión, salto planar) desliza en línea recta; tras recorrer un camino, solo el reparto de la casilla compartida.
+		Token->MoveTo(TokenBase(TileId) + Offset, TokenSlideSeconds);
 	}
-
-	RefreshChronicle(State);
 }
 
 void ABoardViewActor::RefreshKit(const FBoardViewState& View)
@@ -1618,7 +1698,7 @@ void ABoardViewActor::ToggleDebugText()
 
 FString ABoardViewActor::DescribeViewKeys() const
 {
-	return FString::Printf(TEXT("%s vista sentada | %s etiquetas y halos | %s paneles | %s texto de depuración"), *SeatedViewKey.GetDisplayName().ToString(),
+	return FString::Printf(TEXT("%s vista sentada | %s etiquetas | %s paneles | %s texto de depuración"), *SeatedViewKey.GetDisplayName().ToString(),
 		*OverlayToggleKey.GetDisplayName().ToString(), *PanelsToggleKey.GetDisplayName().ToString(), *DebugTextToggleKey.GetDisplayName().ToString());
 }
 

@@ -22,6 +22,8 @@ namespace Soulbound::Presentation
 		case EMatchEventType::TurnSkipped: return FString::Printf(TEXT("el asiento %d pierde el turno"), Event.Seat);
 		case EMatchEventType::TurnEnded: return FString::Printf(TEXT("termina el turno del asiento %d"), Event.Seat);
 		case EMatchEventType::Moved: return FString::Printf(TEXT("el asiento %d se mueve a %s"), Event.Seat, *TileShortName(Board, Event.Value));
+		// S-020 (decisión del autor del 20/10/2026): la crónica del juego no lista las casillas del camino; basta la del movimiento.
+		case EMatchEventType::TileEntered: return FString();
 		case EMatchEventType::SealPlaced: return FString::Printf(TEXT("el Warden sella la casilla %d"), Event.Value);
 		case EMatchEventType::SealReleased: return FString::Printf(TEXT("se libera el Sello de la casilla %d"), Event.Value);
 		case EMatchEventType::Bonded: return FString::Printf(TEXT("el asiento %d se vincula al Elegido del Dominio %d"), Event.Seat, Event.Value);
@@ -191,6 +193,7 @@ namespace Soulbound::Presentation
 		case EDebugEditKind::SendHome: return TEXT("Vuelta al hogar");
 		case EDebugEditKind::LaunchEvent: return TEXT("lanzar un evento del Warden");
 		case EDebugEditKind::SetInsolence: return TEXT("fijar la insolencia");
+		case EDebugEditKind::StrikeEvent: return TEXT("golpe del Warden ahora");
 		}
 		return TEXT("edición desconocida");
 	}
@@ -271,6 +274,7 @@ namespace Soulbound::Presentation
 		case ETurnPhase::Start: return TEXT("al empezar (Start)");
 		case ETurnPhase::PreRoll: return TEXT("antes de tirar (PreRoll)");
 		case ETurnPhase::RollAndChoose: return TEXT("mientras elige destino (RollAndChoose)");
+		case ETurnPhase::Moving: return TEXT("a medio camino (Moving)");
 		case ETurnPhase::MoveAndResolve: return TEXT("tras moverse (MoveAndResolve)");
 		default: return TEXT("en una fase que no se corta");
 		}
@@ -296,6 +300,8 @@ namespace Soulbound::Presentation
 		case ETurnPhase::Start:
 		case ETurnPhase::PreRoll: return TEXT("pierde la tirada");
 		case ETurnPhase::RollAndChoose: return TEXT("pierde la tirada sin moverse");
+		// R-TAB-26 (S-020): la ficha se para en la última casilla en la que entró, que no resuelve.
+		case ETurnPhase::Moving: return TEXT("la ficha se para en la casilla en la que estaba, que no resuelve, y pierde el resto del camino");
 		case ETurnPhase::MoveAndResolve: return TEXT("pierde el salto o la acción que le quedaban; la ficha se queda donde llegó");
 		default: return TEXT("pierde lo que le quedaba del turno");
 		}

@@ -201,10 +201,73 @@ void ASeatTokenActor::MoveTo(const FVector& Location, float SlideSeconds)
 	SlideElapsed = 0.f;
 }
 
+void ASeatTokenActor::WalkPath(const TArray<int32>& Tiles, const TArray<FVector>& Points, float Speed)
+{
+	++WalkGeneration;
+	WalkTiles = Tiles;
+	WalkPoints = Points;
+	WalkPoints.SetNum(WalkTiles.Num());
+	WalkIndex = 0;
+	WalkElapsed = 0.f;
+	WalkSpeed = FMath::Max(Speed, KINDA_SMALL_NUMBER);
+	WalkSegmentStart = GetActorLocation();
+	// El recorrido manda: el deslizamiento que hubiera se da por terminado donde esté.
+	SlideTarget = WalkPoints.IsEmpty() ? SlideTarget : WalkPoints.Last();
+	SlideElapsed = SlideDuration;
+	bPlaced = true;
+}
+
+TArray<int32> ASeatTokenActor::RemainingWalk() const
+{
+	return IsWalking() ? TArray<int32>(WalkTiles.GetData() + WalkIndex, WalkTiles.Num() - WalkIndex) : TArray<int32>();
+}
+
+float ASeatTokenActor::WalkSegmentSeconds() const
+{
+	return IsWalking() ? FVector::Dist(WalkSegmentStart, WalkPoints[WalkIndex]) / WalkSpeed : 0.f;
+}
+
+void ASeatTokenActor::StopWalk()
+{
+	++WalkGeneration;
+	WalkTiles.Reset();
+	WalkPoints.Reset();
+	WalkIndex = 0;
+}
+
 void ASeatTokenActor::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	if (bPlaced && SlideElapsed < SlideDuration)
+	// S-020: el recorrido, tramo a tramo y a velocidad constante. Llegar a una casilla avisa, y el aviso puede cambiar o cortar
+	// el recorrido (la vista entrega la intención, el motor avanza y la vista se refresca): entonces este Tick no sigue con el viejo.
+	if (IsWalking())
+	{
+		WalkElapsed += DeltaSeconds;
+		while (IsWalking() && WalkElapsed >= WalkSegmentSeconds())
+		{
+			WalkElapsed -= WalkSegmentSeconds();
+			const int32 Generation = WalkGeneration;
+			const int32 Tile = WalkTiles[WalkIndex];
+			const bool bLast = WalkIndex == WalkTiles.Num() - 1;
+			SetActorLocation(WalkPoints[WalkIndex]);
+			WalkSegmentStart = WalkPoints[WalkIndex];
+			++WalkIndex;
+			if (bLast)
+			{
+				StopWalk();
+			}
+			OnTileEntered.ExecuteIfBound(Seat, Tile, bLast);
+			if (Generation != WalkGeneration && !bLast)
+			{
+				break;
+			}
+		}
+		if (IsWalking())
+		{
+			SetActorLocation(FMath::Lerp(WalkSegmentStart, WalkPoints[WalkIndex], WalkElapsed / WalkSegmentSeconds()));
+		}
+	}
+	else if (bPlaced && SlideElapsed < SlideDuration)
 	{
 		SlideElapsed = FMath::Min(SlideElapsed + DeltaSeconds, SlideDuration);
 		SetActorLocation(FMath::Lerp(SlideStart, SlideTarget, SlideElapsed / SlideDuration));

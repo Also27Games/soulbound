@@ -11,12 +11,19 @@ class UStaticMeshComponent;
 class UTextRenderComponent;
 
 /**
+ * La ficha de un asiento ha llegado a una casilla de su recorrido (S-020): asiento, casilla y si es la última. La vista lo
+ * convierte en la intención de avance de ese asiento, humano o dummy.
+ */
+DECLARE_DELEGATE_ThreeParams(FOnTokenTileEntered, int32 /*Seat*/, int32 /*TileId*/, bool /*bLast*/);
+
+/**
  * Ficha de un asiento en pantalla (Token; nombre propuesto en S-005 para el glosario): una esfera básica del motor
  * con el color del asiento, que pasa a cono cuando el asiento es Elegido (S-006). Lleva el número del asiento escrito
  * encima. Si es el asiento activo (S-007) se eleva, gira despacio y un aro del color del asiento (el SeatRing) rodea
  * su casilla. Desde S-019, con la carta de prueba del kit si está (la pieza no se escala ni se tiñe: es una sola malla con
  * color por vértice) y un aro del color del asiento en su base: tenue para un Eco, vivo para un Elegido. La raíz de la
- * ficha es su base, sobre la losa. Adaptador de presentación, sin reglas: la coloca, le da forma y la activa la vista.
+ * ficha es su base, sobre la losa. Desde S-020 recorre el camino de su movimiento casilla a casilla (WalkPath) y avisa al
+ * entrar en cada una. Adaptador de presentación, sin reglas: la coloca, le da forma y la activa la vista.
  */
 UCLASS(NotBlueprintable)
 class SOULBOUND_API ASeatTokenActor : public AActor
@@ -63,6 +70,26 @@ public:
 	 */
 	void MoveTo(const FVector& Location, float SlideSeconds);
 
+	/**
+	 * Recorre el camino Tiles (S-020, R-TAB-26): desde donde esté, en línea recta hasta Points[0], después hasta Points[1]... (las
+	 * bases sobre las losas, por donde van los senderos), a velocidad constante Speed (cm por segundo): cada tramo dura su
+	 * longitud entre Speed, así el tramo largo del Altar no sale disparado. Al llegar a cada una avisa por OnTileEntered.
+	 * Sustituye al recorrido o al deslizamiento que hubiera. Es solo presentación: quien decide qué pasa es el motor.
+	 */
+	void WalkPath(const TArray<int32>& Tiles, const TArray<FVector>& Points, float Speed);
+
+	/** Si está recorriendo un camino. */
+	bool IsWalking() const { return WalkIndex < WalkTiles.Num(); }
+
+	/** Casillas del recorrido a las que aún no ha llegado, en orden; vacío si no recorre nada. */
+	TArray<int32> RemainingWalk() const;
+
+	/** Deja de recorrer el camino donde esté; la vista la coloca después donde diga el estado. */
+	void StopWalk();
+
+	/** Aviso de llegada a cada casilla del recorrido (S-020). */
+	FOnTokenTileEntered OnTileEntered;
+
 	/** Asiento activo: se eleva, gira y enseña el aro. Inactivo, vuelve a su sitio sin giro y sin aro. */
 	void SetActive(bool bInActive);
 
@@ -104,6 +131,19 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UStaticMesh> CubeMesh;
+
+	/** Duración del tramo en curso del recorrido: su longitud entre WalkSpeed. */
+	float WalkSegmentSeconds() const;
+
+	/** Recorrido en curso (S-020): casillas, sus puntos, por cuál va, cuánto lleva del tramo y a qué velocidad (cm/s) va. */
+	TArray<int32> WalkTiles;
+	TArray<FVector> WalkPoints;
+	int32 WalkIndex = 0;
+	FVector WalkSegmentStart = FVector::ZeroVector;
+	float WalkElapsed = 0.f;
+	float WalkSpeed = 13.f;
+	/** Sube con cada recorrido nuevo o cortado: si cambia durante un aviso, el aviso cambió el recorrido y Tick no sigue con el viejo. */
+	int32 WalkGeneration = 0;
 
 	FVector SlideStart = FVector::ZeroVector;
 	FVector SlideTarget = FVector::ZeroVector;

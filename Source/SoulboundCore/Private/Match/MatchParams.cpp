@@ -93,6 +93,10 @@ namespace Soulbound::Rules
 		{
 			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("S-009: el reloj de elección debe ser mayor que cero (es %g)."), Params.ChoiceClockSeconds));
 		}
+		if (!(Params.MoveStepSeconds > 0.0))
+		{
+			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("S-020: la salvaguarda del movimiento debe ser mayor que cero (es %g)."), Params.MoveStepSeconds));
+		}
 		const TPair<const TCHAR*, double> ShellTimes[] = {
 			{TEXT("la muestra del trilero"), Params.ShellRevealSeconds},
 			{TEXT("la mezcla del trilero"), Params.ShellShuffleSeconds},
@@ -201,6 +205,7 @@ namespace Soulbound::Rules
 		}
 		const TPair<const TCHAR*, double*> Times[] = {
 			{TEXT("choiceClockSeconds"), &Params.ChoiceClockSeconds},
+			{TEXT("moveStepSeconds"), &Params.MoveStepSeconds},
 			{TEXT("shellRevealSeconds"), &Params.ShellRevealSeconds},
 			{TEXT("shellShuffleSeconds"), &Params.ShellShuffleSeconds},
 			{TEXT("shellPickSeconds"), &Params.ShellPickSeconds},

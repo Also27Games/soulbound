@@ -72,7 +72,7 @@ namespace
 		const int32 Seat = State.ActiveSeat;
 		const double Deadline = State.TurnDeadlineSeconds;
 		if (SubmitDestinationIntent(State, Seat, State.ReachableOptions[0], ConfirmAt) != EIntentResult::Accepted
-			|| !AdvanceToBetweenTurns(State, Random, ConfirmAt))
+			|| !Soulbound::Tests::CompleteMovement(State, ConfirmAt) || !AdvanceToBetweenTurns(State, Random, ConfirmAt))
 		{
 			return Played;
 		}
@@ -182,7 +182,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTurnPhasesTest,
 
 bool FTurnPhasesTest::RunTest(const FString& Parameters)
 {
-	// CA-TUR-2 (R-TUR-2): un turno sin interrupciones pasa por las cinco fases en orden y ninguna se repite.
+	// CA-TUR-2 (R-TUR-2): un turno sin interrupciones pasa por sus fases en orden y ninguna se repite. Desde S-020 son seis: el
+	// movimiento en curso (Moving) entre la tirada y la resolución; el nombre del test viene de S-003.
 	FRandomStream Random(3);
 	FMatchState State;
 	if (!StartTestMatch(*this, Random, State))
@@ -208,6 +209,8 @@ bool FTurnPhasesTest::RunTest(const FString& Parameters)
 		SubmitDestinationIntent(State, State.ActiveSeat, State.ReachableOptions[0], Now + 2.0);
 	}
 	Phases.Add(static_cast<int32>(State.TurnPhase));
+	Soulbound::Tests::CompleteMovement(State, Now + 2.0);
+	Phases.Add(static_cast<int32>(State.TurnPhase));
 	AdvanceTurn(State, Now + 2.0, Random);
 	Phases.Add(static_cast<int32>(State.TurnPhase));
 
@@ -215,10 +218,11 @@ bool FTurnPhasesTest::RunTest(const FString& Parameters)
 		static_cast<int32>(ETurnPhase::Start),
 		static_cast<int32>(ETurnPhase::PreRoll),
 		static_cast<int32>(ETurnPhase::RollAndChoose),
+		static_cast<int32>(ETurnPhase::Moving),
 		static_cast<int32>(ETurnPhase::MoveAndResolve),
 		static_cast<int32>(ETurnPhase::End),
 	};
-	TestEqual(TEXT("Las cinco fases, en orden y sin repetir"), Describe(Phases), Describe(Expected));
+	TestEqual(TEXT("Las seis fases, en orden y sin repetir"), Describe(Phases), Describe(Expected));
 
 	AdvanceTurn(State, Now + 2.0, Random);
 	TestEqual(TEXT("Tras el fin, entre turnos"), static_cast<int32>(State.TurnPhase), static_cast<int32>(ETurnPhase::BetweenTurns));
@@ -334,9 +338,12 @@ bool FTurnIntentTest::RunTest(const FString& Parameters)
 	}
 
 	TestEqual(TEXT("Casilla alcanzable: se acepta"), static_cast<int32>(SubmitDestinationIntent(State, Seat, Valid, Now + 1.0)), static_cast<int32>(EIntentResult::Accepted));
+	// S-020: aceptada, el turno pasa al movimiento en curso; la ficha llega al destino al recorrer el camino.
+	TestEqual(TEXT("El turno pasa al movimiento en curso"), static_cast<int32>(State.TurnPhase), static_cast<int32>(ETurnPhase::Moving));
+	TestEqual(TEXT("Una segunda intención ya no vale"), static_cast<int32>(SubmitDestinationIntent(State, Seat, Valid, Now + 1.0)), static_cast<int32>(EIntentResult::WrongPhase));
+	TestTrue(TEXT("Recorre el camino"), Soulbound::Tests::CompleteMovement(State, Now + 1.0));
 	TestEqual(TEXT("La ficha está en el destino elegido"), State.Seats[Seat].TileId, Valid);
 	TestEqual(TEXT("El turno pasa a movimiento y resolución"), static_cast<int32>(State.TurnPhase), static_cast<int32>(ETurnPhase::MoveAndResolve));
-	TestEqual(TEXT("Una segunda intención ya no vale"), static_cast<int32>(SubmitDestinationIntent(State, Seat, Valid, Now + 1.0)), static_cast<int32>(EIntentResult::WrongPhase));
 	return true;
 }
 
@@ -382,7 +389,8 @@ bool FTurnClockTest::RunTest(const FString& Parameters)
 		const int32 Insolence = State.Seats[Seat].Insolence;
 		const double Deadline = State.TurnDeadlineSeconds;
 		TestEqual(TEXT("Confirmado antes del límite: se acepta"), static_cast<int32>(SubmitDestinationIntent(State, Seat, State.ReachableOptions.IsEmpty() ? INDEX_NONE : State.ReachableOptions[0], Deadline - 0.01)), static_cast<int32>(EIntentResult::Accepted));
-		// El reloj cubre hasta confirmar destino: lo que tarde después la resolución no agota el turno.
+		// El reloj cubre hasta confirmar destino: lo que tarde después el camino (S-020) y la resolución no agota el turno.
+		Soulbound::Tests::CompleteMovement(State, Deadline + 5.0);
 		TestTrue(TEXT("Confirmado: el turno termina aunque ya sea después del límite"), AdvanceToBetweenTurns(State, Random, Deadline + 5.0));
 		TestEqual(TEXT("Confirmado: la insolencia no cambia"), State.Seats[Seat].Insolence, Insolence);
 		TestEqual(TEXT("Confirmado: no hay agotamiento en el registro"), CountEvents(State, EMatchEventType::TurnClockExpired, Seat), 0);
@@ -578,6 +586,9 @@ bool FTurnDummyTest::RunTest(const FString& Parameters)
 				: State.ReachableOptions.Last();
 			SubmitDestinationIntent(State, State.ActiveSeat, Destination, Now + 5.0);
 			Phases.Add(static_cast<int32>(State.TurnPhase));
+			// S-020: el camino entero en el acto, como los dummies del anfitrión.
+			Soulbound::Tests::CompleteMovement(State, Now + 5.0);
+			Phases.Add(static_cast<int32>(State.TurnPhase));
 			while (State.TurnPhase != ETurnPhase::BetweenTurns && Phases.Num() < 2 * MaxStepsPerTurn && AdvanceTurn(State, Now + 5.0, Random))
 			{
 				Phases.Add(static_cast<int32>(State.TurnPhase));
@@ -608,7 +619,8 @@ bool FTurnDummyTest::RunTest(const FString& Parameters)
 	const FString FullTurn = FString::Printf(TEXT("fases %s eventos %s"),
 		*Describe({
 			static_cast<int32>(ETurnPhase::Start), static_cast<int32>(ETurnPhase::PreRoll), static_cast<int32>(ETurnPhase::RollAndChoose),
-			static_cast<int32>(ETurnPhase::MoveAndResolve), static_cast<int32>(ETurnPhase::End), static_cast<int32>(ETurnPhase::BetweenTurns)}),
+			static_cast<int32>(ETurnPhase::Moving), static_cast<int32>(ETurnPhase::MoveAndResolve), static_cast<int32>(ETurnPhase::End),
+			static_cast<int32>(ETurnPhase::BetweenTurns)}),
 		*Describe({
 			static_cast<int32>(EMatchEventType::TurnStarted), static_cast<int32>(EMatchEventType::Rolled), static_cast<int32>(EMatchEventType::TurnEnded)}));
 	for (int32 Turn = 0; Turn < WithDummy.Num(); ++Turn)
@@ -625,7 +637,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTurnEventLogTest,
 bool FTurnEventLogTest::RunTest(const FString& Parameters)
 {
 	// CA-TUR-15 (R-TUR-15): al terminar cualquier turno, el registro contiene inicio, tirada y fin con el asiento y la
-	// marca de tiempo del reloj de partida; y agotamiento si lo hubo. Interrupción: story del Warden.
+	// marca de tiempo del reloj de partida; y agotamiento si lo hubo. Interrupción: story del Warden. Desde S-020, un TileEntered
+	// por cada casilla del camino antes del movimiento.
 	FRandomStream Random(71);
 	FMatchState State;
 	if (!StartTestMatch(*this, Random, State))
@@ -636,11 +649,17 @@ bool FTurnEventLogTest::RunTest(const FString& Parameters)
 	// Turno confirmado: empieza en 12 y confirma en 17.
 	const int32 First = State.ActiveSeat;
 	TestEqual(TEXT("Turno confirmado: se juega"), PlayTurn(State, Random, 12.0, 17.0).Seat, First);
-	TestEqual(TEXT("Turno confirmado: cuatro eventos (con el movimiento, S-007)"), State.EventLog.Num(), 4);
+	const int32 Entered = Soulbound::Tests::EventsOfType(State, EMatchEventType::TileEntered).Num();
+	TestTrue(TEXT("Turno confirmado: entra en las casillas de su camino (S-020)"), Entered > 0);
+	TestEqual(TEXT("Turno confirmado: cuatro eventos (con el movimiento, S-007) y uno por casilla del camino"), State.EventLog.Num(), 4 + Entered);
 	ExpectEvent(*this, TEXT("Confirmado, inicio"), State, 0, EMatchEventType::TurnStarted, 12.0, First);
 	ExpectEvent(*this, TEXT("Confirmado, tirada"), State, 1, EMatchEventType::Rolled, 12.0, First);
-	ExpectEvent(*this, TEXT("Confirmado, movimiento"), State, 2, EMatchEventType::Moved, 17.0, First);
-	ExpectEvent(*this, TEXT("Confirmado, fin"), State, 3, EMatchEventType::TurnEnded, 17.0, First);
+	for (int32 Step = 0; Step < Entered; ++Step)
+	{
+		ExpectEvent(*this, FString::Printf(TEXT("Confirmado, casilla %d"), Step + 1), State, 2 + Step, EMatchEventType::TileEntered, 17.0, First);
+	}
+	ExpectEvent(*this, TEXT("Confirmado, movimiento"), State, 2 + Entered, EMatchEventType::Moved, 17.0, First);
+	ExpectEvent(*this, TEXT("Confirmado, fin"), State, 3 + Entered, EMatchEventType::TurnEnded, 17.0, First);
 	TestTrue(TEXT("La tirada queda en el registro"), State.EventLog.IsValidIndex(1) && State.EventLog[1].Value >= 1 && State.EventLog[1].Value <= Soulbound::Dice::Faces);
 
 	// Turno agotado: empieza en 20 y nadie confirma.
@@ -651,11 +670,11 @@ bool FTurnEventLogTest::RunTest(const FString& Parameters)
 	}
 	const double Deadline = State.TurnDeadlineSeconds;
 	TestTrue(TEXT("Turno agotado: termina"), AdvanceToBetweenTurns(State, Random, Deadline));
-	TestEqual(TEXT("Turno agotado: cuatro eventos más, sin movimiento"), State.EventLog.Num(), 8);
-	ExpectEvent(*this, TEXT("Agotado, inicio"), State, 4, EMatchEventType::TurnStarted, 20.0, Second);
-	ExpectEvent(*this, TEXT("Agotado, tirada"), State, 5, EMatchEventType::Rolled, 20.0, Second);
-	ExpectEvent(*this, TEXT("Agotado, agotamiento"), State, 6, EMatchEventType::TurnClockExpired, Deadline, Second);
-	ExpectEvent(*this, TEXT("Agotado, fin"), State, 7, EMatchEventType::TurnEnded, Deadline, Second);
+	TestEqual(TEXT("Turno agotado: cuatro eventos más, sin movimiento"), State.EventLog.Num(), 8 + Entered);
+	ExpectEvent(*this, TEXT("Agotado, inicio"), State, 4 + Entered, EMatchEventType::TurnStarted, 20.0, Second);
+	ExpectEvent(*this, TEXT("Agotado, tirada"), State, 5 + Entered, EMatchEventType::Rolled, 20.0, Second);
+	ExpectEvent(*this, TEXT("Agotado, agotamiento"), State, 6 + Entered, EMatchEventType::TurnClockExpired, Deadline, Second);
+	ExpectEvent(*this, TEXT("Agotado, fin"), State, 7 + Entered, EMatchEventType::TurnEnded, Deadline, Second);
 	return true;
 }
 
@@ -665,9 +684,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTurnMovedEventTest,
 
 bool FTurnMovedEventTest::RunTest(const FString& Parameters)
 {
-	// S-007, ampliación del autor (R-TUR-15): al aceptar la intención de destino, el registro lleva un evento Moved con
-	// el asiento, la casilla de destino y la marca de tiempo de la confirmación, antes del fin del turno. Las
-	// intenciones rechazadas no dejan evento.
+	// S-007, ampliación del autor (R-TUR-15): el registro lleva un evento Moved con el asiento, la casilla de destino y la
+	// marca de tiempo, antes del fin del turno. Las intenciones rechazadas no dejan evento. Desde S-020, Moved no lo deja la
+	// intención de destino sino la llegada al final del camino, con la marca de esa llegada.
 	FRandomStream Random(81);
 	FMatchState State;
 	if (!StartTestMatch(*this, Random, State) || !TestTrue(TEXT("El turno llega a la tirada"), AdvanceToChoice(State, Random, 10.0))
@@ -690,13 +709,15 @@ bool FTurnMovedEventTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Las intenciones rechazadas no dejan evento de movimiento"), CountMoved(), 0);
 
 	TestEqual(TEXT("Destino alcanzable: se acepta"), SubmitDestinationIntent(State, Seat, Destination, 14.0), EIntentResult::Accepted);
-	if (TestEqual(TEXT("La intención aceptada deja un evento de movimiento"), CountMoved(), 1))
+	TestEqual(TEXT("Confirmar destino aún no es moverse"), CountMoved(), 0);
+	TestTrue(TEXT("Recorre el camino"), Soulbound::Tests::CompleteMovement(State, 14.5));
+	if (TestEqual(TEXT("La llegada deja un evento de movimiento"), CountMoved(), 1))
 	{
 		const FMatchEvent& Moved = State.EventLog.Last();
 		TestEqual(TEXT("Es el último evento"), static_cast<int32>(Moved.Type), static_cast<int32>(EMatchEventType::Moved));
 		TestEqual(TEXT("Asiento que se mueve"), Moved.Seat, Seat);
 		TestEqual(TEXT("Casilla de destino"), Moved.Value, Destination);
-		TestEqual(TEXT("Marca de tiempo de la confirmación"), Moved.ClockSeconds, 14.0);
+		TestEqual(TEXT("Marca de tiempo de la llegada"), Moved.ClockSeconds, 14.5);
 	}
 	TestTrue(TEXT("El turno termina"), AdvanceToBetweenTurns(State, Random, 14.0));
 	TestEqual(TEXT("Terminar el turno no añade otro movimiento"), CountMoved(), 1);

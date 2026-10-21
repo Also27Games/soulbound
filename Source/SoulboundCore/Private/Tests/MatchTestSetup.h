@@ -110,20 +110,24 @@ namespace Soulbound::Tests
 
 	/**
 	 * El asiento Seat termina su movimiento en TileId en el instante NowSeconds, por la máquina de turnos: se prepara
-	 * su turno en RollAndChoose con esa casilla como única opción (el montaje que el test necesita, sin depender del
-	 * dado), se entrega la intención y se avanza hasta BetweenTurns, que es donde se resuelve el destino. Solo para
-	 * tests. Se detiene también en SkillTrial, a la espera del minijuego (S-008), y en MoveAndResolve con una elección
-	 * pendiente (salto planar o expulsión, S-009). Devuelve false si la intención no se acepta o el turno no llega a
-	 * terminar ni a quedar esperando.
+	 * su movimiento en curso (fase Moving, S-020) con esa casilla como único paso del camino (el montaje que el test
+	 * necesita, sin depender del dado ni de dónde esté la ficha), se entrega la intención de avance y se avanza hasta
+	 * BetweenTurns, que es donde se resuelve el destino. Hasta S-020 se preparaba RollAndChoose y se entregaba la intención
+	 * de destino; ahora esa intención exige un camino de verdad (MovementPath). Solo para tests. Se detiene también en
+	 * SkillTrial, a la espera del minijuego (S-008), y en MoveAndResolve con una elección pendiente (salto planar o expulsión,
+	 * S-009). Devuelve false si la intención no se acepta o el turno no llega a terminar ni a quedar esperando.
 	 */
 	inline bool LandOn(FMatchState& State, FRandomStream& Random, int32 Seat, int32 TileId, double NowSeconds)
 	{
 		State.ActiveSeat = Seat;
-		State.TurnPhase = ETurnPhase::RollAndChoose;
+		State.TurnPhase = ETurnPhase::Moving;
 		State.TurnDeadlineSeconds = NowSeconds + State.Params.TurnClockSeconds;
 		State.Roll = 1;
 		State.ReachableOptions = {TileId};
-		if (Soulbound::Rules::SubmitDestinationIntent(State, Seat, TileId, NowSeconds) != EIntentResult::Accepted)
+		State.Movement = FMovementState();
+		State.Movement.Path = {TileId};
+		State.Movement.StepDeadlineSeconds = NowSeconds + State.Params.MoveStepSeconds;
+		if (Soulbound::Rules::SubmitMoveProgress(State, Seat, TileId, NowSeconds) != EIntentResult::Accepted)
 		{
 			return false;
 		}
@@ -137,6 +141,23 @@ namespace Soulbound::Tests
 			Soulbound::Rules::AdvanceTurn(State, NowSeconds, Random);
 		}
 		return IsWaiting();
+	}
+
+	/**
+	 * Entrega en NowSeconds, en orden, las intenciones de avance que faltan del movimiento en curso del asiento activo (S-020),
+	 * como la simulación y los dummies: el camino entero en el acto. Sin movimiento en curso no hace nada. Devuelve false si el
+	 * motor rechaza alguna.
+	 */
+	inline bool CompleteMovement(FMatchState& State, double NowSeconds)
+	{
+		while (State.TurnPhase == ETurnPhase::Moving)
+		{
+			if (Soulbound::Rules::SubmitMoveProgress(State, State.ActiveSeat, State.Movement.NextTile(), NowSeconds) != EIntentResult::Accepted)
+			{
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/** Dominios con el Nicho en el estado pedido, en orden de identificador. */

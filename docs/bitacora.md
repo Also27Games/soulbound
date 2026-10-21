@@ -4,6 +4,46 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo de la story; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera.
 
+## S-020. Movimiento por el camino y corte a medio camino (20/10/2026, rama `main`)
+
+- **Qué se pidió**: que el motor conozca el camino del movimiento y lleve una fase de movimiento en curso, para que un golpe del Warden pueda caer a medio camino (R-TAB-26): la ficha se queda en la última casilla en la que entró, sin resolverla. La vista recorre el camino casilla a casilla y dice al motor en qué casilla entra. Además, el comando `SbStrike`.
+- **Qué se decidió**: el autor resolvió las seis dudas del plan (20/10):
+  - una alcanzable sin camino se rechaza con `Unreachable`;
+  - las fichas de los dummies repiten su camino como presentación;
+  - la crónica del juego no lista `TileEntered`;
+  - `SbMove` durante el movimiento queda como aviso;
+  - el reloj de turno no se toca;
+  - `SbStrike` en un duelo, un trilero o un minijuego se rechaza.
+
+  Sus dos decisiones de partida: una línea por movimiento con el camino en la crónica de la simulación, y 0,3 s por casilla. Nombres propuestos: `MovementPath`, `ETurnPhase::Moving`, `FMovementState`, `SubmitMoveProgress` con `NotNextTile`, `TileEntered`, `moveStepSeconds` y `TokenStepSeconds`.
+- **Cómo funciona**:
+  - **Búsqueda**: una sola para alcanzables y caminos (`WalkPaths`), con los vecinos en orden ascendente.
+  - **Confirmar destino**: guarda el camino y pasa a `Moving`, sin mover la ficha.
+  - **Avance**: cada intención de avance en orden mueve la ficha y deja `TileEntered`; la última deja `Moved` y pasa a `MoveAndResolve`, que resuelve como antes.
+  - **Salvaguarda**: sin avance en 0,6 s desde la casilla anterior, `AdvanceTurn` entra en la siguiente.
+  - **Corte**: en `Moving` descarta el camino.
+  - **Simulación y dummies**: entregan el camino en el acto.
+  - **Vista**: la ficha del humano recorre el camino y avisa al anfitrión en cada casilla; si el estado va por delante o corta, se coloca donde dice el estado.
+- **Dudas y resolución**: las seis del plan (arriba). Al implementar:
+  - el montaje `LandOn` de los tests dejaba en cualquier casilla con tirada 1, que ya no tiene camino; ahora prepara el movimiento a mano con el destino como único paso;
+  - un script de apoyo del agente se llamaba `token.py` y tapaba el módulo de Python del mismo nombre; se renombró.
+- **Tests**:
+  - 10 nuevos, vistos en rojo con las firmas vacías (commit aparte): tres de `MovementPath`, tres de `Moving`, tres del corte (`Warden.Cut`) y `Debug.GolpeAhora`. Junto a ellos se ampliaron tres existentes, que también fallaron: los dos de parámetros y la crónica.
+  - `LaUltimaCasillaResuelve` pasaba con las firmas vacías y se endureció para comprobar `Moving` tras confirmar.
+  - Adaptados, por confirmar destino y avanzar a reloj fijo: seis de `Match.Turn` (`CincoFasesEnOrden` comprueba ahora seis fases), tres de `BondRace`, `Duel.SorteoNoDependeDeLosDuelos`, `ShellGame.SorteoNoDependeDeLosRobos`, `Powers.ConsumoFijoDelSorteo` y los montajes `LandOn` y `FinishTurn`.
+  - Total: 279 en verde. La simulación juega los mismos 463 turnos.
+  - Prueba de humo en el juego, con capturas: los dummies llegan a sus destinos y la ficha del humano recorre Altar, D0-1, D0-3 y D0-6 por los senderos.
+- **Pendiente**:
+  - los tres manuales en PIE (recorrido con el kit, `SbStrike pierdes-un-turno` a medio camino, golpe natural con el Warden en `auto`), para el autor;
+  - aviso: `SbMove` en `Moving` deja seguir el camino viejo (el de la ficha de un dummy que repetía su camino lo resolvió el último añadido).
+- **Añadido antes de fusionar** (pedido del autor, 21/10): probando en PIE, la ficha salía disparada del Altar y luego se ralentizaba, porque el tiempo por tramo era fijo (0,3 s) y el primer tramo mide 27 cm frente a los 8 de uno normal. La ficha pasa a velocidad constante: cada tramo dura su longitud entre `TokenSpeed` (13 cm/s, unos 0,6 s entre losas vecinas, el ritmo que eligió el autor), que sustituye a `TokenStepSeconds`. La salvaguarda (`moveStepSeconds`) pasa de 0,6 a 2,5 s para cubrir el tramo del Altar, unos 2 s a esa velocidad. La regla del motor no cambia.
+- **Añadido antes de fusionar** (decisión del autor, 21/10): probando en PIE se movían varias fichas a la vez, porque el anfitrión entregaba el camino entero de un dummy al confirmar y el motor seguía mientras su ficha aún lo repetía. Las fichas de los dummies mandan ahora como la del humano: el anfitrión ya no entrega el camino del dummy, `SubmitHumanMoveProgress` pasa a `SubmitMoveProgress(Seat, TileId)` para cualquier asiento, y la vista hace recorrer a cualquier ficha lo que le queda del camino según el estado (`Movement.Path` y `EnteredCount`), sin repetir caminos desde el registro (sobra `TokenLogCursor`). La salvaguarda y la simulación no cambian. Queda un `TODO(R-RED-1)`: con red, el servidor tendrá que comprobar que el asiento del avance es de quien lo entrega.
+- **Proceso**:
+  - tiempo: una sesión;
+  - preguntas que pararon al agente: una parada (el plan, con seis dudas);
+  - correcciones tras fusionar: por anotar;
+  - build y tests: el build pasó a la primera. Los tests no: tras implementar cayeron los montajes que confirmaban destino (esperado) y la salvaguarda nueva, por redondeo del test; se corrigieron.
+
 ## S-019. Tablero en 3D desde datos (20/10/2026, rama `main`)
 
 - **Qué se pidió**: que la vista coloque las piezas del kit de arte (prueba C, ronda 6) desde los datos del tablero: una losa por casilla, senderos por conexión, la cuña de cada Dominio, el Altar, las estructuras de las casillas especiales, las cadenas de los Sellos, la carta de cada ficha y la lámpara (R-VIS-1 a 9). Las formas básicas de hoy hacen de respaldo, y el código se desarrolla y se prueba sin assets.
@@ -24,6 +64,7 @@ La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar
   - para empaquetar hará falta cocinar `/Game/Art/Tablero` (las referencias en Config no se cocinan solas);
   - lo que se pierde con el color por vértice (color del Dominio, apagado del Olvidado, negro del Sello) queda para los seis Dominios con tema propio.
 - **Añadido antes de fusionar** (pedido del autor, 20/10): los cuatro parámetros de la vista sentada pasan a Config, para ajustarlos en `DefaultGame.ini` sin compilar, y el comando `SbSeatedView <altura_cm> <distancia_cm> <inclinación_grados> [<ángulo_grados>]` la cambia al instante y entra en ella; sin argumentos, dice los valores. El ángulo del asiento es opcional (180 es el borde de abajo de la cenital; menos, hacia la derecha; más, hacia la izquierda) y, si no se da, se conserva. Sigue el patrón de S-011: cuerpo vacío en Shipping y entrada en `SbHelp`. Es presentación, así que no pide autoridad ni partida. Probado en el juego con `-ExecCmds` y una captura; no lleva test automático porque no hay criterio ni regla que comprobar. Después, dos teclas más como la L: H oculta los paneles de Slate (la cenital se recoloca en todo el ancho) y T el texto de depuración; las tres son independientes, las cuatro teclas de la vista van en Config y las listan `SbHelp` y la línea del paso a paso. El texto de depuración volvía del revés al mostrarse (el motor reutiliza los huecos de sus mensajes en orden inverso): se quitan de la última línea a la primera.
+- **Corregido tras jugar con el tablero de 86** (autor, 21/10, PR aparte): la tecla L ya no oculta los halos de alcanzable, solo las etiquetas. R-VIS-9 decía "etiquetas y halos" pensando en capturas, pero jugando con la vista limpia el halo es la única pista de adónde se puede mover. La vista sentada por defecto pasa a 180/75/48 en `DefaultGame.ini`, para que quepa la mesa entera.
 - **Proceso**: tiempo: una sesión; preguntas que pararon al agente: una parada (el plan, con siete dudas); correcciones tras fusionar: por anotar. Build y tests: compiló a la primera en las tres tandas, los 11 tests en verde a la primera tras implementar; la prueba de humo descubrió el peón.
 
 ## S-016 (B). Warden I: insolencia y Furia (19/10/2026, rama `main`, story S-016)

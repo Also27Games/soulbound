@@ -324,6 +324,7 @@ bool FBondRaceEndTriggersTest::RunTest(const FString& Parameters)
 			return false;
 		}
 		TestEqual(TEXT("Intención después del límite: se acepta"), static_cast<int32>(Soulbound::Rules::SubmitDestinationIntent(State, B, State.ReachableOptions[0], RaceEnd + 1.0)), static_cast<int32>(EIntentResult::Accepted));
+		Soulbound::Tests::CompleteMovement(State, RaceEnd + 1.0);
 		TestEqual(TEXT("Con el tiempo agotado, la carrera sigue mientras dura el turno"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::BondRace));
 		while (State.TurnPhase != ETurnPhase::End && Soulbound::Rules::AdvanceTurn(State, RaceEnd + 1.0, Random))
 		{
@@ -378,6 +379,7 @@ bool FBondRaceExtraTurnBeforeLimitTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	Soulbound::Rules::SubmitDestinationIntent(State, Seat, State.ReachableOptions[0], RaceEnd - 8.0);
+	Soulbound::Tests::CompleteMovement(State, RaceEnd - 8.0);
 	while (State.TurnPhase != ETurnPhase::BetweenTurns && Soulbound::Rules::AdvanceTurn(State, RaceEnd - 8.0, Random))
 	{
 	}
@@ -393,6 +395,7 @@ bool FBondRaceExtraTurnBeforeLimitTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("El turno extra empieza antes del límite"), EventsOfType(State, EMatchEventType::TurnStarted).Num(), StartedBefore + 1);
 	TestEqual(TEXT("Intención del turno extra después del límite: se acepta"),
 		static_cast<int32>(Soulbound::Rules::SubmitDestinationIntent(State, Seat, State.ReachableOptions[0], RaceEnd + 3.0)), static_cast<int32>(EIntentResult::Accepted));
+	Soulbound::Tests::CompleteMovement(State, RaceEnd + 3.0);
 	while (State.TurnPhase != ETurnPhase::End && Soulbound::Rules::AdvanceTurn(State, RaceEnd + 3.0, Random))
 	{
 	}
@@ -442,6 +445,7 @@ bool FBondRaceExtraTurnAfterLimitTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	Soulbound::Rules::SubmitDestinationIntent(State, Seat, *Destination, RaceEnd + 1.0);
+	Soulbound::Tests::CompleteMovement(State, RaceEnd + 1.0);
 	while (State.TurnPhase != ETurnPhase::BetweenTurns && Soulbound::Rules::AdvanceTurn(State, RaceEnd + 1.0, Random))
 	{
 	}
