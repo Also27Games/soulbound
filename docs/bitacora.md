@@ -35,8 +35,9 @@ La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar
   - Prueba de humo en el juego, con capturas: los dummies llegan a sus destinos y la ficha del humano recorre Altar, D0-1, D0-3 y D0-6 por los senderos.
 - **Pendiente**:
   - los tres manuales en PIE (recorrido con el kit, `SbStrike pierdes-un-turno` a medio camino, golpe natural con el Warden en `auto`), para el autor;
-  - avisos: `SbMove` en `Moving` deja seguir el camino viejo; la ficha de un dummy puede seguir repitiendo su camino un instante después de que el motor siga.
+  - aviso: `SbMove` en `Moving` deja seguir el camino viejo (el de la ficha de un dummy que repetía su camino lo resolvió el último añadido).
 - **Añadido antes de fusionar** (pedido del autor, 21/10): probando en PIE, la ficha salía disparada del Altar y luego se ralentizaba, porque el tiempo por tramo era fijo (0,3 s) y el primer tramo mide 27 cm frente a los 8 de uno normal. La ficha pasa a velocidad constante: cada tramo dura su longitud entre `TokenSpeed` (13 cm/s, unos 0,6 s entre losas vecinas, el ritmo que eligió el autor), que sustituye a `TokenStepSeconds`. La salvaguarda (`moveStepSeconds`) pasa de 0,6 a 2,5 s para cubrir el tramo del Altar, unos 2 s a esa velocidad. La regla del motor no cambia.
+- **Añadido antes de fusionar** (decisión del autor, 21/10): probando en PIE se movían varias fichas a la vez, porque el anfitrión entregaba el camino entero de un dummy al confirmar y el motor seguía mientras su ficha aún lo repetía. Las fichas de los dummies mandan ahora como la del humano: el anfitrión ya no entrega el camino del dummy, `SubmitHumanMoveProgress` pasa a `SubmitMoveProgress(Seat, TileId)` para cualquier asiento, y la vista hace recorrer a cualquier ficha lo que le queda del camino según el estado (`Movement.Path` y `EnteredCount`), sin repetir caminos desde el registro (sobra `TokenLogCursor`). La salvaguarda y la simulación no cambian. Queda un `TODO(R-RED-1)`: con red, el servidor tendrá que comprobar que el asiento del avance es de quien lo entrega.
 - **Proceso**:
   - tiempo: una sesión;
   - preguntas que pararon al agente: una parada (el plan, con seis dudas);
