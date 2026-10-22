@@ -1629,9 +1629,9 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 			}
 		}
 		FVector Offset = FVector::ZeroVector;
-		// En el Altar, las fichas se reparten sobre la grada alta, alrededor del trono vacío (R-VIS-6).
+		// En el Altar, las fichas van siempre en el círculo de la grada alta, también solas: el centro es el trono vacío (R-VIS-6).
 		const bool bOnAltar = Host->GetState().Board.IsAltar(TileId);
-		if (Sharing > 1)
+		if (Sharing > 1 || bOnAltar)
 		{
 			const float Angle = 2.f * PI * MyIndex / Sharing;
 			Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * (bOnAltar ? Layout.AltarApothem * 0.6f : SlabSize() * 0.28f);
