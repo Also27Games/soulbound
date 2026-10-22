@@ -1,5 +1,12 @@
 """
-Generador del diorama de El Bosque Negro en low-poly, prueba C de dirección de arte (ronda 5).
+Generador del diorama de El Bosque Negro en low-poly, prueba C de dirección de arte (ronda 6: el kit de
+producción, decidido el 15/10/2026 tras la prueba de conjunto en Unreal).
+
+Ronda 6 respecto a la 5: el Nicho y su trono van al extremo exterior del Dominio, de cara al asiento; la
+losa de la Fuente queda libre y el pilón es una estructura aparte con su runa flotante; hay pieza propia
+de Altar, estructuras para los tres Nodos (arco Planar, espadas de Duelo, orbe del Oráculo) y un Sello;
+y se exporta un suelo liso (sin senderos pintados) para que el juego coloque losas, senderos y
+estructuras desde los datos del tablero. kit.json describe cada pieza (triángulos, caja, anclaje).
 
 Construye con código, dentro de Blender y sin ventana, un Dominio con forma de cuña de 60 grados: estrecho
 junto al Altar, en el centro del tablero, y ancho hacia fuera, sobre una peana negra con canto. Estilo
@@ -80,15 +87,19 @@ LOSA_MEDIO = 0.031          # semilado de una losa: cabe la peana de la ficha y 
 MARGEN_LOSA = LOSA_MEDIO    # margen libre alrededor de cada losa y sendero: media losa
 ANCHO_SENDERO = 2 * LOSA_MEDIO / 3  # franja de tierra clara de cada conexión: un tercio del ancho de losa
 # Camino principal (curva Catmull-Rom): sale de la punta, junto al Altar, baja pegado al lado derecho,
-# cruza la franja exterior y sale por la izquierda hacia el Dominio vecino.
-CAMINO_PRINCIPAL = [(0.05, -0.215), (0.11, -0.27), (0.17, -0.35), (0.19, -0.45), (0.14, -0.54),
-                    (0.04, -0.595), (-0.07, -0.605), (-0.17, -0.585), (-0.27, -0.545)]
+# cruza el Dominio por el medio y sale por la izquierda hacia el Dominio vecino. Ronda 6: va más por
+# dentro que en la ronda 5, para dejar la franja exterior al ramal del Nicho.
+CAMINO_PRINCIPAL = [(0.05, -0.215), (0.11, -0.27), (0.16, -0.33), (0.17, -0.40), (0.12, -0.455),
+                    (0.03, -0.48), (-0.07, -0.475), (-0.16, -0.45), (-0.25, -0.41)]
 N_PRINCIPAL = 11
-# Ramal sin salida hacia el Nicho: sale en T de una losa del principal y sube por dentro hasta el trono.
-RAMAL_DESDE = 7             # índice de la losa del principal de la que sale
-RAMAL_CONTROL = [(-0.06, -0.53), (-0.09, -0.45), (-0.10, -0.37), (-0.09, -0.30), (-0.07, -0.25)]
-N_RAMAL = 4
-FUENTE_EN = 4               # losa del principal que es la Fuente de Poder
+# Ramal sin salida hacia el Nicho: sale en T de una losa del principal y baja hacia el borde exterior,
+# donde está el trono de cara al asiento del jugador (decisión del autor del 15/10/2026: el Nicho y el
+# trono van al extremo exterior del Dominio; en la ronda 5 estaban junto al Altar). Dos losas: con el
+# paso de este trazado no cabe más entre el principal y el trono.
+RAMAL_DESDE = 6             # índice de la losa del principal de la que sale
+RAMAL_CONTROL = [(0.01, -0.54), (0.0, -0.585), (-0.01, -0.62)]  # radial, hacia el borde exterior
+N_RAMAL = 2
+FUENTE_EN = 3               # losa del principal que es la Fuente de Poder
 NODO_EN = 9                 # losa del principal que es el Nodo de Poder
 FICHA_EN = 2                # losa del principal donde se pone la ficha de prueba
 N_PARTIDAS = 3              # losas normales partidas en dos (las demás, enteras e iguales)
@@ -391,7 +402,8 @@ def dist_polilinea(x, y, poli):
 
 
 def dist_caminos(x, y, caminos):
-    return min(dist_polilinea(x, y, c) for c in caminos)
+    # Sin caminos (el suelo liso del kit, ronda 6), todo está lejos de cualquier sendero.
+    return min((dist_polilinea(x, y, c) for c in caminos), default=1e9)
 
 
 def suave(e0, e1, x):
@@ -417,13 +429,17 @@ class Terreno:
     donde se asientan las losas, los senderos, el trono y el brasero. Las piezas se colocan leyendo esta
     misma función."""
 
-    def __init__(self, rng, grafo, zonas_planas):
+    def __init__(self, rng, grafo, zonas_planas, amplitud=RELIEVE, n_montes=None):
+        """amplitud: la del ruido bajo; n_montes: cuántos montículos (None, entre 4 y 6 al azar). El suelo liso del kit
+        va casi plano y sin montículos (22/10/2026): el juego coloca losas y senderos en cualquier sitio y los montículos
+        los enterraban."""
         self.grafo = grafo
         self.zonas = zonas_planas  # (x, y, radio)
+        self.amplitud = amplitud
         self.relieve = Ruido(rng, 5, 15, 45)
         self.tono = Ruido(rng, 4, 18, 50)
         self.montes = []
-        for _ in range(rng.randint(4, 6)):
+        for _ in range(rng.randint(4, 6) if n_montes is None else n_montes):
             for _ in range(500):
                 x, y = rng.uniform(-0.35, 0.35), rng.uniform(-R_EXTERIOR, -R_INTERIOR)
                 if dentro_cuna(x, y, 0.03) and dist_caminos(x, y, grafo) > 0.08:
@@ -438,7 +454,7 @@ class Terreno:
         return w
 
     def altura(self, x, y):
-        h = self.relieve(x, y) * RELIEVE
+        h = self.relieve(x, y) * self.amplitud
         for mx, my, a, s in self.montes:
             h += a * math.exp(-((x - mx) ** 2 + (y - my) ** 2) / (2 * s * s))
         w = self.libre(x, y)
@@ -453,14 +469,17 @@ class Terreno:
 # ---------------------------------------------------------------------------------------------------------
 # Peana y suelo
 # ---------------------------------------------------------------------------------------------------------
-def contorno_cuna(rng, paso=0.025, mordiscos=True):
+def contorno_cuna(rng, paso=0.025, mordiscos=True, lados_extra=0.0):
     """Borde del Dominio en sentido antihorario visto desde arriba. Los lados rectos y el borde del Altar
-    quedan limpios, porque encajan con los vecinos; el arco exterior puede llevar mordiscos de borde roto."""
+    quedan limpios, porque encajan con los vecinos; el arco exterior puede llevar mordiscos de borde roto.
+    lados_extra: cuánto se sacan los dos lados rectos hacia fuera (el suelo liso del kit, el canto de la peana, para
+    que dos cuñas vecinas se toquen sin que asome la peana negra entre ellas; 22/10/2026)."""
     c, s = math.cos(MEDIO_ANGULO), math.sin(MEDIO_ANGULO)
-    il = Vector((-R_INTERIOR * s / c, -R_INTERIOR, 0))
-    ir = Vector((R_INTERIOR * s / c, -R_INTERIOR, 0))
-    ol = Vector((-R_EXTERIOR * s, -R_EXTERIOR * c, 0))
-    orr = Vector((R_EXTERIOR * s, -R_EXTERIOR * c, 0))
+    izq, der = Vector((-c, s, 0)) * lados_extra, Vector((c, s, 0)) * lados_extra
+    il = Vector((-R_INTERIOR * s / c, -R_INTERIOR, 0)) + izq
+    ir = Vector((R_INTERIOR * s / c, -R_INTERIOR, 0)) + der
+    ol = Vector((-R_EXTERIOR * s, -R_EXTERIOR * c, 0)) + izq
+    orr = Vector((R_EXTERIOR * s, -R_EXTERIOR * c, 0)) + der
     puntos = []
 
     def recta(a, b):
@@ -532,12 +551,13 @@ def lados_de_sendero(grafo, ancho, paso=0.006):
     return puntos, aristas
 
 
-def pieza_suelo(rng, terreno, grafo):
+def pieza_suelo(rng, terreno, grafo, manchas=True, lados_extra=0.0):
     """Tierra del Dominio: triangulación de Delaunay con el contorno y los bordes de los senderos como
     restricción. Los senderos del grafo son tierra clara; el resto, tierra oscura con alguna mancha clara
-    lejos del grafo, para que ninguna mancha se lea como un sendero."""
+    lejos del grafo, para que ninguna mancha se lea como un sendero. Sin manchas (el suelo liso del kit,
+    decisión del autor del 22/10/2026: estiradas a la mesa de 120 parecían camuflaje), toda la tierra oscura."""
     bm, capa = nuevo_bm()
-    contorno = contorno_cuna(rng)
+    contorno = contorno_cuna(rng, lados_extra=lados_extra)
     bordes, aristas_sendero = lados_de_sendero(grafo, ANCHO_SENDERO)
     celda = SEPARACION_SUELO
     rejilla = {}
@@ -577,7 +597,7 @@ def pieza_suelo(rng, terreno, grafo):
         d = dist_caminos(cx, cy, grafo)
         if d < ANCHO_SENDERO / 2:
             color = TIERRA_CLARA
-        elif d > 0.08 and terreno.tono(cx, cy) + rng.uniform(-0.2, 0.2) > 0.55:
+        elif manchas and d > 0.08 and terreno.tono(cx, cy) + rng.uniform(-0.2, 0.2) > 0.55:
             color = TIERRA_CLARA
         else:
             color = TIERRA_OSCURA
@@ -711,10 +731,25 @@ def pieza_losa_partida(rng):
     return bm
 
 
-def pieza_losa_nicho(rng):
+def pieza_losa_nicho(rng, con_respaldo=False):
     """Casilla del Nicho, al final del ramal: tarima con forma de ataúd, más alta que las demás, con un
-    hueco negro en el centro. La cabecera (+x) apunta al trono."""
+    hueco negro en el centro. La cabecera (+x) apunta al trono. Con con_respaldo (ronda 6, "el Nicho es
+    el trono"): un respaldo bajo de piedra pegado a la cabecera, con el hueco del emblema mirando a la
+    losa y dos remates; la ficha se posa en la tarima y "se sienta" mirando al Altar."""
     bm, capa = nuevo_bm()
+    if con_respaldo:
+        pm = PIEDRA_MEDIA
+        antes = set(bm.verts)
+        # Bajo (2,6 cm de piedra más los remates): desde el asiento del dueño se sigue viendo la tarima.
+        bloque_tosco(bm, capa, (0.0465, 0, 0.019), (0.012, 0.056, 0.026), rng, pm, (0, 0, 0), 0.2)
+        bloque_tosco(bm, capa, (0.0455, 0, 0.034), (0.010, 0.036, 0.008), rng, pm, (0, 0, 0.03), 0.25)
+        caja(bm, capa, (0.0398, 0, 0.021), (0.0015, 0.020, 0.014), NEGRO)
+        esquirla(bm, capa, (0.046, -0.026, 0.028), 0.020, 0.0042, (0.03, -0.05), rng, pm)
+        esquirla(bm, capa, (0.046, 0.026, 0.028), 0.014, 0.0042, (0.03, 0.05), rng, pm, rota=True)
+        runa(bm, capa, Vector((0.0399, -0.0215, 0.011)), Vector((0, 1, 0)), Vector((0, 0, 1)), RUNAS[0], 0.006, rng)
+        # Ligeramente echado hacia atrás, como el trono.
+        bmesh.ops.rotate(bm, verts=verts_nuevos(bm, antes), cent=(0.041, 0, 0.006),
+                         matrix=Euler((0, 0.10, 0)).to_matrix())
     esquinas = [(-0.036, 0.0), (-0.024, -0.025), (0.024, -0.031), (0.041, 0.0), (0.024, 0.031), (-0.024, 0.025)]
     contorno = contorno_poligono(rng, esquinas, 3)
     anillo = anillo_de(bm, rng, contorno)
@@ -735,24 +770,54 @@ def pieza_losa_nicho(rng):
 
 
 def pieza_losa_fuente(rng):
-    """Casilla de la Fuente de Poder: redonda y algo mayor, con un pilón de piedra en el centro. El agua es
-    negra y en el centro brilla un toque de cian tenue, mucho más débil que el brasero."""
+    """Casilla de la Fuente de Poder (ronda 6): redonda y algo mayor, con la cara libre para la ficha y un
+    filo de cian tenue junto al reborde que dice de qué estructura es. El pilón va al lado (pieza_pilon),
+    tocando su borde por el lado contrario al camino (GDD 01, decisión del 30/09/2026)."""
     bm, capa = nuevo_bm()
-    contorno = contorno_superelipse(rng, 20, 0.036, 0.036, 2)
+    contorno = contorno_superelipse(rng, 20, 0.034, 0.034, 2)
     anillo = anillo_de(bm, rng, contorno)
-    r = losa_canto(bm, capa, anillo)
-    r_pie = anillo(0.0068, 0.0040)
-    r_pared = anillo(0.0074, 0.0118)
-    r_labio = anillo(0.0100, 0.0126)
-    r_dentro = anillo(0.0112, 0.0086)
-    r_agua = anillo(0.026, 0.0087)
-    brillo = [bm.verts.new((0, 0, 0.0088))]
+    cara_facetada(bm, capa, anillo, losa_canto(bm, capa, anillo), rng)
+    filo_fuera = anillo(0.0058, 0.0059)
+    filo_dentro = anillo(0.0076, 0.0059)
+    anillos_a_caras(bm, capa, filo_fuera, filo_dentro, CIAN_TENUE)
+    return bm
+
+
+def pieza_pilon(rng):
+    """Pilón de la Fuente de Poder (ronda 6): estructura aparte, sobre una base de piedra de 4,4 cm, con el
+    agua negra y un toque de cian tenue en el centro, mucho más débil que el brasero. La runa que flota
+    encima es otra pieza (pieza_runa_flotante), para poder quitarla cuando la reserva se agota."""
+    bm, capa = nuevo_bm()
+    contorno = contorno_superelipse(rng, 14, 0.022, 0.022, 2)
+    anillo = anillo_de(bm, rng, contorno)
+    r = losa_canto(bm, capa, anillo, alto=0.004, color_canto=PIEDRA_MEDIA)
+    r_pie = anillo(0.0062, 0.0060)
+    r_pared = anillo(0.0068, 0.0150)
+    r_labio = anillo(0.0094, 0.0160)
+    r_dentro = anillo(0.0106, 0.0118)
+    r_agua = anillo(0.0160, 0.0119)
+    brillo = [bm.verts.new((0, 0, 0.0120))]
     anillos_a_caras(bm, capa, r, r_pie, PIEDRA_CLARA)
     anillos_a_caras(bm, capa, r_pie, r_pared, PIEDRA_MEDIA)
     anillos_a_caras(bm, capa, r_pared, r_labio, PIEDRA_CLARA)
     anillos_a_caras(bm, capa, r_labio, r_dentro, PIEDRA_MEDIA)
     anillos_a_caras(bm, capa, r_dentro, r_agua, NEGRO)
     anillos_a_caras(bm, capa, r_agua, brillo, CIAN_TENUE)
+    for i in range(3):
+        a = 2 * math.pi * i / 3 + 0.4
+        o = Vector((math.cos(a) * 0.0117, math.sin(a) * 0.0117, 0.006))
+        runa(bm, capa, o, Vector((-math.sin(a), math.cos(a), 0)), Vector((0, 0, 1)), RUNAS[i], 0.0055, rng)
+    return bm
+
+
+def pieza_runa_flotante(rng):
+    """Runa de la Fuente: un octaedro de cristal cian con el origen en su centro. La vista lo coloca
+    flotando sobre el pilón mientras la Fuente tiene reserva, y lo quita cuando se agota."""
+    bm, capa = nuevo_bm()
+    puntos = [Vector(v) for v in ((0.0055, 0, 0), (-0.0055, 0, 0), (0, 0.0055, 0), (0, -0.0055, 0),
+                                   (0, 0, 0.0095), (0, 0, -0.0095))]
+    m = Euler((0, 0, rng.uniform(0, math.pi))).to_matrix()
+    casco(bm, capa, [m @ p for p in puntos], CIAN)
     return bm
 
 
@@ -791,6 +856,161 @@ def pieza_sendero(rng):
                 puntos.append(c + Vector((math.cos(a) * r, math.sin(a) * r * 0.85, rng.uniform(0.0012, 0.002))))
                 puntos.append(c + Vector((math.cos(a) * r * 0.9, math.sin(a) * r * 0.75, -0.001)))
             casco(bm, capa, puntos, PIEDRA_CLARA)
+    return bm
+
+
+# ---------------------------------------------------------------------------------------------------------
+# Estructuras del kit (ronda 6): el Altar, las de los Nodos y el Sello. Cada una con el origen en su
+# centro y la base en z = 0; la vista las coloca junto a la losa, por el lado contrario al camino.
+# ---------------------------------------------------------------------------------------------------------
+ALTAR_RADIO = R_INTERIOR / math.cos(MEDIO_ANGULO)  # vértices del hexágono: su apotema es R_INTERIOR
+
+
+def pieza_altar(rng):
+    """El Altar: tarima hexagonal de piedra en el centro de la mesa, que encaja con los seis Dominios por
+    su apotema. Dos gradas, la de arriba con seis huecos tallados (los de las seis runas del desafío
+    final), y en el centro el trono vacío del Warden: un sitial tosco con una hornacina negra y dos agujas
+    rotas, lo más alto de la mesa. Mira hacia -y. La base va sobre la mesa (z = 0) y la primera grada
+    queda a la altura del suelo de los Dominios."""
+    bm, capa = nuevo_bm()
+    pm = PIEDRA_MEDIA
+    esquinas = [(math.cos(a) * ALTAR_RADIO, math.sin(a) * ALTAR_RADIO)
+                for a in (math.pi / 6 + math.pi / 3 * i for i in range(6))]
+    contorno = contorno_poligono(rng, esquinas, 5)
+    anillo = anillo_de(bm, rng, contorno)
+    z1 = SUELO_Z + 0.010
+    r = losa_canto(bm, capa, anillo, alto=z1, color_canto=pm)
+    r_grada = anillo(0.062, z1)
+    anillos_a_caras(bm, capa, r, r_grada, PIEDRA_CLARA)
+    z2 = z1 + 0.011
+    r_sube = anillo(0.0625, z2 - 0.0015)
+    r_bisel = anillo(0.0645, z2)
+    r_alto = anillo(0.115, z2)
+    anillos_a_caras(bm, capa, r_grada, r_sube, pm)
+    anillos_a_caras(bm, capa, r_sube, r_bisel, HUESO)
+    anillos_a_caras(bm, capa, r_bisel, r_alto, PIEDRA_CLARA)
+    anillos_a_caras(bm, capa, r_alto, [bm.verts.new((0, 0, z2))], PIEDRA_CLARA)
+    # Seis huecos para las runas en la grada de abajo, uno frente a cada Dominio, y grietas entre ellos.
+    for i in range(6):
+        a = math.pi / 3 * i
+        c = Vector((math.cos(a) * 0.138, math.sin(a) * 0.138, z1))
+        circulo = [(c.x + math.cos(t) * 0.008, c.y + math.sin(t) * 0.008, z1) for t in (2 * math.pi * k / 10 for k in range(11))]
+        grieta(bm, capa, circulo, 0.0008, rng)
+        a2 = a + math.pi / 6
+        pts = [(math.cos(a2) * rr + rng.uniform(-0.004, 0.004), math.sin(a2) * rr + rng.uniform(-0.004, 0.004), z1)
+               for rr in (0.095, 0.115, 0.135, 0.155)]
+        grieta(bm, capa, pts, 0.0007, rng)
+    # El trono del Warden, vacío: sitial, hornacina negra, respaldo alto y dos agujas rotas.
+    zt = z2
+    bloque_tosco(bm, capa, (0, 0.006, zt + 0.012), (0.056, 0.046, 0.024), rng, pm, (0, 0, 0.02), 0.25)
+    bloque_tosco(bm, capa, (0, 0.024, zt + 0.062), (0.050, 0.012, 0.076), rng, pm, (0, 0, -0.02), 0.2)
+    caja(bm, capa, (0, 0.0175, zt + 0.064), (0.026, 0.002, 0.056), NEGRO)
+    bloque_tosco(bm, capa, (-0.0105, 0.024, zt + 0.108), (0.025, 0.012, 0.016), rng, pm, (0, -0.4, 0))
+    # Las agujas: la izquierda entera, la más alta de la mesa (por encima de los tronos de los Elegidos).
+    esquirla(bm, capa, (-0.029, 0.026, zt + 0.02), 0.185, 0.0075, (-0.03, 0.02), rng, pm)
+    esquirla(bm, capa, (0.029, 0.026, zt + 0.02), 0.110, 0.0075, (0.05, 0.02), rng, pm, rota=True)
+    esquirla(bm, capa, (0.004, 0.026, zt + 0.112), 0.050, 0.005, (0.1, 0.0), rng, pm)
+    for i, x in enumerate((-0.018, -0.006, 0.006, 0.018)):
+        runa(bm, capa, Vector((x, -0.0172, zt + 0.004)), Vector((1, 0, 0)), Vector((0, 0, 1)), RUNAS[i], 0.0065, rng)
+    calavera(bm, capa, Matrix.Translation((0.002, 0.0168, zt + 0.098)) @ Matrix.Scale(0.42, 4), rng, pm)
+    # Escombros de las agujas, caídos en la grada de arriba.
+    for _ in range(4):
+        a = rng.uniform(0, math.tau)
+        c = (math.cos(a) * rng.uniform(0.05, 0.1), math.sin(a) * rng.uniform(0.05, 0.1), zt + 0.003)
+        e = rng.uniform(0.005, 0.009)
+        bloque_tosco(bm, capa, c, (e, e * 0.8, e * 0.6), rng, pm, (rng.uniform(0, 1), rng.uniform(0, 1), 0))
+    return bm
+
+
+def pieza_nodo_planar(rng):
+    """Estructura del Nodo Planar: arco de piedra de dos pilares torcidos con un velo de luz cian tenue
+    dentro (el velo se enciende cuando alguien puede saltar; la vista cambia su material). El arco se
+    abre a lo largo de x, así que, puesto junto a la losa por el lado contrario al camino, el velo mira a
+    la losa. Emerge del suelo en el Despertar: hasta entonces la vista no lo pone."""
+    bm, capa = nuevo_bm()
+    pm = PIEDRA_MEDIA
+    semi, alto = 0.027, 0.052
+    for lado in (-1, 1):
+        base = Vector((lado * semi, 0, -0.006))
+        puntos = [base, base + Vector((lado * 0.002, 0.001, alto * 0.5)), base + Vector((0, 0, alto))]
+        tubo(bm, capa, puntos, [0.0075, 0.0068, 0.0062], 5, pm, rng, 0.14, tapa=True)
+        bloque_tosco(bm, capa, (lado * semi, 0, 0.004), (0.02, 0.018, 0.012), rng, pm, (0, 0, rng.uniform(-0.3, 0.3)))
+    arco = [Vector((semi * math.cos(math.pi - math.pi * i / 8), 0, alto + 0.012 + (semi - 0.004) * math.sin(math.pi * i / 8)))
+            for i in range(9)]
+    arco[0].x, arco[-1].x = -semi, semi
+    arco[0].z = arco[-1].z = alto - 0.004
+    tubo(bm, capa, arco, [0.0058] * 9, 5, pm, rng, 0.14)
+    bloque_tosco(bm, capa, (0, 0, alto + 0.012 + semi - 0.004), (0.02, 0.012, 0.012), rng, pm, (0, 0, 0.1))
+    # Velo: una lámina delgada dentro del arco, con las dos caras.
+    interior = [Vector((-semi + 0.007, 0, 0.0)), Vector((-semi + 0.007, 0, alto - 0.004))]
+    interior += [Vector(((semi - 0.009) * math.cos(math.pi - math.pi * i / 8), 0,
+                         alto + 0.008 + (semi - 0.011) * math.sin(math.pi * i / 8))) for i in range(1, 8)]
+    interior += [Vector((semi - 0.007, 0, alto - 0.004)), Vector((semi - 0.007, 0, 0.0))]
+    for y in (-0.0006, 0.0006):
+        vs = [bm.verts.new(p + Vector((0, y, 0))) for p in interior]
+        cara(bm, capa, vs if y > 0 else list(reversed(vs)), CIAN_TENUE)
+    return bm
+
+
+def pieza_nodo_duelo(rng):
+    """Estructura del Nodo de Duelo: dos espadas clavadas y cruzadas en un montículo de tierra removida,
+    con las empuñaduras de madera y las guardas de hierro. Emerge en el Despertar."""
+    bm, capa = nuevo_bm()
+    elipsoide(bm, capa, (0, 0, -0.003), (0.03, 0.026, 0.013), 16, rng, TIERRA_CLARA, z_min=0.0)
+    for lado in (-1, 1):
+        m = Matrix.Translation((lado * 0.012, 0, 0.006)) @ Euler((0.12 * lado, lado * 0.55, lado * 0.25)).to_matrix().to_4x4()
+        # Hoja (hierro claro), guarda y pomo (hierro negro), empuñadura (madera).
+        casco(bm, capa, [m @ Vector(p) for p in ((-0.006, -0.0012, 0.0), (0.006, -0.0012, 0.0), (0.006, 0.0012, 0.0),
+                                                 (-0.006, 0.0012, 0.0), (-0.0015, -0.0007, 0.052), (0.0015, -0.0007, 0.052),
+                                                 (0.0015, 0.0007, 0.052), (-0.0015, 0.0007, 0.052), (0, 0, 0.06))],
+              PIEDRA_CLARA)
+        caja(bm, capa, (0, 0, 0.052), (0.024, 0.0045, 0.0045), NEGRO, m)
+        tubo(bm, capa, [m @ Vector((0, 0, 0.054)), m @ Vector((0, 0, 0.070))], [0.0032, 0.003], 5, MADERA, rng, 0.1)
+        octaedro(bm, capa, m @ Vector((0, 0, 0.073)), 0.0042, NEGRO)
+    return bm
+
+
+def pieza_nodo_oraculo(rng):
+    """Estructura del Nodo del Oráculo: pedestal de piedra con tres garras que sujetan un orbe de cristal
+    cian tenue (el Oráculo se consulta manteniéndolo pulsado; la vista anima el pulso). Emerge en el
+    Despertar."""
+    bm, capa = nuevo_bm()
+    pm = PIEDRA_MEDIA
+    torno(bm, capa, [(0.018, -0.004), (0.017, 0.006), (0.011, 0.012), (0.009, 0.040), (0.014, 0.048), (0.012, 0.052)],
+          7, [pm, PIEDRA_CLARA, pm, pm, pm, PIEDRA_CLARA, pm], rng)
+    for i in range(3):
+        a = 2 * math.pi * i / 3 + rng.uniform(-0.2, 0.2)
+        d = Vector((math.cos(a), math.sin(a), 0))
+        puntos = [d * 0.010 + Vector((0, 0, 0.050)), d * 0.016 + Vector((0, 0, 0.062)), d * 0.012 + Vector((0, 0, 0.074))]
+        tubo(bm, capa, puntos, [0.003, 0.0026, 0], 4, NEGRO, rng, 0.1, tapa=True)
+    elipsoide(bm, capa, (0, 0, 0.065), (0.0125, 0.0125, 0.0125), 36, rng, CIAN_TENUE)
+    for i in range(2):
+        runa(bm, capa, Vector((0.0095 * math.cos(i * 2.1), 0.0095 * math.sin(i * 2.1), 0.016)),
+             Vector((-math.sin(i * 2.1), math.cos(i * 2.1), 0)), Vector((0, 0, 1)), RUNAS[i + 1], 0.006, rng)
+    return bm
+
+
+def pieza_sello(rng):
+    """Sello del Warden sobre una casilla: dos cadenas cruzadas en diagonal, tensas entre cuatro estacas de
+    hierro clavadas en las esquinas de la losa. Con el origen en el centro de la losa y la base a la
+    altura de su cara. La vista lo pone y lo quita con el Sello."""
+    bm, capa = nuevo_bm()
+    d = LOSA_MEDIO + 0.006
+    for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1)):
+        base = Vector((sx * d, sy * d, 0))
+        tubo(bm, capa, [base + Vector((0, 0, 0.022)), base + Vector((sx * 0.0005, sy * 0.0005, 0.010)), base + Vector((0, 0, -0.006))],
+             [0.0036, 0.0033, 0], 5, NEGRO, rng, 0.1, tapa=True)
+    for sx in (-1, 1):
+        curva = catmull_rom([(-d, -sx * d, 0.016), (-d * 0.5, -sx * d * 0.5, 0.012 + rng.uniform(-0.002, 0.002)),
+                             (0, 0, 0.011), (d * 0.5, sx * d * 0.5, 0.012 + rng.uniform(-0.002, 0.002)), (d, sx * d, 0.016)], 16)
+        paso = 0.0095
+        n = int(longitudes(curva)[-1] / paso)
+        for i, (c, t) in enumerate(puntos_a_distancia(curva, [paso * (i + 0.5) for i in range(n)])):
+            lateral = t.cross(Vector((0, 0, 1)))
+            lateral = lateral.normalized() if lateral.length > 1e-4 else Vector((0, 1, 0))
+            eje_ancho = lateral if i % 2 == 0 else lateral.cross(t).normalized()
+            eslabon(bm, capa, c, t, eje_ancho, 0.0062, 0.0040, 0.0013, PIEDRA_MEDIA)
+    octaedro(bm, capa, (0, 0, 0.013), 0.006, NEGRO)
     return bm
 
 
@@ -1497,8 +1717,11 @@ class Visibilidad:
         for ob in losas:
             me = ob.data
             if me.name not in self.locales:
-                z_max = max(v.co.z for v in me.vertices)
-                arriba = [v.co.copy() for v in me.vertices if v.co.z >= z_max - 0.0035]
+                # La cara de la losa está por debajo de 2 cm; lo que sobresalga (el respaldo del Nicho-trono,
+                # ronda 6) es estructura, no casilla, y no cuenta como "ver la losa".
+                cara = [v.co.copy() for v in me.vertices if v.co.z < 0.02 and v.co.to_2d().length < 0.038]
+                z_max = max(v.z for v in cara)
+                arriba = [v for v in cara if v.z >= z_max - 0.0035]
                 paso = max(1, len(arriba) // 24)
                 self.locales[me.name] = arriba[::paso]
 
@@ -1703,7 +1926,14 @@ def argumentos():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     ap = argparse.ArgumentParser(prog="gen_bosque_lowpoly.py")
     ap.add_argument("--seed", type=int, default=1)
-    ap.add_argument("--out", default=os.path.join("Saved", "Art", "prueba-c", "ronda5"))
+    ap.add_argument("--out", default=os.path.join("Saved", "Art", "prueba-c", "ronda6"))
+    # Dónde va el trono respecto a la losa del Nicho (ronda 6, a decidir por el autor): "detras", al fondo
+    # del ramal mirando hacia la losa (el jugador ve su respaldo), o "lateral", al lado de la losa y de cara
+    # al asiento del jugador (ve su frente y la losa queda libre).
+    # Tercera opción, "nicho" (propuesta del tutor del 19/10/2026): no hay trono aparte; la losa del Nicho
+    # lleva un respaldo bajo y la ficha se sienta en ella mirando al Altar. El trono grande queda para el
+    # Warden, en el Altar.
+    ap.add_argument("--trono", choices=("detras", "lateral", "nicho"), default="detras")
     return ap.parse_args(argv)
 
 
@@ -1754,15 +1984,45 @@ def main():
 
     # El Nicho es el final del ramal; el trono, detrás de él, mira hacia atrás por el ramal.
     fin, tangente_fin = ramal[-1]
-    trono_pos = fin + tangente_fin * 0.098
-    trono_rot = math.atan2(tangente_fin.y, tangente_fin.x) - math.pi / 2  # su frente (-y local) al ramal
+    if args.trono == "lateral":
+        # Al lado de la losa del Nicho, hacia el lado de la cuña que queda más lejos del principal, y de cara
+        # al asiento del jugador (-y del tablero).
+        lado = Vector((-tangente_fin.y, tangente_fin.x, 0))
+        if lado.x > 0:
+            lado = -lado
+        trono_pos = fin + lado * 0.085
+        trono_rot = 0.0
+    else:
+        trono_pos = fin + tangente_fin * 0.068  # ronda 6: más cerca, que el ramal acaba junto al borde exterior
+        trono_rot = math.atan2(tangente_fin.y, tangente_fin.x) - math.pi / 2  # su frente (-y local) al ramal
     # El brasero, junto a la Fuente de Poder, hacia dentro de la curva y fuera del margen de las losas.
     pfu, tfu = principal[FUENTE_EN]
     centro_losas = sum((c["pos"] for c in casillas), Vector()) / len(casillas)
     hacia_dentro = centro_losas - pfu
     hacia_dentro = (hacia_dentro - tfu * hacia_dentro.dot(tfu)).normalized()
-    brasero_xy = pfu + hacia_dentro * 0.105
-    terreno = Terreno(rng, grafo, [(trono_pos.x, trono_pos.y, 0.1), (brasero_xy.x, brasero_xy.y, 0.06)])
+    # Ronda 6: el pilón es una estructura aparte, pegado a la losa de la Fuente por el lado contrario al
+    # camino; el brasero, más allá. La estructura del Nodo, igual, por el lado de fuera de su losa.
+    pilon_xy = pfu + hacia_dentro * 0.060
+    brasero_xy = pfu + hacia_dentro * 0.128
+    pno, tno = principal[NODO_EN]
+    hacia_fuera_nodo = -(centro_losas - pno)
+    hacia_fuera_nodo = (hacia_fuera_nodo - tno * hacia_fuera_nodo.dot(tno)).normalized()
+    nodo_xy = pno + hacia_fuera_nodo * 0.058
+    if not dentro_cuna(nodo_xy.x, nodo_xy.y, 0.03):
+        nodo_xy = pno - hacia_fuera_nodo * 0.058
+    # Muestra de la estructura de Duelo, por el lado de dentro de una losa normal del principal.
+    pdu, tdu = principal[8]
+    hacia_dentro_duelo = centro_losas - pdu
+    hacia_dentro_duelo = (hacia_dentro_duelo - tdu * hacia_dentro_duelo.dot(tdu)).normalized()
+    duelo_xy = pdu + hacia_dentro_duelo * 0.058
+    # Muestra de la estructura del Oráculo, por el lado de dentro de otra losa normal.
+    por, tor = principal[2]
+    hacia_dentro_oraculo = centro_losas - por
+    hacia_dentro_oraculo = (hacia_dentro_oraculo - tor * hacia_dentro_oraculo.dot(tor)).normalized()
+    oraculo_xy = por + hacia_dentro_oraculo * 0.056
+    terreno = Terreno(rng, grafo, [(trono_pos.x, trono_pos.y, 0.1), (pilon_xy.x, pilon_xy.y, 0.04),
+                                  (brasero_xy.x, brasero_xy.y, 0.06), (nodo_xy.x, nodo_xy.y, 0.05),
+                                  (duelo_xy.x, duelo_xy.y, 0.05), (oraculo_xy.x, oraculo_xy.y, 0.04)])
 
     piezas = {"peana": malla("peana", pieza_peana(rng)),
               "suelo": malla("suelo", pieza_suelo(rng, terreno, grafo))}
@@ -1772,7 +2032,7 @@ def main():
 
     piezas["losa"] = malla("losa", pieza_losa(rng))
     piezas["losa_partida"] = malla("losa_partida", pieza_losa_partida(rng))
-    piezas["losa_nicho"] = malla("losa_nicho", pieza_losa_nicho(rng))
+    piezas["losa_nicho"] = malla("losa_nicho", pieza_losa_nicho(rng, con_respaldo=args.trono == "nicho"))
     piezas["losa_fuente"] = malla("losa_fuente", pieza_losa_fuente(rng))
     piezas["losa_nodo"] = malla("losa_nodo", pieza_losa_nodo(rng))
     malla_de = {"normal": "losa", "partida": "losa_partida", "nicho": "losa_nicho", "fuente": "losa_fuente",
@@ -1809,24 +2069,55 @@ def main():
                                              (p.x, p.y, terreno.altura(p.x, p.y) - 0.0004), rot, coleccion=dominio))
 
     piezas["trono"] = malla("trono", pieza_trono(rng), ESCALA_TRONO)
-    trono = instanciar("Trono", piezas["trono"], (trono_pos.x, trono_pos.y, SUELO_Z - 0.001),
-                       trono_rot, coleccion=dominio)
-    instancias.append(trono)
+    trono = None
+    if args.trono != "nicho":
+        trono = instanciar("Trono", piezas["trono"], (trono_pos.x, trono_pos.y, SUELO_Z - 0.001),
+                           trono_rot, coleccion=dominio)
+        instancias.append(trono)
     actualizar()
     piezas["brasero"] = malla("brasero", pieza_brasero(rng), ESCALA_BRASERO)
     bz = terreno.altura(brasero_xy.x, brasero_xy.y) - 0.001
     instancias.append(instanciar("Brasero", piezas["brasero"], (brasero_xy.x, brasero_xy.y, bz),
                                  rng.uniform(0, math.tau), coleccion=dominio))
+    # Ronda 6: pilón con su runa flotante junto a la Fuente; arco Planar junto al Nodo; el Altar en el
+    # centro de la mesa; un Sello de muestra sobre una losa normal.
+    piezas["pilon"] = malla("pilon", pieza_pilon(rng))
+    piezas["runa_flotante"] = malla("runa_flotante", pieza_runa_flotante(rng))
+    pz = terreno.altura(pilon_xy.x, pilon_xy.y) - 0.001
+    instancias.append(instanciar("Pilon", piezas["pilon"], (pilon_xy.x, pilon_xy.y, pz),
+                                 math.atan2(-hacia_dentro.y, -hacia_dentro.x), coleccion=dominio))
+    instancias.append(instanciar("Runa_flotante", piezas["runa_flotante"], (pilon_xy.x, pilon_xy.y, pz + 0.034),
+                                 coleccion=dominio))
+    piezas["nodo_planar"] = malla("nodo_planar", pieza_nodo_planar(rng))
+    piezas["nodo_duelo"] = malla("nodo_duelo", pieza_nodo_duelo(rng))
+    piezas["nodo_oraculo"] = malla("nodo_oraculo", pieza_nodo_oraculo(rng))
+    instancias.append(instanciar("Nodo_planar", piezas["nodo_planar"],
+                                 (nodo_xy.x, nodo_xy.y, terreno.altura(nodo_xy.x, nodo_xy.y) - 0.001),
+                                 math.atan2(tno.y, tno.x), coleccion=dominio))
+    instancias.append(instanciar("Nodo_duelo_muestra", piezas["nodo_duelo"],
+                                 (duelo_xy.x, duelo_xy.y, terreno.altura(duelo_xy.x, duelo_xy.y) - 0.002),
+                                 math.atan2(tdu.y, tdu.x), coleccion=dominio))
+    instancias.append(instanciar("Nodo_oraculo_muestra", piezas["nodo_oraculo"],
+                                 (oraculo_xy.x, oraculo_xy.y, terreno.altura(oraculo_xy.x, oraculo_xy.y) - 0.001),
+                                 rng.uniform(0, math.tau), coleccion=dominio))
+    piezas["altar"] = malla("altar", pieza_altar(rng))
+    instancias.append(instanciar("Altar", piezas["altar"], (0, 0, 0), coleccion=dominio))
+    piezas["sello"] = malla("sello", pieza_sello(rng))
+    sello_en = next(i for i, c in enumerate(casillas) if c["tipo"] == "normal" and i != FICHA_EN and i > NODO_EN)
+    ps = casillas[sello_en]["pos"]
+    instancias.append(instanciar("Sello_muestra", piezas["sello"], (ps.x, ps.y, SUELO_Z - 0.0008 + 0.0055),
+                                 losas[sello_en].rotation_euler.z, coleccion=dominio))
     actualizar()
     vis = Visibilidad(escena, asientos, losas)
     # El trono es lo más alto y está en la punta: desde el asiento de enfrente puede tapar entera una losa
     # del ramal. Se prueban pequeñas variantes (a un lado, más atrás, algo más bajo) hasta que no oculte
     # ninguna, sin acercarse a menos de media losa de margen de ninguna casilla.
     lateral = Vector((-tangente_fin.y, tangente_fin.x, 0))
-    base_trono = trono.location.copy()
-    for dl, da, f in ((0, 0, 1.0), (0.012, 0, 1.0), (-0.012, 0, 1.0), (0, 0.012, 1.0), (0.022, 0, 1.0),
-                      (-0.022, 0, 1.0), (0.012, 0.012, 1.0), (-0.012, 0.012, 1.0), (0, 0, 0.92),
-                      (0.012, 0, 0.92), (-0.012, 0, 0.92), (0, 0, 0.85)):
+    base_trono = trono.location.copy() if trono else trono_pos.copy()
+    for dl, da, f in (() if trono is None else
+                      ((0, 0, 1.0), (0.012, 0, 1.0), (-0.012, 0, 1.0), (0, 0.012, 1.0), (0.022, 0, 1.0),
+                       (-0.022, 0, 1.0), (0.012, 0.012, 1.0), (-0.012, 0.012, 1.0), (0, 0, 0.92),
+                       (0.012, 0, 0.92), (-0.012, 0, 0.92), (0, 0, 0.85))):
         p = base_trono + lateral * dl + tangente_fin * da
         if any((p.to_2d() - c["pos"].to_2d()).length < LOSA_MEDIO + 0.045 * f for c in casillas[:-1]):
             continue
@@ -1837,15 +2128,20 @@ def main():
         if not any(vis.informe(instancias).values()):
             break
     else:
-        trono.location, trono.scale = base_trono, (1, 1, 1)
-        actualizar()
-    if (trono.location - base_trono).length > 1e-6 or trono.scale[0] != 1:
+        if trono:
+            trono.location, trono.scale = base_trono, (1, 1, 1)
+            actualizar()
+    if trono and ((trono.location - base_trono).length > 1e-6 or trono.scale[0] != 1):
         print(f"Trono desplazado {(trono.location - base_trono).length * 100:.1f} cm y escalado "
               f"{trono.scale[0]:.2f} para no ocultar ninguna losa")
-    trono_pos = trono.location.copy()
-    # El cuervo, en la cima partida del pilar derecho del trono, mirando hacia el asiento principal.
+    # El cuervo, en la cima partida del pilar derecho del trono, mirando hacia el asiento principal. Sin
+    # trono (variante "nicho"), en el remate del respaldo de la losa del Nicho.
     piezas["cuervo"] = malla("cuervo", pieza_cuervo(rng))
-    percha = trono.matrix_world @ percha_del_cuervo()
+    if trono:
+        trono_pos = trono.location.copy()
+        percha = trono.matrix_world @ percha_del_cuervo()
+    else:
+        percha = losas[-1].matrix_world @ Vector((0.046, -0.026, 0.048))
     instancias.append(instanciar("Cuervo", piezas["cuervo"], percha,
                                  math.atan2(-1.54 - percha.y, -percha.x) + rng.uniform(-0.5, 0.5), 1.0, dominio))
 
@@ -1859,7 +2155,7 @@ def main():
     objetos_charco = ["hueso", "raiz", "cadena"]
     for i in range(N_CHARCOS):
         piezas[f"charco_{'ABC'[i]}"] = malla(f"charco_{'ABC'[i]}", pieza_charco(rng, objetos_charco[i % 3]))
-    alto_trono = alto_max(trono) - SUELO_Z
+    alto_trono = (alto_max(trono) - SUELO_Z) if trono else 0.20
 
     # Visibilidad de partida: con losas, trono y brasero. Ninguna pieza puede ocultar del todo una losa que
     # ahora se ve desde algún asiento.
@@ -1890,7 +2186,9 @@ def main():
                 mejor, punto = dd, q
         return math.atan2(y - punto.y, x - punto.x)
 
-    ocupados = [(trono_pos.x, trono_pos.y, 0.075), (brasero_xy.x, brasero_xy.y, 0.045)]
+    ocupados = [(trono_pos.x, trono_pos.y, 0.075), (brasero_xy.x, brasero_xy.y, 0.045),
+                (pilon_xy.x, pilon_xy.y, 0.03), (nodo_xy.x, nodo_xy.y, 0.045), (duelo_xy.x, duelo_xy.y, 0.04),
+                (oraculo_xy.x, oraculo_xy.y, 0.03)]
     omitidas = []
 
     def colocar(nombre, me, radio, pie=None, hundir=0.001, escala=1.0, rot=None, alto=False, cerca=None,
@@ -1958,13 +2256,18 @@ def main():
                 escala=rng.uniform(0.8, 1.1))
     colocar("Velas_2", piezas["velas"], 0.018)
 
+    # Suelo liso del kit: la cuña sin senderos pintados, para que la vista coloque losas y senderos desde
+    # los datos del tablero. Solo se exporta; el render de conjunto usa el suelo con senderos.
+    piezas["suelo_liso"] = malla("suelo_liso", pieza_suelo(rng, Terreno(rng, [], [], amplitud=0.001, n_montes=0), [],
+                                                          manchas=False, lados_extra=PEANA_CANTO))
+
     # Ficha de prueba sobre una losa del principal. No es escenografía: fuera del recuento del Dominio.
     ficha_me = malla("ficha_prueba", pieza_ficha(rng))
     fp = principal[FICHA_EN][0]
     ficha = instanciar("Ficha_prueba", ficha_me, (fp.x, fp.y, SUELO_Z - 0.0008 + 0.0036))
 
     actualizar()
-    segundos = hornear_oclusion(piezas, instancias, suelo, grafo)
+    segundos = hornear_oclusion(piezas, instancias, suelo, grafo, sin_oclusion=("peana", "suelo_liso", "runa_flotante"))
     print(f"Oclusión en el color por vértice: {segundos:.0f} s")
 
     # Visibilidad final desde los cuatro asientos (sin la ficha, que es de prueba).
@@ -2012,8 +2315,58 @@ def main():
                    "instancias": [fila(ob) for ob in instancias], "ficha_prueba": fila(ficha)},
                   f, ensure_ascii=False, indent=2)
 
+    # Manifiesto del kit (ronda 6): lo que necesita quien coloque las piezas desde los datos del tablero.
+    def caja_de(me):
+        xs, ys, zs = ([v.co[i] for v in me.vertices] for i in range(3))
+        return {"min_m": [round(min(xs), 4), round(min(ys), 4), round(min(zs), 4)],
+                "max_m": [round(max(xs), 4), round(max(ys), 4), round(max(zs), 4)]}
+
+    notas = {
+        "peana": "Cuña de un Dominio (60 grados, apotema interior 0,15 m, radio exterior 0,74 m), base negra sobre la mesa (z = 0).",
+        "suelo": "Tierra de la cuña con los senderos de ESTE trazado pintados: solo para el render de conjunto.",
+        "suelo_liso": "Tierra de la cuña sin senderos: la que coloca el juego, una por Dominio girada de 60 en 60 grados.",
+        "losa": "Casilla normal; origen en su centro, cara superior en z = 0,0055. La ficha se posa encima.",
+        "losa_partida": "Casilla normal partida, para variar; misma silueta.",
+        "losa_nicho": "Casilla del Nicho: tarima con hueco; su cabecera (+x) apunta al trono.",
+        "losa_fuente": "Casilla de la Fuente: cara libre, filo cian tenue. El pilón va al lado.",
+        "losa_nodo": "Casilla de un Nodo: hexagonal con la marca; las puntas (±x) en la dirección del camino.",
+        "sendero": "Tramo de 2,4 cm a lo largo de x: uno por hueco entre losas conectadas, varios seguidos en conexiones largas.",
+        "trono": "Trono del Elegido junto al Nicho, por el lado contrario al camino; mira hacia -y (su frente, hacia la losa).",
+        "pilon": "Pilón de la Fuente junto a su losa, por el lado contrario al camino.",
+        "runa_flotante": "Runa de la Fuente: sobre el pilón, a unos 3,4 cm de su base, mientras haya reserva.",
+        "nodo_planar": "Arco del Nodo Planar junto a su losa; el arco se abre a lo largo de x, el velo mira a ±y. Desde el Despertar.",
+        "nodo_duelo": "Espadas cruzadas del Nodo de Duelo junto a su losa. Desde el Despertar.",
+        "nodo_oraculo": "Pedestal con orbe del Nodo del Oráculo junto a su losa. Desde el Despertar.",
+        "altar": "El Altar en el centro de la mesa (z = 0); encaja con los seis Dominios por su apotema de 0,15 m. Mira hacia -y.",
+        "sello": "Sello sobre una casilla: origen en el centro de la losa, base a la altura de su cara (z de la losa + 0,0055).",
+        "brasero": "Escenografía con luz: a mano, una por Dominio.",
+        "ficha_prueba": "Carta de 6 x 9 cm con peana: referencia de escala de las fichas.",
+    }
+    with open(os.path.join(salida, "kit.json"), "w", encoding="utf-8") as f:
+        json.dump({"ronda": 6, "semilla": args.seed,
+                   "unidades": "metros en el GLB; Unreal los importa en centímetros (1 m = 100 cm), sin escalar",
+                   "paleta_srgb": PALETA,
+                   "materiales": list(MATERIALES),
+                   "convenciones": ["Origen de cada pieza en su centro y base en z = 0 (las losas, con la cara en z = 0,0055).",
+                                    "Las estructuras se colocan junto a su losa, tocando su borde por el lado contrario al camino.",
+                                    "Cada Dominio es la misma cuña girada de 60 en 60 grados alrededor del Altar; en los GLB "
+                                    "sueltos, la cuña (peana, suelo liso) tiene su eje del Altar hacia fuera en +x, como el "
+                                    "resto de piezas.",
+                                    "El color va por vértice (atributo Col); el cian es el único acento: M_Paleta_Emisivo "
+                                    "(brasero, runa) y M_Paleta_Tenue (filo, agua del pilón, velo, orbe)."],
+                   "piezas": {n: {"triangulos": len(me.polygons), "caja_m": caja_de(me), "nota": notas.get(n, "")}
+                              for n, me in list(piezas.items()) + [("ficha_prueba", ficha_me)]}},
+                  f, ensure_ascii=False, indent=2)
+
     # GLB: uno por pieza (en el origen), la ficha aparte, y el conjunto del Dominio (colocado, sin ficha).
     for n, me in list(piezas.items()) + [("ficha_prueba", ficha_me)]:
+        # Las piezas de suelo de la cuña (peana y suelo liso) salen con su eje en +x, como el resto de piezas (la vista
+        # las gira al ángulo de su Dominio). En este archivo la cuña se construye hacia -y: se gira +90° al exportarla,
+        # en los propios vértices, porque el giro del objeto no se hornea en el GLB (corrección del 22/10/2026: con el
+        # eje en -y las cuñas quedaban 30° giradas respecto al Altar).
+        if n in ("peana", "suelo_liso", "suelo"):
+            me = me.copy()
+            me.transform(Matrix.Rotation(math.pi / 2, 4, "Z"))
         tmp = instanciar(f"_export_{n}", me, (0, 0, 0))
         exportar(os.path.join(salida, "glb", f"{n}.glb"), [tmp])
         bpy.data.objects.remove(tmp)
