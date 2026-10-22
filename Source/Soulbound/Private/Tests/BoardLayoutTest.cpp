@@ -117,10 +117,10 @@ bool FBoardLayoutTableTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// CA-VIS-1 (R-VIS-1): el suelo de cada cuña se escala con el radio de mesa para el que está hecho el kit: con la mesa de 120 y
+// CA-VIS-1 (R-VIS-1): el kit se escala (suelo de cada cuña y Altar) con el radio de mesa para el que está hecho el kit: con la mesa de 120 y
 // el kit de 74, 120/74; con la mesa igual al radio del kit, 1; y 1 si el radio del kit no es positivo.
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLayoutWedgeFloorScaleTest, "Soulbound.Game.Presentation.Tablero3D.EscalaDelSueloDeLaCuna", LayoutTestFlags)
-bool FBoardLayoutWedgeFloorScaleTest::RunTest(const FString& Parameters)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLayoutKitScaleTest, "Soulbound.Game.Presentation.Tablero3D.EscalaDelKit", LayoutTestFlags)
+bool FBoardLayoutKitScaleTest::RunTest(const FString& Parameters)
 {
 	FBoardState Board;
 	if (!LoadBoard35(*this, Board))
@@ -131,15 +131,57 @@ bool FBoardLayoutWedgeFloorScaleTest::RunTest(const FString& Parameters)
 	Params.KitTableRadius = 74.f;
 	Params.TableRadius = 120.f;
 	TestTrue(TEXT("Mesa de 120 con kit de 74: el suelo se escala 120/74"),
-		FMath::IsNearlyEqual(Soulbound::Presentation::ComputeBoardLayout(Board, Params).WedgeFloorScale, 120.f / 74.f, 0.0001f));
+		FMath::IsNearlyEqual(Soulbound::Presentation::ComputeBoardLayout(Board, Params).KitScale, 120.f / 74.f, 0.0001f));
 
 	Params.TableRadius = 74.f;
 	TestTrue(TEXT("Mesa igual al radio del kit: el suelo no se escala"),
-		FMath::IsNearlyEqual(Soulbound::Presentation::ComputeBoardLayout(Board, Params).WedgeFloorScale, 1.f, 0.0001f));
+		FMath::IsNearlyEqual(Soulbound::Presentation::ComputeBoardLayout(Board, Params).KitScale, 1.f, 0.0001f));
 
 	Params.KitTableRadius = 0.f;
 	TestTrue(TEXT("Radio del kit no positivo: el suelo no se escala"),
-		FMath::IsNearlyEqual(Soulbound::Presentation::ComputeBoardLayout(Board, Params).WedgeFloorScale, 1.f, 0.0001f));
+		FMath::IsNearlyEqual(Soulbound::Presentation::ComputeBoardLayout(Board, Params).KitScale, 1.f, 0.0001f));
+	return true;
+}
+
+// CA-VIS-1 (R-VIS-1): el Altar crece con el kit: con la mesa de 120 y el kit de 74, su apotema en la colocación es 15 * 120/74 y la
+// casilla más cercana queda a esa apotema más su distancia escalada desde el borde; con la escala 1, a 15.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLayoutAltarScaleTest, "Soulbound.Game.Presentation.Tablero3D.AltarEscaladoConElKit", LayoutTestFlags)
+bool FBoardLayoutAltarScaleTest::RunTest(const FString& Parameters)
+{
+	FBoardState Board;
+	if (!LoadBoard35(*this, Board))
+	{
+		return false;
+	}
+	for (const float TableRadius : {120.f, 74.f})
+	{
+		FBoardLayoutParams Params;
+		Params.KitTableRadius = 74.f;
+		Params.TableRadius = TableRadius;
+		const FBoardLayout Layout = Soulbound::Presentation::ComputeBoardLayout(Board, Params);
+		const float Apothem = Params.AltarApothem * TableRadius / 74.f;
+		TestTrue(FString::Printf(TEXT("Mesa de %.0f: el apotema del Altar es %.3f (%.3f)"), TableRadius, Apothem, Layout.AltarApothem), FMath::IsNearlyEqual(Layout.AltarApothem, Apothem, 0.001f));
+
+		// La casilla más cercana en el editor es la más cercana en la mesa: su borde interior es el apotema escalado más su distancia escalada.
+		float NearestEditor = TNumericLimits<float>::Max();
+		float NearestTable = TNumericLimits<float>::Max();
+		const FVector2D AltarAt = Board.Tiles[Board.FindAltar()].LayoutPosition;
+		for (const FTileState& Tile : Board.Tiles)
+		{
+			if (Board.IsAltar(Tile.TileId))
+			{
+				continue;
+			}
+			const float Editor = static_cast<float>((Tile.LayoutPosition - AltarAt).Size());
+			if (Editor < NearestEditor)
+			{
+				NearestEditor = Editor;
+				NearestTable = static_cast<float>(FVector2D(Layout.Tiles[Tile.TileId].Location).Size());
+			}
+		}
+		const float Expected = Apothem + Params.AltarGap + NearestEditor * Layout.Scale;
+		TestTrue(FString::Printf(TEXT("Mesa de %.0f: la casilla más cercana está a %.3f del centro (%.3f)"), TableRadius, Expected, NearestTable), FMath::IsNearlyEqual(NearestTable, Expected, 0.001f));
+	}
 	return true;
 }
 

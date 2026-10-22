@@ -223,7 +223,7 @@ namespace
 		{
 			return;
 		}
-		auto Half = [&Board, &Params](int32 TileId) { return Board.IsAltar(TileId) ? Params.AltarApothem : Params.SlabHalfSize; };
+		auto Half = [&Board, &Params, &Layout](int32 TileId) { return Board.IsAltar(TileId) ? Layout.AltarApothem : Params.SlabHalfSize; };
 		for (const FTileState& Tile : Board.Tiles)
 		{
 			for (const int32 Other : Tile.Neighbours)
@@ -301,9 +301,11 @@ FBoardLayout Soulbound::Presentation::ComputeBoardLayout(const FBoardState& Boar
 	{
 		Farthest = FMath::Max(Farthest, static_cast<float>(Offset.Size()));
 	}
-	const float Inner = Params.AltarApothem + Params.AltarGap;
+	// El Altar crece con el kit (R-VIS-1): su apotema escalado es el borde interior de las casillas.
+	Layout.KitScale = Params.KitTableRadius > 0.f ? Params.TableRadius / Params.KitTableRadius : 1.f;
+	Layout.AltarApothem = Params.AltarApothem * Layout.KitScale;
+	const float Inner = Layout.AltarApothem + Params.AltarGap;
 	Layout.Scale = Farthest > 0.f ? FMath::Max(0.f, (Params.TableRadius - Inner - Params.SlabHalfSize) / Farthest) : 0.f;
-	Layout.WedgeFloorScale = Params.KitTableRadius > 0.f ? Params.TableRadius / Params.KitTableRadius : 1.f;
 	Layout.Tiles.SetNum(Board.Tiles.Num());
 	for (const FTileState& Tile : Board.Tiles)
 	{

@@ -756,7 +756,7 @@ void ABoardViewActor::BuildKit()
 			{
 				UStaticMeshComponent* Floor = AddKitPiece(Mesh, FVector::ZeroVector, Wedge.Yaw, true);
 				// R-VIS-1: el suelo de la cuña se escala en X e Y al radio de la mesa; el resto del kit, no.
-				Floor->SetRelativeScale3D(FVector(Layout.WedgeFloorScale, Layout.WedgeFloorScale, 1.f));
+				Floor->SetRelativeScale3D(FVector(Layout.KitScale, Layout.KitScale, 1.f));
 				KitFixedPieces.Add(Floor);
 			}
 		}
@@ -790,7 +790,10 @@ void ABoardViewActor::BuildKit()
 		}
 		if (Placed.Slab == EBoardSlab::Altar)
 		{
-			KitFixedPieces.Add(AddKitPiece(KitMesh(Piece), Placed.Location, Placed.Yaw, true));
+			// R-VIS-1: el Altar crece con el kit, en X, Y y Z.
+			UStaticMeshComponent* Altar = AddKitPiece(KitMesh(Piece), Placed.Location, Placed.Yaw, true);
+			Altar->SetRelativeScale3D(FVector(Layout.KitScale));
+			KitFixedPieces.Add(Altar);
 		}
 		else
 		{
@@ -915,9 +918,9 @@ void ABoardViewActor::BuildTiles()
 		if (bAltar && KitSlab)
 		{
 			const FBoxSphereBounds Bounds = KitSlab->GetBounds();
-			Thickness = Bounds.Origin.Z + Bounds.BoxExtent.Z;
+			Thickness = (Bounds.Origin.Z + Bounds.BoxExtent.Z) * Layout.KitScale;
 		}
-		const float Diameter = bAltar ? LayoutParams.AltarApothem * 2.f : SlabSize();
+		const float Diameter = bAltar ? Layout.AltarApothem * 2.f : SlabSize();
 		TileTops[Tile.TileId] = Thickness;
 
 		// El tipo se ve por la silueta: Nicho cuadrado, Nodo en rombo, Altar grande y alto, el resto redondo.

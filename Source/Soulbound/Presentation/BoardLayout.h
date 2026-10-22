@@ -186,8 +186,14 @@ struct SOULBOUND_API FBoardLayout
 	/** Centímetros de la mesa por unidad de posición del editor (R-VIS-1). */
 	float Scale = 0.f;
 
-	/** Escala en X e Y del suelo de las cuñas (`peana` y `suelo_liso`): TableRadius / KitTableRadius, 1 si éste no es positivo (R-VIS-1). */
-	float WedgeFloorScale = 1.f;
+	/**
+	 * Escala del kit a la mesa (R-VIS-1): TableRadius / KitTableRadius, 1 si éste no es positivo. El suelo de las cuñas
+	 * (`peana` y `suelo_liso`) la lleva en X e Y y el Altar en X, Y y Z; las losas y el resto, no.
+	 */
+	float KitScale = 1.f;
+
+	/** Apotema del Altar ya escalada (AltarApothem * KitScale): el borde interior de las casillas y el Altar de respaldo (R-VIS-1). */
+	float AltarApothem = 0.f;
 
 	/** Falso si el trazado no es radial (R-VIS-2): la vista lo avisa y las cuñas van de 60 en 60. */
 	bool bRadial = true;
