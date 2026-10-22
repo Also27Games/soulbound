@@ -1618,26 +1618,14 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 			Token->MoveTo(TokenBase(TileId), 0.f);
 		}
 
-		int32 Sharing = 0;
-		int32 MyIndex = 0;
-		for (int32 Other = 0; Other < State.Seats.Num(); ++Other)
-		{
-			if (State.Seats[Other].TileId == TileId)
-			{
-				MyIndex = Other == Seat ? Sharing : MyIndex;
-				++Sharing;
-			}
-		}
-		FVector Offset = FVector::ZeroVector;
-		// En el Altar, las fichas van siempre en el círculo de la grada alta, también solas: el centro es el trono vacío (R-VIS-6).
+		// Cada asiento tiene siempre su sitio en la casilla, esté sola o acompañada: si una ficha se va, las demás no se mueven
+		// (decisión del autor del 22/10/2026). En el Altar, en el círculo de la grada alta, porque el centro es el trono vacío
+		// del Warden (R-VIS-6).
 		const bool bOnAltar = Host->GetState().Board.IsAltar(TileId);
-		if (Sharing > 1 || bOnAltar)
-		{
-			const float Angle = 2.f * PI * MyIndex / Sharing;
-			Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * (bOnAltar ? Layout.AltarApothem * 0.6f : SlabSize() * 0.28f);
-		}
+		const float Angle = 2.f * PI * Seat / Soulbound::Match::MaxPlayers;
+		const FVector Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * (bOnAltar ? Layout.AltarApothem * 0.6f : SlabSize() * 0.28f);
 		// La base de la ficha, posada en la cara superior de la losa (R-VIS-3, R-VIS-6). Lo que no es un movimiento (Vacío, hogar,
-		// Expulsión, salto planar) desliza en línea recta; tras recorrer un camino, solo el reparto de la casilla compartida.
+		// Expulsión, salto planar) desliza en línea recta; tras recorrer un camino, solo el sitio del asiento en la casilla.
 		Token->MoveTo(TokenBase(TileId) + Offset, TokenSlideSeconds);
 	}
 }
