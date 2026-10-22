@@ -544,10 +544,11 @@ def lados_de_sendero(grafo, ancho, paso=0.006):
     return puntos, aristas
 
 
-def pieza_suelo(rng, terreno, grafo):
+def pieza_suelo(rng, terreno, grafo, manchas=True):
     """Tierra del Dominio: triangulación de Delaunay con el contorno y los bordes de los senderos como
     restricción. Los senderos del grafo son tierra clara; el resto, tierra oscura con alguna mancha clara
-    lejos del grafo, para que ninguna mancha se lea como un sendero."""
+    lejos del grafo, para que ninguna mancha se lea como un sendero. Sin manchas (el suelo liso del kit,
+    decisión del autor del 22/10/2026: estiradas a la mesa de 120 parecían camuflaje), toda la tierra oscura."""
     bm, capa = nuevo_bm()
     contorno = contorno_cuna(rng)
     bordes, aristas_sendero = lados_de_sendero(grafo, ANCHO_SENDERO)
@@ -589,7 +590,7 @@ def pieza_suelo(rng, terreno, grafo):
         d = dist_caminos(cx, cy, grafo)
         if d < ANCHO_SENDERO / 2:
             color = TIERRA_CLARA
-        elif d > 0.08 and terreno.tono(cx, cy) + rng.uniform(-0.2, 0.2) > 0.55:
+        elif manchas and d > 0.08 and terreno.tono(cx, cy) + rng.uniform(-0.2, 0.2) > 0.55:
             color = TIERRA_CLARA
         else:
             color = TIERRA_OSCURA
@@ -2250,7 +2251,7 @@ def main():
 
     # Suelo liso del kit: la cuña sin senderos pintados, para que la vista coloque losas y senderos desde
     # los datos del tablero. Solo se exporta; el render de conjunto usa el suelo con senderos.
-    piezas["suelo_liso"] = malla("suelo_liso", pieza_suelo(rng, Terreno(rng, [], []), []))
+    piezas["suelo_liso"] = malla("suelo_liso", pieza_suelo(rng, Terreno(rng, [], []), [], manchas=False))
 
     # Ficha de prueba sobre una losa del principal. No es escenografía: fuera del recuento del Dominio.
     ficha_me = malla("ficha_prueba", pieza_ficha(rng))
