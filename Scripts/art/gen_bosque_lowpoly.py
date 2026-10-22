@@ -2341,7 +2341,9 @@ def main():
                    "materiales": list(MATERIALES),
                    "convenciones": ["Origen de cada pieza en su centro y base en z = 0 (las losas, con la cara en z = 0,0055).",
                                     "Las estructuras se colocan junto a su losa, tocando su borde por el lado contrario al camino.",
-                                    "Cada Dominio es la misma cuña girada de 60 en 60 grados alrededor del Altar.",
+                                    "Cada Dominio es la misma cuña girada de 60 en 60 grados alrededor del Altar; en los GLB "
+                                    "sueltos, la cuña (peana, suelo liso) tiene su eje del Altar hacia fuera en +x, como el "
+                                    "resto de piezas.",
                                     "El color va por vértice (atributo Col); el cian es el único acento: M_Paleta_Emisivo "
                                     "(brasero, runa) y M_Paleta_Tenue (filo, agua del pilón, velo, orbe)."],
                    "piezas": {n: {"triangulos": len(me.polygons), "caja_m": caja_de(me), "nota": notas.get(n, "")}
@@ -2351,6 +2353,11 @@ def main():
     # GLB: uno por pieza (en el origen), la ficha aparte, y el conjunto del Dominio (colocado, sin ficha).
     for n, me in list(piezas.items()) + [("ficha_prueba", ficha_me)]:
         tmp = instanciar(f"_export_{n}", me, (0, 0, 0))
+        # Las piezas de suelo de la cuña (peana y suelo liso) salen con su eje en +x, como el resto de piezas (la vista
+        # las gira al ángulo de su Dominio). En este archivo la cuña se construye hacia -y: se gira +90° al exportarla
+        # (corrección del 22/10/2026: con el eje en -y las cuñas quedaban 30° giradas respecto al Altar).
+        if n in ("peana", "suelo_liso", "suelo"):
+            tmp.rotation_euler = (0, 0, math.pi / 2)
         exportar(os.path.join(salida, "glb", f"{n}.glb"), [tmp])
         bpy.data.objects.remove(tmp)
     exportar(os.path.join(salida, "glb", "bosque_negro_conjunto.glb"), instancias)
