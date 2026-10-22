@@ -78,6 +78,13 @@ struct SOULBOUND_API FBoardLayoutParams
 	UPROPERTY(EditAnywhere, Category = "Mesa")
 	float SlabHalfSize = 3.15f;
 
+	/**
+	 * Cota de la grada alta del Altar del kit, donde se posan las fichas, en cm (R-VIS-3): 4,0 la grada baja y 5,1 la alta.
+	 * La cara superior del Altar es AltarTop * KitScale, nunca las dimensiones de la malla (la aguja llega a 25,6). Valor inicial 5,1.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Mesa")
+	float AltarTop = 5.1f;
+
 	/** Altura de la cara superior de la losa, donde se posa la ficha (R-VIS-3). Valor inicial 0,55. */
 	UPROPERTY(EditAnywhere, Category = "Mesa")
 	float SlabTop = 0.55f;
@@ -125,6 +132,9 @@ struct SOULBOUND_API FBoardLayoutParams
 /** Colocación de una casilla (S-019): su losa y, si es especial, su estructura. En el espacio de la mesa, con el Altar en el origen. */
 struct SOULBOUND_API FTileLayout
 {
+	/** Cota de la cara superior, donde se posa la ficha (R-VIS-3): KitFloorHeight + SlabTop en una losa, AltarTop * KitScale en el Altar. */
+	float Top = 0.f;
+
 	/** Centro de la losa, sobre la mesa (z = 0, la base de la pieza). */
 	FVector Location = FVector::ZeroVector;
 

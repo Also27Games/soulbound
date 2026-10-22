@@ -185,6 +185,33 @@ bool FBoardLayoutAltarScaleTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// CA-VIS-1 (R-VIS-3): la cara superior donde se posa la ficha sale de los datos, no de la malla: con la mesa de 120 y el kit de 74,
+// la del Altar es AltarTop * 120/74 y la de una losa, KitFloorHeight + SlabTop.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLayoutTileTopTest, "Soulbound.Game.Presentation.Tablero3D.CaraSuperiorDelAltarYLasLosas", LayoutTestFlags)
+bool FBoardLayoutTileTopTest::RunTest(const FString& Parameters)
+{
+	FBoardState Board;
+	if (!LoadBoard35(*this, Board))
+	{
+		return false;
+	}
+	FBoardLayoutParams Params;
+	Params.KitTableRadius = 74.f;
+	Params.TableRadius = 120.f;
+	Params.KitFloorHeight = 3.4f;
+	const FBoardLayout Layout = Soulbound::Presentation::ComputeBoardLayout(Board, Params);
+	if (!TestEqual(TEXT("Una colocación por casilla"), Layout.Tiles.Num(), Board.Tiles.Num()))
+	{
+		return false;
+	}
+	for (const FTileState& Tile : Board.Tiles)
+	{
+		const float Expected = Board.IsAltar(Tile.TileId) ? Params.AltarTop * 120.f / 74.f : Params.KitFloorHeight + Params.SlabTop;
+		TestTrue(FString::Printf(TEXT("La cara superior de la casilla %d está a %.3f (%.3f)"), Tile.TileId, Expected, Layout.Tiles[Tile.TileId].Top), FMath::IsNearlyEqual(Layout.Tiles[Tile.TileId].Top, Expected, 0.001f));
+	}
+	return true;
+}
+
 // CA-VIS-1 (R-VIS-3): lo que se posa sobre el suelo del kit sube su cota: con KitFloorHeight 3,4, toda losa, toda estructura y
 // todo tramo de sendero están a z = 3,4 y el Altar, a 0; con 0, todo a 0.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLayoutKitFloorHeightTest, "Soulbound.Game.Presentation.Tablero3D.CotaDelSueloDelKit", LayoutTestFlags)

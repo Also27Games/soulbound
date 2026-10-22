@@ -313,6 +313,7 @@ FBoardLayout Soulbound::Presentation::ComputeBoardLayout(const FBoardState& Boar
 		const float Distance = Offset.Size();
 		// R-VIS-3: las losas se posan sobre el suelo del kit; el Altar, con su base en la mesa, no sube.
 		const float Floor = Board.IsAltar(Tile.TileId) ? 0.f : Params.KitFloorHeight;
+		Layout.Tiles[Tile.TileId].Top = Board.IsAltar(Tile.TileId) ? Params.AltarTop * Layout.KitScale : Floor + Params.SlabTop;
 		Layout.Tiles[Tile.TileId].Location = Distance > UE_KINDA_SMALL_NUMBER ? FVector(Offset / Distance * (Inner + Distance * Layout.Scale), Floor) : FVector(0.f, 0.f, Floor);
 	}
 

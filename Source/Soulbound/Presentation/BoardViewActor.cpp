@@ -917,8 +917,8 @@ void ABoardViewActor::BuildTiles()
 		float Thickness = bAltar ? AltarThickness : LayoutParams.SlabTop;
 		if (bAltar && KitSlab)
 		{
-			const FBoxSphereBounds Bounds = KitSlab->GetBounds();
-			Thickness = (Bounds.Origin.Z + Bounds.BoxExtent.Z) * Layout.KitScale;
+			// De los datos (AltarTop * KitScale), no de la malla: sus dimensiones llegan a la punta de la aguja.
+			Thickness = Layout.Tiles[Tile.TileId].Top;
 		}
 		const float Diameter = bAltar ? Layout.AltarApothem * 2.f : SlabSize();
 		TileTops[Tile.TileId] = Thickness;
@@ -1629,10 +1629,12 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 			}
 		}
 		FVector Offset = FVector::ZeroVector;
+		// En el Altar, las fichas se reparten sobre la grada alta, alrededor del trono vacío (R-VIS-6).
+		const bool bOnAltar = Host->GetState().Board.IsAltar(TileId);
 		if (Sharing > 1)
 		{
 			const float Angle = 2.f * PI * MyIndex / Sharing;
-			Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * (SlabSize() * 0.28f);
+			Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * (bOnAltar ? Layout.AltarApothem * 0.6f : SlabSize() * 0.28f);
 		}
 		// La base de la ficha, posada en la cara superior de la losa (R-VIS-3, R-VIS-6). Lo que no es un movimiento (Vacío, hogar,
 		// Expulsión, salto planar) desliza en línea recta; tras recorrer un camino, solo el reparto de la casilla compartida.
