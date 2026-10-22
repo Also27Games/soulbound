@@ -429,13 +429,17 @@ class Terreno:
     donde se asientan las losas, los senderos, el trono y el brasero. Las piezas se colocan leyendo esta
     misma función."""
 
-    def __init__(self, rng, grafo, zonas_planas):
+    def __init__(self, rng, grafo, zonas_planas, amplitud=RELIEVE, n_montes=None):
+        """amplitud: la del ruido bajo; n_montes: cuántos montículos (None, entre 4 y 6 al azar). El suelo liso del kit
+        va casi plano y sin montículos (22/10/2026): el juego coloca losas y senderos en cualquier sitio y los montículos
+        los enterraban."""
         self.grafo = grafo
         self.zonas = zonas_planas  # (x, y, radio)
+        self.amplitud = amplitud
         self.relieve = Ruido(rng, 5, 15, 45)
         self.tono = Ruido(rng, 4, 18, 50)
         self.montes = []
-        for _ in range(rng.randint(4, 6)):
+        for _ in range(rng.randint(4, 6) if n_montes is None else n_montes):
             for _ in range(500):
                 x, y = rng.uniform(-0.35, 0.35), rng.uniform(-R_EXTERIOR, -R_INTERIOR)
                 if dentro_cuna(x, y, 0.03) and dist_caminos(x, y, grafo) > 0.08:
@@ -450,7 +454,7 @@ class Terreno:
         return w
 
     def altura(self, x, y):
-        h = self.relieve(x, y) * RELIEVE
+        h = self.relieve(x, y) * self.amplitud
         for mx, my, a, s in self.montes:
             h += a * math.exp(-((x - mx) ** 2 + (y - my) ** 2) / (2 * s * s))
         w = self.libre(x, y)
@@ -465,14 +469,17 @@ class Terreno:
 # ---------------------------------------------------------------------------------------------------------
 # Peana y suelo
 # ---------------------------------------------------------------------------------------------------------
-def contorno_cuna(rng, paso=0.025, mordiscos=True):
+def contorno_cuna(rng, paso=0.025, mordiscos=True, lados_extra=0.0):
     """Borde del Dominio en sentido antihorario visto desde arriba. Los lados rectos y el borde del Altar
-    quedan limpios, porque encajan con los vecinos; el arco exterior puede llevar mordiscos de borde roto."""
+    quedan limpios, porque encajan con los vecinos; el arco exterior puede llevar mordiscos de borde roto.
+    lados_extra: cuánto se sacan los dos lados rectos hacia fuera (el suelo liso del kit, el canto de la peana, para
+    que dos cuñas vecinas se toquen sin que asome la peana negra entre ellas; 22/10/2026)."""
     c, s = math.cos(MEDIO_ANGULO), math.sin(MEDIO_ANGULO)
-    il = Vector((-R_INTERIOR * s / c, -R_INTERIOR, 0))
-    ir = Vector((R_INTERIOR * s / c, -R_INTERIOR, 0))
-    ol = Vector((-R_EXTERIOR * s, -R_EXTERIOR * c, 0))
-    orr = Vector((R_EXTERIOR * s, -R_EXTERIOR * c, 0))
+    izq, der = Vector((-c, s, 0)) * lados_extra, Vector((c, s, 0)) * lados_extra
+    il = Vector((-R_INTERIOR * s / c, -R_INTERIOR, 0)) + izq
+    ir = Vector((R_INTERIOR * s / c, -R_INTERIOR, 0)) + der
+    ol = Vector((-R_EXTERIOR * s, -R_EXTERIOR * c, 0)) + izq
+    orr = Vector((R_EXTERIOR * s, -R_EXTERIOR * c, 0)) + der
     puntos = []
 
     def recta(a, b):
@@ -544,13 +551,13 @@ def lados_de_sendero(grafo, ancho, paso=0.006):
     return puntos, aristas
 
 
-def pieza_suelo(rng, terreno, grafo, manchas=True):
+def pieza_suelo(rng, terreno, grafo, manchas=True, lados_extra=0.0):
     """Tierra del Dominio: triangulación de Delaunay con el contorno y los bordes de los senderos como
     restricción. Los senderos del grafo son tierra clara; el resto, tierra oscura con alguna mancha clara
     lejos del grafo, para que ninguna mancha se lea como un sendero. Sin manchas (el suelo liso del kit,
     decisión del autor del 22/10/2026: estiradas a la mesa de 120 parecían camuflaje), toda la tierra oscura."""
     bm, capa = nuevo_bm()
-    contorno = contorno_cuna(rng)
+    contorno = contorno_cuna(rng, lados_extra=lados_extra)
     bordes, aristas_sendero = lados_de_sendero(grafo, ANCHO_SENDERO)
     celda = SEPARACION_SUELO
     rejilla = {}
@@ -2251,7 +2258,8 @@ def main():
 
     # Suelo liso del kit: la cuña sin senderos pintados, para que la vista coloque losas y senderos desde
     # los datos del tablero. Solo se exporta; el render de conjunto usa el suelo con senderos.
-    piezas["suelo_liso"] = malla("suelo_liso", pieza_suelo(rng, Terreno(rng, [], []), [], manchas=False))
+    piezas["suelo_liso"] = malla("suelo_liso", pieza_suelo(rng, Terreno(rng, [], [], amplitud=0.001, n_montes=0), [],
+                                                          manchas=False, lados_extra=PEANA_CANTO))
 
     # Ficha de prueba sobre una losa del principal. No es escenografía: fuera del recuento del Dominio.
     ficha_me = malla("ficha_prueba", pieza_ficha(rng))
