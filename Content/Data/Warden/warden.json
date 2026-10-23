@@ -53,7 +53,7 @@
       ]},
       {"trigger": "Hoarder", "events": [
         {"event": "el-precio", "multiplier": 2, "suggestCause": true},
-        {"event": "milagro", "multiplier": 2, "suggestCause": true},
+        {"event": "milagro", "multiplier": 2},
         {"event": "impuesto", "multiplier": 3, "whenActiveIsCause": true}
       ]}
     ]

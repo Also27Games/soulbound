@@ -71,9 +71,11 @@ namespace
 	}
 
 	/**
-	 * Cifras del Warden por acto (informe de S-016), contadas del registro: intervenciones con efecto (WardenEventStarted), turnos
-	 * empezados y cortados (por el acto en que empezaron) y el hueco más largo sin golpe ni escena (por el acto en que empieza),
-	 * desde el inicio y hasta EndSeconds. El acto de cada instante sale del tiempo y del fin de la carrera, como CurrentAct.
+	 * Cifras del Warden por acto (informe de S-016), contadas del registro: intervenciones con efecto, turnos empezados y cortados
+	 * (por el acto en que empezaron) y el hueco más largo sin golpe ni escena (por el acto en que empieza), desde el inicio y hasta
+	 * EndSeconds. El acto de cada instante sale del tiempo y del fin de la carrera, como CurrentAct. Desde S-017 (decisión del
+	 * autor del 23/10/2026), las intervenciones son solo lo que decide el cerebro: los eventos que lanza (WardenEventStarted que no
+	 * es una sentencia) y los golpes por el Oráculo, al abrir su consulta; las sentencias van aparte, por el origen de su consulta.
 	 */
 	TArray<FWardenActReport> WardenReport(const FMatchState& State, double EndSeconds)
 	{
@@ -82,6 +84,7 @@ namespace
 		for (FWardenActReport& Act : Acts)
 		{
 			Act.TriggerCounts.Init(0, Soulbound::Warden::TriggerCount);
+			Act.SentencesByOrigin.Init(0, Soulbound::Match::OracleOriginCount);
 		}
 		const FWardenParams& Params = State.WardenParams;
 		if (Params.Acts.Num() < Soulbound::Warden::ActCount)
@@ -107,6 +110,16 @@ namespace
 		};
 		double LastEffect = 0.0;
 		int32 TurnAct = 0;
+		auto CountIntervention = [&](double Seconds)
+		{
+			++Acts[ActAt(Seconds)].EffectInterventions;
+			FWardenActReport& Gap = Acts[ActAt(LastEffect)];
+			Gap.MaxGapSeconds = FMath::Max(Gap.MaxGapSeconds, Seconds - LastEffect);
+			LastEffect = Seconds;
+		};
+		// El origen de la última consulta abierta, para la sentencia que la sigue; y si el siguiente evento lanzado es esa sentencia.
+		int32 OracleOrigin = INDEX_NONE;
+		bool bSentenceEventNext = false;
 		for (const FMatchEvent& Event : State.EventLog)
 		{
 			if (Event.Type == EMatchEventType::TurnStarted)
@@ -120,15 +133,31 @@ namespace
 			}
 			else if (Event.Type == EMatchEventType::WardenEventStarted)
 			{
-				++Acts[ActAt(Event.ClockSeconds)].EffectInterventions;
-				FWardenActReport& Gap = Acts[ActAt(LastEffect)];
-				Gap.MaxGapSeconds = FMath::Max(Gap.MaxGapSeconds, Event.ClockSeconds - LastEffect);
-				LastEffect = Event.ClockSeconds;
+				// La sentencia de una consulta no es una decisión del cerebro: el golpe por el Oráculo ya contó al abrirse.
+				if (!bSentenceEventNext)
+				{
+					CountIntervention(Event.ClockSeconds);
+				}
+				bSentenceEventNext = false;
 			}
-			// S-017: sentencias, consultas que acaban en insolencia y disparadores activos, por el acto en que ocurren.
+			// S-017: consultas, sentencias por origen, consultas que acaban en insolencia y disparadores activos, por el acto en que ocurren.
+			else if (Event.Type == EMatchEventType::OracleOpened)
+			{
+				OracleOrigin = Event.Value;
+				if (Event.Value == static_cast<int32>(EOracleOrigin::Strike))
+				{
+					CountIntervention(Event.ClockSeconds);
+				}
+			}
 			else if (Event.Type == EMatchEventType::OracleSentence)
 			{
-				++Acts[ActAt(Event.ClockSeconds)].Sentences;
+				FWardenActReport& Act = Acts[ActAt(Event.ClockSeconds)];
+				++Act.Sentences;
+				if (Act.SentencesByOrigin.IsValidIndex(OracleOrigin))
+				{
+					++Act.SentencesByOrigin[OracleOrigin];
+				}
+				bSentenceEventNext = true;
 			}
 			else if (Event.Type == EMatchEventType::OracleIgnored)
 			{

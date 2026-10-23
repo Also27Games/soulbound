@@ -1036,6 +1036,12 @@ enum class EOracleOrigin : uint8
 	Strike,
 };
 
+namespace Soulbound::Match
+{
+	/** Orígenes de una consulta del Oráculo (EOracleOrigin, R-ORA-2: Nodo, forzada y golpe). */
+	inline constexpr int32 OracleOriginCount = 3;
+}
+
 /** Por dónde va una consulta del Oráculo (S-017). Nombre propuesto en S-017. */
 UENUM()
 enum class EOracleStage : uint8
