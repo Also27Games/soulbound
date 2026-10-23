@@ -114,9 +114,10 @@ public:
 	/**
 	 * Velocidad de la ficha por su camino, en cm por segundo (S-020): recorre el camino tramo a tramo, en línea recta entre
 	 * centros y a velocidad constante, y al entrar en cada casilla entrega la intención de avance de su asiento, humano o dummy. Valor inicial 13
-	 * (decisión del autor del 21/10/2026, probando en PIE): unos 0,6 s entre losas vecinas y unos 2 s en el tramo del Altar, que
-	 * la salvaguarda del motor cubre (moveStepSeconds, 2,5 en partida.json). Sustituye al tiempo fijo por tramo, con el que el
-	 * tramo del Altar salía disparado.
+	 * (decisión del autor del 21/10/2026, probando en PIE): unos 0,6 s entre losas vecinas y, en el Altar, el rodeo del trono más la salida, unos 6 s: la ficha se mueve siempre igual. La salvaguarda
+	 * del motor (moveStepSeconds, 8 en partida.json) tiene que superar siempre el tramo más largo de esta animación; si se
+	 * sube TokenSpeed, puede bajar, y si se baja, hay que subirla. Sustituye al tiempo fijo por tramo, con el que el tramo del
+	 * Altar salía disparado.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Vista")
 	float TokenSpeed = 13.f;
