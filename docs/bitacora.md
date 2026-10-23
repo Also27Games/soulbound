@@ -4,6 +4,47 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo de la story; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera.
 
+## S-017 (A). Warden II: Oráculo, disparadores y fin de carrera que corta (23/10/2026, rama `main`, story S-017)
+
+- **Qué se pidió**: la primera parte de la story S-017; el autor la partió en dos PR al aprobar el plan, y las votaciones son el PR B. Este pone el Oráculo como entrega de decretos (R-ORA-1 a 5): por un Nodo dentro del turno, por la Consulta forzada y por un golpe. Lleva su plazo, su sesgo y el rechazo de Tifón. También los cinco disparadores contextuales con sus tablas en datos (R-DIS-1 a 3), el fin de la carrera que corta el turno en curso (R-PRO-0, R-PRO-3) y la Consulta forzada entre los castigos leves (R-INS-2).
+- **Qué se decidió**: el autor resolvió las trece dudas del plan (23/10):
+  - le dio las tablas del GDD 06 con los multiplicadores;
+  - la sentencia de un golpe es el decreto que eligió el cerebro; el sesgo es para el Nodo, la forzada y la segunda de Tifón;
+  - la dirección preferida solo sustituye en "líder" y "al azar" (y en Enséñame, por el GDD); en un rival señalado queda como rival sugerido, que siguen los dummies;
+  - el peso "al azar" por el tiempo sin ser objetivo se aplica siempre;
+  - Partida estancada no cuenta en la carrera;
+  - `WardenTriggered` va uno por disparador;
+  - la sentencia gasta un uso y solo el golpe cuenta para la garantía;
+  - el dummy de Tifón nunca rechaza.
+
+  Añadió al informe las sentencias y las consultas que acaban en insolencia.
+- **Cómo funciona**: `FOracleState` en el estado. `OpenOracle` sortea la sentencia al abrir, con el sorteo del Warden, entre los decretos entregables por el Oráculo y con la mezcla de uniforme y pesos del cerebro (`Match/OracleRules.h`). Al consultar, o al agotarse el plazo, la sentencia se aplica como un evento que dirige el consultante. Dentro del turno se aplica en la fase nueva `OracleConsult`, con el turno en suspenso, y al acabar sigue con el salto y la acción, o termina si salió del tablero. Las forzadas esperan en una cola y se abren entre turnos. `ActiveTriggers` es pura; el cerebro la usa en cada evaluación y el evento al lanzarse. Los datos van en `warden.json` y se enlazan con los eventos en `StartMatch`. El fin de la carrera se mira al principio de `AdvanceTurn` y corta con el mismo corte del Warden, con `Detail` 1. El último vínculo ya no termina la carrera en `ClaimNiche`.
+- **Dudas y resolución**: las trece del plan (arriba). Al implementar, decisiones mías anotadas en el PR:
+  - sin Warden en la partida el Oráculo no se abre: la simulación de determinismo, con el Warden apagado, se quedaba esperando un plazo de 0 s;
+  - una sentencia nunca es una Consulta forzada;
+  - el insolente de un Nodo recibe el castigo al terminar su turno;
+  - el rival sugerido se sortea entre los que sugieren, con su multiplicador;
+  - el clic derecho en el orbe es el rechazo del humano.
+- **Tests**: 22 nuevos (`OracleTest`, `WardenTriggersTest`, dos de datos, tres de corte y uno de simulación) y `Effects.ConsultaForzada`, que sustituye a `PendientesDeSuStory`. Se vieron en rojo con las firmas vacías (29 fallos, commit aparte). `NodoAntesDelDespertar` se endureció: el tablero de 35 no tiene Nodos del Oráculo y los tests convierten uno. Se adaptan diez por la regla nueva, listados en el PR; entre ellos, dos de carrera que exigían jugar entero el turno en curso al agotarse el tiempo. Total: 305 en verde.
+- **Informe** (tablero de 35, 50 partidas):
+  - sentencias por partida en los actos I, II y III: 0,08, 6,1 y 6,0;
+  - consultas que acaban en insolencia: 0;
+  - turnos cortados: 8,5, 7,6 y 11,6 % (S-016: 3, 6 y 8 %);
+  - intervenciones con efecto: 0,66, 37 y 28 (S-016: 0,7 a 1,2, 27 y 18,5), que desde ahora cuentan también las sentencias;
+  - disparadores activos por partida en el II: Victoria inminente 160, Acaparador 108, Jugador ignorado 66, Líder claro 15, Partida estancada 1,7;
+  - el fin de la carrera corta un turno en las 50 partidas;
+  - hueco máximo, de 118 a 122 s;
+  - el coste por partida pasa de 0,009 a 0,016 s.
+- **Pendiente**:
+  - el PR B (votaciones, los tres eventos nuevos y Favor en la tabla de Partida estancada);
+  - los manuales en PIE, para el autor: no se probó en el juego porque el editor no estaba abierto;
+  - con los dummies, Victoria inminente y Acaparador están casi siempre activos: calibración de umbrales en playtest.
+- **Proceso**:
+  - tiempo: una sesión larga;
+  - preguntas que pararon al agente: una parada (el plan, con trece dudas);
+  - correcciones tras fusionar: por anotar;
+  - build y tests: la primera compilación de los tests falló por un `TestNotEqual` ambiguo. Tras implementar quedaron cinco antiguos en rojo: cuatro por la regla nueva y el de determinismo por el Oráculo sin Warden. Se corrigieron.
+
 ## S-020. Movimiento por el camino y corte a medio camino (20/10/2026, rama `main`)
 
 - **Qué se pidió**: que el motor conozca el camino del movimiento y lleve una fase de movimiento en curso, para que un golpe del Warden pueda caer a medio camino (R-TAB-26): la ficha se queda en la última casilla en la que entró, sin resolverla. La vista recorre el camino casilla a casilla y dice al motor en qué casilla entra. Además, el comando `SbStrike`.
