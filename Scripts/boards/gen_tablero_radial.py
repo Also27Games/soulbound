@@ -112,9 +112,12 @@ def wedge_v2(domain, nichos="centro"):
     cuñas con formas distintas y más conexiones. Cada una respeta las mismas reglas: columna desde el Altar sin
     especiales, Nicho con una conexión, Fuente y Nodo con dos conexiones como mucho, un enlace interior y otro exterior
     con cada vecino, distancia mínima.
-    nichos: "centro", el Nicho por la parte central de la cuña (a 3-7 pasos del Altar), o "lejos", colgando del extremo
-    exterior (7-8 pasos). El 23/10/2026 el informe de simulación dio Ecos al 1 % con los Nichos cerca (objetivo del GDD 03,
-    15-35 %) y la carrera cerrada a los 135 s de 300: con un dado, un Nicho a 3-6 pasos se alcanza en uno o dos turnos."""
+    nichos: "centro", el Nicho por la parte central de la cuña (a 3-7 pasos del Altar; es tablero_86.json), o "lejos",
+    colgando del extremo exterior (7 pasos los seis). Experimento del 23/10/2026: el informe de simulación daba Ecos al 1 %
+    con los Nichos cerca (objetivo del GDD 03, 15-35 %) y la carrera cerrada a los 135 s de 300; con los Nichos lejos, 3 %
+    y 170 s (4,5 % y 197 s con el Warden del Acto I al 0,5). El autor decidió no mover los Nichos hasta medir con dummies a
+    ritmo humano (story de victoria): los de la simulación contestan en 5 s y juegan nueve turnos en la carrera. Se
+    conserva la opción para repetir la medida; el tablero de prueba no se versiona."""
     tiles, edges = {}, []
 
     def add(name, r, v, kind="normal"):
