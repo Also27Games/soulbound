@@ -30,7 +30,8 @@ La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar
   - sentencias por partida en los actos I, II y III: 0,08, 6,1 y 6,0;
   - consultas que acaban en insolencia: 0;
   - turnos cortados: 8,5, 7,6 y 11,6 % (S-016: 3, 6 y 8 %);
-  - intervenciones con efecto: 0,66, 37 y 28 (S-016: 0,7 a 1,2, 27 y 18,5), que desde ahora cuentan también las sentencias;
+  - intervenciones con efecto (solo lo que decide el cerebro, ver abajo): 0,66, 34 y 27 (S-016: 0,7 a 1,2, 27 y 18,5);
+  - sentencias por origen en los actos II y III: forzada 2,6 y 1,4; golpe 3,5 y 4,6. En el tablero de 35 no hay Nodos; en el de 86, unas 3,3 y 1,9 por Nodo;
   - disparadores activos por partida en el II: Victoria inminente 160, Acaparador 108, Jugador ignorado 66, Líder claro 15, Partida estancada 1,7;
   - el fin de la carrera corta un turno en las 50 partidas;
   - hueco máximo, de 118 a 122 s;
@@ -44,6 +45,13 @@ La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar
   - preguntas que pararon al agente: una parada (el plan, con trece dudas);
   - correcciones tras fusionar: por anotar;
   - build y tests: la primera compilación de los tests falló por un `TestNotEqual` ambiguo. Tras implementar quedaron cinco antiguos en rojo: cuatro por la regla nueva y el de determinismo por el Oráculo sin Warden. Se corrigieron.
+- **Añadido antes de fusionar** (respuestas del autor a las dudas del PR, 23/10):
+  - Enséñame se queda como "rival señalado" en los datos: la tabla hace lo que dice el GDD.
+  - Milagro pierde la víctima sugerida en la tabla de Acaparador (roba a todos por diseño) y se queda con el multiplicador.
+  - La línea de intervenciones con efecto vuelve a contar solo lo que decide el cerebro, la medida del pilar 1: golpes, directos o por el Oráculo (al abrir su consulta), y escenas. Las sentencias van en su propia línea por acto, por origen (`FWardenActReport::SentencesByOrigin`).
+  - La crónica del juego deja de listar `WardenTriggered`, como `TileEntered`, y la decisión del Warden con efecto lleva sus disparadores entre paréntesis ("el Warden decide: golpe "Impuesto" (Acaparador: asiento 2)"). La simulación los sigue contando en el informe.
+
+  Dos tests nuevos, vistos en rojo rompiendo a propósito el cambio: `Game.Presentation.Cronica.DecisionConDisparadores` y una comprobación de las intervenciones en `InformeDeCarrera`. Se adapta `CronicaDeUnaPartida` (una línea por evento lanzado y otra por sentencia). Total: 306 en verde.
 
 ## S-020. Movimiento por el camino y corte a medio camino (20/10/2026, rama `main`)
 
