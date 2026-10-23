@@ -694,7 +694,7 @@ enum class EMatchEventType : uint8
 	 * Value es la casilla. Uno por casilla, en orden; el de la última va justo antes de Moved. Nombre propuesto en S-020.
 	 */
 	TileEntered,
-	/** Comentario del Warden (glosario `Remark`, R-WAR-4, S-016): sin texto ni efecto; el tipo y la frase son de S-017. Sin asiento. */
+	/** Comentario del Warden (glosario `Remark`, R-WAR-4, S-016): sin texto ni efecto; el tipo y la frase son de la story "La voz del Warden" (decisión del autor del 22/10/2026). Sin asiento. */
 	WardenRemark,
 	/**
 	 * Castigo de insolencia (R-INS-2, S-016): Seat el insolente, Value el nivel que alcanzó con la subida y Detail la gravedad

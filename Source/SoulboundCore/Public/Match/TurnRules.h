@@ -56,8 +56,14 @@ namespace Soulbound::Rules
 
 	/**
 	 * Avanza el turno una fase si no hay una decisión pendiente (R-TUR-2):
+	 *  - Antes de nada (S-017, R-PRO-0, R-PRO-3): si la carrera debe terminar (IsBondRaceDue) y el turno en curso se puede cortar,
+	 *    lo corta en ese instante (TurnInterrupted con Detail 1) y la carrera termina al dejarlo entre turnos. En un duelo, un
+	 *    trilero, un minijuego o una consulta, el fin espera a que acabe.
 	 *  - BetweenTurns con un evento del Warden en curso (S-014): lo lleva (AdvanceWardenEvent) y no empieza turno; con una
 	 *    elección del evento en plazo, espera. El turno siguiente empieza cuando el evento ha terminado.
+	 *  - BetweenTurns con una consulta del Oráculo (S-017, R-ORA-2): la lleva como un evento, esperando la intención hasta su
+	 *    plazo (agotado, OracleIgnored: la sentencia se aplica igual y la insolencia sube); con una Consulta forzada esperando
+	 *    (FOracleState::Queued) y sin eventos, la abre (OpenOracle). El turno siguiente no empieza hasta que se resuelven.
 	 *  - BetweenTurns con una escena del Warden esperando al hueco (S-016, FWardenState::PendingScene): la lanza
 	 *    (LaunchWardenEvent) y no empieza turno.
 	 *  - BetweenTurns → Start: salta a los asientos con turnos perdidos (R-TUR-10, evento TurnSkipped), empieza el
@@ -83,13 +89,16 @@ namespace Soulbound::Rules
 	 *    casilla por llamada. En la última registra Moved y pasa a MoveAndResolve.
 	 *  - MoveAndResolve: resuelve el Nicho de destino (R-CAR-4, ResolveNicheLanding) y la Fuente (R-RUN-2,
 	 *    ResolvePowerSourceLanding, solo si el asiento se ha movido). Si un Elegido llega a la Fuente de un Dominio
-	 *    Olvidado, pasa a SkillTrial. Después (R-INT-1) ofrece el salto planar (PlanarJump) y, como mucho, una acción
+	 *    Olvidado, pasa a SkillTrial. Con el último Nicho Libre reclamado, corta el turno y termina la carrera (S-017, R-PRO-0).
+	 *    En un Nodo del Oráculo, desde el Despertar, abre la consulta en la fase OracleConsult (S-017, R-ORA-2). Después (R-INT-1) ofrece el salto planar (PlanarJump) y, como mucho, una acción
 	 *    contra un jugador (PlayerAction: retar a duelo, expulsar o robar; S-010, S-012), cada uno con el reloj de
 	 *    elección; sin nada que ofrecer, pasa a End y registra TurnEnded. Con una elección abierta, la espera; agotado su
 	 *    plazo, registra ChoiceExpired y la resuelve como "no".
 	 *  - Start → PreRoll de un asiento con la Prueba del Warden pendiente (S-015, R-EFE-10): después de la salida del Vacío
 	 *    (que la anula al entrar) y antes de tirar, abre la fase SkillTrial con PendingTrial WardenTrial y la dificultad de
 	 *    datos; superada, sigue a PreRoll; fallada, End sin pasar por PreRoll: no consume sorteo, como un turno en el Vacío.
+	 *  - OracleConsult (S-017): espera la consulta del Nodo hasta su plazo y, revelada, aplica la sentencia como un evento que dirige
+	 *    el consultante; al acabar, el turno sigue (salto, acción) o termina si dejó el tablero.
 	 *  - SkillTrial: espera el resultado del minijuego (SubmitSkillTrialResult); no avanza ni cambia nada.
 	 *  - Duel (S-012): espera el rendimiento de los dos participantes (SubmitDuelPerformance); no avanza ni cambia nada.
 	 *  - ShellGame (S-010, R-ROB-2): el trilero. Espera la runa de Koschei (agotada, ChoiceExpired y se juega con todas,
@@ -99,8 +108,8 @@ namespace Soulbound::Rules
 	 * se elijan uno o dos dados, se repita o no y aunque el reloj se agote antes de tirar (decisión del autor del
 	 * 04/10/2026): así los dados de una semilla no dependen de los decisores.
 	 *  - End → BetweenTurns: si el asiento tiene turnos extra, consume uno y vuelve a jugar (R-TUR-9); si no, pasa al
-	 *    siguiente del orden de turno. Con el tiempo de carrera agotado, la carrera termina aquí (R-CAR-1, R-TAB-27).
-	 *  - En BetweenTurns con el tiempo de carrera agotado, la carrera termina antes de empezar otro turno.
+	 *    siguiente del orden de turno. Si la carrera debe terminar (tiempo o todos vinculados), termina aquí (R-CAR-1, R-TAB-27).
+	 *  - En BetweenTurns, si la carrera debe terminar, termina antes de empezar otro turno.
 	 * Al empezar un turno y al terminarlo, los turnos perdidos se descuentan contra los extra uno a uno (caso límite
 	 * del GDD 02), así un turno extra concedido durante el turno también se compensa.
 	 * NowSeconds: instante actual del reloj de partida; es la marca de tiempo de los eventos.

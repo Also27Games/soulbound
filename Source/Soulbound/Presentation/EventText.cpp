@@ -101,9 +101,32 @@ namespace Soulbound::Presentation
 		}
 		// S-016: el corte de un golpe y el comentario; las evaluaciones y las decisiones no tienen línea (sí, su registro).
 		case EMatchEventType::TurnInterrupted:
-			return FString::Printf(TEXT("GOLPE: el Warden CORTA el turno del asiento %d %s: %s"), Event.Seat, *TurnPhaseText(Event.Value), *TurnCutLossText(Event.Value));
+			// S-017 (R-PRO-0): también lo corta el fin de la carrera.
+			return Event.Detail == 1
+				? FString::Printf(TEXT("FIN DE LA CARRERA: CORTA el turno del asiento %d %s: %s"), Event.Seat, *TurnPhaseText(Event.Value), *TurnCutLossText(Event.Value))
+				: FString::Printf(TEXT("GOLPE: el Warden CORTA el turno del asiento %d %s: %s"), Event.Seat, *TurnPhaseText(Event.Value), *TurnCutLossText(Event.Value));
 		case EMatchEventType::WardenRemark:
-			return FString(TEXT("el Warden comenta (la frase llega con S-017)"));
+			return FString(TEXT("el Warden comenta (la frase llega con la story \"La voz del Warden\")"));
+		// S-017: el Oráculo del Caos y los disparadores contextuales.
+		case EMatchEventType::OracleOpened:
+			return FString::Printf(TEXT("ORÁCULO: el asiento %d tiene que consultarlo (%s)"), Event.Seat, *OracleOriginText(Event.Value));
+		case EMatchEventType::OracleConsulted:
+			return FString::Printf(TEXT("el asiento %d consulta el Oráculo"), Event.Seat);
+		case EMatchEventType::OracleIgnored:
+			return FString::Printf(TEXT("el asiento %d no consulta a tiempo: el Oráculo habla igual, por ignorarme (sube su INSOLENCIA)"), Event.Seat);
+		case EMatchEventType::OracleRefused:
+			return FString::Printf(TEXT("el asiento %d (Tifón) RECHAZA la sentencia: el orbe dicta otra"), Event.Seat);
+		case EMatchEventType::OracleSentence:
+		{
+			const FWardenEventDef* Def = WardenEvents && WardenEvents->Events.IsValidIndex(Event.Value) ? &WardenEvents->Events[Event.Value] : nullptr;
+			const FString Name = Def ? FString::Printf(TEXT("\"%s\": %s"), *Def->DisplayName(), *Def->Text) : FString::Printf(TEXT("evento %d"), Event.Value);
+			return FString::Printf(TEXT("SENTENCIA del Oráculo para el asiento %d%s: %s"), Event.Seat, Event.Detail == 1 ? TEXT(" (la segunda, sin rechazo)") : TEXT(""), *Name);
+		}
+		case EMatchEventType::OracleEmpty:
+			return FString::Printf(TEXT("el orbe no muestra NADA al asiento %d: no hay sentencia que valga"), Event.Seat);
+		case EMatchEventType::WardenTriggered:
+			return Event.Seat == INDEX_NONE ? FString::Printf(TEXT("disparador: %s"), *TriggerName(Event.Value))
+				: FString::Printf(TEXT("disparador: %s: asiento %d"), *TriggerName(Event.Value), Event.Seat);
 		case EMatchEventType::WardenEvaluated:
 		case EMatchEventType::WardenDecided:
 			return FString();
@@ -250,7 +273,7 @@ namespace Soulbound::Presentation
 		case EWardenEventStart::NotBetweenTurns: return TEXT("los eventos van entre turnos: con SbStepMode 1, cuando la partida espera el siguiente turno");
 		case EWardenEventStart::EventInProgress: return TEXT("ya hay un evento en curso");
 		case EWardenEventStart::MatchOver: return TEXT("la partida ha terminado");
-		case EWardenEventStart::NotImplemented: return TEXT("usa un efecto que llega en otra story (la Consulta forzada, S-017)");
+		case EWardenEventStart::NotImplemented: return TEXT("usa un efecto que llega en otra story");
 		}
 		return TEXT("rechazado");
 	}
@@ -307,6 +330,30 @@ namespace Soulbound::Presentation
 		}
 	}
 
+	FString OracleOriginText(int32 Origin)
+	{
+		switch (static_cast<EOracleOrigin>(Origin))
+		{
+		case EOracleOrigin::Node: return TEXT("acabó en un Nodo del Oráculo");
+		case EOracleOrigin::Forced: return TEXT("Consulta forzada");
+		case EOracleOrigin::Strike: return TEXT("golpe del Warden por el Oráculo");
+		}
+		return TEXT("origen desconocido");
+	}
+
+	FString TriggerName(int32 Trigger)
+	{
+		switch (static_cast<EWardenTrigger>(Trigger))
+		{
+		case EWardenTrigger::ClearLeader: return TEXT("Líder claro");
+		case EWardenTrigger::ImminentVictory: return TEXT("Victoria inminente");
+		case EWardenTrigger::IgnoredPlayer: return TEXT("Jugador ignorado");
+		case EWardenTrigger::StalledMatch: return TEXT("Partida estancada");
+		case EWardenTrigger::Hoarder: return TEXT("Acaparador");
+		}
+		return TEXT("disparador desconocido");
+	}
+
 	FString DifficultyText(int32 Difficulty)
 	{
 		switch (static_cast<ESkillDifficulty>(Difficulty))
@@ -350,7 +397,7 @@ namespace Soulbound::Presentation
 		case EEffectResult::InvalidRune: return TEXT("ese tipo de runa no es una opción");
 		case EEffectResult::NotImplemented: return TEXT("ese efecto llega en otra story");
 		case EEffectResult::AlreadyActive: return TEXT("ya es de noche");
-		case EEffectResult::AlreadyPending: return TEXT("ese asiento ya tiene una Prueba del Warden pendiente");
+		case EEffectResult::AlreadyPending: return TEXT("ese asiento ya tiene una Prueba del Warden o una consulta del Oráculo pendiente");
 		case EEffectResult::NoTurnToCut: return TEXT("el Alto solo vale cortando un turno, en un golpe");
 		}
 		return TEXT("rechazado");
@@ -433,6 +480,13 @@ namespace Soulbound::Presentation
 		case EMatchEventType::InsolencePunished:
 		case EMatchEventType::FuryUnleashed:
 		case EMatchEventType::FuryRefusal:
+		// S-017: el Oráculo y los disparadores.
+		case EMatchEventType::OracleOpened:
+		case EMatchEventType::OracleIgnored:
+		case EMatchEventType::OracleRefused:
+		case EMatchEventType::OracleSentence:
+		case EMatchEventType::OracleEmpty:
+		case EMatchEventType::WardenTriggered:
 			return EEventSource::Warden;
 		case EMatchEventType::Bonded:
 		case EMatchEventType::BoardAwakening:

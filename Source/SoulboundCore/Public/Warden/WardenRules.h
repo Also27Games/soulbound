@@ -33,8 +33,11 @@ namespace Soulbound::Rules
 	 * Aplica una decisión del cerebro (R-WAR-4): un golpe con un turno en curso lo corta (InterruptTurn) y, en la misma llamada,
 	 * lanza su evento entre turnos con el cortado como activo; sin turno en curso, lo lanza sin cortar. Una escena entre turnos
 	 * se lanza; con un turno en curso, corta si su evento corta y si no espera al hueco (FWardenState::PendingScene). Un
-	 * comentario deja WardenRemark. Lanzar gasta un uso y cuenta para la garantía. No registra la decisión: eso es de
-	 * EvaluateWarden. NowSeconds: marca de los eventos. MatchRandom: el sorteo de la partida (consumo fijo).
+	 * comentario deja WardenRemark. Lanzar gasta un uso y cuenta para la garantía. Desde S-017, un golpe por el Oráculo
+	 * (FWardenDecision::bViaOracle) corta igual y abre la consulta del cortado con su decreto de sentencia (OpenOracle); cuenta para
+	 * la garantía y ocupa el hueco ya, y el uso se gasta al revelarse. El protagonista del golpe deja de estar ignorado (R-DIS-3).
+	 * No registra la decisión: eso es de EvaluateWarden, que desde S-017 deja tras WardenDecided un WardenTriggered por disparador
+	 * activo. NowSeconds: marca de los eventos. MatchRandom: el sorteo de la partida (consumo fijo).
 	 */
 	SOULBOUNDCORE_API void ApplyWardenDecision(FMatchState& State, const FWardenDecision& Decision, double NowSeconds, FRandomStream& MatchRandom);
 

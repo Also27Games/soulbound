@@ -11,15 +11,18 @@ namespace Soulbound::Match
 	inline constexpr int32 MaxEventOptions = 4;
 }
 
-/** Forma de entrega de un evento (R-COM-1). En S-014 solo se aplica la directa. Nombre propuesto en S-014. */
+/** Forma de entrega de un evento (R-COM-1). En S-014 solo se aplicaba la directa; el Oráculo, desde S-017. Nombre propuesto en S-014. */
 UENUM()
 enum class EEventDelivery : uint8
 {
 	/** El Warden directo. */
 	Direct,
-	/** El Oráculo del Caos: se carga; hasta S-017, no es candidato del cerebro (R-SAC-1) y SbEvent lo aplica como directa. */
+	/**
+	 * El Oráculo del Caos (R-ORA-1): desde S-017, un golpe con esta entrega llega como sentencia que hay que consultar; también es
+	 * candidato de las sentencias de un Nodo y de una Consulta forzada. Solo decretos. SbEvent lo aplica como directa.
+	 */
 	Oracle,
-	/** Directa u Oráculo, a elección del Warden (S-016): hasta S-017, siempre directa. */
+	/** Directa u Oráculo, a elección del Warden (S-016): desde S-017, un golpe va por el Oráculo a partes iguales; una escena, directa. */
 	Any,
 };
 

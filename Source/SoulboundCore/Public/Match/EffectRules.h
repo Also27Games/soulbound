@@ -40,13 +40,14 @@ enum class EEffectResult : uint8
 	SelfTarget,
 	/** El tipo de runa no es una opción válida (S-014). */
 	InvalidRune,
-	/** El efecto se aplica en su story: hoy, Alto y Consulta forzada al Oráculo (S-016, S-017). */
+	/** El efecto se aplica en su story. Desde S-017 se aplican los dieciocho del catálogo: queda para un efecto nuevo. */
 	NotImplemented,
 	/** La Noche de los Ecos con otra Noche activa (R-EFE-18; decisión del autor del 14/10/2026). */
 	AlreadyActive,
 	/**
 	 * Una Prueba del Warden sobre quien ya la tiene (R-EFE-10, S-015; principio del autor del 14/10/2026: el Warden nunca
-	 * parece equivocarse). Nombre propuesto en S-015.
+	 * parece equivocarse). Nombre propuesto en S-015. Desde S-017, también una Consulta forzada sobre quien ya consulta el Oráculo
+	 * o tiene una esperando.
 	 */
 	AlreadyPending,
 	/**
@@ -68,8 +69,9 @@ namespace Soulbound::Rules
 	 * Si el asiento Seat está en juego (decisión del autor del 08/10/2026): es el asiento activo y su turno ha empezado
 	 * (TurnPhase distinta de BetweenTurns), o participa en el duelo en curso, o es el ladrón o la víctima del trilero en
 	 * curso. Entre turnos nadie está en juego, salvo (S-015) los participantes de un duelo o un trilero de un evento del
-	 * Warden, que se juegan entre turnos: el asiento al que le toca el siguiente turno no lo está por eso. Nombre propuesto
-	 * en S-013.
+	 * Warden, que se juegan entre turnos: el asiento al que le toca el siguiente turno no lo está por eso. Desde S-017, quien
+	 * consulta el Oráculo en un Nodo (fase OracleConsult) no está en juego mientras dura la consulta: su turno queda en suspenso
+	 * y su sentencia puede mandarle a casa o al Vacío (R-ORA-2). Nombre propuesto en S-013.
 	 */
 	SOULBOUNDCORE_API bool IsSeatInPlay(const FMatchState& State, int32 Seat);
 

@@ -68,8 +68,10 @@ public:
 	 * evento en curso; no inicia nada en el margen de un acto o de la partida; interviene con la probabilidad del acto o
 	 * forzado por la garantía; elige canal por los pesos del acto y evento por el peso del acto entre los candidatos
 	 * (EventCandidates); sin candidato en el canal, prueba el otro con efecto, y sin ninguno, comentario. Random: el sorteo
-	 * del Warden; consume siempre los mismos valores. Determinista: mismo estado, reloj y sorteo, misma decisión. Con la
-	 * partida terminada o sin Warden, nada.
+	 * del Warden; consume siempre los mismos valores (cinco desde S-017: el último elige la entrega de un golpe con "any").
+	 * Desde S-017 (R-DIS-1) mira la partida: los pesos de los eventos y la probabilidad de intervenir llevan los disparadores
+	 * activos, que vuelven en la decisión. Determinista: mismo estado, reloj y sorteo, misma decisión. Con la partida terminada
+	 * o sin Warden, nada.
 	 */
 	FWardenDecision Evaluate(const FMatchState& State, double NowSeconds, FRandomStream& Random) const;
 };
@@ -90,13 +92,15 @@ namespace Soulbound::Rules
 
 	/**
 	 * Si el Warden debe aplazar ahora (R-WAR-7): fase Duel, ShellGame o SkillTrial, un evento en curso, o MoveAndResolve con la
-	 * casilla de destino aún por resolver (un instante: la ficha ya llegó y su casilla resuelve al avanzar).
+	 * casilla de destino aún por resolver (un instante: la ficha ya llegó y su casilla resuelve al avanzar). Desde S-017, también
+	 * una consulta del Oráculo (fase OracleConsult, o abierta, aplicándose o esperando entre turnos): es una escena en curso.
 	 */
 	SOULBOUNDCORE_API bool IsWardenDeferred(const FMatchState& State);
 
 	/**
 	 * Eventos candidatos del canal Channel en NowSeconds (R-WAR-8, R-SAC-1), en el orden de la tabla: de los sacos del acto
-	 * actual y los anteriores, de ese canal, con entrega directa o "any" (el Oráculo es de S-017), sin efectos sin implementar,
+	 * actual y los anteriores, de ese canal, con entrega directa o "any" (desde S-017, también "oracle" en un golpe: llega por el
+	 * Oráculo, R-ORA-1; una escena solo por el Oráculo nunca es candidata), sin efectos sin implementar,
 	 * dentro de su ventana, con usos y con peso en el acto, y con objetivos válidos para quien lo dirigiría (R-DIR-2, R-DIR-3):
 	 * un decreto, si alguna aplicación tiene objetivo; un dilema, si al menos dos opciones lo tienen. Con un turno en curso que
 	 * el evento cortaría, la validez se mira como quedaría tras el corte; el Alto solo vale cortando.

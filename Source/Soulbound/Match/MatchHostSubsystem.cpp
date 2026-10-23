@@ -146,7 +146,8 @@ void UMatchHostSubsystem::Advance()
 	{
 		// Paso a paso: al entrar en BetweenTurns la partida se detiene hasta que se concede un paso; con un evento del Warden
 		// en curso, no, hasta que termina (S-014).
-		if (StepClock.ShouldHold(bStepMode, State.TurnPhase, State.MatchPhase, State.CurrentEvent.IsActive()))
+		// S-017: una consulta del Oráculo entre turnos es como un evento: tiene plazo y la partida no se detiene en ella.
+		if (StepClock.ShouldHold(bStepMode, State.TurnPhase, State.MatchPhase, State.CurrentEvent.IsActive() || State.Oracle.IsBusy()))
 		{
 			StepClock.Hold(GetWorld()->GetTimeSeconds());
 			UE_LOG(LogSoulboundMatch, Log, TEXT("Paso a paso: partida detenida en t=%.1f s, esperando el siguiente turno."), StepClock.FrozenMatchSeconds);
@@ -157,15 +158,16 @@ void UMatchHostSubsystem::Advance()
 		const int32 Seat = State.ActiveSeat;
 		const bool bDummy = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid();
 		// Quien decide ahora: el asiento de la elección abierta, que puede no tener el turno (S-010: Koschei víctima aparta
-		// una runa); sin elección, el activo.
-		const int32 ChoiceSeat = State.PendingChoice.IsOpen() ? State.PendingChoice.Seat : Seat;
+		// una runa); sin elección, el que consulta el Oráculo (S-017), que tampoco tiene por qué tenerlo; si no, el activo.
+		const bool bOracleWaiting = State.Oracle.IsWaiting() && !State.PendingChoice.IsOpen();
+		const int32 ChoiceSeat = State.PendingChoice.IsOpen() ? State.PendingChoice.Seat : bOracleWaiting ? State.Oracle.Consultant : Seat;
 		const bool bChoiceDummy = Deciders.IsValidIndex(ChoiceSeat) && Deciders[ChoiceSeat].IsValid();
 		// Una decisión pendiente de otro turno (otro asiento u otro TurnCount) o de otra cosa (otra elección, o el destino
-		// tras una elección) ya no vale: se descarta.
+		// tras una elección, o la consulta del Oráculo) ya no vale: se descarta.
 		if (Pending.bPending && (Pending.Seat != ChoiceSeat || Pending.TurnCount != State.TurnCount || Pending.ChoiceKind != State.PendingChoice.Kind
-			|| Pending.bDuel != (State.TurnPhase == ETurnPhase::Duel)))
+			|| Pending.bDuel != (State.TurnPhase == ETurnPhase::Duel) || Pending.bOracle != bOracleWaiting))
 		{
-			Pending.bPending = false;
+			Pending = FPendingDecision();
 		}
 		if (State.PendingChoice.IsOpen() && bChoiceDummy)
 		{
@@ -187,6 +189,30 @@ void UMatchHostSubsystem::Advance()
 			{
 				bChanged |= Soulbound::Rules::SubmitChoiceIntent(State, ChoiceSeat, Pending.ChoiceKind, Pending.Option, Now, MatchRng) == EIntentResult::Accepted;
 				Pending.bPending = false;
+				continue;
+			}
+		}
+		else if (bOracleWaiting && bChoiceDummy)
+		{
+			// S-017 (R-VOT-5, R-ORA-3): el dummy consulta tras su retardo, o a la mitad de lo que queda si el plazo es más corto: nunca
+			// se le agota. El humano consulta por la vista (SubmitHumanOracleConsult).
+			if (!Pending.bPending)
+			{
+				Pending.bPending = true;
+				Pending.Seat = ChoiceSeat;
+				Pending.TurnCount = State.TurnCount;
+				Pending.ChoiceKind = EChoiceKind::None;
+				Pending.bDuel = false;
+				Pending.bOracle = true;
+				Pending.ReadyAtSeconds = Now + FMath::Min(static_cast<double>(DummyResponseSeconds), 0.5 * (State.Oracle.DeadlineSeconds - Now));
+				Pending.bRefuseOracle = State.Oracle.bRefusable && Deciders[ChoiceSeat]->RefusesOracleSentence(State, ChoiceSeat, DeciderRng);
+			}
+			if (Now >= Pending.ReadyAtSeconds)
+			{
+				const EIntentResult Result = Pending.bRefuseOracle ? Soulbound::Rules::SubmitOracleRefuse(State, ChoiceSeat, Now) : Soulbound::Rules::SubmitOracleConsult(State, ChoiceSeat, Now);
+				bChanged |= Result == EIntentResult::Accepted;
+				Pending.bPending = false;
+				Pending.bOracle = false;
 				continue;
 			}
 		}
@@ -387,6 +413,41 @@ EIntentResult UMatchHostSubsystem::SubmitHumanChoice(EChoiceKind Kind, int32 Opt
 	if (Result == EIntentResult::Accepted)
 	{
 		OnMatchStateChanged.Broadcast();
+	}
+	return Result;
+}
+
+EIntentResult UMatchHostSubsystem::SubmitHumanOracleConsult()
+{
+	if (!bHasMatch)
+	{
+		return EIntentResult::WrongPhase;
+	}
+	const double Now = MatchSeconds();
+	State.ClockSeconds = Now;
+	const EIntentResult Result = Soulbound::Rules::SubmitOracleConsult(State, HumanSeat, Now);
+	if (Result == EIntentResult::Accepted)
+	{
+		OnMatchStateChanged.Broadcast();
+		// La sentencia puede terminar la consulta y dejar que el turno siga: se avanza ya, sin esperar al siguiente tick.
+		Advance();
+	}
+	return Result;
+}
+
+EIntentResult UMatchHostSubsystem::SubmitHumanOracleRefuse()
+{
+	if (!bHasMatch)
+	{
+		return EIntentResult::WrongPhase;
+	}
+	const double Now = MatchSeconds();
+	State.ClockSeconds = Now;
+	const EIntentResult Result = Soulbound::Rules::SubmitOracleRefuse(State, HumanSeat, Now);
+	if (Result == EIntentResult::Accepted)
+	{
+		OnMatchStateChanged.Broadcast();
+		Advance();
 	}
 	return Result;
 }
@@ -621,8 +682,8 @@ FDebugEditOutcome UMatchHostSubsystem::DebugLaunchEvent(const FString& EventId)
 	const EWardenEventStart Result = Soulbound::Debug::LaunchEvent(State, EventId, State.ClockSeconds, WardenRandom);
 	const bool bApplied = Result == EWardenEventStart::Started;
 	// S-014: con la partida detenida, el reloj vuelve a correr para que corran los plazos del evento; el turno siguiente
-	// sigue esperando su paso (ShouldHold vuelve a detener al terminar el evento).
-	if (bApplied && State.CurrentEvent.IsActive() && StepClock.bHeld)
+	// sigue esperando su paso (ShouldHold vuelve a detener al terminar el evento). S-017: también con una consulta del Oráculo pendiente.
+	if (bApplied && (State.CurrentEvent.IsActive() || State.Oracle.IsBusy()) && StepClock.bHeld)
 	{
 		StepClock.Resume(GetWorld()->GetTimeSeconds());
 	}
@@ -647,7 +708,7 @@ FDebugEditOutcome UMatchHostSubsystem::DebugStrikeEvent(const FString& EventId)
 	FRandomStream WardenRandom = Soulbound::Rules::WardenDraw(State);
 	const EWardenEventStart Result = Soulbound::Debug::StrikeEvent(State, EventId, State.ClockSeconds, MatchRng, WardenRandom);
 	const bool bApplied = Result == EWardenEventStart::Started;
-	if (bApplied && State.CurrentEvent.IsActive() && StepClock.bHeld)
+	if (bApplied && (State.CurrentEvent.IsActive() || State.Oracle.IsBusy()) && StepClock.bHeld)
 	{
 		StepClock.Resume(GetWorld()->GetTimeSeconds());
 	}
