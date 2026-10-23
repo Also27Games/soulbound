@@ -201,12 +201,18 @@ void ASeatTokenActor::MoveTo(const FVector& Location, float SlideSeconds)
 	SlideElapsed = 0.f;
 }
 
-void ASeatTokenActor::WalkPath(const TArray<int32>& Tiles, const TArray<FVector>& Points, float Speed)
+void ASeatTokenActor::WalkPath(const TArray<int32>& Tiles, const TArray<FVector>& Points, float Speed, const TArray<float>& SpeedFactors)
 {
 	++WalkGeneration;
 	WalkTiles = Tiles;
 	WalkPoints = Points;
 	WalkPoints.SetNum(WalkTiles.Num());
+	WalkSpeedFactors = SpeedFactors;
+	WalkSpeedFactors.SetNum(WalkTiles.Num());
+	for (float& Factor : WalkSpeedFactors)
+	{
+		Factor = Factor > 0.f ? Factor : 1.f;
+	}
 	WalkIndex = 0;
 	WalkElapsed = 0.f;
 	WalkSpeed = FMath::Max(Speed, KINDA_SMALL_NUMBER);
@@ -233,7 +239,7 @@ TArray<int32> ASeatTokenActor::RemainingWalk() const
 
 float ASeatTokenActor::WalkSegmentSeconds() const
 {
-	return IsWalking() ? FVector::Dist(WalkSegmentStart, WalkPoints[WalkIndex]) / WalkSpeed : 0.f;
+	return IsWalking() ? FVector::Dist(WalkSegmentStart, WalkPoints[WalkIndex]) / (WalkSpeed * WalkSpeedFactors[WalkIndex]) : 0.f;
 }
 
 void ASeatTokenActor::StopWalk()
@@ -241,6 +247,7 @@ void ASeatTokenActor::StopWalk()
 	++WalkGeneration;
 	WalkTiles.Reset();
 	WalkPoints.Reset();
+	WalkSpeedFactors.Reset();
 	WalkIndex = 0;
 }
 

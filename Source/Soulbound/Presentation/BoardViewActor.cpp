@@ -1587,7 +1587,7 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 		}
 		return Angles;
 	};
-	auto WalkOf = [&](int32 Seat, int32 CurrentTile, const TArray<int32>& Tiles, TArray<int32>& OutTiles, TArray<FVector>& OutPoints)
+	auto WalkOf = [&](int32 Seat, int32 CurrentTile, const TArray<int32>& Tiles, TArray<int32>& OutTiles, TArray<FVector>& OutPoints, TArray<float>& OutFactors)
 	{
 		const int32 AltarTile = Board.FindAltar();
 		const float SeatAngle = 2.f * PI * Seat / Soulbound::Match::MaxPlayers;
@@ -1600,6 +1600,7 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 				{
 					OutTiles.Add(INDEX_NONE);
 					OutPoints.Add(CirclePoint(Angle));
+					OutFactors.Add(AltarCircleSpeedFactor);
 				}
 			}
 			if (Index == Tiles.Num() - 1 && Tile == AltarTile)
@@ -1610,11 +1611,14 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 				{
 					OutTiles.Add(Step == Angles.Num() - 1 ? Tile : INDEX_NONE);
 					OutPoints.Add(CirclePoint(Angles[Step]));
+					// El tramo recto hasta el primer punto del círculo va a la velocidad normal; el rodeo, más rápido.
+					OutFactors.Add(Step == 0 ? 1.f : AltarCircleSpeedFactor);
 				}
 				continue;
 			}
 			OutTiles.Add(Tile);
 			OutPoints.Add(TokenBase(Tile));
+			OutFactors.Add(1.f);
 		}
 	};
 
@@ -1655,8 +1659,9 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 				}
 				TArray<int32> WalkTiles;
 				TArray<FVector> WalkPoints;
-				WalkOf(Seat, TileId, Remaining, WalkTiles, WalkPoints);
-				Token->WalkPath(WalkTiles, WalkPoints, TokenSpeed);
+				TArray<float> WalkFactors;
+				WalkOf(Seat, TileId, Remaining, WalkTiles, WalkPoints, WalkFactors);
+				Token->WalkPath(WalkTiles, WalkPoints, TokenSpeed, WalkFactors);
 			}
 			continue;
 		}
