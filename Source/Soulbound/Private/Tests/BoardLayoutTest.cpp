@@ -117,6 +117,144 @@ bool FBoardLayoutTableTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// CA-VIS-1 (R-VIS-1): el kit se escala (suelo de cada cuña y Altar) con el radio de mesa para el que está hecho el kit: con la mesa de 120 y
+// el kit de 74, 120/74; con la mesa igual al radio del kit, 1; y 1 si el radio del kit no es positivo.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLayoutKitScaleTest, "Soulbound.Game.Presentation.Tablero3D.EscalaDelKit", LayoutTestFlags)
+bool FBoardLayoutKitScaleTest::RunTest(const FString& Parameters)
+{
+	FBoardState Board;
+	if (!LoadBoard35(*this, Board))
+	{
+		return false;
+	}
+	FBoardLayoutParams Params;
+	Params.KitTableRadius = 74.f;
+	Params.TableRadius = 120.f;
+	TestTrue(TEXT("Mesa de 120 con kit de 74: el suelo se escala 120/74"),
+		FMath::IsNearlyEqual(Soulbound::Presentation::ComputeBoardLayout(Board, Params).KitScale, 120.f / 74.f, 0.0001f));
+
+	Params.TableRadius = 74.f;
+	TestTrue(TEXT("Mesa igual al radio del kit: el suelo no se escala"),
+		FMath::IsNearlyEqual(Soulbound::Presentation::ComputeBoardLayout(Board, Params).KitScale, 1.f, 0.0001f));
+
+	Params.KitTableRadius = 0.f;
+	TestTrue(TEXT("Radio del kit no positivo: el suelo no se escala"),
+		FMath::IsNearlyEqual(Soulbound::Presentation::ComputeBoardLayout(Board, Params).KitScale, 1.f, 0.0001f));
+	return true;
+}
+
+// CA-VIS-1 (R-VIS-1): el Altar crece con el kit: con la mesa de 120 y el kit de 74, su apotema en la colocación es 15 * 120/74 y la
+// casilla más cercana queda a esa apotema más su distancia escalada desde el borde; con la escala 1, a 15.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLayoutAltarScaleTest, "Soulbound.Game.Presentation.Tablero3D.AltarEscaladoConElKit", LayoutTestFlags)
+bool FBoardLayoutAltarScaleTest::RunTest(const FString& Parameters)
+{
+	FBoardState Board;
+	if (!LoadBoard35(*this, Board))
+	{
+		return false;
+	}
+	for (const float TableRadius : {120.f, 74.f})
+	{
+		FBoardLayoutParams Params;
+		Params.KitTableRadius = 74.f;
+		Params.TableRadius = TableRadius;
+		const FBoardLayout Layout = Soulbound::Presentation::ComputeBoardLayout(Board, Params);
+		const float Apothem = Params.AltarApothem * TableRadius / 74.f;
+		TestTrue(FString::Printf(TEXT("Mesa de %.0f: el apotema del Altar es %.3f (%.3f)"), TableRadius, Apothem, Layout.AltarApothem), FMath::IsNearlyEqual(Layout.AltarApothem, Apothem, 0.001f));
+
+		// La casilla más cercana en el editor es la más cercana en la mesa: su borde interior es el apotema escalado más su distancia escalada.
+		float NearestEditor = TNumericLimits<float>::Max();
+		float NearestTable = TNumericLimits<float>::Max();
+		const FVector2D AltarAt = Board.Tiles[Board.FindAltar()].LayoutPosition;
+		for (const FTileState& Tile : Board.Tiles)
+		{
+			if (Board.IsAltar(Tile.TileId))
+			{
+				continue;
+			}
+			const float Editor = static_cast<float>((Tile.LayoutPosition - AltarAt).Size());
+			if (Editor < NearestEditor)
+			{
+				NearestEditor = Editor;
+				NearestTable = static_cast<float>(FVector2D(Layout.Tiles[Tile.TileId].Location).Size());
+			}
+		}
+		const float Expected = Apothem + Params.AltarGap + NearestEditor * Layout.Scale;
+		TestTrue(FString::Printf(TEXT("Mesa de %.0f: la casilla más cercana está a %.3f del centro (%.3f)"), TableRadius, Expected, NearestTable), FMath::IsNearlyEqual(NearestTable, Expected, 0.001f));
+	}
+	return true;
+}
+
+// CA-VIS-1 (R-VIS-3): la cara superior donde se posa la ficha sale de los datos, no de la malla: con la mesa de 120 y el kit de 74,
+// la del Altar es AltarTop * 120/74 y la de una losa, KitFloorHeight + SlabTop.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLayoutTileTopTest, "Soulbound.Game.Presentation.Tablero3D.CaraSuperiorDelAltarYLasLosas", LayoutTestFlags)
+bool FBoardLayoutTileTopTest::RunTest(const FString& Parameters)
+{
+	FBoardState Board;
+	if (!LoadBoard35(*this, Board))
+	{
+		return false;
+	}
+	FBoardLayoutParams Params;
+	Params.KitTableRadius = 74.f;
+	Params.TableRadius = 120.f;
+	Params.KitFloorHeight = 3.4f;
+	const FBoardLayout Layout = Soulbound::Presentation::ComputeBoardLayout(Board, Params);
+	if (!TestEqual(TEXT("Una colocación por casilla"), Layout.Tiles.Num(), Board.Tiles.Num()))
+	{
+		return false;
+	}
+	for (const FTileState& Tile : Board.Tiles)
+	{
+		const float Expected = Board.IsAltar(Tile.TileId) ? Params.AltarTop * 120.f / 74.f : Params.KitFloorHeight + Params.SlabTop;
+		TestTrue(FString::Printf(TEXT("La cara superior de la casilla %d está a %.3f (%.3f)"), Tile.TileId, Expected, Layout.Tiles[Tile.TileId].Top), FMath::IsNearlyEqual(Layout.Tiles[Tile.TileId].Top, Expected, 0.001f));
+	}
+	return true;
+}
+
+// CA-VIS-1 (R-VIS-3): lo que se posa sobre el suelo del kit sube su cota: con KitFloorHeight 3,4, toda losa, toda estructura y
+// todo tramo de sendero están a z = 3,4 y el Altar, a 0; con 0, todo a 0.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLayoutKitFloorHeightTest, "Soulbound.Game.Presentation.Tablero3D.CotaDelSueloDelKit", LayoutTestFlags)
+bool FBoardLayoutKitFloorHeightTest::RunTest(const FString& Parameters)
+{
+	FBoardState Board;
+	if (!LoadBoard35(*this, Board))
+	{
+		return false;
+	}
+	AssignNodeEffects(Board);
+	for (const float Height : {3.4f, 0.f})
+	{
+		FBoardLayoutParams Params;
+		Params.KitFloorHeight = Height;
+		const FBoardLayout Layout = Soulbound::Presentation::ComputeBoardLayout(Board, Params);
+		if (!TestEqual(TEXT("Una colocación por casilla"), Layout.Tiles.Num(), Board.Tiles.Num()))
+		{
+			return false;
+		}
+		int32 Structures = 0;
+		for (const FTileState& Tile : Board.Tiles)
+		{
+			const FTileLayout& Placed = Layout.Tiles[Tile.TileId];
+			const float Expected = Board.IsAltar(Tile.TileId) ? 0.f : Height;
+			TestTrue(FString::Printf(TEXT("Cota %.1f: la losa %d está a z = %.2f (%.2f)"), Height, Tile.TileId, Expected, Placed.Location.Z), FMath::IsNearlyEqual(Placed.Location.Z, Expected, 0.0001f));
+			if (Placed.Structure != EBoardStructure::None)
+			{
+				++Structures;
+				TestTrue(FString::Printf(TEXT("Cota %.1f: la estructura de la casilla %d está a z = %.2f (%.2f)"), Height, Tile.TileId, Height, Placed.StructureLocation.Z),
+					FMath::IsNearlyEqual(Placed.StructureLocation.Z, Height, 0.0001f));
+			}
+		}
+		TestTrue(TEXT("El tablero tiene estructuras que comprobar"), Structures > 0);
+		TestTrue(TEXT("El tablero tiene tramos de sendero que comprobar"), Layout.PathSegments.Num() > 0);
+		for (const FPathSegmentLayout& Segment : Layout.PathSegments)
+		{
+			TestTrue(FString::Printf(TEXT("Cota %.1f: el tramo %d-%d está a z = %.2f (%.2f)"), Height, Segment.TileA, Segment.TileB, Height, Segment.Location.Z), FMath::IsNearlyEqual(Segment.Location.Z, Height, 0.0001f));
+		}
+	}
+	return true;
+}
+
 // CA-VIS-1 (R-VIS-2): cada cuña gira al ángulo medio de sus casillas vistas desde el Altar; seis ángulos distintos separados
 // unos 60° (entre 45 y 75 de una a la siguiente).
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLayoutWedgesTest, "Soulbound.Game.Presentation.Tablero3D.CunasAlAnguloMedio", LayoutTestFlags)

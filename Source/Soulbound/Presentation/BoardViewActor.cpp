@@ -735,7 +735,7 @@ UStaticMeshComponent* ABoardViewActor::AddKitPiece(UStaticMesh* Mesh, const FVec
 	Component->SetStaticMesh(Mesh);
 	Component->SetupAttachment(GetRootComponent());
 	Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	// Las piezas del kit no se escalan (R-VIS-1): un metro del kit son 100 cm.
+	// Las piezas del kit no se escalan (R-VIS-1), salvo el suelo de la cuña (BuildKit): un metro del kit son 100 cm.
 	Component->SetRelativeLocationAndRotation(Location, FRotator(0.f, Yaw, 0.f));
 	Component->SetVisibility(bVisible);
 	ApplyKitMaterials(*Component);
@@ -747,14 +747,17 @@ void ABoardViewActor::BuildKit()
 {
 	const FBoardState& Board = Host->GetState().Board;
 
-	// R-VIS-2: la peana y el suelo liso de cada Dominio, girados a su sector, con el centro en el Altar.
+	// R-VIS-2: la peana y el suelo liso de cada Dominio, girados a su sector, con el centro en el Altar y a la escala del suelo.
 	for (const FDomainWedgeLayout& Wedge : Layout.Wedges)
 	{
 		for (const EBoardKitPiece Piece : {EBoardKitPiece::Pedestal, EBoardKitPiece::PlainFloor})
 		{
 			if (UStaticMesh* Mesh = KitMesh(Piece))
 			{
-				KitFixedPieces.Add(AddKitPiece(Mesh, FVector::ZeroVector, Wedge.Yaw, true));
+				UStaticMeshComponent* Floor = AddKitPiece(Mesh, FVector::ZeroVector, Wedge.Yaw, true);
+				// R-VIS-1: el suelo de la cuña se escala en X e Y al radio de la mesa; el resto del kit, no.
+				Floor->SetRelativeScale3D(FVector(Layout.KitScale, Layout.KitScale, 1.f));
+				KitFixedPieces.Add(Floor);
 			}
 		}
 	}
@@ -787,7 +790,10 @@ void ABoardViewActor::BuildKit()
 		}
 		if (Placed.Slab == EBoardSlab::Altar)
 		{
-			KitFixedPieces.Add(AddKitPiece(KitMesh(Piece), Placed.Location, Placed.Yaw, true));
+			// R-VIS-1: el Altar crece con el kit, en X, Y y Z.
+			UStaticMeshComponent* Altar = AddKitPiece(KitMesh(Piece), Placed.Location, Placed.Yaw, true);
+			Altar->SetRelativeScale3D(FVector(Layout.KitScale));
+			KitFixedPieces.Add(Altar);
 		}
 		else
 		{
@@ -911,10 +917,10 @@ void ABoardViewActor::BuildTiles()
 		float Thickness = bAltar ? AltarThickness : LayoutParams.SlabTop;
 		if (bAltar && KitSlab)
 		{
-			const FBoxSphereBounds Bounds = KitSlab->GetBounds();
-			Thickness = Bounds.Origin.Z + Bounds.BoxExtent.Z;
+			// De los datos (AltarTop * KitScale), no de la malla: sus dimensiones llegan a la punta de la aguja.
+			Thickness = Layout.Tiles[Tile.TileId].Top;
 		}
-		const float Diameter = bAltar ? LayoutParams.AltarApothem * 2.f : SlabSize();
+		const float Diameter = bAltar ? Layout.AltarApothem * 2.f : SlabSize();
 		TileTops[Tile.TileId] = Thickness;
 
 		// El tipo se ve por la silueta: Nicho cuadrado, Nodo en rombo, Altar grande y alto, el resto redondo.
@@ -1555,14 +1561,61 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 
 	// S-020: el asiento que se mueve, humano o dummy (decisión del autor del 21/10/2026).
 	const int32 MovingSeat = State.TurnPhase == ETurnPhase::Moving ? State.ActiveSeat : INDEX_NONE;
-	auto BasesOf = [this](const TArray<int32>& Tiles)
+	// R-VIS-6 (decisión del autor del 22/10/2026): el trono del Warden ocupa el centro del Altar, así que la ficha no cruza de
+	// centro a centro. Al salir del Altar va primero por el círculo de la grada alta, desde su sitio hasta el punto que mira a la
+	// primera casilla, en pasos de 30° como mucho; al llegar a él, al revés. Los puntos del círculo (casilla INDEX_NONE) son solo
+	// presentación: las intenciones de avance se entregan una por casilla, al llegar a su punto final.
+	const FBoardState& Board = Host->GetState().Board;
+	auto CirclePoint = [this, &Board](float Angle)
 	{
-		TArray<FVector> Bases;
-		for (const int32 Tile : Tiles)
+		return TokenBase(Board.FindAltar()) + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * (Layout.AltarApothem * 0.6f);
+	};
+	auto FacingAngle = [this](int32 Tile) -> float
+	{
+		const FVector2D Direction(Layout.Tiles[Tile].Location);
+		return Direction.IsNearlyZero() ? 0.f : static_cast<float>(FMath::Atan2(Direction.Y, Direction.X));
+	};
+	// Los ángulos desde From hasta To (el camino corto) en pasos de 30° como mucho, sin From y con To.
+	auto ArcAngles = [](float From, float To)
+	{
+		TArray<float> Angles;
+		const float Delta = FMath::UnwindRadians(To - From);
+		const int32 Steps = FMath::CeilToInt(FMath::Abs(Delta) / FMath::DegreesToRadians(30.f) - UE_KINDA_SMALL_NUMBER);
+		for (int32 Step = 1; Step <= Steps; ++Step)
 		{
-			Bases.Add(TokenBase(Tile));
+			Angles.Add(From + Delta * Step / Steps);
 		}
-		return Bases;
+		return Angles;
+	};
+	auto WalkOf = [&](int32 Seat, int32 CurrentTile, const TArray<int32>& Tiles, TArray<int32>& OutTiles, TArray<FVector>& OutPoints)
+	{
+		const int32 AltarTile = Board.FindAltar();
+		const float SeatAngle = 2.f * PI * Seat / Soulbound::Match::MaxPlayers;
+		for (int32 Index = 0; Index < Tiles.Num(); ++Index)
+		{
+			const int32 Tile = Tiles[Index];
+			if (Index == 0 && CurrentTile == AltarTile)
+			{
+				for (const float Angle : ArcAngles(SeatAngle, FacingAngle(Tile)))
+				{
+					OutTiles.Add(INDEX_NONE);
+					OutPoints.Add(CirclePoint(Angle));
+				}
+			}
+			if (Index == Tiles.Num() - 1 && Tile == AltarTile)
+			{
+				TArray<float> Angles{FacingAngle(Index > 0 ? Tiles[Index - 1] : CurrentTile)};
+				Angles.Append(ArcAngles(Angles[0], SeatAngle));
+				for (int32 Step = 0; Step < Angles.Num(); ++Step)
+				{
+					OutTiles.Add(Step == Angles.Num() - 1 ? Tile : INDEX_NONE);
+					OutPoints.Add(CirclePoint(Angles[Step]));
+				}
+				continue;
+			}
+			OutTiles.Add(Tile);
+			OutPoints.Add(TokenBase(Tile));
+		}
 	};
 
 	// Fichas: sobre su casilla y, si comparten casilla, repartidas en un círculo pequeño.
@@ -1600,7 +1653,10 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 					Token->StopWalk();
 					Token->MoveTo(TokenBase(TileId), 0.f);
 				}
-				Token->WalkPath(Remaining, BasesOf(Remaining), TokenSpeed);
+				TArray<int32> WalkTiles;
+				TArray<FVector> WalkPoints;
+				WalkOf(Seat, TileId, Remaining, WalkTiles, WalkPoints);
+				Token->WalkPath(WalkTiles, WalkPoints, TokenSpeed);
 			}
 			continue;
 		}
@@ -1612,24 +1668,14 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 			Token->MoveTo(TokenBase(TileId), 0.f);
 		}
 
-		int32 Sharing = 0;
-		int32 MyIndex = 0;
-		for (int32 Other = 0; Other < State.Seats.Num(); ++Other)
-		{
-			if (State.Seats[Other].TileId == TileId)
-			{
-				MyIndex = Other == Seat ? Sharing : MyIndex;
-				++Sharing;
-			}
-		}
-		FVector Offset = FVector::ZeroVector;
-		if (Sharing > 1)
-		{
-			const float Angle = 2.f * PI * MyIndex / Sharing;
-			Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * (SlabSize() * 0.28f);
-		}
+		// Cada asiento tiene siempre su sitio en la casilla, esté sola o acompañada: si una ficha se va, las demás no se mueven
+		// (decisión del autor del 22/10/2026). En el Altar, en el círculo de la grada alta, porque el centro es el trono vacío
+		// del Warden (R-VIS-6).
+		const bool bOnAltar = Host->GetState().Board.IsAltar(TileId);
+		const float Angle = 2.f * PI * Seat / Soulbound::Match::MaxPlayers;
+		const FVector Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * (bOnAltar ? Layout.AltarApothem * 0.6f : SlabSize() * 0.28f);
 		// La base de la ficha, posada en la cara superior de la losa (R-VIS-3, R-VIS-6). Lo que no es un movimiento (Vacío, hogar,
-		// Expulsión, salto planar) desliza en línea recta; tras recorrer un camino, solo el reparto de la casilla compartida.
+		// Expulsión, salto planar) desliza en línea recta; tras recorrer un camino, solo el sitio del asiento en la casilla.
 		Token->MoveTo(TokenBase(TileId) + Offset, TokenSlideSeconds);
 	}
 }
