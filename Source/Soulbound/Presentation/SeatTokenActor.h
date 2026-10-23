@@ -73,7 +73,7 @@ public:
 	/**
 	 * Recorre el camino Tiles (S-020, R-TAB-26): desde donde esté, en línea recta hasta Points[0], después hasta Points[1]... (las
 	 * bases sobre las losas, por donde van los senderos), a velocidad constante Speed (cm por segundo): cada tramo dura su
-	 * longitud entre Speed, así el tramo largo del Altar no sale disparado. Al llegar a cada una avisa por OnTileEntered.
+	 * longitud entre Speed, así el tramo largo del Altar no sale disparado. Al llegar a cada una avisa por OnTileEntered; un punto con casilla INDEX_NONE es solo de paso (el círculo del Altar, R-VIS-6): no avisa.
 	 * Sustituye al recorrido o al deslizamiento que hubiera. Es solo presentación: quien decide qué pasa es el motor.
 	 */
 	void WalkPath(const TArray<int32>& Tiles, const TArray<FVector>& Points, float Speed);
@@ -81,7 +81,7 @@ public:
 	/** Si está recorriendo un camino. */
 	bool IsWalking() const { return WalkIndex < WalkTiles.Num(); }
 
-	/** Casillas del recorrido a las que aún no ha llegado, en orden; vacío si no recorre nada. */
+	/** Casillas del recorrido a las que aún no ha llegado, en orden y sin los puntos de paso; vacío si no recorre nada. */
 	TArray<int32> RemainingWalk() const;
 
 	/** Deja de recorrer el camino donde esté; la vista la coloca después donde diga el estado. */

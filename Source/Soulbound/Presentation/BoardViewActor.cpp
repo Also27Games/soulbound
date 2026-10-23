@@ -1561,14 +1561,61 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 
 	// S-020: el asiento que se mueve, humano o dummy (decisión del autor del 21/10/2026).
 	const int32 MovingSeat = State.TurnPhase == ETurnPhase::Moving ? State.ActiveSeat : INDEX_NONE;
-	auto BasesOf = [this](const TArray<int32>& Tiles)
+	// R-VIS-6 (decisión del autor del 22/10/2026): el trono del Warden ocupa el centro del Altar, así que la ficha no cruza de
+	// centro a centro. Al salir del Altar va primero por el círculo de la grada alta, desde su sitio hasta el punto que mira a la
+	// primera casilla, en pasos de 30° como mucho; al llegar a él, al revés. Los puntos del círculo (casilla INDEX_NONE) son solo
+	// presentación: las intenciones de avance se entregan una por casilla, al llegar a su punto final.
+	const FBoardState& Board = Host->GetState().Board;
+	auto CirclePoint = [this, &Board](float Angle)
 	{
-		TArray<FVector> Bases;
-		for (const int32 Tile : Tiles)
+		return TokenBase(Board.FindAltar()) + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.f) * (Layout.AltarApothem * 0.6f);
+	};
+	auto FacingAngle = [this](int32 Tile) -> float
+	{
+		const FVector2D Direction(Layout.Tiles[Tile].Location);
+		return Direction.IsNearlyZero() ? 0.f : static_cast<float>(FMath::Atan2(Direction.Y, Direction.X));
+	};
+	// Los ángulos desde From hasta To (el camino corto) en pasos de 30° como mucho, sin From y con To.
+	auto ArcAngles = [](float From, float To)
+	{
+		TArray<float> Angles;
+		const float Delta = FMath::UnwindRadians(To - From);
+		const int32 Steps = FMath::CeilToInt(FMath::Abs(Delta) / FMath::DegreesToRadians(30.f) - UE_KINDA_SMALL_NUMBER);
+		for (int32 Step = 1; Step <= Steps; ++Step)
 		{
-			Bases.Add(TokenBase(Tile));
+			Angles.Add(From + Delta * Step / Steps);
 		}
-		return Bases;
+		return Angles;
+	};
+	auto WalkOf = [&](int32 Seat, int32 CurrentTile, const TArray<int32>& Tiles, TArray<int32>& OutTiles, TArray<FVector>& OutPoints)
+	{
+		const int32 AltarTile = Board.FindAltar();
+		const float SeatAngle = 2.f * PI * Seat / Soulbound::Match::MaxPlayers;
+		for (int32 Index = 0; Index < Tiles.Num(); ++Index)
+		{
+			const int32 Tile = Tiles[Index];
+			if (Index == 0 && CurrentTile == AltarTile)
+			{
+				for (const float Angle : ArcAngles(SeatAngle, FacingAngle(Tile)))
+				{
+					OutTiles.Add(INDEX_NONE);
+					OutPoints.Add(CirclePoint(Angle));
+				}
+			}
+			if (Index == Tiles.Num() - 1 && Tile == AltarTile)
+			{
+				TArray<float> Angles{FacingAngle(Index > 0 ? Tiles[Index - 1] : CurrentTile)};
+				Angles.Append(ArcAngles(Angles[0], SeatAngle));
+				for (int32 Step = 0; Step < Angles.Num(); ++Step)
+				{
+					OutTiles.Add(Step == Angles.Num() - 1 ? Tile : INDEX_NONE);
+					OutPoints.Add(CirclePoint(Angles[Step]));
+				}
+				continue;
+			}
+			OutTiles.Add(Tile);
+			OutPoints.Add(TokenBase(Tile));
+		}
 	};
 
 	// Fichas: sobre su casilla y, si comparten casilla, repartidas en un círculo pequeño.
@@ -1606,7 +1653,10 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 					Token->StopWalk();
 					Token->MoveTo(TokenBase(TileId), 0.f);
 				}
-				Token->WalkPath(Remaining, BasesOf(Remaining), TokenSpeed);
+				TArray<int32> WalkTiles;
+				TArray<FVector> WalkPoints;
+				WalkOf(Seat, TileId, Remaining, WalkTiles, WalkPoints);
+				Token->WalkPath(WalkTiles, WalkPoints, TokenSpeed);
 			}
 			continue;
 		}

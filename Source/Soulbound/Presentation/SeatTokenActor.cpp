@@ -219,7 +219,16 @@ void ASeatTokenActor::WalkPath(const TArray<int32>& Tiles, const TArray<FVector>
 
 TArray<int32> ASeatTokenActor::RemainingWalk() const
 {
-	return IsWalking() ? TArray<int32>(WalkTiles.GetData() + WalkIndex, WalkTiles.Num() - WalkIndex) : TArray<int32>();
+	// Los puntos de paso (casilla INDEX_NONE) no son casillas del recorrido.
+	TArray<int32> Remaining;
+	for (int32 Index = WalkIndex; Index < WalkTiles.Num(); ++Index)
+	{
+		if (WalkTiles[Index] != INDEX_NONE)
+		{
+			Remaining.Add(WalkTiles[Index]);
+		}
+	}
+	return Remaining;
 }
 
 float ASeatTokenActor::WalkSegmentSeconds() const
@@ -256,7 +265,10 @@ void ASeatTokenActor::Tick(float DeltaSeconds)
 			{
 				StopWalk();
 			}
-			OnTileEntered.ExecuteIfBound(Seat, Tile, bLast);
+			if (Tile != INDEX_NONE)
+			{
+				OnTileEntered.ExecuteIfBound(Seat, Tile, bLast);
+			}
 			if (Generation != WalkGeneration && !bLast)
 			{
 				break;
