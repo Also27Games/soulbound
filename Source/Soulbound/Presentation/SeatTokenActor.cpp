@@ -278,7 +278,8 @@ void ASeatTokenActor::Tick(float DeltaSeconds)
 	Pivot->SetRelativeLocation(FVector(0.f, 0.f, CurrentLift));
 	CurrentScale = FMath::FInterpTo(CurrentScale, bActive ? ActiveScale : 1.f, DeltaSeconds, 8.f);
 	Pivot->SetRelativeScale3D(FVector(CurrentScale));
-	if (bActive)
+	// La ficha activa gira, salvo mientras recorre su camino: la elevación y el aro se mantienen (decisión del autor del 22/10/2026).
+	if (bActive && !IsWalking())
 	{
 		Pivot->AddRelativeRotation(FRotator(0.f, SpinDegreesPerSecond * DeltaSeconds, 0.f));
 	}
