@@ -177,6 +177,11 @@ namespace Soulbound::Rules
 		return FWardenParamsLoadResult();
 	}
 
+	FWardenParamsLoadResult BindWardenTriggerEvents(FWardenParams& Params, const FWardenEventTable& Events)
+	{
+		return FWardenParamsLoadResult();
+	}
+
 	FWardenParamsLoadResult LoadWardenParamsFromJsonString(const FString& Json)
 	{
 		using Soulbound::JsonFields::ReadNumberField;

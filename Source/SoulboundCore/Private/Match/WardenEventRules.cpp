@@ -551,7 +551,7 @@ namespace Soulbound::Rules
 		return EWardenEventStart::Started;
 	}
 
-	EWardenEventStart ApplyEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random, bool bInterruptedTurn)
+	EWardenEventStart ApplyEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random, bool bInterruptedTurn, int32 Director)
 	{
 		const EWardenEventStart Result = CanApplyEvent(State, EventId);
 		if (Result != EWardenEventStart::Started)

@@ -103,9 +103,17 @@ bool FWardenEventsRechazaTest::RunTest(const FString& Parameters)
 		const FWardenEventsLoadResult Result = Soulbound::Rules::LoadWardenEventsFromJsonString(OneEvent(Application));
 		TestTrue(FString::Printf(TEXT("%s carga (%s)"), Application, *Result.Message), Result.IsSuccess());
 	}
-	const FWardenEventsLoadResult Oracle = Soulbound::Rules::LoadWardenEventsFromJsonString(
-		TEXT("{\"events\": [{\"id\": \"a\", \"text\": \"t\", \"delivery\": \"oracle\", \"options\": [[{\"effect\": \"ExtraTurn\", \"target\": \"ActivePlayer\"}], [{\"effect\": \"PlaceSeal\"}]]}]}"));
-	TestTrue(FString::Printf(TEXT("Un dilema por Oráculo carga: esa regla es de su story (%s)"), *Oracle.Message), Oracle.IsSuccess());
+	// CA-ORA-3 (R-ORA-1, S-017): un dilema nunca llega por el Oráculo; ni con "oracle" ni con "any" carga. Un decreto, sí.
+	for (const TCHAR* Delivery : {TEXT("oracle"), TEXT("any")})
+	{
+		const FWardenEventsLoadResult Oracle = Soulbound::Rules::LoadWardenEventsFromJsonString(FString::Printf(
+			TEXT("{\"events\": [{\"id\": \"a\", \"text\": \"t\", \"delivery\": \"%s\", \"options\": [[{\"effect\": \"ExtraTurn\", \"target\": \"ActivePlayer\"}], [{\"effect\": \"PlaceSeal\"}]]}]}"), Delivery));
+		TestEqual(FString::Printf(TEXT("Un dilema con entrega \"%s\" no carga"), Delivery), AsInt(Oracle.Error), AsInt(E::OracleDilemma));
+		TestFalse(TEXT("Con motivo"), Oracle.Message.IsEmpty());
+	}
+	const FWardenEventsLoadResult OracleDecree = Soulbound::Rules::LoadWardenEventsFromJsonString(
+		TEXT("{\"events\": [{\"id\": \"a\", \"text\": \"t\", \"delivery\": \"oracle\", \"options\": [[{\"effect\": \"ExtraTurn\", \"target\": \"ActivePlayer\"}]]}]}"));
+	TestTrue(FString::Printf(TEXT("Un decreto por Oráculo carga (%s)"), *OracleDecree.Message), OracleDecree.IsSuccess());
 
 	// La validación también sobre la tabla ya construida.
 	FWardenEventTable Table;

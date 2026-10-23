@@ -630,4 +630,210 @@ bool FWardenHaltBetweenTurnsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// S-017: el fin de la carrera corta el turno en curso (R-PRO-0, R-PRO-3, R-WAR-4b).
+namespace
+{
+	constexpr int32 EchoB = FWardenFixture::EchoB;
+	constexpr int32 FenrirDomain = FWardenFixture::FenrirDomain;
+
+	/** Carrera en curso con el Warden de los archivos y Fenrir ya vinculado (el tablero, Despierto): quedan Nichos Libres. */
+	bool StartRaceWithFenrir(FAutomationTestBase& Test, FWardenFixture& F)
+	{
+		return F.StartInRace(Test) && F.Bond(Test, Fenrir, FenrirDomain) && Test.TestEqual(TEXT("La carrera sigue"), AsInt(F.State.MatchPhase), AsInt(EMatchPhase::BondRace));
+	}
+
+	/**
+	 * Llega el fin de la carrera por tiempo con el turno de Seat en Phase: TurnInterrupted en ese instante (con la fase y Detail 1),
+	 * la ficha donde estaba, y BondRaceEnded después.
+	 */
+	void CheckRaceCut(FAutomationTestBase& Test, FWardenFixture& F, int32 Seat, ETurnPhase Phase, const TCHAR* Context)
+	{
+		if (!Test.TestEqual(FString::Printf(TEXT("%s: el turno está en la fase"), Context), AsInt(F.State.TurnPhase), AsInt(Phase)))
+		{
+			return;
+		}
+		const int32 Tile = F.State.Seats[Seat].TileId;
+		const int32 Before = F.State.EventLog.Num();
+		F.Now = F.State.Params.RaceDurationSeconds;
+		F.Advance();
+		int32 CutAt = INDEX_NONE;
+		int32 EndedAt = INDEX_NONE;
+		for (int32 Index = Before; Index < F.State.EventLog.Num(); ++Index)
+		{
+			const FMatchEvent& Event = F.State.EventLog[Index];
+			CutAt = Event.Type == EMatchEventType::TurnInterrupted && CutAt == INDEX_NONE ? Index : CutAt;
+			EndedAt = Event.Type == EMatchEventType::BondRaceEnded && EndedAt == INDEX_NONE ? Index : EndedAt;
+		}
+		if (!Test.TestTrue(FString::Printf(TEXT("%s: el turno se corta"), Context), CutAt != INDEX_NONE))
+		{
+			return;
+		}
+		const FMatchEvent& Cut = F.State.EventLog[CutAt];
+		Test.TestTrue(FString::Printf(TEXT("%s: del asiento, en su fase, por el fin de la carrera"), Context), Cut.Seat == Seat && Cut.Value == AsInt(Phase) && Cut.Detail == 1);
+		Test.TestEqual(FString::Printf(TEXT("%s: en ese instante"), Context), Cut.ClockSeconds, F.Now);
+		Test.TestTrue(FString::Printf(TEXT("%s: y la carrera termina después"), Context), EndedAt > CutAt);
+		Test.TestEqual(FString::Printf(TEXT("%s: la ficha se queda donde estaba"), Context), F.State.Seats[Seat].TileId, Tile);
+		Test.TestNotEqual(FString::Printf(TEXT("%s: fuera de la carrera"), Context), AsInt(F.State.MatchPhase), AsInt(EMatchPhase::BondRace));
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWardenRaceEndCutTest, "Soulbound.Core.Warden.Cut.FinDeCarreraCorta",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FWardenRaceEndCutTest::RunTest(const FString& Parameters)
+{
+	// CA-WAR-3b (R-PRO-0, R-PRO-3, R-WAR-4b, R-TAB-26): turno en curso en RollAndChoose, en Moving a medio camino y en
+	// MoveAndResolve (con la acción abierta), y la carrera termina por tiempo → TurnInterrupted en ese instante, ficha donde
+	// estaba, y BondRaceEnded después.
+	{
+		FWardenFixture F;
+		if (!StartRaceWithFenrir(*this, F))
+		{
+			return false;
+		}
+		F.BeginTurn(EchoA);
+		F.Advance();
+		CheckRaceCut(*this, F, EchoA, ETurnPhase::RollAndChoose, TEXT("RollAndChoose"));
+	}
+	{
+		FWardenFixture F;
+		if (!StartRaceWithFenrir(*this, F))
+		{
+			return false;
+		}
+		F.BeginTurn(EchoB);
+		F.State.ForcedRoll = 3;
+		F.Advance();
+		const int32 Destination = F.State.ReachableOptions.IsEmpty() ? INDEX_NONE : F.State.ReachableOptions.Last();
+		if (TestEqual(TEXT("Moving: destino aceptado"), AsInt(Soulbound::Rules::SubmitDestinationIntent(F.State, EchoB, Destination, F.Now)), AsInt(EIntentResult::Accepted))
+			&& TestTrue(TEXT("Moving: camino de más de una casilla"), F.State.Movement.Path.Num() > 1))
+		{
+			Soulbound::Rules::SubmitMoveProgress(F.State, EchoB, F.State.Movement.NextTile(), F.Now);
+			CheckRaceCut(*this, F, EchoB, ETurnPhase::Moving, TEXT("Moving"));
+			TestEqual(TEXT("Moving: sin llegar"), F.Since(0, EMatchEventType::Moved).FilterByPredicate([](const FMatchEvent& E) { return E.Seat == EchoB; }).Num(), 0);
+		}
+	}
+	{
+		FWardenFixture F;
+		if (!StartRaceWithFenrir(*this, F))
+		{
+			return false;
+		}
+		const int32 Tile = F.NormalTiles()[0];
+		F.State.Seats[EchoA].TileId = Tile;
+		F.GivePower(Fenrir, EPower::Expel);
+		F.Land(Fenrir, Tile);
+		TestEqual(TEXT("MoveAndResolve: la acción, abierta"), AsInt(F.State.PendingChoice.Kind), AsInt(EChoiceKind::PlayerAction));
+		CheckRaceCut(*this, F, Fenrir, ETurnPhase::MoveAndResolve, TEXT("MoveAndResolve"));
+		TestFalse(TEXT("MoveAndResolve: la elección se cierra"), F.State.PendingChoice.IsOpen());
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWardenRaceEndWaitsTest, "Soulbound.Core.Warden.Cut.FinDeCarreraEsperaAlDueloYALaConsulta",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FWardenRaceEndWaitsTest::RunTest(const FString& Parameters)
+{
+	// CA-WAR-3b (R-WAR-4d): si el fin de la carrera cae durante un duelo o una consulta del Oráculo, se termina aquello y el fin se
+	// aplica después.
+	{
+		FWardenFixture F;
+		if (!StartRaceWithFenrir(*this, F))
+		{
+			return false;
+		}
+		const int32 Tile = F.NormalTiles()[0];
+		F.State.Seats[EchoA].TileId = Tile;
+		F.State.Seats[EchoA].Runes[0] = 1;
+		F.GivePower(Fenrir, EPower::Duel);
+		F.Land(Fenrir, Tile);
+		if (TestEqual(TEXT("Duelo: Fenrir reta al Eco A"), AsInt(F.Act(Fenrir, EPlayerAction::Duel, EchoA)), AsInt(EIntentResult::Accepted)))
+		{
+			const int32 Before = F.State.EventLog.Num();
+			F.Now = F.State.Params.RaceDurationSeconds;
+			F.Advance();
+			TestEqual(TEXT("Duelo: sigue el duelo"), AsInt(F.State.TurnPhase), AsInt(ETurnPhase::Duel));
+			TestEqual(TEXT("Duelo: la carrera no termina en medio"), F.Since(Before, EMatchEventType::BondRaceEnded).Num(), 0);
+			F.FinishTurn();
+			TestEqual(TEXT("Duelo: al acabar, termina"), F.Since(Before, EMatchEventType::BondRaceEnded).Num(), 1);
+			TestEqual(TEXT("Duelo: sin corte"), F.Since(Before, EMatchEventType::TurnInterrupted).Num(), 0);
+		}
+	}
+	{
+		FWardenFixture F;
+		if (!StartRaceWithFenrir(*this, F))
+		{
+			return false;
+		}
+		// El tablero de 35 casillas no tiene Nodos del Oráculo en sus datos: el primer Nodo de Poder pasa a serlo.
+		FTileState* Node = F.State.Board.Tiles.FindByPredicate([](const FTileState& T) { return T.Type == ETileType::PowerNode; });
+		if (!TestNotNull(TEXT("Consulta: el tablero tiene un Nodo de Poder"), Node))
+		{
+			return false;
+		}
+		Node->PowerNodeEffect = EPowerNodeEffect::Oracle;
+		F.KeepOnly({TEXT("prisa")});
+		F.State.WardenEvents.Events[F.IndexOf(TEXT("prisa"))].Delivery = EEventDelivery::Any;
+		F.Now = F.State.Params.RaceDurationSeconds - 2.0;
+		F.Land(Fenrir, Node->TileId);
+		if (TestEqual(TEXT("Consulta: abierta en el Nodo"), AsInt(F.State.TurnPhase), AsInt(ETurnPhase::OracleConsult)))
+		{
+			const int32 Before = F.State.EventLog.Num();
+			F.Now = F.State.Params.RaceDurationSeconds;
+			F.Advance();
+			TestEqual(TEXT("Consulta: sigue esperando"), AsInt(F.State.TurnPhase), AsInt(ETurnPhase::OracleConsult));
+			TestEqual(TEXT("Consulta: la carrera no termina en medio"), F.Since(Before, EMatchEventType::BondRaceEnded).Num(), 0);
+			Soulbound::Rules::SubmitOracleConsult(F.State, Fenrir, F.Now);
+			F.FinishTurn();
+			TestEqual(TEXT("Consulta: al acabar, termina"), F.Since(Before, EMatchEventType::BondRaceEnded).Num(), 1);
+		}
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWardenAllBondedCutTest, "Soulbound.Core.Warden.Cut.TodosVinculadosCorta",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FWardenAllBondedCutTest::RunTest(const FString& Parameters)
+{
+	// CA-WAR-3b (R-PRO-0, R-CAR-1): todos vinculados antes de tiempo → el turno del último vínculo se corta en ese instante
+	// (TurnInterrupted con Detail 1, después del vínculo), sin salto ni acción, y BondRaceEnded después.
+	FWardenFixture F;
+	if (!F.StartInRace(*this))
+	{
+		return false;
+	}
+	for (const int32 Seat : {Fenrir, Koschei, EchoA})
+	{
+		if (F.BondAny(*this, Seat) == INDEX_NONE)
+		{
+			return false;
+		}
+	}
+	TestEqual(TEXT("Con un Nicho Libre, la carrera sigue"), AsInt(F.State.MatchPhase), AsInt(EMatchPhase::BondRace));
+	const int32 Before = F.State.EventLog.Num();
+	if (F.BondAny(*this, EchoB) == INDEX_NONE)
+	{
+		return false;
+	}
+	int32 BondedAt = INDEX_NONE;
+	int32 CutAt = INDEX_NONE;
+	int32 EndedAt = INDEX_NONE;
+	for (int32 Index = Before; Index < F.State.EventLog.Num(); ++Index)
+	{
+		const FMatchEvent& Event = F.State.EventLog[Index];
+		BondedAt = Event.Type == EMatchEventType::Bonded && BondedAt == INDEX_NONE ? Index : BondedAt;
+		CutAt = Event.Type == EMatchEventType::TurnInterrupted && CutAt == INDEX_NONE ? Index : CutAt;
+		EndedAt = Event.Type == EMatchEventType::BondRaceEnded && EndedAt == INDEX_NONE ? Index : EndedAt;
+	}
+	TestTrue(TEXT("Vínculo, corte y fin de carrera, en ese orden"), BondedAt != INDEX_NONE && CutAt > BondedAt && EndedAt > CutAt);
+	if (CutAt != INDEX_NONE)
+	{
+		TestTrue(TEXT("El corte es del último vinculado, en MoveAndResolve, por el fin de la carrera"), F.State.EventLog[CutAt].Seat == EchoB
+			&& F.State.EventLog[CutAt].Value == AsInt(ETurnPhase::MoveAndResolve) && F.State.EventLog[CutAt].Detail == 1);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

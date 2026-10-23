@@ -101,8 +101,11 @@ namespace Soulbound::Rules
 	 * R-DIR-2): sin objetivos válidos, WardenTaunt y la siguiente. Avanza hasta la primera elección o el final.
 	 * NowSeconds: marca de los eventos. bInterruptedTurn (S-016): si llega con el corte de un turno, el de un golpe; solo así
 	 * vale el Alto. Devuelve CanApplyEvent; si no es Started, no cambia nada. Nombre propuesto en S-014.
+	 * Director (S-017): quien lo dirige si no es EventDirector; la sentencia del Oráculo la dirige el consultante. Al lanzarse se
+	 * aplican los disparadores activos (ApplyTriggersToEvent: dirección preferida y Sello hacia el Altar).
 	 */
-	SOULBOUNDCORE_API EWardenEventStart ApplyEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random, bool bInterruptedTurn = false);
+	SOULBOUNDCORE_API EWardenEventStart ApplyEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random, bool bInterruptedTurn = false,
+		int32 Director = INDEX_NONE);
 
 	/**
 	 * Lleva el evento en curso (lo llama AdvanceTurn en BetweenTurns): con una elección abierta, espera a su plazo y, agotado,

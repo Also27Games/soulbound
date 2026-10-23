@@ -171,6 +171,11 @@ enum class EWardenEventsError : uint8
 	 * pesos que no son tres, usos máximos menores que 1 o una ventana vacía o negativa.
 	 */
 	InvalidBag,
+	/**
+	 * Un dilema que puede llegar por el Oráculo, con entrega "oracle" o "any" (R-ORA-1, S-017): el Oráculo solo entrega decretos.
+	 * Nombre propuesto en S-017.
+	 */
+	OracleDilemma,
 };
 
 /** Resultado de cargar o validar los eventos: o éxito con la tabla, o la regla incumplida con su motivo. Nombre propuesto en S-014. */

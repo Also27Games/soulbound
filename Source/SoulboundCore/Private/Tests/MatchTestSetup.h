@@ -115,7 +115,8 @@ namespace Soulbound::Tests
 	 * BetweenTurns, que es donde se resuelve el destino. Hasta S-020 se preparaba RollAndChoose y se entregaba la intención
 	 * de destino; ahora esa intención exige un camino de verdad (MovementPath). Solo para tests. Se detiene también en
 	 * SkillTrial, a la espera del minijuego (S-008), y en MoveAndResolve con una elección pendiente (salto planar o expulsión,
-	 * S-009). Devuelve false si la intención no se acepta o el turno no llega a terminar ni a quedar esperando.
+	 * S-009), y desde S-017 en la consulta del Oráculo de un Nodo (OracleConsult). Devuelve false si la intención no se acepta
+	 * o el turno no llega a terminar ni a quedar esperando.
 	 */
 	inline bool LandOn(FMatchState& State, FRandomStream& Random, int32 Seat, int32 TileId, double NowSeconds)
 	{
@@ -133,7 +134,7 @@ namespace Soulbound::Tests
 		}
 		auto IsWaiting = [&State]()
 		{
-			return State.TurnPhase == ETurnPhase::BetweenTurns || State.TurnPhase == ETurnPhase::SkillTrial
+			return State.TurnPhase == ETurnPhase::BetweenTurns || State.TurnPhase == ETurnPhase::SkillTrial || State.TurnPhase == ETurnPhase::OracleConsult
 				|| (State.TurnPhase == ETurnPhase::MoveAndResolve && State.PendingChoice.IsOpen());
 		};
 		for (int32 Step = 0; Step < 8 && !IsWaiting(); ++Step)

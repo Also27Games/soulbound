@@ -82,6 +82,12 @@ namespace
 			}
 			return 1.0;
 		}
+
+		/** S-017: consulta el Oráculo siempre, sin gastar nada. */
+		virtual bool RefusesOracleSentence(const FMatchState& State, int32 Seat, FRandomStream& Rng) override
+		{
+			return false;
+		}
 	};
 
 	/** Una tirada del registro y con cuántos dados se hizo (S-009: dos si el asiento lo eligió con Celeridad). */
@@ -586,7 +592,13 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 		// S-016: el Warden por acto (intervenciones con efecto, turnos empezados y cortados, hueco más largo).
 		TArray<FWardenActReport> WardenActs;
 		WardenActs.SetNum(Soulbound::Warden::ActCount);
+		for (FWardenActReport& Act : WardenActs)
+		{
+			Act.TriggerCounts.Init(0, Soulbound::Warden::TriggerCount);
+		}
 		int32 Furies = 0;
+		// S-017: cortes del fin de carrera.
+		int32 RaceEndCuts = 0;
 		for (int32 Seed = 1; Seed <= Games; ++Seed)
 		{
 			Params.Seed = Seed;
@@ -594,6 +606,9 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 			if (TestEqual(FString::Printf(TEXT("%s, semilla %d: cifras del Warden de los tres actos"), *BoardFile, Seed), Result.WardenActs.Num(), Soulbound::Warden::ActCount))
 			{
 				int32 Interventions = 0;
+				int32 Sentences = 0;
+				int32 Ignored = 0;
+				int32 Triggered = 0;
 				for (int32 Act = 0; Act < Soulbound::Warden::ActCount; ++Act)
 				{
 					const FWardenActReport& Report = Result.WardenActs[Act];
@@ -603,9 +618,28 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 					WardenActs[Act].TurnsCut += Report.TurnsCut;
 					WardenActs[Act].MaxGapSeconds = FMath::Max(WardenActs[Act].MaxGapSeconds, Report.MaxGapSeconds);
 					Interventions += Report.EffectInterventions;
+					// S-017: sentencias, consultas con insolencia y disparadores activos, por acto.
+					WardenActs[Act].Sentences += Report.Sentences;
+					WardenActs[Act].IgnoredConsults += Report.IgnoredConsults;
+					Sentences += Report.Sentences;
+					Ignored += Report.IgnoredConsults;
+					if (TestEqual(TEXT("Una cuenta por disparador"), Report.TriggerCounts.Num(), Soulbound::Warden::TriggerCount))
+					{
+						for (int32 Trigger = 0; Trigger < Soulbound::Warden::TriggerCount; ++Trigger)
+						{
+							WardenActs[Act].TriggerCounts[Trigger] += Report.TriggerCounts[Trigger];
+							Triggered += Report.TriggerCounts[Trigger];
+						}
+					}
 				}
 				TestEqual(TEXT("Las intervenciones por acto suman las de la partida"), Interventions, Result.Interventions);
+				TestEqual(TEXT("Las sentencias por acto son las del registro"), Sentences, CountEvents(Result.FinalState, EMatchEventType::OracleSentence));
+				TestEqual(TEXT("Las consultas con insolencia son las del registro"), Ignored, CountEvents(Result.FinalState, EMatchEventType::OracleIgnored));
+				TestEqual(TEXT("Los disparadores por acto son los del registro"), Triggered, CountEvents(Result.FinalState, EMatchEventType::WardenTriggered));
 			}
+			RaceEndCuts += Result.RaceEndCuts;
+			TestEqual(TEXT("Los cortes del fin de carrera son los del registro"), Result.RaceEndCuts, Soulbound::Tests::EventsOfType(Result.FinalState, EMatchEventType::TurnInterrupted)
+				.FilterByPredicate([](const FMatchEvent& Event) { return Event.Detail == 1; }).Num());
 			// S-016 (B): las Furias, contadas del registro.
 			TestEqual(TEXT("Las Furias del resultado son las del registro"), Result.Furies, CountEvents(Result.FinalState, EMatchEventType::FuryUnleashed));
 			Furies += Result.Furies;
@@ -676,7 +710,17 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 			Lines.Add(FString::Printf(TEXT("    Warden, Acto %s: %.2f intervenciones con efecto por partida | %.1f %% de turnos cortados (objetivo %.0f %%) | hueco máximo sin golpe ni escena: %.0f s"),
 				ActNames[Act], static_cast<double>(Report.EffectInterventions) / Games, Report.TurnsStarted > 0 ? 100.0 * Report.TurnsCut / Report.TurnsStarted : 0.0,
 				100.0 * Target, Report.MaxGapSeconds));
+			// S-017: el Oráculo y los disparadores contextuales.
+			static const TCHAR* const TriggerNames[] = {TEXT("Líder claro"), TEXT("Victoria inminente"), TEXT("Jugador ignorado"), TEXT("Partida estancada"), TEXT("Acaparador")};
+			FString Triggers;
+			for (int32 Trigger = 0; Trigger < Report.TriggerCounts.Num(); ++Trigger)
+			{
+				Triggers += FString::Printf(TEXT("%s%s %.2f"), Trigger > 0 ? TEXT(", ") : TEXT(""), TriggerNames[Trigger], static_cast<double>(Report.TriggerCounts[Trigger]) / Games);
+			}
+			Lines.Add(FString::Printf(TEXT("    Oráculo, Acto %s: %.2f sentencias por partida | consultas que acaban en insolencia: %d (con dummies, 0) | disparadores activos por partida: %s"),
+				ActNames[Act], static_cast<double>(Report.Sentences) / Games, Report.IgnoredConsults, *Triggers));
 		}
+		Lines.Add(FString::Printf(TEXT("    turnos cortados por el fin de la carrera: %d en %d partidas"), RaceEndCuts, Games));
 		Lines.Add(FString::Printf(TEXT("    Furias del Warden por partida, de media: %.2f"), static_cast<double>(Furies) / Games));
 		Lines.Add(FString::Printf(TEXT("    tiempo real: %.3f s en total"), WallSum));
 	}
@@ -1215,8 +1259,10 @@ bool FMatchSimulationWardenLogTest::RunTest(const FString& Parameters)
 	{
 		return Result.FinalState.EventLog.FilterByPredicate([](const FMatchEvent& Event)
 		{
+			// CA-WAR-7 (S-017): también las sentencias del Oráculo y los disparadores, con su causante.
 			return Event.Type == EMatchEventType::WardenEvaluated || Event.Type == EMatchEventType::WardenDecided || Event.Type == EMatchEventType::WardenRemark
-				|| Event.Type == EMatchEventType::TurnInterrupted || Event.Type == EMatchEventType::WardenEventStarted;
+				|| Event.Type == EMatchEventType::TurnInterrupted || Event.Type == EMatchEventType::WardenEventStarted || Event.Type == EMatchEventType::OracleOpened
+				|| Event.Type == EMatchEventType::OracleSentence || Event.Type == EMatchEventType::OracleEmpty || Event.Type == EMatchEventType::WardenTriggered;
 		});
 	};
 	auto SameEvents = [](const TArray<FMatchEvent>& X, const TArray<FMatchEvent>& Y)
@@ -1242,6 +1288,8 @@ bool FMatchSimulationWardenLogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("El Warden evalúa"), A.Evaluations > 0);
 	TestTrue(TEXT("Interviene con efecto"), A.Interventions > 0);
 	TestTrue(TEXT("Y corta algún turno"), CountEvents(A.FinalState, EMatchEventType::TurnInterrupted) > 0);
+	TestTrue(TEXT("El Oráculo dicta sentencias"), CountEvents(A.FinalState, EMatchEventType::OracleSentence) > 0);
+	TestTrue(TEXT("Y hay disparadores activos"), CountEvents(A.FinalState, EMatchEventType::WardenTriggered) > 0);
 
 	FSimulationParams Other = Params;
 	Other.Seed = 43;
@@ -1277,6 +1325,55 @@ bool FMatchSimulationNoInsolenceTest::RunTest(const FString& Parameters)
 		TestEqual(FString::Printf(TEXT("Semilla %d: ninguna Furia"), Seed), Result.Furies, 0);
 		TestTrue(FString::Printf(TEXT("Semilla %d: el Warden juega"), Seed), Result.Evaluations > 0);
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationOracleTest,
+	"Soulbound.Core.Simulation.DummiesConsultanEnElActo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationOracleTest::RunTest(const FString& Parameters)
+{
+	// CA-VOT-3, la parte del Oráculo (R-VOT-5, R-ORA-3; simulación): en 50 partidas con dummies de carrera y el Warden real
+	// (tablero de 35, semillas 1 a 50), cada consulta abierta se consulta en el mismo instante en que se abre, ninguna se agota
+	// y la insolencia de todos acaba en 0. Y el Oráculo se usa: hay consultas abiertas en las 50.
+	FSimulationParams Params;
+	if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), 1, Params))
+	{
+		return false;
+	}
+	int32 Consults = 0;
+	for (int32 Seed = 1; Seed <= 50; ++Seed)
+	{
+		Params.Seed = Seed;
+		const FSimulationResult Result = FMatchSimulation(Params, FourRaceDummies()).Run();
+		const FMatchState& State = Result.FinalState;
+		double OpenedAt = -1.0;
+		int32 OpenedSeat = INDEX_NONE;
+		for (const FMatchEvent& Event : State.EventLog)
+		{
+			if (Event.Type == EMatchEventType::OracleOpened)
+			{
+				OpenedAt = Event.ClockSeconds;
+				OpenedSeat = Event.Seat;
+			}
+			else if (Event.Type == EMatchEventType::OracleConsulted)
+			{
+				++Consults;
+				if (Event.Seat != OpenedSeat || Event.ClockSeconds != OpenedAt)
+				{
+					AddError(FString::Printf(TEXT("Semilla %d: el asiento %d consulta en el %.2f lo que se abrió en el %.2f"), Seed, Event.Seat, Event.ClockSeconds, OpenedAt));
+				}
+			}
+		}
+		TestEqual(FString::Printf(TEXT("Semilla %d: ninguna consulta agotada"), Seed), CountEvents(State, EMatchEventType::OracleIgnored), 0);
+		for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
+		{
+			TestEqual(FString::Printf(TEXT("Semilla %d: insolencia del asiento %d"), Seed, Seat), State.Seats[Seat].Insolence, 0);
+		}
+	}
+	TestTrue(FString::Printf(TEXT("En 50 partidas se consulta el Oráculo (%d consultas)"), Consults), Consults > 0);
+	AddInfo(FString::Printf(TEXT("50 partidas: %d consultas del Oráculo"), Consults));
 	return true;
 }
 

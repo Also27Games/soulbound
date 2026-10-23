@@ -162,3 +162,14 @@ double FRaceDummyDecider::DuelPerformance(const FMatchState& State, int32 Seat, 
 {
 	return FDummyDecider().DuelPerformance(State, Seat, Rng);
 }
+
+bool FDummyDecider::RefusesOracleSentence(const FMatchState& State, int32 Seat, FRandomStream& Rng)
+{
+	// R-ORA-5, decisión del autor del 23/10/2026: el dummy de Tifón nunca rechaza; consulta en el acto.
+	return false;
+}
+
+bool FRaceDummyDecider::RefusesOracleSentence(const FMatchState& State, int32 Seat, FRandomStream& Rng)
+{
+	return FDummyDecider().RefusesOracleSentence(State, Seat, Rng);
+}

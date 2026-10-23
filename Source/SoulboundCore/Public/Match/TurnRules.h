@@ -221,6 +221,14 @@ namespace Soulbound::Rules
 	SOULBOUNDCORE_API bool CanInterruptTurn(const FMatchState& State);
 
 	/**
+	 * Si la carrera por el vínculo debe terminar ahora (R-CAR-1, R-PRO-0, S-017): en la carrera, con su tiempo agotado o sin
+	 * ningún Nicho Libre. AdvanceTurn la termina en cuanto esto se cumple: con un turno que se puede cortar, cortándolo
+	 * (TurnInterrupted con Detail 1, antes de BondRaceEnded); en un duelo, un trilero, un minijuego, una consulta o un evento,
+	 * al acabar (R-WAR-4d). Nombre propuesto en S-017.
+	 */
+	SOULBOUNDCORE_API bool IsBondRaceDue(const FMatchState& State, double NowSeconds);
+
+	/**
 	 * Corta el turno en curso (glosario "Corte", R-TUR-11, R-TAB-26, S-016): registra TurnInterrupted con la fase, cierra las
 	 * elecciones abiertas, pierde la tirada pendiente respetando el consumo fijo (si el turno llegó a PreRoll, saca de Random
 	 * los valores que falten: los cuatro en PreRoll, los dos de la repetición si siguen pendientes), deja la ficha donde está
@@ -231,6 +239,36 @@ namespace Soulbound::Rules
 	 * no lo permite. Nombre propuesto en S-016.
 	 */
 	SOULBOUNDCORE_API bool InterruptTurn(FMatchState& State, double NowSeconds, FRandomStream& Random);
+
+	// S-017: el Oráculo del Caos (glosario `Oracle`, R-ORA-1 a R-ORA-5). Una consulta espera su intención como el minijuego espera
+	// su resultado: dentro del turno, en la fase OracleConsult (Nodo del Oráculo); entre turnos, con la máquina en BetweenTurns y
+	// FMatchState::Oracle abierto (Consulta forzada y golpe por Oráculo), y el turno siguiente no empieza hasta que se resuelve.
+
+	/**
+	 * Abre una consulta del Oráculo para Consultant (R-ORA-1 a R-ORA-4): registra OracleOpened; si Sentence es INDEX_NONE, la
+	 * sortea ahora con el sesgo (DrawOracleSentence) y el sorteo del Warden; sin candidatos, registra OracleEmpty y no abre nada
+	 * (sin uso ni insolencia). Si no, guarda la sentencia, el plazo (FWardenParams::OracleSeconds) y si Tifón puede rechazarla, y
+	 * espera la intención. Con Origin Node, dentro del turno: la máquina pasa a OracleConsult. Sentence: el decreto que eligió el
+	 * cerebro en un golpe por Oráculo, o INDEX_NONE. bInterruptedTurn: si llega con el corte de un turno (el Alto vale). Devuelve
+	 * si quedó una consulta abierta. Nombre propuesto en S-017.
+	 */
+	SOULBOUNDCORE_API bool OpenOracle(FMatchState& State, int32 Consultant, EOracleOrigin Origin, int32 Sentence, bool bInterruptedTurn, double NowSeconds);
+
+	/**
+	 * Intención de consulta del asiento Seat (R-ORA-3, S-017): dentro del plazo, registra OracleConsulted, revela la sentencia
+	 * (OracleSentence) y la aplica como un evento del Warden que dirige el consultante, sin insolencia; gasta un uso del evento.
+	 * Devuelve Accepted; WrongSeat si no es el consultante; WrongPhase sin consulta abierta; ClockExpired en el plazo o después.
+	 * Si no es Accepted, no toca el estado. Nombre propuesto en S-017.
+	 */
+	SOULBOUNDCORE_API EIntentResult SubmitOracleConsult(FMatchState& State, int32 Seat, double NowSeconds);
+
+	/**
+	 * Rechazo de Tifón (R-ORA-5, S-017): dentro del plazo y una vez, el consultante con la afinidad RefuseOracle rechaza la
+	 * sentencia (OracleRefused); se sortea otra con el sesgo, que se revela y se aplica en el acto, sin consulta ni rechazo; sin
+	 * candidatos, OracleEmpty y no hay tercera. Rechazar cuenta como consultar: sin insolencia. Devuelve Accepted; WrongSeat,
+	 * WrongPhase o ClockExpired como SubmitOracleConsult; InvalidOption si no puede rechazar (otro Elegido). Nombre propuesto en S-017.
+	 */
+	SOULBOUNDCORE_API EIntentResult SubmitOracleRefuse(FMatchState& State, int32 Seat, double NowSeconds);
 
 	/**
 	 * Concede Count turnos extra al asiento Seat (R-TUR-9), sin pasar del tope de los parámetros de partida.

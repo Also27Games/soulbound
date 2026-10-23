@@ -1067,6 +1067,26 @@ namespace Soulbound::Rules
 		return true;
 	}
 
+	bool IsBondRaceDue(const FMatchState& State, double NowSeconds)
+	{
+		return false;
+	}
+
+	bool OpenOracle(FMatchState& State, int32 Consultant, EOracleOrigin Origin, int32 Sentence, bool bInterruptedTurn, double NowSeconds)
+	{
+		return false;
+	}
+
+	EIntentResult SubmitOracleConsult(FMatchState& State, int32 Seat, double NowSeconds)
+	{
+		return EIntentResult::WrongPhase;
+	}
+
+	EIntentResult SubmitOracleRefuse(FMatchState& State, int32 Seat, double NowSeconds)
+	{
+		return EIntentResult::WrongPhase;
+	}
+
 	bool GrantExtraTurns(FMatchState& State, int32 Seat, int32 Count)
 	{
 		return GrantCapped(State, Seat, Count, &FSeatState::ExtraTurns, State.Params.MaxExtraTurns);

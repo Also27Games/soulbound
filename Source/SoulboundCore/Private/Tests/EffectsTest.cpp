@@ -105,7 +105,8 @@ bool FEffectsCatalogoCerradoTest::RunTest(const FString& Parameters)
 		// S-016: el Alto se aplica (su efecto es el corte, R-TAB-28).
 		{EEffect::Halt, S::Light, {T::ActivePlayer}, true},
 		{EEffect::RevealBracer, S::Light, {T::ActivePlayer, T::ChosenRival, T::Leader, T::Everyone}, true},
-		{EEffect::ForcedOracle, S::Light, {T::ActivePlayer, T::ChosenRival, T::NextPlayer}, false},
+		// S-017: la Consulta forzada se aplica (R-EFE-3, R-ORA-1).
+		{EEffect::ForcedOracle, S::Light, {T::ActivePlayer, T::ChosenRival, T::NextPlayer}, true},
 		{EEffect::SendHome, S::Medium, {T::ActivePlayer, T::ChosenRival, T::Leader, T::NextPlayer, T::Everyone, T::RandomPlayer}, true},
 		{EEffect::LoseTurn, S::Medium, {T::ActivePlayer, T::ChosenRival, T::Leader, T::NextPlayer, T::RandomPlayer}, true},
 		{EEffect::PlaceSeal, S::Medium, {T::None}, true},
@@ -149,7 +150,7 @@ bool FEffectsCatalogoCerradoTest::RunTest(const FString& Parameters)
 		TestTrue(FString::Printf(TEXT("%s: su código se lee"), *Name), Soulbound::Rules::ParseEffectCode(Name, Parsed) && Parsed == Row.Effect);
 		Implemented += Row.bImplemented ? 1 : 0;
 	}
-	TestEqual(TEXT("Diecisiete se aplican desde S-016: solo la Consulta forzada espera a su story"), Implemented, 17);
+	TestEqual(TEXT("Desde S-017 se aplican los dieciocho"), Implemented, 18);
 	TestEqual(TEXT("Perder una runa: al azar o a elección"), Catalog[AsInt(EEffect::LoseRune)].Variants,
 		TArray<EEffectVariant>{EEffectVariant::Random, EEffectVariant::Chosen});
 	TestEqual(TEXT("Duelo forzado: una runa o todas"), Catalog[AsInt(EEffect::ForcedDuel)].Variants,
@@ -825,43 +826,29 @@ bool FEffectsNocheTopeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// Efectos pendientes de su story: aplicar Alto o Consulta forzada devuelve "no implementado" sin cambiar el estado ni el
-// registro (desde S-015, la Prueba del Warden, el Robo decretado y el Duelo forzado ya se aplican); un evento que los usa, en
-// cualquier opción, se rechaza entero.
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEffectsPendientesTest, "Soulbound.Core.Effects.PendientesDeSuStory",
+// S-017: la Consulta forzada, el último efecto del catálogo, ya se aplica (R-EFE-3): vale sobre quien está en el tablero, deja
+// la consulta esperando al hueco entre turnos, no admite una segunda mientras espera y no vale en el Vacío.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FEffectsForcedOracleTest, "Soulbound.Core.Effects.ConsultaForzada",
 	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
-bool FEffectsPendientesTest::RunTest(const FString& Parameters)
+bool FEffectsForcedOracleTest::RunTest(const FString& Parameters)
 {
 	FEventFixture F;
 	if (!F.StartAfterRace(*this))
 	{
 		return false;
 	}
-	F.State.Seats[Koschei].Runes[0] = 1;
 	F.Director(Fenrir);
-	// Desde S-016 el Alto se aplica (su efecto es el corte): solo queda la Consulta forzada, de S-017.
-	const TPair<EEffect, EEffectTarget> Pending[] = {
-		{EEffect::ForcedOracle, EEffectTarget::ActivePlayer},
-	};
-	for (const TPair<EEffect, EEffectTarget>& Effect : Pending)
-	{
-		const FString Name = Soulbound::Rules::EffectCode(Effect.Key);
-		const FMatchState Before = F.State;
-		FRandomStream Random(3);
-		TestEqual(FString::Printf(TEXT("%s: CanApplyEffect dice no implementado"), *Name),
-			AsInt(Soulbound::Rules::CanApplyEffect(F.State, Effect.Key, Koschei, Fenrir)), AsInt(EEffectResult::NotImplemented));
-		TestEqual(FString::Printf(TEXT("%s: ApplyEffect también"), *Name),
-			AsInt(Soulbound::Rules::ApplyEffect(F.State, App(Effect.Key, Effect.Value), Koschei, Fenrir, INDEX_NONE, INDEX_NONE, F.Now, Random)),
-			AsInt(EEffectResult::NotImplemented));
-		TestTrue(FString::Printf(TEXT("%s: el estado y el registro no cambian"), *Name), SameState(Before, F.State));
-	}
-
-	// Un dilema con una Consulta forzada en una de sus opciones se rechaza entero (hasta S-016, con un Alto).
-	const FString Id = F.AddEvent(TEXT("con-consulta"), {{App(EEffect::ExtraTurn, EEffectTarget::ActivePlayer)}, {App(EEffect::ForcedOracle, EEffectTarget::ActivePlayer)}});
-	const FMatchState Before = F.State;
-	TestEqual(TEXT("El evento se rechaza: no implementado"), AsInt(F.Launch(Id)), AsInt(EWardenEventStart::NotImplemented));
-	TestTrue(TEXT("Sin tocar nada"), SameState(Before, F.State));
+	FRandomStream Random(3);
+	TestEqual(TEXT("Vale sobre quien está en el tablero"), AsInt(Soulbound::Rules::CanApplyEffect(F.State, EEffect::ForcedOracle, Koschei, Fenrir)), AsInt(EEffectResult::Applied));
+	TestEqual(TEXT("Se aplica"), AsInt(Soulbound::Rules::ApplyEffect(F.State, App(EEffect::ForcedOracle, EEffectTarget::ChosenRival), Koschei, Fenrir, Fenrir, INDEX_NONE, F.Now, Random)),
+		AsInt(EEffectResult::Applied));
+	TestEqual(TEXT("La consulta espera al hueco"), F.State.Oracle.Queued, TArray<int32>{Koschei});
+	TestEqual(TEXT("Una segunda, mientras espera, no vale"), AsInt(Soulbound::Rules::CanForcedOracle(F.State, Koschei)), AsInt(EEffectResult::AlreadyPending));
+	Soulbound::Rules::Banish(F.State, EchoA, false, F.Now);
+	TestEqual(TEXT("En el Vacío no vale"), AsInt(Soulbound::Rules::CanForcedOracle(F.State, EchoA)), AsInt(EEffectResult::InVoid));
+	TestEqual(TEXT("Un evento con la Consulta forzada ya se lanza"), AsInt(F.Launch(F.AddEvent(TEXT("con-consulta"), {{App(EEffect::ForcedOracle, EEffectTarget::NextPlayer)}}))),
+		AsInt(EWardenEventStart::Started));
 	return true;
 }
 

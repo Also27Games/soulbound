@@ -157,6 +157,115 @@ bool FWardenParamsDurationTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWardenOracleParamsTest, "Soulbound.Core.Warden.Data.OraculoDesdeDatos",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FWardenOracleParamsTest::RunTest(const FString& Parameters)
+{
+	// R-ORA-3, R-ORA-4 (S-017): el plazo de la consulta (7 s) y el sesgo del Oráculo (0,5) vienen de warden.json; un plazo no
+	// positivo o un sesgo fuera de [0, 1] se rechazan con motivo.
+	FWardenParams Params;
+	if (!Soulbound::Tests::LoadTestWardenParams(*this, Params))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Plazo del Oráculo"), Params.OracleSeconds, 7.0);
+	TestEqual(TEXT("Sesgo del Oráculo"), Params.OracleBias, 0.5);
+	ExpectRejected(*this, TEXT("\"oracleSeconds\": 7"), TEXT("\"oracleSeconds\": 0"), EWardenParamsError::NonPositiveDuration);
+	ExpectRejected(*this, TEXT("\"oracleBias\": 0.5"), TEXT("\"oracleBias\": 1.5"), EWardenParamsError::ProbabilityOutOfRange);
+	ExpectRejected(*this, TEXT("\"oracleBias\": 0.5,"), TEXT(""), EWardenParamsError::MalformedData);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWardenTriggersFileTest, "Soulbound.Core.Warden.Data.TablaDeDisparadores",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FWardenTriggersFileTest::RunTest(const FString& Parameters)
+{
+	// CA-DIS-5 (R-DIS-2): los umbrales y las tablas de los disparadores cargan de warden.json con los valores de la story y del
+	// autor (23/10/2026), y se enlazan con eventos.json; un disparador desconocido, un multiplicador no positivo o un evento que no
+	// existe se rechazan con motivo, también al empezar la partida.
+	FWardenParams Params;
+	FWardenEventTable Events;
+	if (!Soulbound::Tests::LoadTestWardenParams(*this, Params) || !Soulbound::Tests::LoadTestWardenEvents(*this, Events))
+	{
+		return false;
+	}
+	const FWardenTriggerParams& Triggers = Params.Triggers;
+	TestEqual(TEXT("Líder claro: 2 tipos de ventaja"), Triggers.ClearLeaderGap, 2);
+	TestEqual(TEXT("Victoria inminente: 5 tipos"), Triggers.ImminentVictoryTypes, 5);
+	TestEqual(TEXT("Victoria inminente: intervenir por 1,5"), Triggers.ImminentVictoryInterveneMultiplier, 1.5);
+	TestEqual(TEXT("Jugador ignorado: 4 minutos"), Triggers.IgnoredMinutes, 4.0);
+	TestEqual(TEXT("Jugador ignorado: al azar por 3"), Triggers.IgnoredRandomMultiplier, 3.0);
+	TestEqual(TEXT("Jugador ignorado: sugerido por 3"), Triggers.IgnoredSuggestMultiplier, 3.0);
+	TestEqual(TEXT("Partida estancada: 4 minutos"), Triggers.StalledMinutes, 4.0);
+	TestEqual(TEXT("Acaparador: 3 runas"), Triggers.HoarderCount, 3);
+	TestEqual(TEXT("Cuatro tablas (Jugador ignorado no multiplica eventos)"), Triggers.Tables.Num(), 4);
+	auto Table = [&Triggers](EWardenTrigger Trigger) { return Triggers.Tables.FindByPredicate([Trigger](const FTriggerTable& T) { return T.Trigger == Trigger; }); };
+	const FTriggerTable* Leader = Table(EWardenTrigger::ClearLeader);
+	const FTriggerTable* Imminent = Table(EWardenTrigger::ImminentVictory);
+	const FTriggerTable* Stalled = Table(EWardenTrigger::StalledMatch);
+	const FTriggerTable* Hoarder = Table(EWardenTrigger::Hoarder);
+	if (!TestTrue(TEXT("Las tablas de Líder claro, Victoria inminente, Partida estancada y Acaparador"), Leader && Imminent && Stalled && Hoarder))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Líder claro: diez eventos"), Leader->Events.Num(), 10);
+	TestEqual(TEXT("Líder claro: golpes contra el activo por 2"), Leader->StrikesAgainstActiveMultiplier, 2.0);
+	TestEqual(TEXT("Victoria inminente: golpes contra el activo por 3"), Imminent->StrikesAgainstActiveMultiplier, 3.0);
+	const FTriggerEventEntry* Show = Leader->Events.FindByPredicate([](const FTriggerEventEntry& E) { return E.EventId == TEXT("ensename"); });
+	TestTrue(TEXT("Enséñame: por 3 y al líder"), Show && Show->Multiplier == 3.0 && Show->bHasTargetOverride && Show->TargetOverride == EEffectTarget::Leader);
+	const FTriggerEventEntry* Wall = Imminent->Events.FindByPredicate([](const FTriggerEventEntry& E) { return E.EventId == TEXT("primer-muro"); });
+	TestTrue(TEXT("Primer muro: por 3 y hacia el Altar"), Wall && Wall->Multiplier == 3.0 && Wall->bSealTowardsAltar);
+	const FTriggerEventEntry* Tax = Hoarder->Events.FindByPredicate([](const FTriggerEventEntry& E) { return E.EventId == TEXT("impuesto"); });
+	TestTrue(TEXT("Impuesto: por 3 solo si el activo es el acaparador"), Tax && Tax->Multiplier == 3.0 && Tax->bWhenActiveIsCause);
+	const FTriggerEventEntry* Price = Hoarder->Events.FindByPredicate([](const FTriggerEventEntry& E) { return E.EventId == TEXT("el-precio"); });
+	TestTrue(TEXT("El precio: el acaparador, víctima sugerida"), Price && Price->bSuggestCause);
+	TestEqual(TEXT("Partida estancada: cinco eventos (Favor llega con las votaciones)"), Stalled->Events.Num(), 5);
+
+	FWardenParams Bound = Params;
+	const FWardenParamsLoadResult Binding = Soulbound::Rules::BindWardenTriggerEvents(Bound, Events);
+	TestTrue(FString::Printf(TEXT("Las tablas se enlazan con eventos.json (%s)"), *Binding.Message), Binding.IsSuccess());
+	bool bAllBound = true;
+	for (const FTriggerTable& Each : Bound.Triggers.Tables)
+	{
+		for (const FTriggerEventEntry& Entry : Each.Events)
+		{
+			bAllBound &= Entry.EventIndex == Events.IndexOf(Entry.EventId) && Entry.EventIndex != INDEX_NONE;
+		}
+	}
+	TestTrue(TEXT("Cada entrada, con la posición de su evento"), bAllBound);
+
+	ExpectRejected(*this, TEXT("\"trigger\": \"Hoarder\""), TEXT("\"trigger\": \"Avaricia\""), EWardenParamsError::InvalidTrigger);
+	ExpectRejected(*this, TEXT("{\"event\": \"milagro\", \"multiplier\": 2"), TEXT("{\"event\": \"milagro\", \"multiplier\": 0"), EWardenParamsError::InvalidTrigger);
+	ExpectRejected(*this, TEXT("{\"event\": \"piedad\", \"multiplier\": 3}"), TEXT("{\"event\": \"piedad\", \"multiplier\": -1}"), EWardenParamsError::InvalidTrigger);
+	ExpectRejected(*this, TEXT("\"hoarderCount\": 3"), TEXT("\"hoarderCount\": 0"), EWardenParamsError::InvalidTrigger);
+	ExpectRejected(*this, TEXT("\"target\": \"Leader\""), TEXT("\"target\": \"Arriba\""), EWardenParamsError::InvalidTrigger);
+	ExpectRejected(*this, TEXT("{\"trigger\": \"StalledMatch\""), TEXT("{\"trigger\": \"ClearLeader\""), EWardenParamsError::InvalidTrigger);
+
+	// Un evento que no existe carga, pero no se enlaza: ni con BindWardenTriggerEvents ni al empezar la partida.
+	const FWardenParamsLoadResult Unknown = Soulbound::Rules::LoadWardenParamsFromJsonString(WardenJsonWith(*this, TEXT("\"event\": \"milagro\""), TEXT("\"event\": \"no-existe\"")));
+	if (TestTrue(FString::Printf(TEXT("Carga (%s)"), *Unknown.Message), Unknown.IsSuccess()))
+	{
+		FWardenParams WithUnknown = Unknown.Params;
+		const FWardenParamsLoadResult Failed = Soulbound::Rules::BindWardenTriggerEvents(WithUnknown, Events);
+		TestEqual(TEXT("Evento inexistente: UnknownTriggerEvent"), AsInt(Failed.Error), AsInt(EWardenParamsError::UnknownTriggerEvent));
+		TestTrue(TEXT("Con el evento en el motivo"), Failed.Message.Contains(TEXT("no-existe")));
+
+		FBoardState Board;
+		FMatchParams MatchParams;
+		FElectsTable Elects;
+		if (Soulbound::Tests::LoadBoardFile(*this, Soulbound::Tests::RaceBoardFileName(), Board) && Soulbound::Tests::LoadTestMatchParams(*this, MatchParams)
+			&& Soulbound::Tests::LoadTestElects(*this, Elects))
+		{
+			FRandomStream Random(1);
+			const FMatchStartResult Start = Soulbound::Rules::StartMatch(Board, MatchParams, Elects, Soulbound::Match::MaxPlayers, Random, Events, WithUnknown);
+			TestEqual(TEXT("StartMatch lo rechaza"), static_cast<int32>(Start.Error), static_cast<int32>(EMatchStartError::InvalidWardenParams));
+		}
+	}
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWardenBagsFileTest, "Soulbound.Core.Warden.Data.TreintaYCincoEventosEnLosSacos",
 	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 

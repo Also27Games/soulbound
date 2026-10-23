@@ -389,6 +389,21 @@ namespace Soulbound::Rules
 		return Closest;
 	}
 
+	int32 SealTowardsAltarTile(const FMatchState& State, int32 Seat)
+	{
+		return INDEX_NONE;
+	}
+
+	EEffectResult CanForcedOracle(const FMatchState& State, int32 Seat)
+	{
+		return EEffectResult::NotImplemented;
+	}
+
+	EEffectResult ForcedOracle(FMatchState& State, int32 Seat, double NowSeconds)
+	{
+		return EEffectResult::NotImplemented;
+	}
+
 	EEffectResult CanSealAgainstRival(const FMatchState& State, int32 Rival)
 	{
 		const EEffectResult Check = CheckSeatOnBoard(State, Rival);

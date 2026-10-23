@@ -50,6 +50,14 @@ public:
 	 * con su story; hasta entonces los dummies rinden al azar con el generador que les pasan. Nombre propuesto en S-012.
 	 */
 	virtual double DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng) = 0;
+
+	/**
+	 * Si el asiento Seat rechaza la sentencia del Oráculo que tiene delante (R-ORA-5, S-017): solo cuenta si puede (Tifón, la
+	 * primera). Quien avanza la partida lo pregunta al abrirse la consulta y entrega SubmitOracleRefuse o SubmitOracleConsult.
+	 * Los dummies nunca rechazan y consultan en el acto (R-VOT-5, decisión del autor del 23/10/2026): nunca son insolentes.
+	 * Nombre propuesto en S-017.
+	 */
+	virtual bool RefusesOracleSentence(const FMatchState& State, int32 Seat, FRandomStream& Rng) = 0;
 };
 
 /**
@@ -65,6 +73,7 @@ public:
 	virtual bool PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng) override;
 	virtual int32 ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng) override;
 	virtual double DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng) override;
+	virtual bool RefusesOracleSentence(const FMatchState& State, int32 Seat, FRandomStream& Rng) override;
 };
 
 /**
@@ -81,4 +90,5 @@ public:
 	virtual bool PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng) override;
 	virtual int32 ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng) override;
 	virtual double DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng) override;
+	virtual bool RefusesOracleSentence(const FMatchState& State, int32 Seat, FRandomStream& Rng) override;
 };

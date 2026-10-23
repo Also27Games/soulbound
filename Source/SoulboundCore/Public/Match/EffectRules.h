@@ -320,4 +320,26 @@ namespace Soulbound::Rules
 	 * INDEX_NONE si no tiene runas. La usan Perder una runa y las runas que el Warden se lleva (S-015).
 	 */
 	SOULBOUNDCORE_API int32 RandomRuneType(const FMatchState& State, int32 Seat, FRandomStream& Random);
+
+	// S-017: la Consulta forzada y el Sello hacia el Altar de un disparador.
+
+	/**
+	 * Si Seat puede recibir la Consulta forzada (R-EFE-3): InvalidSeat, InVoid, AlreadyPending si ya consulta o tiene una forzada
+	 * esperando; Applied si vale. S-017.
+	 */
+	SOULBOUNDCORE_API EEffectResult CanForcedOracle(const FMatchState& State, int32 Seat);
+
+	/**
+	 * Consulta forzada (glosario `ForcedOracle`, R-EFE-3, R-ORA-1): Seat tendrá que consultar el Oráculo. La consulta espera en
+	 * FOracleState::Queued y la abre la máquina de turnos en el hueco entre turnos, cuando no quedan eventos (OpenOracle con origen
+	 * Forced): el turno siguiente no empieza hasta que se resuelve. Devuelve CanForcedOracle; si no es Applied, no cambia nada. S-017.
+	 */
+	SOULBOUNDCORE_API EEffectResult ForcedOracle(FMatchState& State, int32 Seat, double NowSeconds);
+
+	/**
+	 * Casilla que sellaría un Sello hacia el Altar de Seat (R-DIS-2, S-017: Primer muro con Victoria inminente): la primera
+	 * sellable del camino más corto desde su casilla al Altar, con su transitabilidad (MakeMoverTraits); sin ninguna en ese camino,
+	 * la sellable más cercana a él (como SealAgainstRivalTile). INDEX_NONE si no hay o Seat no está en el tablero. S-017.
+	 */
+	SOULBOUNDCORE_API int32 SealTowardsAltarTile(const FMatchState& State, int32 Seat);
 }

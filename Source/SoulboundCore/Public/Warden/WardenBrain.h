@@ -41,6 +41,15 @@ struct SOULBOUNDCORE_API FWardenDecision
 	 */
 	double NextEvaluationSeconds = 0.0;
 
+	/**
+	 * Si el golpe se entrega por el Oráculo (R-ORA-1, S-017): con entrega "oracle", siempre; con "any", a partes iguales con el
+	 * sorteo del cerebro. Su decreto es la sentencia del cortado (decisión del autor del 23/10/2026).
+	 */
+	bool bViaOracle = false;
+
+	/** Disparadores activos al evaluar (R-DIS-1, R-WAR-10): quedan en el registro tras WardenDecided (WardenTriggered). S-017. */
+	TArray<FActiveTrigger> Triggers;
+
 	/** Si es una intervención con efecto: golpe o escena. */
 	bool IsIntervention() const { return Kind == EWardenDecisionKind::Strike || Kind == EWardenDecisionKind::Scene; }
 };
