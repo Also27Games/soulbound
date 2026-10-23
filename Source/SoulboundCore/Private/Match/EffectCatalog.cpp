@@ -27,7 +27,8 @@ namespace
 			// S-016 (R-TAB-28): su único efecto es el corte; solo vale en un evento que llega cortando un turno.
 			Def(EEffect::Halt, S::Light, {T::ActivePlayer}, true),
 			Def(EEffect::RevealBracer, S::Light, {T::ActivePlayer, T::ChosenRival, T::Leader, T::Everyone}, true),
-			Def(EEffect::ForcedOracle, S::Light, {T::ActivePlayer, T::ChosenRival, T::NextPlayer}, false),
+			// S-017: abre una consulta del Oráculo (R-EFE-3, R-ORA-1).
+			Def(EEffect::ForcedOracle, S::Light, {T::ActivePlayer, T::ChosenRival, T::NextPlayer}, true),
 			Def(EEffect::SendHome, S::Medium, {T::ActivePlayer, T::ChosenRival, T::Leader, T::NextPlayer, T::Everyone, T::RandomPlayer}, true),
 			Def(EEffect::LoseTurn, S::Medium, {T::ActivePlayer, T::ChosenRival, T::Leader, T::NextPlayer, T::RandomPlayer}, true, true),
 			// El Sello no va a ningún asiento: el Warden elige la casilla (decisión del autor del 12/10/2026: sin dirección).

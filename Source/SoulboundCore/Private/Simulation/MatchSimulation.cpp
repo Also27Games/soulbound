@@ -79,6 +79,10 @@ namespace
 	{
 		TArray<FWardenActReport> Acts;
 		Acts.SetNum(Soulbound::Warden::ActCount);
+		for (FWardenActReport& Act : Acts)
+		{
+			Act.TriggerCounts.Init(0, Soulbound::Warden::TriggerCount);
+		}
 		const FWardenParams& Params = State.WardenParams;
 		if (Params.Acts.Num() < Soulbound::Warden::ActCount)
 		{
@@ -120,6 +124,19 @@ namespace
 				FWardenActReport& Gap = Acts[ActAt(LastEffect)];
 				Gap.MaxGapSeconds = FMath::Max(Gap.MaxGapSeconds, Event.ClockSeconds - LastEffect);
 				LastEffect = Event.ClockSeconds;
+			}
+			// S-017: sentencias, consultas que acaban en insolencia y disparadores activos, por el acto en que ocurren.
+			else if (Event.Type == EMatchEventType::OracleSentence)
+			{
+				++Acts[ActAt(Event.ClockSeconds)].Sentences;
+			}
+			else if (Event.Type == EMatchEventType::OracleIgnored)
+			{
+				++Acts[ActAt(Event.ClockSeconds)].IgnoredConsults;
+			}
+			else if (Event.Type == EMatchEventType::WardenTriggered && Acts[0].TriggerCounts.IsValidIndex(Event.Value))
+			{
+				++Acts[ActAt(Event.ClockSeconds)].TriggerCounts[Event.Value];
 			}
 		}
 		FWardenActReport& Last = Acts[ActAt(LastEffect)];
@@ -334,7 +351,9 @@ FSimulationResult FMatchSimulation::Run()
 			}
 			else if (Event.Type == EMatchEventType::TurnInterrupted)
 			{
-				Result.Log.Add(FString::Printf(TEXT("%s    el Warden corta el turno del asiento %d en %s"), *Stamp(Event.ClockSeconds), Event.Seat, PhaseName(Event.Value)));
+				// S-017: también lo corta el fin de la carrera (Detail 1).
+				Result.Log.Add(FString::Printf(TEXT("%s    %s corta el turno del asiento %d en %s"), *Stamp(Event.ClockSeconds),
+					Event.Detail == 1 ? TEXT("el fin de la carrera") : TEXT("el Warden"), Event.Seat, PhaseName(Event.Value)));
 				// A medio camino (S-020) no hay línea de camino: el movimiento no llegó.
 				EnteredTiles.Reset();
 			}
@@ -404,6 +423,24 @@ FSimulationResult FMatchSimulation::Run()
 				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d pierde el duelo sin runas y vuelve a su hogar, la %s"), *Stamp(Event.ClockSeconds), Event.OtherSeat,
 					*DescribeTile(State.Board, Event.Value)));
 			}
+			// S-017: el Oráculo, una línea por sentencia (y por lo que la cambia), y los disparadores no se listan: van en el informe.
+			else if (Event.Type == EMatchEventType::OracleSentence)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    el Oráculo dicta al asiento %d %s%s"), *Stamp(Event.ClockSeconds), Event.Seat, *DescribeWardenEvent(State, Event.Value),
+					Event.Detail == 1 ? TEXT(", tras el rechazo de Tifón") : TEXT("")));
+			}
+			else if (Event.Type == EMatchEventType::OracleEmpty)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    el orbe no muestra nada al asiento %d"), *Stamp(Event.ClockSeconds), Event.Seat));
+			}
+			else if (Event.Type == EMatchEventType::OracleIgnored)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d no consulta el Oráculo a tiempo | insolencia %d"), *Stamp(Event.ClockSeconds), Event.Seat, State.Seats[Event.Seat].Insolence));
+			}
+			else if (Event.Type == EMatchEventType::OracleRefused)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d (Tifón) rechaza la sentencia"), *Stamp(Event.ClockSeconds), Event.Seat));
+			}
 		}
 	};
 
@@ -440,6 +477,22 @@ FSimulationResult FMatchSimulation::Run()
 				{
 					return TNumericLimits<double>::Max();
 				}
+				continue;
+			}
+			// S-017 (R-VOT-5, R-ORA-3): una consulta del Oráculo, dentro del turno o entre turnos, se consulta en el acto con el decisor
+			// del consultante (los dummies nunca rechazan): así nunca se agota.
+			if (State.Oracle.IsWaiting())
+			{
+				const int32 Seat = State.Oracle.Consultant;
+				LogNewEvents();
+				const bool bRefuse = State.Oracle.bRefusable && Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid()
+					&& Deciders[Seat]->RefusesOracleSentence(State, Seat, DeciderRng);
+				const EIntentResult Intent = bRefuse ? Soulbound::Rules::SubmitOracleRefuse(State, Seat, Now) : Soulbound::Rules::SubmitOracleConsult(State, Seat, Now);
+				if (Intent != EIntentResult::Accepted)
+				{
+					return TNumericLimits<double>::Max();
+				}
+				LogNewEvents();
 				continue;
 			}
 			if (State.TurnPhase == ETurnPhase::RollAndChoose)
@@ -593,6 +646,7 @@ FSimulationResult FMatchSimulation::Run()
 		Result.Interventions += Act.EffectInterventions;
 	}
 	Result.Furies = State.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::FuryUnleashed; }).Num();
+	Result.RaceEndCuts = State.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::TurnInterrupted && Event.Detail == 1; }).Num();
 	Result.Log.Add(FString::Printf(TEXT("Fin | %d turnos | %d evaluaciones del Warden | %d intervenciones"), Result.Turns, Result.Evaluations, Result.Interventions));
 	for (const int32 Seat : State.TurnOrder)
 	{

@@ -20,7 +20,8 @@ namespace Soulbound::Rules
 	 *  - Un Eco en un Nicho Libre durante la carrera lo reclama: el Nicho pasa a Reclamado, el Dominio tiene dueño
 	 *    (OwnerSeat) y el asiento pasa a Elegido de ese Dominio (evento Bonded). Sigue tirando un dado.
 	 *  - Si era el primer vínculo, el tablero pasa de Primordial a Despierto (R-TAB-9, evento BoardAwakening).
-	 *  - Si era el último Nicho Libre, la carrera termina en ese instante (R-CAR-1, EndBondRace).
+	 *  - Si era el último Nicho Libre, la carrera debe terminar (R-CAR-1): desde S-017 (R-PRO-0) la termina la máquina de turnos
+	 *    cortando el turno en curso (IsBondRaceDue), no esta regla.
 	 *  - Terminar en un Nicho Reclamado o Cerrado, o hacerlo un Elegido, no cambia nada. Fuera de la carrera, tampoco.
 	 * NowSeconds: marca de tiempo de los eventos. Random: el sorteo de la partida (lo usa el fin de carrera).
 	 * Devuelve true si el asiento se vinculó.
@@ -31,11 +32,15 @@ namespace Soulbound::Rules
 	 * El asiento Seat reclama el Nicho del Dominio DomainId y se vincula a su Elegido (R-CAR-4, R-CAR-5): lo que sigue a
 	 * llegar a un Nicho Libre, sin mirar dónde está la ficha. Lo usan ResolveNicheLanding y la edición de depuración
 	 * BondSeat (S-011), así que las dos dejan el mismo estado por construcción: Nicho Reclamado, dueño, rol, Dominio del
-	 * asiento y evento Bonded; el Despertar si es el primer vínculo (R-TAB-9) y el fin de carrera si era el último Nicho
-	 * Libre (R-CAR-1). No valida: quien llama comprueba que la partida está en la carrera, que el asiento es un Eco y que
-	 * el Nicho está Libre. Nombre propuesto en S-011.
+	 * asiento y evento Bonded; y el Despertar si es el primer vínculo (R-TAB-9). Hasta S-016 también el fin de carrera si era
+	 * el último Nicho Libre; desde S-017 lo aplica la máquina de turnos, que corta el turno antes (R-PRO-0). No valida: quien
+	 * llama comprueba que la partida está en la carrera, que el asiento es un Eco y que el Nicho está Libre. Nombre propuesto
+	 * en S-011.
 	 */
 	SOULBOUNDCORE_API void ClaimNiche(FMatchState& State, int32 Seat, int32 DomainId, double NowSeconds, FRandomStream& Random);
+
+	/** Si queda algún Nicho Libre en el tablero (R-CAR-1): sin ninguno, la carrera debe terminar. Sacada de BondRaceRules.cpp en S-017. */
+	SOULBOUNDCORE_API bool HasFreeNiche(const FBoardState& Board);
 
 	/**
 	 * Termina la carrera (R-CAR-8, R-TAB-10 a 12), en este orden:

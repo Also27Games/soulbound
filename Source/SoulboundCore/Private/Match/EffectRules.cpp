@@ -22,7 +22,10 @@ namespace Soulbound::Rules
 		// TODO(R-TUR-11): con las interrupciones del Warden (S-016), un efecto sobre quien está en juego cortará su turno en
 		// vez de rechazarse.
 		const bool bEventAction = State.CurrentEvent.IsActive() && State.CurrentEvent.bWaitsForAction;
-		const bool bActiveInTurn = !bEventAction && Seat == State.ActiveSeat && State.TurnPhase != ETurnPhase::BetweenTurns;
+		// S-017 (R-ORA-2): en la consulta de un Nodo, el turno queda en suspenso mientras se aplica la sentencia: el consultante
+		// puede recibir la Vuelta al hogar o el Vacío de su propia sentencia, y entonces su turno termina.
+		const bool bOracleInTurn = State.TurnPhase == ETurnPhase::OracleConsult && State.Oracle.Consultant == Seat;
+		const bool bActiveInTurn = !bEventAction && !bOracleInTurn && Seat == State.ActiveSeat && State.TurnPhase != ETurnPhase::BetweenTurns;
 		const bool bInShellGame = State.ShellGame.IsActive() && (Seat == State.ShellGame.Thief || Seat == State.ShellGame.Victim);
 		return bActiveInTurn || State.Duel.IsParticipant(Seat) || bInShellGame;
 	}
@@ -247,6 +250,47 @@ namespace
 		}
 		return Goal;
 	}
+
+	/**
+	 * Primera casilla sellable del camino más corto de Rival hasta el objetivo que da GoalOf (con sus pasos desde él), con su
+	 * transitabilidad; sin ninguna en ese camino, o sin objetivo, la sellable más cercana a él. Sacada de SealAgainstRivalTile en
+	 * S-017 para el Sello hacia el Altar de un disparador.
+	 */
+	int32 SealTileOnPath(const FMatchState& State, int32 Rival, TFunctionRef<int32(int32, const TArray<int32>&)> GoalOf)
+	{
+		if (!State.Seats.IsValidIndex(Rival) || !State.Board.IsValidTile(State.Seats[Rival].TileId))
+		{
+			return INDEX_NONE;
+		}
+		// R-TAB-21: el camino del rival, con su transitabilidad (Sellos, Paso Libre, confinamiento y Noche).
+		TArray<int32> Steps;
+		TArray<int32> Previous;
+		ShortestPaths(State.Board, State.Seats[Rival].TileId, Soulbound::Rules::MakeMoverTraits(State, Rival), Steps, Previous);
+
+		const int32 Goal = GoalOf(Rival, Steps);
+		TArray<int32> Path;
+		for (int32 Tile = Goal; Tile != INDEX_NONE; Tile = Previous[Tile])
+		{
+			Path.Insert(Tile, 0);
+		}
+		for (const int32 Tile : Path)
+		{
+			if (Soulbound::Rules::CanSealTile(State, Tile) == ESealResult::Accepted)
+			{
+				return Tile;
+			}
+		}
+		// Sin casilla válida en el camino (o sin objetivo), la sellable más cercana a él; empates, la de identificador menor.
+		int32 Closest = INDEX_NONE;
+		for (const int32 Tile : Soulbound::Rules::SealableTiles(State))
+		{
+			if (Steps[Tile] != MAX_int32 && (Closest == INDEX_NONE || Steps[Tile] < Steps[Closest]))
+			{
+				Closest = Tile;
+			}
+		}
+		return Closest;
+	}
 }
 
 namespace Soulbound::Rules
@@ -354,54 +398,39 @@ namespace Soulbound::Rules
 
 	int32 SealAgainstRivalTile(const FMatchState& State, int32 Rival)
 	{
-		if (!State.Seats.IsValidIndex(Rival) || !State.Board.IsValidTile(State.Seats[Rival].TileId))
-		{
-			return INDEX_NONE;
-		}
-		// R-TAB-21: el camino del rival, con su transitabilidad (Sellos, Paso Libre, confinamiento y Noche).
-		TArray<int32> Steps;
-		TArray<int32> Previous;
-		ShortestPaths(State.Board, State.Seats[Rival].TileId, MakeMoverTraits(State, Rival), Steps, Previous);
-
 		// R-EFE-7: la primera casilla sellable del camino más corto hasta su objetivo más probable.
-		const int32 Goal = LikelyGoal(State, Rival, Steps);
-		TArray<int32> Path;
-		for (int32 Tile = Goal; Tile != INDEX_NONE; Tile = Previous[Tile])
-		{
-			Path.Insert(Tile, 0);
-		}
-		for (const int32 Tile : Path)
-		{
-			if (CanSealTile(State, Tile) == ESealResult::Accepted)
-			{
-				return Tile;
-			}
-		}
-		// Sin casilla válida en el camino (o sin objetivo), la sellable más cercana a él; empates, la de identificador menor.
-		int32 Closest = INDEX_NONE;
-		for (const int32 Tile : SealableTiles(State))
-		{
-			if (Steps[Tile] != MAX_int32 && (Closest == INDEX_NONE || Steps[Tile] < Steps[Closest]))
-			{
-				Closest = Tile;
-			}
-		}
-		return Closest;
+		return SealTileOnPath(State, Rival, [&State](int32 Seat, const TArray<int32>& Steps) { return LikelyGoal(State, Seat, Steps); });
 	}
 
 	int32 SealTowardsAltarTile(const FMatchState& State, int32 Seat)
 	{
-		return INDEX_NONE;
+		// R-DIS-2 (S-017): como el Sello contra rival, pero su objetivo es siempre el Altar.
+		return SealTileOnPath(State, Seat, [&State](int32, const TArray<int32>&) { return State.Board.FindAltar(); });
 	}
 
 	EEffectResult CanForcedOracle(const FMatchState& State, int32 Seat)
 	{
-		return EEffectResult::NotImplemented;
+		const EEffectResult Check = CheckSeatOnBoard(State, Seat);
+		if (Check != EEffectResult::Applied)
+		{
+			return Check;
+		}
+		// Una consulta a la vez por asiento: ni la que consulta ahora ni la que ya espera admiten otra.
+		const FOracleState& Oracle = State.Oracle;
+		const bool bAlready = (Oracle.IsActive() && Oracle.Consultant == Seat) || Oracle.Queued.Contains(Seat);
+		return bAlready ? EEffectResult::AlreadyPending : EEffectResult::Applied;
 	}
 
 	EEffectResult ForcedOracle(FMatchState& State, int32 Seat, double NowSeconds)
 	{
-		return EEffectResult::NotImplemented;
+		const EEffectResult Result = CanForcedOracle(State, Seat);
+		if (Result != EEffectResult::Applied)
+		{
+			return Result;
+		}
+		// R-ORA-2: entre turnos, cuando el hueco quede libre de eventos; la abre la máquina de turnos (OpenOracle).
+		State.Oracle.Queued.Add(Seat);
+		return EEffectResult::Applied;
 	}
 
 	EEffectResult CanSealAgainstRival(const FMatchState& State, int32 Rival)

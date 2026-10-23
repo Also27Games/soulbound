@@ -273,7 +273,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBondRaceEndTriggersTest,
 bool FBondRaceEndTriggersTest::RunTest(const FString& Parameters)
 {
 	// CA-CAR-1 y CA-TAB-28 (R-CAR-1, R-TAB-27): dada la carrera, termina al reclamarse el último Nicho Libre aunque
-	// quede tiempo; y dado el tiempo agotado, termina al acabar el turno en curso, no antes. Semillas fijas 5 y 6.
+	// quede tiempo; y dado el tiempo agotado, desde S-017 (R-PRO-0, CA-WAR-3b) corta el turno en curso en ese instante (hasta
+	// S-016 esperaba a que acabara). Semillas fijas 5 y 6.
 	{
 		FRandomStream Random(5);
 		FMatchState State;
@@ -317,25 +318,21 @@ bool FBondRaceEndTriggersTest::RunTest(const FString& Parameters)
 		}
 		TestEqual(TEXT("Un turno que acaba antes del límite no termina la carrera"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::BondRace));
 
-		// El turno de B empieza antes del límite y confirma después: el límite no lo interrumpe (TODO(R-TAB-26)).
+		// El turno de B empieza antes del límite; al llegar el límite, el fin de la carrera lo corta (R-PRO-0, S-017).
 		State.ActiveSeat = B;
 		if (!TestTrue(TEXT("El turno de B llega a la tirada"), AdvanceToChoice(State, Random, RaceEnd - 5.0)) || !TestFalse(TEXT("B tiene opciones"), State.ReachableOptions.IsEmpty()))
 		{
 			return false;
 		}
-		TestEqual(TEXT("Intención después del límite: se acepta"), static_cast<int32>(Soulbound::Rules::SubmitDestinationIntent(State, B, State.ReachableOptions[0], RaceEnd + 1.0)), static_cast<int32>(EIntentResult::Accepted));
-		Soulbound::Tests::CompleteMovement(State, RaceEnd + 1.0);
-		TestEqual(TEXT("Con el tiempo agotado, la carrera sigue mientras dura el turno"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::BondRace));
-		while (State.TurnPhase != ETurnPhase::End && Soulbound::Rules::AdvanceTurn(State, RaceEnd + 1.0, Random))
-		{
-		}
-		TestEqual(TEXT("En el fin de turno, la carrera sigue"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::BondRace));
+		TestEqual(TEXT("Antes del límite, la carrera sigue mientras dura el turno"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::BondRace));
 		Soulbound::Rules::AdvanceTurn(State, RaceEnd + 1.0, Random);
-		TestEqual(TEXT("Al acabar el turno en curso, la carrera termina"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::RuneHunt));
+		TestEqual(TEXT("Pasado el límite, la carrera termina"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::RuneHunt));
+		const TArray<FMatchEvent> Cut = EventsOfType(State, EMatchEventType::TurnInterrupted);
+		TestTrue(TEXT("Cortando el turno de B, por el fin de la carrera"), Cut.Num() == 1 && Cut[0].Seat == B && Cut[0].Detail == 1);
 		const TArray<FMatchEvent> Ended = EventsOfType(State, EMatchEventType::BondRaceEnded);
 		if (TestEqual(TEXT("Un fin de carrera"), Ended.Num(), 1))
 		{
-			TestEqual(TEXT("En el instante en que acaba el turno"), Ended[0].ClockSeconds, RaceEnd + 1.0);
+			TestEqual(TEXT("En el instante del corte"), Ended[0].ClockSeconds, RaceEnd + 1.0);
 		}
 	}
 	{
@@ -360,8 +357,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBondRaceExtraTurnBeforeLimitTest,
 
 bool FBondRaceExtraTurnBeforeLimitTest::RunTest(const FString& Parameters)
 {
-	// R-TUR-9 antes que R-CAR-1 (revisión de S-006): un turno extra concedido y empezado antes del límite de la carrera
-	// se juega entero, y la carrera termina al acabarlo. Semilla fija 13.
+	// R-TUR-9 y R-CAR-1 (revisión de S-006): un turno extra concedido antes del límite de la carrera se empieza; hasta S-016 se
+	// jugaba entero y la carrera terminaba al acabarlo, y desde S-017 (R-PRO-0) el fin lo corta como a cualquier turno en curso.
+	// Semilla fija 13.
 	FRandomStream Random;
 	FMatchState State;
 	if (!StartWithElects(*this, 13, 1, Random, State))
@@ -386,26 +384,22 @@ bool FBondRaceExtraTurnBeforeLimitTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Juega otra vez el mismo asiento"), State.ActiveSeat, Seat);
 	TestEqual(TEXT("La carrera sigue"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::BondRace));
 
-	// Turno extra: empieza antes del límite y confirma después; se juega entero.
+	// Turno extra: empieza antes del límite; pasado el límite, el fin de la carrera lo corta.
 	const int32 StartedBefore = EventsOfType(State, EMatchEventType::TurnStarted).Num();
 	if (!TestTrue(TEXT("El turno extra llega a la tirada"), AdvanceToChoice(State, Random, RaceEnd - 2.0)) || !TestFalse(TEXT("Hay opciones"), State.ReachableOptions.IsEmpty()))
 	{
 		return false;
 	}
 	TestEqual(TEXT("El turno extra empieza antes del límite"), EventsOfType(State, EMatchEventType::TurnStarted).Num(), StartedBefore + 1);
-	TestEqual(TEXT("Intención del turno extra después del límite: se acepta"),
-		static_cast<int32>(Soulbound::Rules::SubmitDestinationIntent(State, Seat, State.ReachableOptions[0], RaceEnd + 3.0)), static_cast<int32>(EIntentResult::Accepted));
-	Soulbound::Tests::CompleteMovement(State, RaceEnd + 3.0);
-	while (State.TurnPhase != ETurnPhase::End && Soulbound::Rules::AdvanceTurn(State, RaceEnd + 3.0, Random))
-	{
-	}
-	TestEqual(TEXT("Mientras dura el turno extra, la carrera sigue"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::BondRace));
+	TestEqual(TEXT("Antes del límite, la carrera sigue"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::BondRace));
 	Soulbound::Rules::AdvanceTurn(State, RaceEnd + 3.0, Random);
-	TestEqual(TEXT("Al acabar el turno extra, la carrera termina"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::RuneHunt));
+	TestEqual(TEXT("Pasado el límite, la carrera termina"), static_cast<int32>(State.MatchPhase), static_cast<int32>(EMatchPhase::RuneHunt));
+	const TArray<FMatchEvent> Cut = EventsOfType(State, EMatchEventType::TurnInterrupted);
+	TestTrue(TEXT("Cortando el turno extra, por el fin de la carrera"), Cut.Num() == 1 && Cut[0].Seat == Seat && Cut[0].Detail == 1);
 	const TArray<FMatchEvent> Ended = EventsOfType(State, EMatchEventType::BondRaceEnded);
 	if (TestEqual(TEXT("Un fin de carrera"), Ended.Num(), 1))
 	{
-		TestEqual(TEXT("En el instante en que acaba el turno extra"), Ended[0].ClockSeconds, RaceEnd + 3.0);
+		TestEqual(TEXT("En el instante del corte"), Ended[0].ClockSeconds, RaceEnd + 3.0);
 	}
 	return true;
 }

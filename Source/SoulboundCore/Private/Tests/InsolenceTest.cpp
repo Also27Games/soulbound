@@ -238,9 +238,12 @@ bool FInsolenceInvalidTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	ForceSeverity(F, EInsolencePunishment::Light);
+	// Desde S-017 la Consulta forzada también es leve: con una ya esperando, otra no vale (CA-INS-1b la mira sin ella).
+	F.State.Oracle.Queued.Add(Koschei);
 	const int32 Before = F.State.EventLog.Num();
 	Soulbound::Rules::RaiseInsolence(F.State, Koschei, F.Now);
-	TestEqual(TEXT("Leve sin runas (ni Revelar Brazal ni Alto valen): burla"), F.Since(Before, EMatchEventType::WardenTaunt).Num(), 1);
+	TestEqual(TEXT("Leve sin runas y con una consulta esperando (ni Revelar Brazal, ni Alto, ni otra Consulta forzada valen): burla"),
+		F.Since(Before, EMatchEventType::WardenTaunt).Num(), 1);
 	TestEqual(TEXT("Y ningún efecto"), F.Since(Before, EMatchEventType::EffectApplied).Num(), 0);
 	return true;
 }

@@ -64,7 +64,8 @@ public:
  * Dummy: elige al azar con el generador que le pasan, así la simulación sigue siendo determinista por semilla. En las
  * elecciones, al azar entre las opciones y "no" si la elección lo admite, todas con la misma probabilidad (S-009): roba
  * a cualquiera de los objetivos o a ninguno, elige cualquier esfera y, si es Koschei, aparta cualquier runa (S-010). Reta a
- * duelo como cualquier otra acción y rinde un número al azar de 0 a 1 (S-012).
+ * duelo como cualquier otra acción y rinde un número al azar de 0 a 1 (S-012). Desde S-017, en un rival señalado sigue al rival
+ * sugerido por un disparador (FCurrentWardenEvent::SuggestedRival), y consulta el Oráculo sin rechazar nunca.
  */
 class SOULBOUNDCORE_API FDummyDecider : public IDecider
 {

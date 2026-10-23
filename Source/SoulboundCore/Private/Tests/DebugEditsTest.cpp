@@ -261,8 +261,13 @@ bool FDebugBondTest::RunTest(const FString& Parameters)
 			TestEqual(TEXT("Y deja BoardAwakening"), EventsOfType(ByEdit.State, EMatchEventType::BoardAwakening).Num(), 1);
 		}
 	}
-	TestTrue(TEXT("El último Nicho Libre termina la carrera"), ByEdit.State.MatchPhase == EMatchPhase::RuneHunt);
-	TestTrue(TEXT("Y la regla también"), ByRule.State.MatchPhase == EMatchPhase::RuneHunt);
+	// Desde S-017 (R-PRO-0) el último vínculo no termina la carrera por sí solo: la termina la máquina de turnos, que antes corta el
+	// turno en curso. Sin turno en curso, en su siguiente avance.
+	TestTrue(TEXT("El último Nicho Libre deja la carrera por terminar"), Soulbound::Rules::IsBondRaceDue(ByEdit.State, ByEdit.Now) && Soulbound::Rules::IsBondRaceDue(ByRule.State, ByRule.Now));
+	Soulbound::Rules::AdvanceTurn(ByEdit.State, ByEdit.Now, ByEdit.Random);
+	Soulbound::Rules::AdvanceTurn(ByRule.State, ByRule.Now, ByRule.Random);
+	TestTrue(TEXT("Y la máquina la termina, tras la edición"), ByEdit.State.MatchPhase == EMatchPhase::RuneHunt);
+	TestTrue(TEXT("Y tras la regla"), ByRule.State.MatchPhase == EMatchPhase::RuneHunt);
 	TestEqual(TEXT("Cada vínculo deja su evento de depuración"), DebugEventCount(ByEdit.State), 4);
 
 	// Rechazos.

@@ -3,9 +3,11 @@
 #include "Data/JsonFields.h"
 #include "Dom/JsonObject.h"
 #include "Match/MatchState.h"
+#include "Match/WardenEvents.h"
 #include "Misc/FileHelper.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "UObject/Class.h"
 
 namespace
 {
@@ -79,6 +81,144 @@ namespace
 				return Reject(EWardenParamsError::MalformedData, FString::Printf(TEXT("La fila %d de \"insolence\": falta el porcentaje entero \"%s\" (o \"fury\": true)."), Index + 1, Field));
 			}
 			Out.SeverityPercents.Add(Percent);
+		}
+		return FWardenParamsLoadResult();
+	}
+
+	/** Lee una entrada de la tabla de un disparador: evento, multiplicador y, opcionales, lo que hace con su dirección. */
+	FWardenParamsLoadResult ReadTriggerEntry(const TSharedPtr<FJsonValue>& Value, const FString& Table, FTriggerEventEntry& Out)
+	{
+		const TSharedPtr<FJsonObject>* Object = nullptr;
+		if (!Value.IsValid() || !Value->TryGetObject(Object) || !Object || !(*Object)->TryGetStringField(TEXT("event"), Out.EventId)
+			|| !Soulbound::JsonFields::ReadNumberField(**Object, TEXT("multiplier"), Out.Multiplier))
+		{
+			return Reject(EWardenParamsError::MalformedData, FString::Printf(TEXT("La tabla de %s: cada evento es un objeto con \"event\" y \"multiplier\" numérico."), *Table));
+		}
+		(*Object)->TryGetBoolField(TEXT("whenActiveIsCause"), Out.bWhenActiveIsCause);
+		(*Object)->TryGetBoolField(TEXT("suggestCause"), Out.bSuggestCause);
+		(*Object)->TryGetBoolField(TEXT("sealTowardsAltar"), Out.bSealTowardsAltar);
+		FString Target;
+		if ((*Object)->TryGetStringField(TEXT("target"), Target))
+		{
+			Out.bHasTargetOverride = true;
+			if (!Soulbound::Rules::ParseEffectTargetCode(Target, Out.TargetOverride))
+			{
+				return Reject(EWardenParamsError::InvalidTrigger, FString::Printf(TEXT("R-DIS-2: la tabla de %s da a \"%s\" la dirección \"%s\", que no existe."), *Table, *Out.EventId, *Target));
+			}
+		}
+		return FWardenParamsLoadResult();
+	}
+
+	/** Lee `triggers`: los umbrales y las tablas de los disparadores contextuales (S-017). */
+	FWardenParamsLoadResult ReadTriggers(const FJsonObject& Root, FWardenTriggerParams& Out)
+	{
+		using Soulbound::JsonFields::ReadIntegerField;
+		using Soulbound::JsonFields::ReadNumberField;
+		const TSharedPtr<FJsonObject>* Object = nullptr;
+		const TArray<TSharedPtr<FJsonValue>>* Tables = nullptr;
+		if (!Root.TryGetObjectField(TEXT("triggers"), Object) || !Object || !(*Object)->TryGetArrayField(TEXT("tables"), Tables) || !Tables)
+		{
+			return Reject(EWardenParamsError::MalformedData, TEXT("Falta el objeto \"triggers\" con la lista \"tables\"."));
+		}
+		const TPair<const TCHAR*, int32*> Integers[] = {
+			{TEXT("clearLeaderGap"), &Out.ClearLeaderGap},
+			{TEXT("imminentVictoryTypes"), &Out.ImminentVictoryTypes},
+			{TEXT("hoarderCount"), &Out.HoarderCount},
+		};
+		for (const TPair<const TCHAR*, int32*>& Field : Integers)
+		{
+			if (!ReadIntegerField(**Object, Field.Key, *Field.Value))
+			{
+				return Reject(EWardenParamsError::MalformedData, FString::Printf(TEXT("\"triggers\": falta el entero \"%s\"."), Field.Key));
+			}
+		}
+		const TPair<const TCHAR*, double*> Numbers[] = {
+			{TEXT("imminentVictoryInterveneMultiplier"), &Out.ImminentVictoryInterveneMultiplier},
+			{TEXT("ignoredMinutes"), &Out.IgnoredMinutes},
+			{TEXT("ignoredRandomMultiplier"), &Out.IgnoredRandomMultiplier},
+			{TEXT("ignoredSuggestMultiplier"), &Out.IgnoredSuggestMultiplier},
+			{TEXT("stalledMinutes"), &Out.StalledMinutes},
+		};
+		for (const TPair<const TCHAR*, double*>& Field : Numbers)
+		{
+			if (!ReadNumberField(**Object, Field.Key, *Field.Value))
+			{
+				return Reject(EWardenParamsError::MalformedData, FString::Printf(TEXT("\"triggers\": falta el número \"%s\"."), Field.Key));
+			}
+		}
+		for (int32 Index = 0; Index < Tables->Num(); ++Index)
+		{
+			const TSharedPtr<FJsonObject>* TableObject = nullptr;
+			const TArray<TSharedPtr<FJsonValue>>* Events = nullptr;
+			FString Code;
+			if (!(*Tables)[Index].IsValid() || !(*Tables)[Index]->TryGetObject(TableObject) || !TableObject || !(*TableObject)->TryGetStringField(TEXT("trigger"), Code)
+				|| !(*TableObject)->TryGetArrayField(TEXT("events"), Events) || !Events)
+			{
+				return Reject(EWardenParamsError::MalformedData, FString::Printf(TEXT("La tabla %d de \"triggers\" no es un objeto con \"trigger\" y la lista \"events\"."), Index + 1));
+			}
+			FTriggerTable& Table = Out.Tables.AddDefaulted_GetRef();
+			// El código es el nombre del valor de la enumeración, como los efectos (R-DIS-2).
+			const int64 Trigger = StaticEnum<EWardenTrigger>()->GetValueByNameString(Code, EGetByNameFlags::CaseSensitive);
+			if (Trigger == INDEX_NONE)
+			{
+				return Reject(EWardenParamsError::InvalidTrigger, FString::Printf(TEXT("R-DIS-1: la tabla %d nombra el disparador \"%s\", que no existe."), Index + 1, *Code));
+			}
+			Table.Trigger = static_cast<EWardenTrigger>(Trigger);
+			if ((*TableObject)->HasField(TEXT("strikesAgainstActive")) && !ReadNumberField(**TableObject, TEXT("strikesAgainstActive"), Table.StrikesAgainstActiveMultiplier))
+			{
+				return Reject(EWardenParamsError::MalformedData, FString::Printf(TEXT("La tabla de %s: \"strikesAgainstActive\" es un número."), *Code));
+			}
+			for (const TSharedPtr<FJsonValue>& Entry : *Events)
+			{
+				FWardenParamsLoadResult Read = ReadTriggerEntry(Entry, Code, Table.Events.AddDefaulted_GetRef());
+				if (!Read.IsSuccess())
+				{
+					return Read;
+				}
+			}
+		}
+		return FWardenParamsLoadResult();
+	}
+
+	/** Comprueba los disparadores (CA-DIS-5): umbrales y multiplicadores positivos, una tabla por disparador como mucho. */
+	FWardenParamsLoadResult ValidateTriggers(const FWardenTriggerParams& Triggers)
+	{
+		const bool bThresholds = Triggers.ClearLeaderGap > 0 && Triggers.ImminentVictoryTypes > 0 && Triggers.HoarderCount > 0 && Triggers.IgnoredMinutes > 0.0
+			&& Triggers.StalledMinutes > 0.0;
+		const bool bMultipliers = Triggers.ImminentVictoryInterveneMultiplier > 0.0 && Triggers.IgnoredRandomMultiplier > 0.0 && Triggers.IgnoredSuggestMultiplier > 0.0;
+		if (!bThresholds || !bMultipliers)
+		{
+			return Reject(EWardenParamsError::InvalidTrigger, TEXT("R-DIS-1: los umbrales y los multiplicadores de \"triggers\" son mayores que cero."));
+		}
+		TSet<EWardenTrigger> Seen;
+		for (const FTriggerTable& Table : Triggers.Tables)
+		{
+			const FString Name = StaticEnum<EWardenTrigger>()->GetNameStringByValue(static_cast<int64>(Table.Trigger));
+			bool bAlreadySeen = false;
+			Seen.Add(Table.Trigger, &bAlreadySeen);
+			if (bAlreadySeen)
+			{
+				return Reject(EWardenParamsError::InvalidTrigger, FString::Printf(TEXT("R-DIS-2: el disparador %s tiene dos tablas."), *Name));
+			}
+			if (Table.StrikesAgainstActiveMultiplier <= 0.0)
+			{
+				return Reject(EWardenParamsError::InvalidTrigger, FString::Printf(TEXT("R-DIS-2: la tabla de %s: \"strikesAgainstActive\" es mayor que cero."), *Name));
+			}
+			for (const FTriggerEventEntry& Entry : Table.Events)
+			{
+				if (Entry.Multiplier <= 0.0)
+				{
+					return Reject(EWardenParamsError::InvalidTrigger, FString::Printf(TEXT("R-DIS-2: la tabla de %s multiplica \"%s\" por %.2f; el multiplicador es mayor que cero."),
+						*Name, *Entry.EventId, Entry.Multiplier));
+				}
+				// La dirección preferida sustituye sin pedir nada a nadie: nunca un rival señalado (decisión del autor del 23/10/2026).
+				const bool bChoosing = Entry.TargetOverride == EEffectTarget::ChosenRival || Entry.TargetOverride == EEffectTarget::TwoChosenRivals
+					|| Entry.TargetOverride == EEffectTarget::None;
+				if (Entry.bHasTargetOverride && bChoosing)
+				{
+					return Reject(EWardenParamsError::InvalidTrigger, FString::Printf(TEXT("R-DIS-2: la tabla de %s da a \"%s\" una dirección preferida que pide elegir."), *Name, *Entry.EventId));
+				}
+			}
 		}
 		return FWardenParamsLoadResult();
 	}
@@ -174,11 +314,32 @@ namespace Soulbound::Rules
 				return Reject(EWardenParamsError::InsolenceTableInvalid, FString::Printf(TEXT("R-INS-2: el nivel %d aparece en %d filas de la tabla de insolencia; debe estar en una."), Level, Covered[Level]));
 			}
 		}
-		return FWardenParamsLoadResult();
+		// R-ORA-3, R-ORA-4 (S-017): el plazo de la consulta avanza; el sesgo mezcla dos repartos, de 0 a 1.
+		if (Params.OracleSeconds <= 0.0)
+		{
+			return Reject(EWardenParamsError::NonPositiveDuration, FString::Printf(TEXT("R-ORA-3: el plazo del Oráculo (%.1f s) es mayor que cero."), Params.OracleSeconds));
+		}
+		if (Params.OracleBias < 0.0 || Params.OracleBias > 1.0)
+		{
+			return Reject(EWardenParamsError::ProbabilityOutOfRange, FString::Printf(TEXT("R-ORA-4: el sesgo del Oráculo (%.2f) va de 0 a 1."), Params.OracleBias));
+		}
+		return ValidateTriggers(Params.Triggers);
 	}
 
 	FWardenParamsLoadResult BindWardenTriggerEvents(FWardenParams& Params, const FWardenEventTable& Events)
 	{
+		for (FTriggerTable& Table : Params.Triggers.Tables)
+		{
+			for (FTriggerEventEntry& Entry : Table.Events)
+			{
+				Entry.EventIndex = Events.IndexOf(Entry.EventId);
+				if (Entry.EventIndex == INDEX_NONE)
+				{
+					return Reject(EWardenParamsError::UnknownTriggerEvent, FString::Printf(TEXT("R-DIS-2: la tabla de %s nombra el evento \"%s\", que no está en los eventos del Warden."),
+						*StaticEnum<EWardenTrigger>()->GetNameStringByValue(static_cast<int64>(Table.Trigger)), *Entry.EventId));
+				}
+			}
+		}
 		return FWardenParamsLoadResult();
 	}
 
@@ -200,6 +361,9 @@ namespace Soulbound::Rules
 			{TEXT("evaluationVariationSeconds"), &Params.EvaluationVariationSeconds},
 			{TEXT("guaranteeSeconds"), &Params.GuaranteeSeconds},
 			{TEXT("marginSeconds"), &Params.MarginSeconds},
+			// S-017: el Oráculo.
+			{TEXT("oracleSeconds"), &Params.OracleSeconds},
+			{TEXT("oracleBias"), &Params.OracleBias},
 		};
 		for (const TPair<const TCHAR*, double*>& Number : Numbers)
 		{
@@ -223,6 +387,11 @@ namespace Soulbound::Rules
 			{
 				return Read;
 			}
+		}
+		FWardenParamsLoadResult Triggers = ReadTriggers(*Root, Params.Triggers);
+		if (!Triggers.IsSuccess())
+		{
+			return Triggers;
 		}
 		FWardenParamsLoadResult Result = ValidateWardenParams(Params);
 		if (Result.IsSuccess())
