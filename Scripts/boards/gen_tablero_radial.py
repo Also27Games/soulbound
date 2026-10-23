@@ -107,11 +107,14 @@ def wedge(domain):
     return tiles, edges, {"inner_left": "L1", "inner_right": "R1", "outer_left": outer_left, "outer_right": outer_right}
 
 
-def wedge_v2(domain):
+def wedge_v2(domain, nichos="centro"):
     """Variante 2 (pedida por el autor el 21/10/2026 al ver que las seis cuñas de la variante 1 eran iguales): seis
     cuñas con formas distintas y más conexiones. Cada una respeta las mismas reglas: columna desde el Altar sin
-    especiales, Nicho con una conexión por la parte central, Fuente y Nodo con dos conexiones como mucho, un enlace
-    interior y otro exterior con cada vecino, distancia mínima."""
+    especiales, Nicho con una conexión, Fuente y Nodo con dos conexiones como mucho, un enlace interior y otro exterior
+    con cada vecino, distancia mínima.
+    nichos: "centro", el Nicho por la parte central de la cuña (a 3-7 pasos del Altar), o "lejos", colgando del extremo
+    exterior (7-8 pasos). El 23/10/2026 el informe de simulación dio Ecos al 1 % con los Nichos cerca (objetivo del GDD 03,
+    15-35 %) y la carrera cerrada a los 135 s de 300: con un dado, un Nicho a 3-6 pasos se alcanza en uno o dos turnos."""
     tiles, edges = {}, []
 
     def add(name, r, v, kind="normal"):
@@ -125,10 +128,11 @@ def wedge_v2(domain):
         # A. Anillo con fila exterior: la cuña de la variante 1, con el Nicho colgando hacia dentro del fondo del anillo.
         add("c2", 185, 0)
         add("L1", 250, -75); add("R1", 250, 75); add("L2", 330, -95, "powerSource"); add("R2", 330, 95)
-        add("B1", 405, -80); add("B2", 405, 80); add("M", 400, 0); add("N", 315, 0, "niche")
+        n_pos, n_anchor = ((500, 270), "O3") if nichos == "lejos" else ((315, 0), "M")
+        add("B1", 405, -80); add("B2", 405, 80); add("M", 400, 0); add("N", *n_pos, "niche")
         add("O1", 480, -185); add("O2", 480, 0, "powerNode"); add("O3", 480, 185)
         link(("c1", "c2"), ("c2", "L1"), ("L1", "L2"), ("L2", "B1"), ("B1", "M"), ("M", "B2"), ("B2", "R2"), ("R2", "R1"),
-             ("R1", "c2"), ("N", "M"), ("O1", "O2"), ("O2", "O3"), ("B1", "O1"), ("B2", "O3"))
+             ("R1", "c2"), ("N", n_anchor), ("O1", "O2"), ("O2", "O3"), ("B1", "O1"), ("B2", "O3"))
         links = ("L1", "R1", "O1", "O3")
     elif domain == 1:
         # B. Bucle grande con triángulo interior: el triángulo c2-IL-IM-IR junto al Altar, un bucle largo que pasa por
@@ -136,10 +140,11 @@ def wedge_v2(domain):
         add("c2", 185, 0)
         add("IL", 260, -80); add("IM", 330, 0); add("IR", 260, 80)
         add("OL1", 340, -150, "powerSource"); add("OL2", 430, -130); add("OR1", 340, 150); add("OR2", 430, 130)
-        add("N", 410, 0, "niche")
+        n_pos, n_anchor = ((515, 275), "X4") if nichos == "lejos" else ((410, 0), "IM")
+        add("N", *n_pos, "niche")
         add("X1", 495, -190); add("X2", 495, -65, "powerNode"); add("X3", 495, 65); add("X4", 495, 190)
         link(("c1", "c2"), ("c2", "IL"), ("c2", "IR"), ("IL", "IM"), ("IM", "IR"), ("IL", "OL1"), ("OL1", "OL2"), ("IR", "OR1"),
-             ("OR1", "OR2"), ("OL2", "X1"), ("OR2", "X4"), ("X1", "X2"), ("X2", "X3"), ("X3", "X4"), ("IM", "N"), ("IM", "OR1"))
+             ("OR1", "OR2"), ("OL2", "X1"), ("OR2", "X4"), ("X1", "X2"), ("X2", "X3"), ("X3", "X4"), (n_anchor, "N"), ("IM", "OR1"))
         links = ("IL", "IR", "X1", "X4")
     elif domain == 2:
         # C. Escalera: dos carriles con tres travesaños (por c2, por la Fuente M1 y por M2) más la fila exterior; sin
@@ -148,20 +153,22 @@ def wedge_v2(domain):
         add("c2", 190, 0)
         add("L1", 265, -80); add("L2", 345, -100); add("L3", 425, -110)
         add("R1", 265, 80); add("R2", 345, 100); add("R3", 425, 110)
-        add("M1", 350, 0, "powerSource"); add("M2", 430, 0); add("N", 268, 0, "niche")
+        n_pos, n_anchor = ((515, 250), "X3") if nichos == "lejos" else ((268, 0), "c2")
+        add("M1", 350, 0, "powerSource"); add("M2", 430, 0); add("N", *n_pos, "niche")
         add("X1", 495, -165); add("X2", 508, 0, "powerNode"); add("X3", 495, 165)
         link(("c1", "c2"), ("c2", "L1"), ("c2", "R1"), ("L1", "L2"), ("L2", "L3"), ("R1", "R2"), ("R2", "R3"), ("L2", "M1"),
-             ("M1", "R2"), ("L3", "M2"), ("M2", "R3"), ("N", "c2"), ("L3", "X1"), ("X1", "X2"), ("X2", "X3"), ("R3", "X3"))
+             ("M1", "R2"), ("L3", "M2"), ("M2", "R3"), ("N", n_anchor), ("L3", "X1"), ("X1", "X2"), ("X2", "X3"), ("R3", "X3"))
         links = ("L1", "R1", "X1", "X3")
     elif domain == 3:
         # D. Espiral: el anillo gira y, desde el fondo, un brazo vuelve hacia dentro (B1-S1) hasta el Nicho, que queda
         # en el corazón de la cuña junto a la columna.
         add("c2", 185, 0)
         add("L1", 255, -85); add("L2", 340, -115); add("B1", 425, -25); add("B2", 425, 95)
-        add("R2", 340, 115, "powerSource"); add("R1", 255, 85); add("S1", 345, 0); add("N", 265, 0, "niche")
+        n_pos, n_anchor = ((515, 260), "X4") if nichos == "lejos" else ((265, 0), "S1")
+        add("R2", 340, 115, "powerSource"); add("R1", 255, 85); add("S1", 345, 0); add("N", *n_pos, "niche")
         add("X1", 470, -190); add("X2", 500, -75, "powerNode"); add("X3", 500, 50); add("X4", 495, 175)
         link(("c1", "c2"), ("c2", "R1"), ("R1", "R2"), ("R2", "B2"), ("B2", "B1"), ("B1", "L2"), ("L2", "L1"), ("L1", "c2"),
-             ("B1", "S1"), ("S1", "N"), ("S1", "L2"), ("L2", "X1"), ("X1", "X2"), ("X2", "X3"), ("X3", "X4"), ("B2", "X4"),
+             ("B1", "S1"), (n_anchor, "N"), ("S1", "L2"), ("L2", "X1"), ("X1", "X2"), ("X2", "X3"), ("X3", "X4"), ("B2", "X4"),
              ("B1", "X3"))
         links = ("L1", "R1", "X1", "X4")
     elif domain == 4:
@@ -169,11 +176,12 @@ def wedge_v2(domain):
         # apéndice F entre el anillo y la fila exterior.
         add("c2", 185, 0)
         add("A1", 265, -95); add("A2", 265, 95); add("L", 345, -125); add("R", 345, 125)
-        add("A3", 425, -120); add("A4", 420, 115); add("A5", 430, 0); add("H", 345, 0); add("N", 265, 0, "niche")
+        n_pos, n_anchor = ((510, 270), "X3") if nichos == "lejos" else ((265, 0), "H")
+        add("A3", 425, -120); add("A4", 420, 115); add("A5", 430, 0); add("H", 345, 0); add("N", *n_pos, "niche")
         add("F", 400, -200, "powerSource")
         add("X1", 490, -185); add("X2", 505, 0, "powerNode"); add("X3", 490, 185)
         link(("c1", "c2"), ("c2", "A1"), ("c2", "A2"), ("A1", "L"), ("L", "A3"), ("A3", "A5"), ("A5", "A4"), ("A4", "R"),
-             ("R", "A2"), ("H", "A1"), ("H", "A2"), ("H", "L"), ("H", "R"), ("H", "A5"), ("H", "N"), ("A3", "F"), ("F", "X1"),
+             ("R", "A2"), ("H", "A1"), ("H", "A2"), ("H", "L"), ("H", "R"), ("H", "A5"), (n_anchor, "N"), ("A3", "F"), ("F", "X1"),
              ("X1", "X2"), ("X2", "X3"), ("A4", "X3"))
         links = ("A1", "A2", "X1", "X3")
     else:
@@ -182,16 +190,17 @@ def wedge_v2(domain):
         add("c2", 190, 0); add("c3", 275, 0); add("c4", 360, 0); add("c5", 445, 0)
         add("L1", 275, -105); add("L2", 360, -170); add("B1", 445, -125)
         add("R1", 275, 105); add("R2", 360, 170, "powerSource"); add("B2", 445, 125)
-        add("N", 355, -85, "niche"); add("Q", 355, 85, "powerNode")
+        n_pos, n_anchor = ((520, 125), "B2") if nichos == "lejos" else ((355, -85), "c4")
+        add("N", *n_pos, "niche"); add("Q", 355, 85, "powerNode")
         add("X1", 495, -215); add("X3", 495, 215)
         link(("c1", "c2"), ("c2", "c3"), ("c3", "c4"), ("c4", "c5"), ("c3", "L1"), ("L1", "L2"), ("L2", "B1"), ("B1", "c5"),
-             ("c3", "R1"), ("R1", "R2"), ("R2", "B2"), ("B2", "c5"), ("c4", "N"), ("c4", "Q"), ("Q", "R1"), ("B1", "X1"),
+             ("c3", "R1"), ("R1", "R2"), ("R2", "B2"), ("B2", "c5"), (n_anchor, "N"), ("c4", "Q"), ("Q", "R1"), ("B1", "X1"),
              ("B2", "X3"))
         links = ("L1", "R1", "X1", "X3")
     return tiles, edges, dict(zip(("inner_left", "inner_right", "outer_left", "outer_right"), links))
 
 
-def build(variant=1):
+def build(variant=1, nichos="centro"):
     tiles = [{"id": 0, "type": "altar"}]
     positions = {"0": [CX, CY]}
     edges = []
@@ -199,7 +208,7 @@ def build(variant=1):
     ids = {}
     next_id = 1
     for d in range(DOMAIN_COUNT):
-        local, local_edges, link = (wedge if variant == 1 else wedge_v2)(d)
+        local, local_edges, link = wedge(d) if variant == 1 else wedge_v2(d, nichos)
         for name, (r, v, kind) in local.items():
             ids[(d, name)] = next_id
             tile = {"id": next_id, "type": kind, "domain": d}
@@ -381,8 +390,10 @@ def main():
     ap.add_argument("--preview", default=None)
     ap.add_argument("--variante", type=int, choices=(1, 2), default=2,
                     help="1: seis cuñas iguales (tablero_82.json); 2: seis cuñas distintas con más conexiones")
+    ap.add_argument("--nichos", choices=("centro", "lejos"), default="centro",
+                    help="solo variante 2: Nicho por la parte central (3-7 pasos del Altar) o en el extremo exterior (7-8 pasos)")
     args = ap.parse_args()
-    board = build(args.variante)
+    board = build(args.variante, args.nichos)
     errs, warns = check(board)
     for w in warns:
         print("AVISO:", w)
