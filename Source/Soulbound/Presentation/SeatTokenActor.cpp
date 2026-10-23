@@ -290,9 +290,24 @@ void ASeatTokenActor::Tick(float DeltaSeconds)
 	Pivot->SetRelativeLocation(FVector(0.f, 0.f, CurrentLift));
 	CurrentScale = FMath::FInterpTo(CurrentScale, bActive ? ActiveScale : 1.f, DeltaSeconds, 8.f);
 	Pivot->SetRelativeScale3D(FVector(CurrentScale));
-	// La ficha activa gira, salvo mientras recorre su camino: la elevación y el aro se mantienen (decisión del autor del 22/10/2026).
-	if (bActive && !IsWalking())
+	if (IsWalking())
 	{
+		// R-VIS-6 (decisión del autor del 23/10/2026): mientras recorre su camino, la carta mira hacia donde va. Su frente es la
+		// normal de la cara con el emblema, el -y local de SM_ficha_prueba (como el de las estructuras del kit): para mirar a una
+		// dirección, el giro es su ángulo más 90°. Las formas de respaldo no tienen frente y no se orientan.
+		const FVector2D Heading(WalkPoints[WalkIndex] - GetActorLocation());
+		if (bCard && !Heading.IsNearlyZero(0.01))
+		{
+			const float TargetYaw = FMath::RadiansToDegrees(FMath::Atan2(Heading.Y, Heading.X)) + 90.f;
+			FRotator Rotation = Pivot->GetRelativeRotation();
+			Rotation.Yaw = FMath::FixedTurn(Rotation.Yaw, TargetYaw, TurnSpeedDegreesPerSecond * DeltaSeconds);
+			Pivot->SetRelativeRotation(Rotation);
+		}
+	}
+	else if (bActive)
+	{
+		// La ficha activa gira despacio, desde la orientación con la que llegó. Mientras recorre su camino no gira (decisión del
+		// autor del 22/10/2026): la elevación y el aro se mantienen.
 		Pivot->AddRelativeRotation(FRotator(0.f, SpinDegreesPerSecond * DeltaSeconds, 0.f));
 	}
 }

@@ -35,6 +35,13 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 
+	/**
+	 * Velocidad con la que la carta se orienta hacia donde va mientras recorre su camino (R-VIS-6), en grados por segundo. Corta,
+	 * para que no dé un latigazo al cambiar de tramo. Valor inicial 540. Las formas de respaldo (esfera y cono) no tienen frente.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Ficha")
+	float TurnSpeedDegreesPerSecond = 540.f;
+
 	/** Asiento al que representa. */
 	void SetSeat(int32 InSeat) { Seat = InSeat; }
 	int32 GetSeat() const { return Seat; }
