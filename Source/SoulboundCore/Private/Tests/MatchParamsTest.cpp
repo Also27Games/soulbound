@@ -171,7 +171,7 @@ bool FMatchParamsLoadTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Prueba del Warden: normal"), static_cast<int32>(FromFile.WardenTrialDifficulty), static_cast<int32>(ESkillDifficulty::Normal));
 	TestEqual(TEXT("Rendimiento del Warden en su duelo: 0,75"), FromFile.WardenDuelPerformance, 0.75);
 	// S-020 (CA-MOV-3): la salvaguarda del movimiento, con su valor inicial (2,5 s desde la corrección del autor del 21/10/2026).
-	TestEqual(TEXT("Salvaguarda del movimiento: 6 s"), FromFile.MoveStepSeconds, 6.0);
+	TestEqual(TEXT("Salvaguarda del movimiento: 8 s"), FromFile.MoveStepSeconds, 8.0);
 
 	// Los valores salen del texto, no del código: con otros valores en el JSON, otros parámetros.
 	const FMatchParamsLoadResult Other = Soulbound::Rules::LoadMatchParamsFromJsonString(

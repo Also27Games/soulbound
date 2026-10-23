@@ -63,9 +63,9 @@ struct SOULBOUNDCORE_API FMatchParams
 	/**
 	 * Salvaguarda del movimiento (S-020): segundos que espera la máquina el avance de cada casilla del camino antes de entrar en
 	 * ella por su cuenta, para que una presentación lenta o ausente no pare la partida. Mayor que cero. En datos
-	 * (moveStepSeconds); valor inicial 6 (decisión del autor del 23/10/2026; 2,5 el 21/10 y 0,6 en S-020). Es para una presentación
+	 * (moveStepSeconds); valor inicial 8 (decisión del autor del 23/10/2026; 6 antes ese día, 2,5 el 21/10 y 0,6 en S-020). Es para una presentación
 	 * ausente o colgada, no para ganarle a la que funciona: ha de superar el tramo más largo de la animación de la ficha, el
-	 * rodeo del trono más la salida del Altar, casi 6 s a su velocidad (ABoardViewActor::TokenSpeed). Con menos, la salvaguarda
+	 * rodeo del trono más la salida del Altar, unos 6 s a su velocidad, con margen (ABoardViewActor::TokenSpeed). Con menos, la salvaguarda
 	 * se adelanta y la ficha da saltos.
 	 */
 	UPROPERTY()
