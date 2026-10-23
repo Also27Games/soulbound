@@ -1449,8 +1449,34 @@ void ABoardViewActor::RefreshChronicle(const FMatchState& State)
 		case Soulbound::Presentation::EEventSource::Debug: Color = DebugLineColor; break;
 		case Soulbound::Presentation::EEventSource::Seat: break;
 		}
-		// S-016: las evaluaciones del Warden que no hacen nada no tienen línea (una cada 15 s taparía la crónica).
-		const FString Text = Soulbound::Presentation::DescribeEvent(Event, State.Board, &State.WardenEvents);
+		// S-016: las evaluaciones del Warden que no hacen nada no tienen línea (una cada 15 s taparía la crónica). S-017: la decisión
+		// con efecto sí, con sus disparadores entre paréntesis (los WardenTriggered que la siguen, que no tienen línea propia).
+		FString Text;
+		if (Event.Type == EMatchEventType::WardenDecided)
+		{
+			TArray<FMatchEvent> Triggers;
+			bool bViaOracle = false;
+			for (int32 Next = Index + 1; Next < State.EventLog.Num(); ++Next)
+			{
+				const FMatchEvent& After = State.EventLog[Next];
+				if (After.Type == EMatchEventType::WardenTriggered)
+				{
+					Triggers.Add(After);
+					continue;
+				}
+				// Lo que aplica la decisión, en el mismo instante: el corte, el fin del turno y, si va por el Oráculo, su consulta.
+				if (After.ClockSeconds != Event.ClockSeconds || After.Type == EMatchEventType::WardenEventStarted || After.Type == EMatchEventType::WardenEvaluated)
+				{
+					break;
+				}
+				bViaOracle |= After.Type == EMatchEventType::OracleOpened && After.Value == static_cast<int32>(EOracleOrigin::Strike);
+			}
+			Text = Soulbound::Presentation::DescribeWardenDecision(Event, Triggers, bViaOracle, &State.WardenEvents);
+		}
+		else
+		{
+			Text = Soulbound::Presentation::DescribeEvent(Event, State.Board, &State.WardenEvents);
+		}
 		if (!Text.IsEmpty())
 		{
 			Lines.Add({FString::Printf(TEXT("[%s] %s"), *Stamp(Event.ClockSeconds), *Text), Color});

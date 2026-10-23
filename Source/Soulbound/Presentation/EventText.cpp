@@ -1,5 +1,7 @@
 #include "EventText.h"
 
+#include "Warden/WardenBrain.h"
+
 namespace Soulbound::Presentation
 {
 	FString TileShortName(const FBoardState& Board, int32 TileId)
@@ -124,9 +126,10 @@ namespace Soulbound::Presentation
 		}
 		case EMatchEventType::OracleEmpty:
 			return FString::Printf(TEXT("el orbe no muestra NADA al asiento %d: no hay sentencia que valga"), Event.Seat);
+		// Decisión del autor del 23/10/2026: la crónica del juego no lista los disparadores, uno por disparador en cada evaluación la
+		// inundaría (como TileEntered desde S-020); van entre paréntesis en la decisión del Warden (DescribeWardenDecision).
 		case EMatchEventType::WardenTriggered:
-			return Event.Seat == INDEX_NONE ? FString::Printf(TEXT("disparador: %s"), *TriggerName(Event.Value))
-				: FString::Printf(TEXT("disparador: %s: asiento %d"), *TriggerName(Event.Value), Event.Seat);
+			return FString();
 		case EMatchEventType::WardenEvaluated:
 		case EMatchEventType::WardenDecided:
 			return FString();
@@ -328,6 +331,23 @@ namespace Soulbound::Presentation
 		case ETurnPhase::MoveAndResolve: return TEXT("pierde el salto o la acción que le quedaban; la ficha se queda donde llegó");
 		default: return TEXT("pierde lo que le quedaba del turno");
 		}
+	}
+
+	FString DescribeWardenDecision(const FMatchEvent& Decided, const TArray<FMatchEvent>& Triggers, bool bViaOracle, const FWardenEventTable* WardenEvents)
+	{
+		const EWardenDecisionKind Kind = static_cast<EWardenDecisionKind>(Decided.Detail);
+		if (Decided.Type != EMatchEventType::WardenDecided || (Kind != EWardenDecisionKind::Strike && Kind != EWardenDecisionKind::Scene))
+		{
+			return FString();
+		}
+		const FWardenEventDef* Def = WardenEvents && WardenEvents->Events.IsValidIndex(Decided.Value) ? &WardenEvents->Events[Decided.Value] : nullptr;
+		const FString Name = Def ? Def->DisplayName() : FString::Printf(TEXT("evento %d"), Decided.Value);
+		const FString Causes = FString::JoinBy(Triggers, TEXT("; "), [](const FMatchEvent& Trigger)
+		{
+			return Trigger.Seat == INDEX_NONE ? TriggerName(Trigger.Value) : FString::Printf(TEXT("%s: asiento %d"), *TriggerName(Trigger.Value), Trigger.Seat);
+		});
+		return FString::Printf(TEXT("el Warden decide: %s \"%s\"%s%s"), Kind == EWardenDecisionKind::Strike ? TEXT("golpe") : TEXT("escena"), *Name,
+			bViaOracle ? TEXT(" por el Oráculo") : TEXT(""), Causes.IsEmpty() ? TEXT("") : *FString::Printf(TEXT(" (%s)"), *Causes));
 	}
 
 	FString OracleOriginText(int32 Origin)
