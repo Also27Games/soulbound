@@ -35,6 +35,13 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 
+	/**
+	 * Velocidad con la que la carta se orienta hacia donde va mientras recorre su camino (R-VIS-6), en grados por segundo. Corta,
+	 * para que no dé un latigazo al cambiar de tramo. Valor inicial 540. Las formas de respaldo (esfera y cono) no tienen frente.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Ficha")
+	float TurnSpeedDegreesPerSecond = 540.f;
+
 	/** Asiento al que representa. */
 	void SetSeat(int32 InSeat) { Seat = InSeat; }
 	int32 GetSeat() const { return Seat; }
@@ -73,7 +80,7 @@ public:
 	/**
 	 * Recorre el camino Tiles (S-020, R-TAB-26): desde donde esté, en línea recta hasta Points[0], después hasta Points[1]... (las
 	 * bases sobre las losas, por donde van los senderos), a velocidad constante Speed (cm por segundo): cada tramo dura su
-	 * longitud entre Speed, así el tramo largo del Altar no sale disparado. Al llegar a cada una avisa por OnTileEntered.
+	 * longitud entre Speed, así el tramo largo del Altar no sale disparado. Al llegar a cada una avisa por OnTileEntered; un punto con casilla INDEX_NONE es solo de paso (el círculo del Altar, R-VIS-6): no avisa.
 	 * Sustituye al recorrido o al deslizamiento que hubiera. Es solo presentación: quien decide qué pasa es el motor.
 	 */
 	void WalkPath(const TArray<int32>& Tiles, const TArray<FVector>& Points, float Speed);
@@ -81,7 +88,7 @@ public:
 	/** Si está recorriendo un camino. */
 	bool IsWalking() const { return WalkIndex < WalkTiles.Num(); }
 
-	/** Casillas del recorrido a las que aún no ha llegado, en orden; vacío si no recorre nada. */
+	/** Casillas del recorrido a las que aún no ha llegado, en orden y sin los puntos de paso; vacío si no recorre nada. */
 	TArray<int32> RemainingWalk() const;
 
 	/** Deja de recorrer el camino donde esté; la vista la coloca después donde diga el estado. */

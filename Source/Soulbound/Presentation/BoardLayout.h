@@ -47,6 +47,21 @@ struct SOULBOUND_API FBoardLayoutParams
 	UPROPERTY(EditAnywhere, Category = "Mesa")
 	float TableRadius = 74.f;
 
+	/**
+	 * Radio de mesa para el que está hecho el kit (R-VIS-1): el suelo de cada cuña (`peana` y `suelo_liso`) se escala por
+	 * TableRadius / KitTableRadius. Con un valor no positivo no se escala. Valor inicial 74.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Mesa")
+	float KitTableRadius = 74.f;
+
+	/**
+	 * Cota de la cara del suelo del kit sobre la mesa, en cm (R-VIS-3): lo que se coloca sobre el suelo (losas, senderos,
+	 * estructuras) sube esa altura; el Altar no, su base está en la mesa. Valor inicial 0: sin kit, las formas de respaldo
+	 * van a cota 0. Con el kit, 3,4: la cara de la losa (0,55 más) queda por encima del relieve máximo de la tierra (3,9).
+	 */
+	UPROPERTY(EditAnywhere, Category = "Mesa")
+	float KitFloorHeight = 0.f;
+
 	/** Apotema del Altar, de su centro al borde de una cara (sus vértices están a 17,3). Valor inicial 15. */
 	UPROPERTY(EditAnywhere, Category = "Mesa")
 	float AltarApothem = 15.f;
@@ -62,6 +77,13 @@ struct SOULBOUND_API FBoardLayoutParams
 	/** Media losa: del centro de la losa a su borde. Valor inicial 3,15 (la losa mide 6,3). */
 	UPROPERTY(EditAnywhere, Category = "Mesa")
 	float SlabHalfSize = 3.15f;
+
+	/**
+	 * Cota de la grada alta del Altar del kit, donde se posan las fichas, en cm (R-VIS-3): 4,0 la grada baja y 5,1 la alta.
+	 * La cara superior del Altar es AltarTop * KitScale, nunca las dimensiones de la malla (la aguja llega a 25,6). Valor inicial 5,1.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Mesa")
+	float AltarTop = 5.1f;
 
 	/** Altura de la cara superior de la losa, donde se posa la ficha (R-VIS-3). Valor inicial 0,55. */
 	UPROPERTY(EditAnywhere, Category = "Mesa")
@@ -110,6 +132,9 @@ struct SOULBOUND_API FBoardLayoutParams
 /** Colocación de una casilla (S-019): su losa y, si es especial, su estructura. En el espacio de la mesa, con el Altar en el origen. */
 struct SOULBOUND_API FTileLayout
 {
+	/** Cota de la cara superior, donde se posa la ficha (R-VIS-3): KitFloorHeight + SlabTop en una losa, AltarTop * KitScale en el Altar. */
+	float Top = 0.f;
+
 	/** Centro de la losa, sobre la mesa (z = 0, la base de la pieza). */
 	FVector Location = FVector::ZeroVector;
 
@@ -170,6 +195,15 @@ struct SOULBOUND_API FBoardLayout
 
 	/** Centímetros de la mesa por unidad de posición del editor (R-VIS-1). */
 	float Scale = 0.f;
+
+	/**
+	 * Escala del kit a la mesa (R-VIS-1): TableRadius / KitTableRadius, 1 si éste no es positivo. El suelo de las cuñas
+	 * (`peana` y `suelo_liso`) la lleva en X e Y y el Altar en X, Y y Z; las losas y el resto, no.
+	 */
+	float KitScale = 1.f;
+
+	/** Apotema del Altar ya escalada (AltarApothem * KitScale): el borde interior de las casillas y el Altar de respaldo (R-VIS-1). */
+	float AltarApothem = 0.f;
 
 	/** Falso si el trazado no es radial (R-VIS-2): la vista lo avisa y las cuñas van de 60 en 60. */
 	bool bRadial = true;

@@ -223,7 +223,7 @@ namespace
 		{
 			return;
 		}
-		auto Half = [&Board, &Params](int32 TileId) { return Board.IsAltar(TileId) ? Params.AltarApothem : Params.SlabHalfSize; };
+		auto Half = [&Board, &Params, &Layout](int32 TileId) { return Board.IsAltar(TileId) ? Layout.AltarApothem : Params.SlabHalfSize; };
 		for (const FTileState& Tile : Board.Tiles)
 		{
 			for (const int32 Other : Tile.Neighbours)
@@ -242,7 +242,7 @@ namespace
 					FPathSegmentLayout& Segment = Layout.PathSegments.AddDefaulted_GetRef();
 					Segment.TileA = Tile.TileId;
 					Segment.TileB = Other;
-					Segment.Location = FVector(A + Along * (Half(Tile.TileId) + (Index + 0.5f) * Gap / Count), 0.f);
+					Segment.Location = FVector(A + Along * (Half(Tile.TileId) + (Index + 0.5f) * Gap / Count), Params.KitFloorHeight);
 					Segment.Yaw = AngleOf(Along);
 				}
 			}
@@ -301,14 +301,20 @@ FBoardLayout Soulbound::Presentation::ComputeBoardLayout(const FBoardState& Boar
 	{
 		Farthest = FMath::Max(Farthest, static_cast<float>(Offset.Size()));
 	}
-	const float Inner = Params.AltarApothem + Params.AltarGap;
+	// El Altar crece con el kit (R-VIS-1): su apotema escalado es el borde interior de las casillas.
+	Layout.KitScale = Params.KitTableRadius > 0.f ? Params.TableRadius / Params.KitTableRadius : 1.f;
+	Layout.AltarApothem = Params.AltarApothem * Layout.KitScale;
+	const float Inner = Layout.AltarApothem + Params.AltarGap;
 	Layout.Scale = Farthest > 0.f ? FMath::Max(0.f, (Params.TableRadius - Inner - Params.SlabHalfSize) / Farthest) : 0.f;
 	Layout.Tiles.SetNum(Board.Tiles.Num());
 	for (const FTileState& Tile : Board.Tiles)
 	{
 		const FVector2D Offset = Offsets[Tile.TileId];
 		const float Distance = Offset.Size();
-		Layout.Tiles[Tile.TileId].Location = Distance > UE_KINDA_SMALL_NUMBER ? FVector(Offset / Distance * (Inner + Distance * Layout.Scale), 0.f) : FVector::ZeroVector;
+		// R-VIS-3: las losas se posan sobre el suelo del kit; el Altar, con su base en la mesa, no sube.
+		const float Floor = Board.IsAltar(Tile.TileId) ? 0.f : Params.KitFloorHeight;
+		Layout.Tiles[Tile.TileId].Top = Board.IsAltar(Tile.TileId) ? Params.AltarTop * Layout.KitScale : Floor + Params.SlabTop;
+		Layout.Tiles[Tile.TileId].Location = Distance > UE_KINDA_SMALL_NUMBER ? FVector(Offset / Distance * (Inner + Distance * Layout.Scale), Floor) : FVector(0.f, 0.f, Floor);
 	}
 
 	PlaceWedges(Board, Layout);
@@ -339,7 +345,7 @@ FBoardLayout Soulbound::Presentation::ComputeBoardLayout(const FBoardState& Boar
 		Placed.Structure = StructureFor(Tile);
 		if (Placed.Structure != EBoardStructure::None)
 		{
-			Placed.StructureLocation = FVector(Location + Placed.OutwardDirection * (Params.SlabHalfSize + Params.StructureDistance(Placed.Structure)), 0.f);
+			Placed.StructureLocation = FVector(Location + Placed.OutwardDirection * (Params.SlabHalfSize + Params.StructureDistance(Placed.Structure)), Params.KitFloorHeight);
 			// El frente de la estructura (-y local) mira a la losa: su +y apunta hacia fuera.
 			Placed.StructureYaw = FMath::UnwindDegrees(OutwardYaw - 90.f);
 		}
