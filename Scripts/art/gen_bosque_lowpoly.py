@@ -474,8 +474,9 @@ class Terreno:
 def contorno_cuna(rng, paso=0.025, mordiscos=True, lados_extra=0.0):
     """Borde del Dominio en sentido antihorario visto desde arriba. Los lados rectos y el borde del Altar
     quedan limpios, porque encajan con los vecinos; el arco exterior puede llevar mordiscos de borde roto.
-    lados_extra: cuánto se sacan los dos lados rectos hacia fuera (el suelo liso del kit, el canto de la peana, para
-    que dos cuñas vecinas se toquen sin que asome la peana negra entre ellas; 22/10/2026)."""
+    lados_extra: cuánto se sacan los dos lados rectos hacia fuera. El suelo liso del kit lo lleva a 0 (26/10/2026): con el
+    canto de la peana las cuñas vecinas se pisaban 1,3 cm y, teñidas de colores distintos, la franja salía a dientes; en la
+    línea exacta de la junta se tocan sin pisarse y la junta es la frontera entre Dominios."""
     c, s = math.cos(MEDIO_ANGULO), math.sin(MEDIO_ANGULO)
     izq, der = Vector((-c, s, 0)) * lados_extra, Vector((c, s, 0)) * lados_extra
     il = Vector((-R_INTERIOR * s / c, -R_INTERIOR, 0)) + izq
@@ -2261,7 +2262,7 @@ def main():
     # Suelo liso del kit: la cuña sin senderos pintados, para que la vista coloque losas y senderos desde
     # los datos del tablero. Solo se exporta; el render de conjunto usa el suelo con senderos.
     piezas["suelo_liso"] = malla("suelo_liso", pieza_suelo(rng, Terreno(rng, [], [], amplitud=0.001, n_montes=0), [],
-                                                          manchas=False, lados_extra=PEANA_CANTO, color_base=TIERRA_NEUTRA))
+                                                          manchas=False, lados_extra=0.0, color_base=TIERRA_NEUTRA))
 
     # Ficha de prueba sobre una losa del principal. No es escenografía: fuera del recuento del Dominio.
     ficha_me = malla("ficha_prueba", pieza_ficha(rng))
