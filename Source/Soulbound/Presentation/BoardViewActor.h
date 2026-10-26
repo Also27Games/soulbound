@@ -468,6 +468,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	float ForgottenDim = 0.3f;
 
+	/**
+	 * Cuánto se tiñe el suelo de cada cuña (`peana` y `suelo_liso`) con el color de su Dominio: 0 lo deja blanco, 1 lo pone del
+	 * color entero (WedgeFloorTint). Un Dominio Olvidado además se apaga por ForgottenDim. Valor inicial 0,35 (S-019, R-VIS-2, R-VIS-5).
+	 */
+	UPROPERTY(EditAnywhere, Config, Category = "Vista|Colores", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float FloorTintStrength = 0.35f;
+
 	/** Cuánto se apaga la cruz de una Fuente agotada (multiplica su color). Valor inicial 0,15 (S-008). */
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	float SourceDepletedDim = 0.15f;
@@ -680,6 +687,13 @@ private:
 	/** Cuñas y Altar del kit. */
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> KitFixedPieces;
+
+	/** Suelos de cuña (`peana` y `suelo_liso`) que se tiñen por Dominio, y el Dominio de cada uno (mismo índice). */
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> WedgeFloors;
+
+	UPROPERTY()
+	TArray<int32> WedgeFloorDomains;
 
 	/** Estructura junto a cada casilla (nula si no lleva o falta la pieza). */
 	UPROPERTY()
