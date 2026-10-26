@@ -4,6 +4,38 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo de la story; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera.
 
+## S-017 (B). Warden II: votaciones (26/10/2026, rama `main`, story S-017)
+
+- **Qué se pidió**: la segunda parte de S-017. Pide las votaciones (R-VOT-1 a 6) y los tres eventos que faltaban en los sacos: Juicio, Favor y El chivo (de 35 a 38). También Favor ×3 en la tabla de Partida estancada, la regla de voto del dummy y los criterios CA-VOT-1 a 3. Quedaban además CA-ORA-3 y CA-WAR-7 con votos. Y dos decisiones del autor del 26/10: el orbe del Oráculo siempre sobre la ficha del consultante, sin el cálculo del Nodo más cercano; y votar con un clic en la ficha del votado, con la crónica de quién votó a quién al resolverse.
+- **Qué se decidió**: el autor aprobó las doce recomendaciones del plan:
+  - los `VoteCast` se registran al resolverse, en orden de asiento, y después `VoteResolved`; mientras se vota, la pantalla dice quién ha votado, no a quién;
+  - quien no tiene a quién votar no vota ni es insolente; sin nadie votable, burla;
+  - la insolencia de los que no votaron llega después del efecto, en orden de asiento;
+  - castigo es todo lo que no es regalo; Favor usa el plazo corto de un regalo;
+  - plazo fijo de 8 s (`voteSeconds`); la votación no corta el turno; el empate lo deshace el sorteo del evento;
+  - las fichas reciben el clic solo durante la votación; el informe cuenta votaciones, desempates y votos al azar.
+
+  **Decisión no solicitada**, aprobada por el autor y marcada en el PR: en una votación no dirige nadie y se puede votar a cualquiera que admita el efecto. Así, si al más votado lo mandan a casa o al Vacío, nadie cobra sus marcas. Robo decretado y Duelo forzado no pueden ser votaciones, porque necesitan a alguien que actúe además del objetivo (`AdmitsMostVoted`).
+- **Cómo funciona**: un evento con `vote` y la dirección nueva `MostVoted`. Al llegar a su aplicación, `BeginApplication` abre `FVoteState` y el evento espera. Los votables son los que admite el efecto sin director. `SubmitVote` valida plazo, voto repetido y votado; con todos votados, o al agotarse el plazo en `AdvanceWardenEvent`, `ResolveVote` rellena al azar los votos que faltan, cuenta, desempata y aplica el efecto. El cargador rechaza la votación mal formada (`InvalidVote`). En el juego, `SubmitHumanVote` y los dummies del anfitrión votan a mitad del plazo como mucho. La ficha lleva una esfera invisible que solo choca durante una votación, si su asiento se puede votar. El orbe sigue a la ficha del consultante.
+- **Dudas y resolución**: las doce del plan (arriba). Al implementar, decisiones mías anotadas en el PR:
+  - el evento de votación sigue sorteando quien dirige (lo necesita el registro), pero el efecto se aplica sin director ni quien señale;
+  - un dummy del anfitrión vota al cabo de su retardo de respuesta o de la mitad del plazo, lo que llegue antes;
+  - la línea del evento en el HUD dice "VOTACIÓN" sin "dirige el asiento".
+- **Tests**: 10 nuevos (`VoteTest`, siete; `VotacionMalFormadaSeRechaza`, `DummiesVotanEnPlazo` y `Game.Presentation.Cronica.Votacion`) y 4 adaptados (`OraculoDesdeDatos`, `TablaDeDisparadores`, `TreintaYOchoEventosEnLosSacos`, que antes contaba 35, y `RegistroDelWardenDeterminista`). Se vieron en rojo con las firmas vacías (14 fallos, commit aparte). Total: 316 en verde.
+- **Informe** (tablero de 35, 50 partidas):
+  - votaciones por partida en los actos II y III: 2,9 y 1,6 (en el I no hay);
+  - empates que deshace el Warden: 25 de 147 en el II y 10 de 78 en el III;
+  - votos al azar por no votar: 0, porque los dummies siempre votan;
+  - intervenciones con efecto: 0,66, 34,5 y 27; turnos cortados: 8,5, 7,6 y 11,6 %, como en el PR A.
+- **Pendiente**:
+  - los manuales en PIE, para el autor: no se probó en el juego porque el editor no estaba abierto (votar con el clic, el orbe sobre la ficha, la línea del HUD);
+  - los textos de las votaciones son provisionales, de la story "La voz del Warden".
+- **Proceso**:
+  - tiempo: una sesión larga;
+  - preguntas que pararon al agente: una parada (el plan, con doce dudas);
+  - correcciones tras fusionar: por anotar;
+  - build y tests: los tests en rojo no compilaron a la primera (`TestEqual` sobre un `TSet`); tras implementar, build y los 316 tests en verde a la primera.
+
 ## S-017 (A). Warden II: Oráculo, disparadores y fin de carrera que corta (23/10/2026, rama `main`, story S-017)
 
 - **Qué se pidió**: la primera parte de la story S-017; el autor la partió en dos PR al aprobar el plan, y las votaciones son el PR B. Este pone el Oráculo como entrega de decretos (R-ORA-1 a 5): por un Nodo dentro del turno, por la Consulta forzada y por un golpe. Lleva su plazo, su sesgo y el rechazo de Tifón. También los cinco disparadores contextuales con sus tablas en datos (R-DIS-1 a 3), el fin de la carrera que corta el turno en curso (R-PRO-0, R-PRO-3) y la Consulta forzada entre los castigos leves (R-INS-2).

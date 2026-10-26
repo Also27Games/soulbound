@@ -51,9 +51,10 @@ namespace
 		};
 	}
 
-	/** Códigos de los datos de cada dirección, en el orden de EEffectTarget; None no tiene. */
+	/** Códigos de los datos de cada dirección, en el orden de EEffectTarget; None no tiene (vacío). S-017: MostVoted. */
 	const TCHAR* const TargetCodes[] = {
 		TEXT("ActivePlayer"), TEXT("ChosenRival"), TEXT("TwoChosenRivals"), TEXT("Leader"), TEXT("NextPlayer"), TEXT("Everyone"), TEXT("RandomPlayer"), TEXT("Echoes"),
+		TEXT(""), TEXT("MostVoted"),
 	};
 
 	/** Códigos de los datos de cada variante, en el orden de EEffectVariant; None no tiene. */
@@ -118,13 +119,27 @@ namespace Soulbound::Rules
 	{
 		for (int32 Index = 0; Index < UE_ARRAY_COUNT(TargetCodes); ++Index)
 		{
-			if (Code.Equals(TargetCodes[Index], ESearchCase::CaseSensitive))
+			if (!Code.IsEmpty() && Code.Equals(TargetCodes[Index], ESearchCase::CaseSensitive))
 			{
 				OutTarget = static_cast<EEffectTarget>(Index);
 				return true;
 			}
 		}
 		return false;
+	}
+
+	bool AdmitsMostVoted(EEffect Effect)
+	{
+		// En una votación no dirige nadie: fuera los globales, el Alto (solo corta) y los que necesitan a alguien que actúe.
+		if (IsGlobalEffect(Effect) || Effect == EEffect::Halt || Effect == EEffect::DecreedTheft || Effect == EEffect::ForcedDuel)
+		{
+			return false;
+		}
+		return EffectDefOf(Effect).AllowedTargets.ContainsByPredicate([](EEffectTarget Target)
+		{
+			return Target == EEffectTarget::ActivePlayer || Target == EEffectTarget::ChosenRival || Target == EEffectTarget::Leader
+				|| Target == EEffectTarget::NextPlayer || Target == EEffectTarget::RandomPlayer;
+		});
 	}
 
 	bool ParseEffectVariantCode(const FString& Code, EEffectVariant& OutVariant)

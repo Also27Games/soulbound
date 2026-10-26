@@ -90,6 +90,16 @@ namespace
 		{
 			return false;
 		}
+
+		/** S-017: también gasta tres valores y vota al último de sus opciones. */
+		virtual int32 ChooseVote(const FMatchState& State, int32 Seat, const TArray<int32>& Options, FRandomStream& Rng) override
+		{
+			for (int32 Draw = 0; Draw < 3; ++Draw)
+			{
+				Rng.GetFraction();
+			}
+			return Options.IsEmpty() ? INDEX_NONE : Options.Last();
+		}
 	};
 
 	/** Una tirada del registro y con cuántos dados se hizo (S-009: dos si el asiento lo eligió con Celeridad). */
@@ -615,6 +625,7 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 				int32 Sentences = 0;
 				int32 Ignored = 0;
 				int32 Triggered = 0;
+				int32 Votes = 0;
 				for (int32 Act = 0; Act < Soulbound::Warden::ActCount; ++Act)
 				{
 					const FWardenActReport& Report = Result.WardenActs[Act];
@@ -627,6 +638,11 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 					// S-017: sentencias, consultas con insolencia y disparadores activos, por acto.
 					WardenActs[Act].Sentences += Report.Sentences;
 					WardenActs[Act].IgnoredConsults += Report.IgnoredConsults;
+					// S-017 (PR B): votaciones, desempates y votos al azar.
+					WardenActs[Act].Votes += Report.Votes;
+					WardenActs[Act].VoteTies += Report.VoteTies;
+					WardenActs[Act].RandomVotes += Report.RandomVotes;
+					Votes += Report.Votes;
 					// S-017 (decisión del autor del 23/10/2026): las sentencias, por el origen de su consulta, aparte de las intervenciones.
 					int32 ByOrigin = 0;
 					if (TestEqual(TEXT("Una cuenta de sentencias por origen"), Report.SentencesByOrigin.Num(), OracleOriginCount))
@@ -659,6 +675,7 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 				TestEqual(TEXT("Las sentencias por acto son las del registro"), Sentences, CountEvents(Result.FinalState, EMatchEventType::OracleSentence));
 				TestEqual(TEXT("Las consultas con insolencia son las del registro"), Ignored, CountEvents(Result.FinalState, EMatchEventType::OracleIgnored));
 				TestEqual(TEXT("Los disparadores por acto son los del registro"), Triggered, CountEvents(Result.FinalState, EMatchEventType::WardenTriggered));
+				TestEqual(TEXT("Las votaciones por acto son las del registro"), Votes, CountEvents(Result.FinalState, EMatchEventType::VoteResolved));
 			}
 			RaceEndCuts += Result.RaceEndCuts;
 			TestEqual(TEXT("Los cortes del fin de carrera son los del registro"), Result.RaceEndCuts, Soulbound::Tests::EventsOfType(Result.FinalState, EMatchEventType::TurnInterrupted)
@@ -744,6 +761,8 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 				ActNames[Act], static_cast<double>(Report.Sentences) / Games, static_cast<double>(Report.SentencesByOrigin[0]) / Games,
 				static_cast<double>(Report.SentencesByOrigin[1]) / Games, static_cast<double>(Report.SentencesByOrigin[2]) / Games, Report.IgnoredConsults));
 			Lines.Add(FString::Printf(TEXT("    Disparadores, Acto %s: veces activos por partida: %s"), ActNames[Act], *Triggers));
+			Lines.Add(FString::Printf(TEXT("    Votaciones, Acto %s: %.2f por partida | desempates del Warden: %d | votos al azar por no votar: %d (con dummies, 0)"), ActNames[Act],
+				static_cast<double>(Report.Votes) / Games, Report.VoteTies, Report.RandomVotes));
 		}
 		Lines.Add(FString::Printf(TEXT("    turnos cortados por el fin de la carrera: %d en %d partidas"), RaceEndCuts, Games));
 		Lines.Add(FString::Printf(TEXT("    Furias del Warden por partida, de media: %.2f"), static_cast<double>(Furies) / Games));
@@ -1287,7 +1306,8 @@ bool FMatchSimulationWardenLogTest::RunTest(const FString& Parameters)
 			// CA-WAR-7 (S-017): también las sentencias del Oráculo y los disparadores, con su causante.
 			return Event.Type == EMatchEventType::WardenEvaluated || Event.Type == EMatchEventType::WardenDecided || Event.Type == EMatchEventType::WardenRemark
 				|| Event.Type == EMatchEventType::TurnInterrupted || Event.Type == EMatchEventType::WardenEventStarted || Event.Type == EMatchEventType::OracleOpened
-				|| Event.Type == EMatchEventType::OracleSentence || Event.Type == EMatchEventType::OracleEmpty || Event.Type == EMatchEventType::WardenTriggered;
+				|| Event.Type == EMatchEventType::OracleSentence || Event.Type == EMatchEventType::OracleEmpty || Event.Type == EMatchEventType::WardenTriggered
+				|| Event.Type == EMatchEventType::VoteStarted || Event.Type == EMatchEventType::VoteCast || Event.Type == EMatchEventType::VoteResolved;
 		});
 	};
 	auto SameEvents = [](const TArray<FMatchEvent>& X, const TArray<FMatchEvent>& Y)
@@ -1315,6 +1335,8 @@ bool FMatchSimulationWardenLogTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Y corta algún turno"), CountEvents(A.FinalState, EMatchEventType::TurnInterrupted) > 0);
 	TestTrue(TEXT("El Oráculo dicta sentencias"), CountEvents(A.FinalState, EMatchEventType::OracleSentence) > 0);
 	TestTrue(TEXT("Y hay disparadores activos"), CountEvents(A.FinalState, EMatchEventType::WardenTriggered) > 0);
+	// CA-WAR-7 (S-017, PR B): los votos quedan en el registro con su votado; la semilla 42 juega alguna votación.
+	TestTrue(TEXT("Y hay votaciones"), CountEvents(A.FinalState, EMatchEventType::VoteResolved) > 0);
 
 	FSimulationParams Other = Params;
 	Other.Seed = 43;
@@ -1402,4 +1424,37 @@ bool FMatchSimulationOracleTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationVoteTest,
+	"Soulbound.Core.Simulation.DummiesVotanEnPlazo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationVoteTest::RunTest(const FString& Parameters)
+{
+	// CA-VOT-3 (R-VOT-5; simulación): en 50 partidas con dummies de carrera y el Warden real (tablero de 35, semillas 1 a 50), los
+	// dummies votan siempre dentro del plazo con la regla del decisor: ningún voto al azar por no votar, y la insolencia acaba en 0.
+	// Y se vota: hay votaciones resueltas en las 50.
+	FSimulationParams Params;
+	if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), 1, Params))
+	{
+		return false;
+	}
+	int32 Resolved = 0;
+	for (int32 Seed = 1; Seed <= 50; ++Seed)
+	{
+		Params.Seed = Seed;
+		const FSimulationResult Result = FMatchSimulation(Params, FourRaceDummies()).Run();
+		const FMatchState& State = Result.FinalState;
+		Resolved += CountEvents(State, EMatchEventType::VoteResolved);
+		const int32 RandomVotes = Soulbound::Tests::EventsOfType(State, EMatchEventType::VoteCast).FilterByPredicate([](const FMatchEvent& Event) { return Event.Detail == 1; }).Num();
+		TestEqual(FString::Printf(TEXT("Semilla %d: ningún voto al azar"), Seed), RandomVotes, 0);
+		for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
+		{
+			TestEqual(FString::Printf(TEXT("Semilla %d: insolencia del asiento %d"), Seed, Seat), State.Seats[Seat].Insolence, 0);
+		}
+		TestFalse(FString::Printf(TEXT("Semilla %d: ninguna votación queda abierta"), Seed), State.Vote.IsOpen() && State.Vote.DeadlineSeconds < State.ClockSeconds);
+	}
+	TestTrue(FString::Printf(TEXT("En 50 partidas se vota (%d votaciones)"), Resolved), Resolved > 0);
+	AddInfo(FString::Printf(TEXT("50 partidas: %d votaciones resueltas"), Resolved));
+	return true;
+}
 #endif // WITH_DEV_AUTOMATION_TESTS

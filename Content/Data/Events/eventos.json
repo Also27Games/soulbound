@@ -200,6 +200,16 @@
      "options": [
        [{"effect": "ForcedDuel", "target": "RandomPlayer", "variant": "one"}]
      ]},
+    {"id": "juicio", "name": "Juicio", "text": "La mesa vota: el más votado queda Marcado",
+     "act": "II", "channel": "scene", "delivery": "direct", "vote": true,
+     "options": [
+       [{"effect": "Mark", "target": "MostVoted"}]
+     ]},
+    {"id": "favor", "name": "Favor", "text": "La mesa vota: el más votado recibe la runa que elija",
+     "act": "II", "channel": "scene", "delivery": "direct", "vote": true,
+     "options": [
+       [{"effect": "GiftRune", "target": "MostVoted"}]
+     ]},
 
     {"id": "el-perseguido", "name": "El perseguido", "text": "El líder queda Marcado",
      "act": "III", "channel": "scene", "delivery": "direct",
@@ -243,6 +253,11 @@
        [{"effect": "DecreedTheft", "target": "ChosenRival"}],
        [{"effect": "GiftRune", "target": "ActivePlayer"}],
        [{"effect": "SealAgainstRival", "target": "ChosenRival"}]
+     ]},
+    {"id": "el-chivo", "name": "El chivo", "text": "La mesa vota: el más votado va al Vacío",
+     "act": "III", "channel": "scene", "delivery": "direct", "vote": true, "window": {"from": 1920}, "maxUses": 1,
+     "options": [
+       [{"effect": "Banish", "target": "MostVoted"}]
      ]}
   ]
 }

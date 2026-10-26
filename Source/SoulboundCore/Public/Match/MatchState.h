@@ -732,6 +732,15 @@ enum class EMatchEventType : uint8
 	 * Seat: quien lo causa (INDEX_NONE en Partida estancada); Value: el disparador (EWardenTrigger). Nombre del autor (23/10/2026).
 	 */
 	WardenTriggered,
+	/** S-017 (R-VOT-1): empieza una votación. Value: el evento; Detail: cuántos asientos se pueden votar. */
+	VoteStarted,
+	/**
+	 * S-017 (R-VOT-3): un voto, público al resolverse la votación (todos entonces, en orden de asiento). Seat: quien vota; OtherSeat:
+	 * el votado; Detail: 1 si es el voto al azar de quien no votó (R-VOT-4), 0 si no.
+	 */
+	VoteCast,
+	/** S-017 (R-VOT-3): la votación se resuelve. Seat: el más votado; Value: sus votos; Detail: 1 si el Warden desempató. */
+	VoteResolved,
 };
 
 /** Gravedad de un castigo de insolencia (R-INS-2, S-016, nombre propuesto): la de la tabla, o la Furia. Es el Detail de InsolencePunished. */
@@ -1042,6 +1051,35 @@ namespace Soulbound::Match
 	inline constexpr int32 OracleOriginCount = 3;
 }
 
+/**
+ * Votación en curso (glosario `Vote`, R-VOT-1 a R-VOT-4, S-017): el efecto que cae sobre el más votado, el plazo, quién se puede
+ * votar (fijado al abrirla) y el voto de cada asiento. Forma parte del evento del Warden en curso, que espera a que se resuelva.
+ * Solo la escriben las reglas de Match/WardenEventRules.h y SubmitVote. Nombre propuesto en S-017.
+ */
+USTRUCT()
+struct SOULBOUNDCORE_API FVoteState
+{
+	GENERATED_BODY()
+
+	/** Si hay votación abierta. */
+	UPROPERTY()
+	bool bOpen = false;
+
+	/** Fin del plazo (FWardenParams::VoteSeconds desde que se abre). */
+	UPROPERTY()
+	double DeadlineSeconds = 0.0;
+
+	/** Asientos sobre los que el efecto vale al abrirla: los que se pueden votar (R-VOT-2), en orden de asiento. */
+	UPROPERTY()
+	TArray<int32> Votables;
+
+	/** Voto de cada asiento (indexado por asiento); INDEX_NONE si aún no ha votado. */
+	UPROPERTY()
+	TArray<int32> Votes;
+
+	bool IsOpen() const { return bOpen; }
+};
+
 /** Por dónde va una consulta del Oráculo (S-017). Nombre propuesto en S-017. */
 UENUM()
 enum class EOracleStage : uint8
@@ -1290,6 +1328,10 @@ struct SOULBOUNDCORE_API FMatchState
 	/** Consulta del Oráculo en curso y las forzadas que esperan (S-017). */
 	UPROPERTY()
 	FOracleState Oracle;
+
+	/** Votación en curso (S-017); bOpen falso si no hay. */
+	UPROPERTY()
+	FVoteState Vote;
 
 	/**
 	 * Último instante con una runa obtenida o un duelo (R-DIS-1, Partida estancada, S-017); el fin de la carrera también lo fija,

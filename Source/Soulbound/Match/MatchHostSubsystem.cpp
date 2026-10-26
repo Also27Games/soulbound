@@ -155,6 +155,42 @@ void UMatchHostSubsystem::Advance()
 			break;
 		}
 
+		// S-017 (R-VOT-5): en una votación abierta, cada dummy vota a su hora, como contesta una elección: su retardo, o la mitad de lo
+		// que queda si el plazo es más corto. El humano vota con un clic en la ficha del votado (SubmitHumanVote).
+		if (State.Vote.IsOpen())
+		{
+			if (PendingVotesDeadline != State.Vote.DeadlineSeconds)
+			{
+				PendingVotes.Reset();
+				PendingVotes.SetNum(State.Seats.Num());
+				PendingVotesDeadline = State.Vote.DeadlineSeconds;
+			}
+			bool bVoted = false;
+			for (int32 Voter = 0; Voter < State.Seats.Num() && State.Vote.IsOpen(); ++Voter)
+			{
+				const TArray<int32> Options = Soulbound::Rules::VoteOptions(State, Voter);
+				if (!Deciders.IsValidIndex(Voter) || !Deciders[Voter].IsValid() || State.Vote.Votes[Voter] != INDEX_NONE || Options.IsEmpty())
+				{
+					continue;
+				}
+				if (!PendingVotes[Voter].IsSet())
+				{
+					const double ReadyAt = Now + FMath::Min(static_cast<double>(DummyResponseSeconds), 0.5 * (State.Vote.DeadlineSeconds - Now));
+					PendingVotes[Voter] = TPair<double, int32>(ReadyAt, Deciders[Voter]->ChooseVote(State, Voter, Options, DeciderRng));
+				}
+				if (Now >= PendingVotes[Voter]->Key)
+				{
+					bVoted |= Soulbound::Rules::SubmitVote(State, Voter, PendingVotes[Voter]->Value, Now) == EIntentResult::Accepted;
+					PendingVotes[Voter].Reset();
+				}
+			}
+			if (bVoted)
+			{
+				bChanged = true;
+				continue;
+			}
+		}
+
 		const int32 Seat = State.ActiveSeat;
 		const bool bDummy = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid();
 		// Quien decide ahora: el asiento de la elección abierta, que puede no tener el turno (S-010: Koschei víctima aparta
@@ -430,6 +466,24 @@ EIntentResult UMatchHostSubsystem::SubmitHumanOracleConsult()
 	{
 		OnMatchStateChanged.Broadcast();
 		// La sentencia puede terminar la consulta y dejar que el turno siga: se avanza ya, sin esperar al siguiente tick.
+		Advance();
+	}
+	return Result;
+}
+
+EIntentResult UMatchHostSubsystem::SubmitHumanVote(int32 Voted)
+{
+	if (!bHasMatch)
+	{
+		return EIntentResult::WrongPhase;
+	}
+	const double Now = MatchSeconds();
+	State.ClockSeconds = Now;
+	const EIntentResult Result = Soulbound::Rules::SubmitVote(State, HumanSeat, Voted, Now);
+	if (Result == EIntentResult::Accepted)
+	{
+		OnMatchStateChanged.Broadcast();
+		// El último voto resuelve la votación y el evento sigue: se avanza ya.
 		Advance();
 	}
 	return Result;

@@ -51,4 +51,29 @@ bool FChronicleTriggersTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FChronicleVoteTest, "Soulbound.Game.Presentation.Cronica.Votacion", ChronicleTestFlags)
+
+bool FChronicleVoteTest::RunTest(const FString& Parameters)
+{
+	// R-VOT-3 (decisión del autor del 26/10/2026): la crónica lista al resolverse quién votó a quién (los VoteCast llegan entonces)
+	// y el más votado, con el desempate si lo hubo; el voto al azar de quien no votó se distingue.
+	FWardenEventTable Events;
+	FWardenEventDef& Trial = Events.Events.AddDefaulted_GetRef();
+	Trial.Id = TEXT("juicio");
+	Trial.Name = TEXT("Juicio");
+	const FBoardState Board;
+	FMatchEvent Started = MakeEvent(EMatchEventType::VoteStarted, INDEX_NONE, 0, 4);
+	const FString StartedText = Soulbound::Presentation::DescribeEvent(Started, Board, &Events);
+	TestTrue(FString::Printf(TEXT("El inicio, con el nombre (%s)"), *StartedText), StartedText.Contains(TEXT("VOTACIÓN")) && StartedText.Contains(TEXT("Juicio")));
+	FMatchEvent Cast = MakeEvent(EMatchEventType::VoteCast, 1, INDEX_NONE, 0);
+	Cast.OtherSeat = 2;
+	TestEqual(TEXT("Un voto: quién a quién"), Soulbound::Presentation::DescribeEvent(Cast, Board, &Events), FString(TEXT("el asiento 1 votó al asiento 2")));
+	Cast.Detail = 1;
+	TestEqual(TEXT("Un voto al azar"), Soulbound::Presentation::DescribeEvent(Cast, Board, &Events), FString(TEXT("el asiento 1 votó al asiento 2 (al azar: no votó a tiempo)")));
+	const FMatchEvent Resolved = MakeEvent(EMatchEventType::VoteResolved, 2, 3, 1);
+	TestEqual(TEXT("El más votado, con desempate"), Soulbound::Presentation::DescribeEvent(Resolved, Board, &Events),
+		FString(TEXT("el más votado: asiento 2, con 3 votos (desempate del Warden)")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

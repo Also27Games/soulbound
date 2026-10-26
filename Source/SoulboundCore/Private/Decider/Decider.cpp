@@ -1,5 +1,6 @@
 #include "Decider/Decider.h"
 
+#include "Match/EffectCatalog.h"
 #include "Match/MatchState.h"
 
 namespace
@@ -178,4 +179,41 @@ bool FDummyDecider::RefusesOracleSentence(const FMatchState& State, int32 Seat, 
 bool FRaceDummyDecider::RefusesOracleSentence(const FMatchState& State, int32 Seat, FRandomStream& Rng)
 {
 	return FDummyDecider().RefusesOracleSentence(State, Seat, Rng);
+}
+
+int32 FDummyDecider::ChooseVote(const FMatchState& State, int32 Seat, const TArray<int32>& Options, FRandomStream& Rng)
+{
+	if (Options.IsEmpty())
+	{
+		return INDEX_NONE;
+	}
+	// R-VOT-5 (decisión del autor del 22/10/2026): en un castigo (todo lo que no es regalo), al que más tipos de runa distintos
+	// tiene; en un regalo, al que menos; con empate, al azar con su sorteo.
+	const FCurrentWardenEvent& Event = State.CurrentEvent;
+	const FWardenEventDef* Def = State.WardenEvents.Events.IsValidIndex(Event.EventIndex) ? &State.WardenEvents.Events[Event.EventIndex] : nullptr;
+	const TArray<FEffectApplication>* Applications = Def && Def->Options.IsValidIndex(Event.Option) ? &Def->Options[Event.Option].Applications : nullptr;
+	const FEffectApplication* Application = Applications && Applications->IsValidIndex(Event.NextApplication - 1) ? &(*Applications)[Event.NextApplication - 1] : nullptr;
+	const bool bGift = Application && Soulbound::Rules::IsGift(Application->Effect);
+	auto Types = [&State](int32 Voted) { return State.Seats[Voted].Runes.FilterByPredicate([](int32 Count) { return Count > 0; }).Num(); };
+	TArray<int32> Best;
+	int32 BestTypes = 0;
+	for (const int32 Voted : Options)
+	{
+		const int32 VotedTypes = Types(Voted);
+		if (Best.IsEmpty() || (bGift ? VotedTypes < BestTypes : VotedTypes > BestTypes))
+		{
+			Best = {Voted};
+			BestTypes = VotedTypes;
+		}
+		else if (VotedTypes == BestTypes)
+		{
+			Best.Add(Voted);
+		}
+	}
+	return Best[Rng.RandRange(0, Best.Num() - 1)];
+}
+
+int32 FRaceDummyDecider::ChooseVote(const FMatchState& State, int32 Seat, const TArray<int32>& Options, FRandomStream& Rng)
+{
+	return FDummyDecider().ChooseVote(State, Seat, Options, Rng);
 }

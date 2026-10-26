@@ -170,6 +170,8 @@ bool FWardenOracleParamsTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	TestEqual(TEXT("Plazo del Oráculo"), Params.OracleSeconds, 7.0);
+	TestEqual(TEXT("Plazo de una votación (R-VOT-1)"), Params.VoteSeconds, 8.0);
+	ExpectRejected(*this, TEXT("\"voteSeconds\": 8"), TEXT("\"voteSeconds\": 0"), EWardenParamsError::NonPositiveDuration);
 	TestEqual(TEXT("Sesgo del Oráculo"), Params.OracleBias, 0.5);
 	ExpectRejected(*this, TEXT("\"oracleSeconds\": 7"), TEXT("\"oracleSeconds\": 0"), EWardenParamsError::NonPositiveDuration);
 	ExpectRejected(*this, TEXT("\"oracleBias\": 0.5"), TEXT("\"oracleBias\": 1.5"), EWardenParamsError::ProbabilityOutOfRange);
@@ -221,7 +223,11 @@ bool FWardenTriggersFileTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Impuesto: por 3 solo si el activo es el acaparador"), Tax && Tax->Multiplier == 3.0 && Tax->bWhenActiveIsCause);
 	const FTriggerEventEntry* Price = Hoarder->Events.FindByPredicate([](const FTriggerEventEntry& E) { return E.EventId == TEXT("el-precio"); });
 	TestTrue(TEXT("El precio: el acaparador, víctima sugerida"), Price && Price->bSuggestCause);
-	TestEqual(TEXT("Partida estancada: cinco eventos (Favor llega con las votaciones)"), Stalled->Events.Num(), 5);
+	TestEqual(TEXT("Partida estancada: seis eventos, Favor incluido (S-017, PR B)"), Stalled->Events.Num(), 6);
+	const FTriggerEventEntry* Favor = Stalled->Events.FindByPredicate([](const FTriggerEventEntry& E) { return E.EventId == TEXT("favor"); });
+	TestTrue(TEXT("Favor, por 3 con Partida estancada"), Favor && Favor->Multiplier == 3.0);
+	const FTriggerEventEntry* Miracle = Hoarder->Events.FindByPredicate([](const FTriggerEventEntry& E) { return E.EventId == TEXT("milagro"); });
+	TestTrue(TEXT("Milagro, por 2 con Acaparador y sin víctima sugerida (roba a todos)"), Miracle && Miracle->Multiplier == 2.0 && !Miracle->bSuggestCause);
 
 	FWardenParams Bound = Params;
 	const FWardenParamsLoadResult Binding = Soulbound::Rules::BindWardenTriggerEvents(Bound, Events);
@@ -266,12 +272,12 @@ bool FWardenTriggersFileTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWardenBagsFileTest, "Soulbound.Core.Warden.Data.TreintaYCincoEventosEnLosSacos",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWardenBagsFileTest, "Soulbound.Core.Warden.Data.TreintaYOchoEventosEnLosSacos",
 	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
 
 bool FWardenBagsFileTest::RunTest(const FString& Parameters)
 {
-	// CA-SAC-1 (R-SAC-2): los 35 eventos del GDD 06 cargan y validan contra el catálogo, con su saco; los once de prueba de
+	// CA-SAC-1 (R-SAC-2), desde S-017 CA-VOT-2: los 38 eventos (los 35 del GDD 06 y las tres votaciones) cargan y validan contra el catálogo, con su saco; los once de prueba de
 	// S-014 y S-015 quedan fuera de los sacos.
 	FWardenEventTable Table;
 	if (!Soulbound::Tests::LoadTestWardenEvents(*this, Table))
@@ -294,8 +300,9 @@ bool FWardenBagsFileTest::RunTest(const FString& Parameters)
 		TestEqual(FString::Printf(TEXT("%s: tres pesos"), *Event.Id), Event.Weights.Num(), Soulbound::Warden::ActCount);
 	}
 	TestEqual(TEXT("Seis en el saco del Acto I"), PerAct[0], 6);
-	TestEqual(TEXT("Veintiuno en el del Acto II"), PerAct[1], 21);
-	TestEqual(TEXT("Ocho en el del Acto III"), PerAct[2], 8);
+	// S-017 (CA-VOT-2, R-VOT-6): de 35 a 38, con Juicio y Favor en el Acto II y El chivo en el III.
+	TestEqual(TEXT("Veintitrés en el del Acto II"), PerAct[1], 23);
+	TestEqual(TEXT("Nueve en el del Acto III"), PerAct[2], 9);
 	TestEqual(TEXT("Los once de prueba, fuera de los sacos"), OutOfBags, 11);
 
 	auto Find = [&Table](const TCHAR* Id) -> const FWardenEventDef*
@@ -333,6 +340,70 @@ bool FWardenBagsFileTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Trueque: dilema de cuatro"), Trade && Trade->Options.Num() == 4);
 	const FWardenEventDef* TestEvent = Find(TEXT("pierdes-un-turno"));
 	TestTrue(TEXT("Un evento de prueba no tiene acto ni nombre"), TestEvent && !TestEvent->bInBag && TestEvent->Name.IsEmpty());
+
+	// CA-VOT-2 (R-VOT-6): las tres votaciones del TFM, escenas de un solo efecto al más votado, con su acto, ventana y usos.
+	struct FExpectedVote
+	{
+		const TCHAR* Id;
+		EAct Act;
+		EEffect Effect;
+	};
+	for (const FExpectedVote& Expected : {FExpectedVote{TEXT("juicio"), EAct::ActTwo, EEffect::Mark}, FExpectedVote{TEXT("favor"), EAct::ActTwo, EEffect::GiftRune},
+		FExpectedVote{TEXT("el-chivo"), EAct::ActThree, EEffect::Banish}})
+	{
+		const FWardenEventDef* Vote = Find(Expected.Id);
+		if (!TestNotNull(FString::Printf(TEXT("%s: está"), Expected.Id), Vote))
+		{
+			continue;
+		}
+		TestTrue(FString::Printf(TEXT("%s: votación, escena de su acto, directa"), Expected.Id), Vote->bVote && Vote->bInBag && Vote->Act == Expected.Act
+			&& Vote->Channel == EWardenChannel::Scene && !Vote->bCutsTurn && Vote->Delivery == EEventDelivery::Direct);
+		TestTrue(FString::Printf(TEXT("%s: un efecto, al más votado"), Expected.Id), Vote->Options.Num() == 1 && Vote->Options[0].Applications.Num() == 1
+			&& Vote->Options[0].Applications[0].Effect == Expected.Effect && Vote->Options[0].Applications[0].Target == EEffectTarget::MostVoted);
+	}
+	const FWardenEventDef* Scapegoat = Find(TEXT("el-chivo"));
+	TestTrue(TEXT("El chivo: solo en los últimos 8 minutos y una vez"), Scapegoat && !Scapegoat->IsInWindow(1919.0) && Scapegoat->IsInWindow(1920.0) && Scapegoat->MaxUses == 1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWardenVoteRejectTest, "Soulbound.Core.Warden.Data.VotacionMalFormadaSeRechaza",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FWardenVoteRejectTest::RunTest(const FString& Parameters)
+{
+	// CA-VOT-2 y CA-ORA-3 (R-VOT-6, R-ORA-1): una votación es una escena de una opción con un efecto al más votado, con entrega
+	// directa. Con dos opciones, con dos efectos, por el Oráculo (oracle o any), con otra dirección, en un golpe o con un efecto que
+	// necesita a alguien que actúe (Robo decretado, Duelo forzado; decisión no solicitada aceptada el 26/10/2026), no carga; tampoco
+	// MostVoted fuera de una votación.
+	auto Load = [](const FString& Fields, const FString& Options)
+	{
+		return Soulbound::Rules::LoadWardenEventsFromJsonString(FString::Printf(
+			TEXT("{\"events\": [{\"id\": \"v\", \"name\": \"V\", \"text\": \"t\", \"act\": \"II\", %s, \"options\": %s}]}"), *Fields, *Options));
+	};
+	const FString Mark = TEXT("[[{\"effect\": \"Mark\", \"target\": \"MostVoted\"}]]");
+	const FWardenEventsLoadResult Valid = Load(TEXT("\"channel\": \"scene\", \"delivery\": \"direct\", \"vote\": true"), Mark);
+	if (!TestTrue(FString::Printf(TEXT("Una votación bien formada carga (%s)"), *Valid.Message), Valid.IsSuccess()))
+	{
+		return false;
+	}
+	TestTrue(TEXT("Con su marca de votación"), Valid.Table.Events[0].bVote);
+	const TPair<const TCHAR*, FString> Wrong[] = {
+		{TEXT("\"channel\": \"scene\", \"delivery\": \"direct\", \"vote\": true"), TEXT("[[{\"effect\": \"Mark\", \"target\": \"MostVoted\"}], [{\"effect\": \"Banish\", \"target\": \"MostVoted\"}]]")},
+		{TEXT("\"channel\": \"scene\", \"delivery\": \"direct\", \"vote\": true"), TEXT("[[{\"effect\": \"Mark\", \"target\": \"MostVoted\"}, {\"effect\": \"Banish\", \"target\": \"MostVoted\"}]]")},
+		{TEXT("\"channel\": \"scene\", \"delivery\": \"oracle\", \"vote\": true"), Mark},
+		{TEXT("\"channel\": \"scene\", \"delivery\": \"any\", \"vote\": true"), Mark},
+		{TEXT("\"channel\": \"strike\", \"delivery\": \"direct\", \"vote\": true"), Mark},
+		{TEXT("\"channel\": \"scene\", \"delivery\": \"direct\", \"vote\": true"), TEXT("[[{\"effect\": \"Mark\", \"target\": \"Leader\"}]]")},
+		{TEXT("\"channel\": \"scene\", \"delivery\": \"direct\", \"vote\": true"), TEXT("[[{\"effect\": \"DecreedTheft\", \"target\": \"MostVoted\"}]]")},
+		{TEXT("\"channel\": \"scene\", \"delivery\": \"direct\", \"vote\": true"), TEXT("[[{\"effect\": \"ForcedDuel\", \"target\": \"MostVoted\", \"variant\": \"one\"}]]")},
+		{TEXT("\"channel\": \"scene\", \"delivery\": \"direct\""), Mark},
+	};
+	for (const TPair<const TCHAR*, FString>& Case : Wrong)
+	{
+		const FWardenEventsLoadResult Result = Load(Case.Key, Case.Value);
+		TestEqual(FString::Printf(TEXT("%s %s: se rechaza por la votación"), Case.Key, *Case.Value), static_cast<int32>(Result.Error), static_cast<int32>(EWardenEventsError::InvalidVote));
+		TestFalse(TEXT("Con motivo"), Result.Message.IsEmpty());
+	}
 	return true;
 }
 

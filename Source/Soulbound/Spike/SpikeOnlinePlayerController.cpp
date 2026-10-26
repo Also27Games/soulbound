@@ -3,6 +3,7 @@
 #include "../Match/MatchHostSubsystem.h"
 #include "../Presentation/BoardTileActor.h"
 #include "../Presentation/BoardViewActor.h"
+#include "../Presentation/SeatTokenActor.h"
 #include "../Warden/WardenHostSubsystem.h"
 #include "Components/InputComponent.h"
 #include "Engine/Engine.h"
@@ -87,6 +88,13 @@ void ASpikeOnlinePlayerController::OnPrimaryClick()
 		if (const ABoardViewActor* View = Cast<ABoardViewActor>(Hit.GetActor()); View && View->IsOracleOrb(Hit.GetComponent()))
 		{
 			Match->SubmitHumanOracleConsult();
+			return;
+		}
+		// S-017 (R-VOT-2): durante una votación, el clic en la ficha de otro asiento es el voto; la ficha solo recibe el clic mientras
+		// se puede votar a ese asiento.
+		if (const ASeatTokenActor* Token = Cast<ASeatTokenActor>(Hit.GetActor()))
+		{
+			Match->SubmitHumanVote(Token->GetSeat());
 			return;
 		}
 		if (const ABoardTileActor* Tile = Cast<ABoardTileActor>(Hit.GetActor()))

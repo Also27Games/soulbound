@@ -319,6 +319,11 @@ namespace Soulbound::Rules
 		{
 			return Reject(EWardenParamsError::NonPositiveDuration, FString::Printf(TEXT("R-ORA-3: el plazo del Oráculo (%.1f s) es mayor que cero."), Params.OracleSeconds));
 		}
+		// R-VOT-1 (S-017): el plazo de una votación avanza.
+		if (Params.VoteSeconds <= 0.0)
+		{
+			return Reject(EWardenParamsError::NonPositiveDuration, FString::Printf(TEXT("R-VOT-1: el plazo de una votación (%.1f s) es mayor que cero."), Params.VoteSeconds));
+		}
 		if (Params.OracleBias < 0.0 || Params.OracleBias > 1.0)
 		{
 			return Reject(EWardenParamsError::ProbabilityOutOfRange, FString::Printf(TEXT("R-ORA-4: el sesgo del Oráculo (%.2f) va de 0 a 1."), Params.OracleBias));
@@ -364,6 +369,8 @@ namespace Soulbound::Rules
 			// S-017: el Oráculo.
 			{TEXT("oracleSeconds"), &Params.OracleSeconds},
 			{TEXT("oracleBias"), &Params.OracleBias},
+			// S-017 (PR B): las votaciones.
+			{TEXT("voteSeconds"), &Params.VoteSeconds},
 		};
 		for (const TPair<const TCHAR*, double*>& Number : Numbers)
 		{

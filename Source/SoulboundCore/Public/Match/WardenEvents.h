@@ -123,6 +123,13 @@ struct SOULBOUNDCORE_API FWardenEventDef
 	UPROPERTY()
 	bool bCutsTurn = false;
 
+	/**
+	 * Si es una votación (glosario `Vote`, `vote`, R-VOT-6, S-017): una escena de una sola opción con un solo efecto dirigido al más
+	 * votado (MostVoted), con entrega directa. Nombre propuesto en S-017.
+	 */
+	UPROPERTY()
+	bool bVote = false;
+
 	/** Si es un dilema (más de una opción); si no, un decreto. */
 	bool IsDilemma() const { return Options.Num() > 1; }
 
@@ -179,6 +186,12 @@ enum class EWardenEventsError : uint8
 	 * Nombre propuesto en S-017.
 	 */
 	OracleDilemma,
+	/**
+	 * Una votación mal formada (R-VOT-6, S-017): con más de una opción o de un efecto, con entrega que no es directa, con una dirección
+	 * que no es MostVoted, con un efecto que no la admite (AdmitsMostVoted) o en un saco que no es de escena; o MostVoted en un evento
+	 * que no es votación. Nombre propuesto en S-017.
+	 */
+	InvalidVote,
 };
 
 /** Resultado de cargar o validar los eventos: o éxito con la tabla, o la regla incumplida con su motivo. Nombre propuesto en S-014. */

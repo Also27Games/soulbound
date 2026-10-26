@@ -82,8 +82,8 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	/**
-	 * Si Component es el orbe de la consulta del Oráculo (S-017): la vista lo enseña mientras alguien consulta, sobre el Nodo del
-	 * Oráculo más cercano a su ficha o, si no hay, sobre la ficha. Un clic en él consulta; el clic derecho, el rechazo de Tifón.
+	 * Si Component es el orbe de la consulta del Oráculo (S-017): la vista lo enseña mientras alguien consulta, siempre sobre su
+	 * ficha (decisión del autor del 26/10/2026). Un clic en él consulta; el clic derecho, el rechazo de Tifón.
 	 */
 	bool IsOracleOrb(const UPrimitiveComponent* Component) const;
 
@@ -239,7 +239,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Oráculo")
 	float OracleOrbDiameter = 3.f;
 
-	/** Altura del centro del orbe sobre la cara de la casilla o la base de la ficha, en cm. Valor inicial 7. */
+	/** Altura del centro del orbe sobre la base de la ficha del consultante, en cm. Valor inicial 7. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Oráculo")
 	float OracleOrbHeight = 7.f;
 
@@ -540,8 +540,6 @@ private:
 	void RefreshTokens(const FMatchState& State);
 	/** El orbe de la consulta del Oráculo (S-017): visible mientras alguien consulta, del color de su asiento; oculto si no. */
 	void RefreshOracleOrb(const FMatchState& State);
-	/** El Nodo del Oráculo más cercano a la casilla del asiento Seat (en la mesa), o INDEX_NONE si no hay o los Nodos no actúan. */
-	int32 NearestOracleNode(const FMatchState& State, int32 Seat) const;
 	/** La ficha de Seat llegó a TileId en su recorrido (S-020): entrega la intención de avance de su asiento; al acabar, se recoloca. */
 	void OnTokenTileEntered(int32 Seat, int32 TileId, bool bLast);
 	/** Base de una ficha sobre el centro de la casilla (la cara superior de la losa). */

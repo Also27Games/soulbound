@@ -280,6 +280,15 @@ namespace Soulbound::Rules
 	SOULBOUNDCORE_API EIntentResult SubmitOracleRefuse(FMatchState& State, int32 Seat, double NowSeconds);
 
 	/**
+	 * Intención de voto del asiento Seat por Voted (glosario `Vote`, R-VOT-1 a R-VOT-4, S-017): una por asiento y dentro del plazo;
+	 * votan todos, también los del Vacío. Con el último voto, la votación se resuelve en el acto (ResolveVote). Devuelve Accepted;
+	 * WrongPhase sin votación abierta o si el asiento ya votó; WrongSeat si el asiento no existe; ClockExpired en el plazo o después;
+	 * InvalidOption si se vota a sí mismo o vota a quien el efecto no admite (VoteOptions). Si no es Accepted, no toca el estado.
+	 * Nombre propuesto en S-017.
+	 */
+	SOULBOUNDCORE_API EIntentResult SubmitVote(FMatchState& State, int32 Seat, int32 Voted, double NowSeconds);
+
+	/**
 	 * Concede Count turnos extra al asiento Seat (R-TUR-9), sin pasar del tope de los parámetros de partida.
 	 * Devuelve false, sin cambiar nada, si el asiento no existe o Count no es positivo.
 	 */

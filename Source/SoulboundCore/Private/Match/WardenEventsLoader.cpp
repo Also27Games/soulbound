@@ -31,7 +31,8 @@ namespace
 		}
 		const FEffectDef& Def = Soulbound::Rules::EffectDefOf(Application.Effect);
 		const FString Code = Soulbound::Rules::EffectCode(Application.Effect);
-		if (!Def.AllowedTargets.Contains(Application.Target))
+		// S-017: el más votado no está en la tabla de direcciones; lo valida la votación (InvalidVote, en ValidateWardenEvents).
+		if (Application.Target != EEffectTarget::MostVoted && !Def.AllowedTargets.Contains(Application.Target))
 		{
 			const FString Allowed = FString::JoinBy(Def.AllowedTargets, TEXT(", "), [](EEffectTarget Target)
 			{
@@ -203,6 +204,8 @@ namespace
 		{
 			Out.bCutsTurn = bCuts;
 		}
+		// S-017 (R-VOT-6): si es una votación; la forma la valida ValidateWardenEvents (InvalidVote).
+		Object.TryGetBoolField(TEXT("vote"), Out.bVote);
 		return FWardenEventsLoadResult();
 	}
 
@@ -305,6 +308,27 @@ namespace Soulbound::Rules
 					{
 						return Check;
 					}
+				}
+			}
+			// R-VOT-6 (S-017): una votación es una escena de una opción con un efecto al más votado, directa; y el más votado, solo
+			// en una votación. El efecto, de un solo jugador y sin nadie que actúe además del objetivo (AdmitsMostVoted).
+			const bool bMostVoted = Event.Options.ContainsByPredicate([](const FWardenEventOption& Option)
+			{
+				return Option.Applications.ContainsByPredicate([](const FEffectApplication& Application) { return Application.Target == EEffectTarget::MostVoted; });
+			});
+			if (!Event.bVote && bMostVoted)
+			{
+				return Reject(EWardenEventsError::InvalidVote, FString::Printf(TEXT("R-VOT-6: evento \"%s\": la dirección MostVoted solo vale en una votación (\"vote\": true)."), *Event.Id));
+			}
+			if (Event.bVote)
+			{
+				const bool bOneEffect = Event.Options.Num() == 1 && Event.Options[0].Applications.Num() == 1;
+				const FEffectApplication* Application = bOneEffect ? &Event.Options[0].Applications[0] : nullptr;
+				const bool bShape = Application && Application->Target == EEffectTarget::MostVoted && Soulbound::Rules::AdmitsMostVoted(Application->Effect);
+				if (!bShape || Event.Delivery != EEventDelivery::Direct || (Event.bInBag && Event.Channel != EWardenChannel::Scene))
+				{
+					return Reject(EWardenEventsError::InvalidVote, FString::Printf(TEXT("R-VOT-6: evento \"%s\": una votación es una escena de una sola opción con un solo efecto al más votado (MostVoted), de un solo jugador y sin nadie que actúe además del objetivo (no Robo decretado ni Duelo forzado), con entrega directa."),
+						*Event.Id));
 				}
 			}
 			// R-ORA-1 (S-017): el Oráculo solo entrega decretos; un dilema nunca llega por él, ni con "oracle" ni con "any".

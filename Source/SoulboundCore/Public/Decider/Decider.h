@@ -58,6 +58,12 @@ public:
 	 * Nombre propuesto en S-017.
 	 */
 	virtual bool RefusesOracleSentence(const FMatchState& State, int32 Seat, FRandomStream& Rng) = 0;
+
+	/**
+	 * A quién vota el asiento Seat en la votación abierta (R-VOT-5, S-017): uno de Options (VoteOptions), o INDEX_NONE si no hay. Quien
+	 * avanza la partida lo pregunta y lo entrega con SubmitVote. Nombre propuesto en S-017.
+	 */
+	virtual int32 ChooseVote(const FMatchState& State, int32 Seat, const TArray<int32>& Options, FRandomStream& Rng) = 0;
 };
 
 /**
@@ -75,6 +81,7 @@ public:
 	virtual int32 ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng) override;
 	virtual double DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng) override;
 	virtual bool RefusesOracleSentence(const FMatchState& State, int32 Seat, FRandomStream& Rng) override;
+	virtual int32 ChooseVote(const FMatchState& State, int32 Seat, const TArray<int32>& Options, FRandomStream& Rng) override;
 };
 
 /**
@@ -92,4 +99,5 @@ public:
 	virtual int32 ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng) override;
 	virtual double DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng) override;
 	virtual bool RefusesOracleSentence(const FMatchState& State, int32 Seat, FRandomStream& Rng) override;
+	virtual int32 ChooseVote(const FMatchState& State, int32 Seat, const TArray<int32>& Options, FRandomStream& Rng) override;
 };

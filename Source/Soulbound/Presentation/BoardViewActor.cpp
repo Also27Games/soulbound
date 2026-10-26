@@ -9,6 +9,7 @@
 #include "LegendPanel.h"
 #include "Match/BondRaceRules.h"
 #include "Match/RuneRules.h"
+#include "Match/WardenEventRules.h"
 #include "PresentationShapes.h"
 #include "Warden/WardenBrain.h"
 #include "SeatTokenActor.h"
@@ -271,9 +272,41 @@ namespace
 			return FString();
 		}
 		const FWardenEventDef& Def = State.WardenEvents.Events[Event.EventIndex];
+		// S-017 (R-VOT-1): en una votación no dirige nadie; lo que se vota va en su propia línea.
+		if (Def.bVote)
+		{
+			return FString::Printf(TEXT("EL WARDEN (VOTACIÓN): \"%s\""), *Def.Text);
+		}
 		const TCHAR* Kind = Def.IsDilemma() ? (Event.Option == INDEX_NONE ? TEXT("DILEMA, elige una opción") : TEXT("DILEMA")) : TEXT("DECRETO");
 		const FString Against = Event.bAgainst ? FString(TEXT(" | resuelto EN SU CONTRA")) : FString();
 		return FString::Printf(TEXT("EL WARDEN (%s): \"%s\" | dirige el asiento %d%s"), Kind, *Def.Text, Event.Director, *Against);
+	}
+
+	/**
+	 * Línea de la votación abierta (S-017, R-VOT-1 a 6): qué se vota, quién ha votado ya (a quién, no: los votos se cuentan al
+	 * resolverse, decisión del autor) y el tiempo que queda. Al humano, si aún no ha votado y tiene a quién, le dice cómo votar.
+	 * Vacía sin votación. Solo lee el estado.
+	 */
+	FString VoteLine(const FMatchState& State, int32 HumanSeat)
+	{
+		const FVoteState& Vote = State.Vote;
+		if (!Vote.IsOpen())
+		{
+			return FString();
+		}
+		TArray<FString> Voted;
+		for (int32 Seat = 0; Seat < Vote.Votes.Num(); ++Seat)
+		{
+			if (Vote.Votes[Seat] != INDEX_NONE)
+			{
+				Voted.Add(FString::FromInt(Seat));
+			}
+		}
+		const bool bHumanPending = Vote.Votes.IsValidIndex(HumanSeat) && Vote.Votes[HumanSeat] == INDEX_NONE
+			&& !Soulbound::Rules::VoteOptions(State, HumanSeat).IsEmpty();
+		return FString::Printf(TEXT("VOTACIÓN: %d se pueden votar | han votado: %s | quedan %.0f s%s"), Vote.Votables.Num(),
+			Voted.IsEmpty() ? TEXT("nadie") : *FString::Join(Voted, TEXT(", ")), FMath::Max(0.0, Vote.DeadlineSeconds - State.ClockSeconds),
+			bHumanPending ? TEXT("  <- clic en la ficha del asiento al que votas") : TEXT(""));
 	}
 
 	/**
@@ -1120,25 +1153,6 @@ bool ABoardViewActor::IsOracleOrb(const UPrimitiveComponent* Component) const
 	return Component && Component == OracleOrb.Get() && OracleOrb->IsVisible();
 }
 
-int32 ABoardViewActor::NearestOracleNode(const FMatchState& State, int32 Seat) const
-{
-	if (!State.Seats.IsValidIndex(Seat) || !State.Board.AreNodesRevealed() || !TilePositions.IsValidIndex(State.Seats[Seat].TileId))
-	{
-		return INDEX_NONE;
-	}
-	const FVector From = TilePositions[State.Seats[Seat].TileId];
-	int32 Nearest = INDEX_NONE;
-	for (const FTileState& Tile : State.Board.Tiles)
-	{
-		if (Tile.PowerNodeEffect == EPowerNodeEffect::Oracle && TilePositions.IsValidIndex(Tile.TileId)
-			&& (Nearest == INDEX_NONE || FVector::DistSquared(From, TilePositions[Tile.TileId]) < FVector::DistSquared(From, TilePositions[Nearest])))
-		{
-			Nearest = Tile.TileId;
-		}
-	}
-	return Nearest;
-}
-
 void ABoardViewActor::RefreshOracleOrb(const FMatchState& State)
 {
 	if (!OracleOrb)
@@ -1151,10 +1165,9 @@ void ABoardViewActor::RefreshOracleOrb(const FMatchState& State)
 		OracleOrb->SetVisibility(false);
 		return;
 	}
-	// En el Nodo del Oráculo más cercano a su ficha (el de su casilla, si consulta en un Nodo); si no hay, sobre la ficha.
-	const int32 Node = NearestOracleNode(State, Seat);
+	// Siempre sobre la ficha del consultante, también si consulta desde un Nodo (decisión del autor del 26/10/2026).
 	const ASeatTokenActor* Token = TokenActors.IsValidIndex(Seat) ? TokenActors[Seat].Get() : nullptr;
-	const FVector Base = Node != INDEX_NONE ? TokenBase(Node) : Token ? Token->GetActorLocation() : TokenBase(State.Seats[Seat].TileId);
+	const FVector Base = Token ? Token->GetActorLocation() : TokenBase(State.Seats[Seat].TileId);
 	OracleOrb->SetWorldLocation(Base + FVector(0.f, 0.f, OracleOrbHeight));
 	Soulbound::Presentation::SetComponentColor(*OracleOrb, BaseMaterial, SeatColor(Seat));
 	OracleOrb->SetVisibility(true);
@@ -1723,6 +1736,8 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 		}
 		Token->SetElectShape(State.Seats[Seat].Role == ESeatRole::Elect);
 		Token->SetActive(bSomeoneActive && Seat == State.ActiveSeat);
+		// S-017: durante una votación, el clic en la ficha de otro es el voto del humano.
+		Token->SetClickable(Soulbound::Rules::VoteOptions(State, HostPtr->GetHumanSeat()).Contains(Seat));
 
 		// S-020 (R-TAB-26): la ficha del que se mueve recorre lo que le queda del camino, y cada llegada es su intención de avance.
 		// Si el motor va por delante (la salvaguarda entró en una casilla a la que la ficha no había llegado), la ficha se coloca
@@ -1980,13 +1995,17 @@ void ABoardViewActor::TickHud()
 	{
 		const int32 Consultant = State.Oracle.Consultant;
 		const bool bHumanOracle = Consultant == HostPtr->GetHumanSeat();
-		const int32 Node = NearestOracleNode(State, Consultant);
-		const FString Where = Node != INDEX_NONE ? FString::Printf(TEXT("el orbe sobre el Nodo %s"), *Soulbound::Presentation::TileShortName(State.Board, Node))
-			: FString(TEXT("el orbe sobre su ficha"));
-		const FString Action = bHumanOracle ? FString::Printf(TEXT("  <- clic en %s para consultar%s"), *Where, State.Oracle.bRefusable ? TEXT(", clic derecho para rechazar (Tifón)") : TEXT(""))
-			: FString::Printf(TEXT(" | %s"), *Where);
+		const FString Action = bHumanOracle ? FString::Printf(TEXT("  <- clic en el orbe sobre tu ficha para consultar%s"), State.Oracle.bRefusable ? TEXT(", clic derecho para rechazar (Tifón)") : TEXT(""))
+			: FString(TEXT(" | el orbe sobre su ficha"));
 		ShowText(13, bHumanOracle ? FColor::Green : FColor::Orange, FString::Printf(TEXT("ORÁCULO: consulta el asiento %d (%s) | quedan %.0f s%s"), Consultant,
 			*Soulbound::Presentation::OracleOriginText(static_cast<int32>(State.Oracle.Origin)), FMath::Max(0.0, State.Oracle.DeadlineSeconds - State.ClockSeconds), *Action));
+	}
+
+	// Votación (S-017, R-VOT-1 a 6): qué se vota, quién ha votado ya (a quién, no: eso se sabe al resolverse) y cuánto queda; el
+	// humano, con lo que tiene que hacer.
+	if (State.Vote.IsOpen() && !State.IsMatchOver())
+	{
+		ShowText(14, FColor::Orange, VoteLine(State, HostPtr->GetHumanSeat()));
 	}
 
 	// Noche de los Ecos (S-014): mientras dura, bien visible.
