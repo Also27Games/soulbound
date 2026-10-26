@@ -789,6 +789,15 @@ namespace Soulbound::Rules
 		return true;
 	}
 
+	TArray<int32> VoteOptions(const FMatchState& State, int32 Seat)
+	{
+		return {};
+	}
+
+	void ResolveVote(FMatchState& State, double NowSeconds)
+	{
+	}
+
 	void AnswerWardenEventChoice(FMatchState& State, EChoiceKind Kind, int32 Option, double NowSeconds)
 	{
 		if (!State.CurrentEvent.IsActive())

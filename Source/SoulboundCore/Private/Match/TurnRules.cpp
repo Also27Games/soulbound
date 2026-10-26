@@ -1360,6 +1360,11 @@ namespace Soulbound::Rules
 		return EIntentResult::Accepted;
 	}
 
+	EIntentResult SubmitVote(FMatchState& State, int32 Seat, int32 Voted, double NowSeconds)
+	{
+		return EIntentResult::WrongPhase;
+	}
+
 	bool GrantExtraTurns(FMatchState& State, int32 Seat, int32 Count)
 	{
 		return GrantCapped(State, Seat, Count, &FSeatState::ExtraTurns, State.Params.MaxExtraTurns);

@@ -130,4 +130,19 @@ namespace Soulbound::Rules
 	 * registra WardenDuelLost y no pierde nada. La insolencia ya subió al desatender. Nombre propuesto en S-015.
 	 */
 	SOULBOUNDCORE_API void SettleWardenDuel(FMatchState& State, const FDuelResult& Result, double NowSeconds);
+
+	/**
+	 * A quién puede votar Seat en la votación abierta (R-VOT-2, S-017): los que se pueden votar menos él mismo, en orden de asiento.
+	 * Vacío sin votación o si no tiene a nadie (entonces no vota, sin insolencia). Nombre propuesto en S-017.
+	 */
+	SOULBOUNDCORE_API TArray<int32> VoteOptions(const FMatchState& State, int32 Seat);
+
+	/**
+	 * Resuelve la votación abierta (R-VOT-3, R-VOT-4, S-017): quien podía votar y no votó recibe un voto al azar entre los suyos (con
+	 * el sorteo del evento); se registran todos los votos (VoteCast, en orden de asiento) y el más votado (VoteResolved, con el
+	 * desempate del Warden entre los empatados); el efecto se aplica sobre él con la validación de siempre (en Runa regalada, elige
+	 * él la runa); y, después, la insolencia de cada uno que no votó, en orden de asiento. El evento sigue. Lo llaman SubmitVote
+	 * con el último voto y AdvanceWardenEvent al agotarse el plazo. Nombre propuesto en S-017.
+	 */
+	SOULBOUNDCORE_API void ResolveVote(FMatchState& State, double NowSeconds);
 }

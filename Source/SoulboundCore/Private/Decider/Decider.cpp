@@ -179,3 +179,13 @@ bool FRaceDummyDecider::RefusesOracleSentence(const FMatchState& State, int32 Se
 {
 	return FDummyDecider().RefusesOracleSentence(State, Seat, Rng);
 }
+
+int32 FDummyDecider::ChooseVote(const FMatchState& State, int32 Seat, const TArray<int32>& Options, FRandomStream& Rng)
+{
+	return INDEX_NONE;
+}
+
+int32 FRaceDummyDecider::ChooseVote(const FMatchState& State, int32 Seat, const TArray<int32>& Options, FRandomStream& Rng)
+{
+	return FDummyDecider().ChooseVote(State, Seat, Options, Rng);
+}

@@ -299,6 +299,10 @@ struct SOULBOUNDCORE_API FWardenParams
 	UPROPERTY()
 	double OracleBias = 0.0;
 
+	/** Plazo de una votación (R-VOT-1, `voteSeconds`), mayor que cero, sin incremento por votables. En datos; valor inicial 8. S-017. */
+	UPROPERTY()
+	double VoteSeconds = 0.0;
+
 	/** Disparadores contextuales (R-DIS-1, R-DIS-2, `triggers`). S-017. */
 	UPROPERTY()
 	FWardenTriggerParams Triggers;

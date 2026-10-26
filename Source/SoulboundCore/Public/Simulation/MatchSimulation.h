@@ -63,6 +63,10 @@ struct SOULBOUNDCORE_API FWardenActReport
 	int32 IgnoredConsults = 0;
 	/** Veces que estuvo activo cada disparador en el acto (WardenTriggered), indexadas por EWardenTrigger (S-017). */
 	TArray<int32> TriggerCounts;
+	/** Votaciones resueltas en el acto (VoteResolved), las que acabaron en desempate y los votos al azar de quien no votó (S-017). */
+	int32 Votes = 0;
+	int32 VoteTies = 0;
+	int32 RandomVotes = 0;
 };
 
 struct SOULBOUNDCORE_API FSimulationResult

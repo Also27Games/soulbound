@@ -87,6 +87,12 @@ enum class EEffectTarget : uint8
 	Echoes,
 	/** Sin dirección: el efecto no va a ningún asiento (el Sello). */
 	None,
+	/**
+	 * El más votado (R-VOT-1, S-017): el efecto de una votación cae sobre quien más votos recibe. Solo en un evento de votación
+	 * (FWardenEventDef::bVote) y en un efecto de un solo jugador sin nadie que actúe además del objetivo
+	 * (AdmitsMostVoted). Va al final para no cambiar el valor de las demás en el registro. Nombre propuesto en S-017.
+	 */
+	MostVoted,
 };
 
 /** Gravedad de un efecto (R-EFE-0): leve, media, grave o regalo. Nombre propuesto en S-014. */
@@ -166,8 +172,16 @@ namespace Soulbound::Rules
 	/** Lee un código de efecto. Devuelve false si no es ninguno de los dieciocho. */
 	SOULBOUNDCORE_API bool ParseEffectCode(const FString& Code, EEffect& OutEffect);
 
-	/** Lee un código de dirección (una de las ocho). Devuelve false si no es ninguna. */
+	/** Lee un código de dirección (una de las ocho; desde S-017, también "MostVoted"). Devuelve false si no es ninguna. */
 	SOULBOUNDCORE_API bool ParseEffectTargetCode(const FString& Code, EEffectTarget& OutTarget);
+
+	/**
+	 * Si el efecto puede ser una votación, con dirección MostVoted (R-VOT-6, S-017): uno con alguna dirección de un solo jugador
+	 * (activo, rival señalado, líder, siguiente o al azar), que no sea global, ni el Alto (solo corta), ni uno que necesite a
+	 * alguien que actúe además del objetivo (Robo decretado, Duelo forzado): en una votación no dirige nadie (decisión no
+	 * solicitada aceptada por el autor el 26/10/2026). Nombre propuesto en S-017.
+	 */
+	SOULBOUNDCORE_API bool AdmitsMostVoted(EEffect Effect);
 
 	/** Lee un código de variante ("random", "chosen", "one", "all"). Devuelve false si no es ninguna. */
 	SOULBOUNDCORE_API bool ParseEffectVariantCode(const FString& Code, EEffectVariant& OutVariant);
