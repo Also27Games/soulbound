@@ -139,6 +139,12 @@ int32 FDummyDecider::ChooseOption(const FMatchState& State, int32 Seat, const FP
 {
 	// Al azar entre las opciones y "no" (INDEX_NONE) si la elección lo admite, todas con la misma probabilidad. Las opciones
 	// se cuentan por posición (S-010): así la acción contra un jugador, que se contesta por índice, entra igual.
+	// S-017 (R-DIS-2, decisión del autor del 23/10/2026): el rival sugerido por un disparador, si está entre las opciones, lo sigue.
+	const int32 Suggested = State.CurrentEvent.SuggestedRival;
+	if (Choice.Kind == EChoiceKind::ChosenRival && Suggested != INDEX_NONE && Choice.Options.Contains(Suggested))
+	{
+		return Suggested;
+	}
 	const int32 Count = Choice.AnswerCount() + (Choice.CanDecline() ? 1 : 0);
 	if (Count == 0)
 	{
@@ -161,4 +167,15 @@ double FDummyDecider::DuelPerformance(const FMatchState& State, int32 Seat, FRan
 double FRaceDummyDecider::DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng)
 {
 	return FDummyDecider().DuelPerformance(State, Seat, Rng);
+}
+
+bool FDummyDecider::RefusesOracleSentence(const FMatchState& State, int32 Seat, FRandomStream& Rng)
+{
+	// R-ORA-5, decisión del autor del 23/10/2026: el dummy de Tifón nunca rechaza; consulta en el acto.
+	return false;
+}
+
+bool FRaceDummyDecider::RefusesOracleSentence(const FMatchState& State, int32 Seat, FRandomStream& Rng)
+{
+	return FDummyDecider().RefusesOracleSentence(State, Seat, Rng);
 }

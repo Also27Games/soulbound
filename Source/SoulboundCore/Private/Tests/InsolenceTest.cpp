@@ -28,7 +28,7 @@ namespace
 	int32 AsInt(TEnum Value) { return static_cast<int32>(Value); }
 
 	/** Los castigos que puede dar la tabla, en ningún caso un regalo (R-INS-2). */
-	const TArray<EEffect> AllPunishments = {EEffect::Halt, EEffect::RevealBracer, EEffect::SendHome, EEffect::LoseTurn, EEffect::WardenTrial, EEffect::LoseRune, EEffect::Banish};
+	const TArray<EEffect> AllPunishments = {EEffect::Halt, EEffect::RevealBracer, EEffect::ForcedOracle, EEffect::SendHome, EEffect::LoseTurn, EEffect::WardenTrial, EEffect::LoseRune, EEffect::Banish};
 
 	/** Todos los niveles de la tabla dan la gravedad Severity: lo que el test necesita para mirar una gravedad. */
 	void ForceSeverity(FWardenFixture& F, EInsolencePunishment Severity)
@@ -84,23 +84,25 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInsolenceListsTest, "Soulbound.Core.Insolence.
 bool FInsolenceListsTest::RunTest(const FString& Parameters)
 {
 	// R-INS-2 (decisión del autor del 19/10/2026): las listas de cada gravedad salen del catálogo (de esa gravedad, implementados,
-	// con dirección activo) y coinciden con las del GDD 06: leve, Revelar Brazal (el Alto sale, pero nunca vale sin un turno que
-	// cortar; la Consulta forzada no está implementada); media, Vuelta al hogar, Turno perdido y Prueba del Warden; grave,
-	// Perder una runa y el Vacío. Ningún regalo.
-	TestEqual(TEXT("Leve: Alto y Revelar Brazal"), Soulbound::Rules::InsolencePunishmentEffects(EEffectSeverity::Light), TArray<EEffect>{EEffect::Halt, EEffect::RevealBracer});
+	// con dirección activo) y coinciden con las del GDD 06: leve, Revelar Brazal y, desde S-017 (CA-INS-1b, R-INS-2), la Consulta
+	// forzada (el Alto sale, pero nunca vale sin un turno que cortar); media, Vuelta al hogar, Turno perdido y Prueba del Warden;
+	// grave, Perder una runa y el Vacío. Ningún regalo.
+	TestEqual(TEXT("Leve: Alto, Revelar Brazal y Consulta forzada"), Soulbound::Rules::InsolencePunishmentEffects(EEffectSeverity::Light),
+		TArray<EEffect>{EEffect::Halt, EEffect::RevealBracer, EEffect::ForcedOracle});
 	TestEqual(TEXT("Media: Vuelta al hogar, Turno perdido y Prueba del Warden"), Soulbound::Rules::InsolencePunishmentEffects(EEffectSeverity::Medium),
 		TArray<EEffect>{EEffect::SendHome, EEffect::LoseTurn, EEffect::WardenTrial});
 	TestEqual(TEXT("Grave: Perder una runa y el Vacío"), Soulbound::Rules::InsolencePunishmentEffects(EEffectSeverity::Severe), TArray<EEffect>{EEffect::LoseRune, EEffect::Banish});
 	TestTrue(TEXT("Ningún regalo"), Soulbound::Rules::InsolencePunishmentEffects(EEffectSeverity::Gift).IsEmpty());
 
-	// El Alto nunca castiga: con la gravedad leve y sin runas (Revelar Brazal no vale), burla. Aunque el castigo caiga dentro
-	// de un golpe que cortó el turno de ese mismo asiento.
+	// El Alto nunca castiga: con la gravedad leve, sin runas (Revelar Brazal no vale) y con una Consulta forzada ya esperando (otra
+	// no vale, S-017), burla. Aunque el castigo caiga dentro de un golpe que cortó el turno de ese mismo asiento.
 	FWardenFixture F;
 	if (!F.StartWithWarden(*this))
 	{
 		return false;
 	}
 	ForceSeverity(F, EInsolencePunishment::Light);
+	F.State.Oracle.Queued.Add(Koschei);
 	F.State.CurrentEvent.EventIndex = F.IndexOf(TEXT("tropiezo"));
 	F.State.CurrentEvent.Director = Koschei;
 	F.State.CurrentEvent.bInterruptedTurn = true;
@@ -236,9 +238,12 @@ bool FInsolenceInvalidTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	ForceSeverity(F, EInsolencePunishment::Light);
+	// Desde S-017 la Consulta forzada también es leve: con una ya esperando, otra no vale (CA-INS-1b la mira sin ella).
+	F.State.Oracle.Queued.Add(Koschei);
 	const int32 Before = F.State.EventLog.Num();
 	Soulbound::Rules::RaiseInsolence(F.State, Koschei, F.Now);
-	TestEqual(TEXT("Leve sin runas (ni Revelar Brazal ni Alto valen): burla"), F.Since(Before, EMatchEventType::WardenTaunt).Num(), 1);
+	TestEqual(TEXT("Leve sin runas y con una consulta esperando (ni Revelar Brazal, ni Alto, ni otra Consulta forzada valen): burla"),
+		F.Since(Before, EMatchEventType::WardenTaunt).Num(), 1);
 	TestEqual(TEXT("Y ningún efecto"), F.Since(Before, EMatchEventType::EffectApplied).Num(), 0);
 	return true;
 }

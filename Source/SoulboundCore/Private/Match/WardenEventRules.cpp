@@ -1,5 +1,6 @@
 #include "Match/WardenEventRules.h"
 
+#include "Board/SealRules.h"
 #include "Match/BondRaceRules.h"
 #include "Match/EffectCatalog.h"
 #include "Match/MatchEvents.h"
@@ -7,6 +8,7 @@
 #include "Match/TurnRules.h"
 #include "Math/RandomStream.h"
 #include "Templates/TypeHash.h"
+#include "Warden/WardenTriggers.h"
 
 using Soulbound::Rules::LogEvent;
 
@@ -136,6 +138,59 @@ namespace
 		return Seats;
 	}
 
+	/**
+	 * Uno de Seats por sus pesos, con un valor de Random: el primero si todos pesan cero. Para las direcciones "al azar" (R-DIS-3)
+	 * y el rival sugerido (R-DIS-2), con el sorteo del evento.
+	 */
+	int32 PickWeighted(const TArray<int32>& Seats, const TArray<double>& Weights, FRandomStream Random)
+	{
+		double Sum = 0.0;
+		for (const double Weight : Weights)
+		{
+			Sum += Weight;
+		}
+		double Point = Random.FRand() * Sum;
+		for (int32 Index = 0; Index < Seats.Num(); ++Index)
+		{
+			if (Point < Weights[Index])
+			{
+				return Seats[Index];
+			}
+			Point -= Weights[Index];
+		}
+		return Seats.IsEmpty() ? INDEX_NONE : Seats.Last();
+	}
+
+	/**
+	 * Uno de Targets "al azar" (R-DIR-1) con el sorteo del evento: desde S-017 con peso por el tiempo sin ser objetivo, por Jugador
+	 * ignorado si lo es (RandomTargetWeight, R-DIS-3, decisión del autor del 23/10/2026).
+	 */
+	int32 PickRandomTarget(FMatchState& State, const TArray<int32>& Targets, double NowSeconds)
+	{
+		const TArray<FActiveTrigger> Triggers = Soulbound::Rules::ActiveTriggers(State, NowSeconds);
+		TArray<double> Weights;
+		for (const int32 Seat : Targets)
+		{
+			Weights.Add(Soulbound::Rules::RandomTargetWeight(State, Seat, NowSeconds, Triggers));
+		}
+		return PickWeighted(Targets, Weights, NextDraw(State));
+	}
+
+	/**
+	 * Fija el rival sugerido (R-DIS-2, decisión del autor del 23/10/2026) para la elección de rival señalado entre Rivals que se
+	 * va a abrir: uno de los que sugieren los disparadores activos, por sus pesos, con el sorteo del evento; INDEX_NONE si no hay.
+	 * Solo saca sorteo si hay sugerencia.
+	 */
+	void SuggestRival(FMatchState& State, const TArray<int32>& Rivals, double NowSeconds)
+	{
+		State.CurrentEvent.SuggestedRival = INDEX_NONE;
+		const TArray<double> Weights = Soulbound::Rules::SuggestedRivalWeights(State, State.CurrentEvent.EventIndex, Rivals, Soulbound::Rules::ActiveTriggers(State, NowSeconds));
+		if (Weights.ContainsByPredicate([](double Weight) { return Weight > 0.0; }))
+		{
+			State.CurrentEvent.SuggestedRival = PickWeighted(Rivals, Weights, NextDraw(State));
+		}
+	}
+
 	/** De Seats, los que son objetivo válido del efecto (R-DIR-2, R-DIR-3), en el mismo orden. */
 	TArray<int32> ValidTargets(const FMatchState& State, EEffect Effect, const TArray<int32>& Seats, int32 Director)
 	{
@@ -209,8 +264,17 @@ namespace
 	 * válidos, burla (R-DIR-3). Un rival señalado abre su elección; la runa regalada y la runa a perder a elección dejan sus
 	 * objetivos en PendingTargets; el resto se aplica ya.
 	 */
-	void BeginApplication(FMatchState& State, const FEffectApplication& Application, double NowSeconds)
+	void BeginApplication(FMatchState& State, const FEffectApplication& EventApplication, double NowSeconds)
 	{
+		// R-DIS-2 (S-017): la dirección preferida de un disparador activo al lanzar el evento sustituye a la de las aplicaciones con
+		// asiento que la admiten (Enséñame con Líder claro, al líder, sin elección).
+		FEffectApplication Application = EventApplication;
+		const FCurrentWardenEvent& Current = State.CurrentEvent;
+		if (Current.bHasTargetOverride && !Soulbound::Rules::IsGlobalEffect(Application.Effect)
+			&& Soulbound::Rules::EffectDefOf(Application.Effect).AllowedTargets.Contains(Current.TargetOverride))
+		{
+			Application.Target = Current.TargetOverride;
+		}
 		const int32 Director = State.CurrentEvent.Director;
 		if (State.CurrentEvent.bAgainst)
 		{
@@ -232,6 +296,8 @@ namespace
 				Taunt(State, Application, Director, NowSeconds);
 				return;
 			}
+			// R-DIS-2: quien señala sigue eligiendo; el disparador solo deja su sugerencia.
+			SuggestRival(State, Rivals, NowSeconds);
 			OpenEventChoice(State, EChoiceKind::ChosenRival, Director, MoveTemp(Rivals), NowSeconds + State.Params.ShortChoiceClockSeconds);
 			return;
 		}
@@ -247,6 +313,7 @@ namespace
 				return;
 			}
 			State.CurrentEvent.FirstRival = INDEX_NONE;
+			SuggestRival(State, Rivals, NowSeconds);
 			OpenEventChoice(State, EChoiceKind::ChosenRival, Director, MoveTemp(Rivals), NowSeconds + State.Params.ShortChoiceClockSeconds);
 			return;
 		}
@@ -270,18 +337,18 @@ namespace
 				Taunt(State, Application, Director, NowSeconds);
 				return;
 			}
-			const int32 First = Targets[NextDraw(State).RandRange(0, Targets.Num() - 1)];
+			// R-DIS-3 (S-017): cada uno de los dos, con peso por el tiempo sin ser objetivo.
+			const int32 First = PickRandomTarget(State, Targets, NowSeconds);
 			Targets.Remove(First);
-			const int32 Second = Targets[NextDraw(State).RandRange(0, Targets.Num() - 1)];
+			const int32 Second = PickRandomTarget(State, Targets, NowSeconds);
 			const bool bFirstChallenges = NextDraw(State).RandRange(0, 1) == 0;
 			ApplyOrTaunt(State, Application, bFirstChallenges ? Second : First, bFirstChallenges ? First : Second, INDEX_NONE, NowSeconds);
 			return;
 		}
 		if (Application.Target == EEffectTarget::RandomPlayer)
 		{
-			// R-DIR-1: uno de los válidos, con el sorteo del evento (el del Warden).
-			const int32 Pick = NextDraw(State).RandRange(0, Targets.Num() - 1);
-			Targets = {Targets[Pick]};
+			// R-DIR-1: uno de los válidos, con el sorteo del evento (el del Warden); desde S-017, con peso (R-DIS-3).
+			Targets = {PickRandomTarget(State, Targets, NowSeconds)};
 		}
 		if (AsksTarget(Application))
 		{
@@ -426,6 +493,8 @@ namespace Soulbound::Rules
 			// R-INS-3 (S-016): a quien está en el Vacío de la Furia la Liberación no le saca.
 			return State.Seats.IsValidIndex(Seat) && State.Seats[Seat].IsInVoid() && !State.Seats[Seat].bFuryVoid ? EEffectResult::Applied : EEffectResult::NobodyInVoid;
 		case EEffect::EchoNight: return CanEchoNight(State);
+		// S-017 (R-EFE-3): la Consulta forzada, sobre quien está en el tablero y no consulta ya.
+		case EEffect::ForcedOracle: return CanForcedOracle(State, Seat);
 		default: return EEffectResult::NotImplemented;
 		}
 	}
@@ -457,7 +526,11 @@ namespace Soulbound::Rules
 		}
 		const int32 Target = IsGlobalEffect(Effect) ? INDEX_NONE : Seat;
 		LogEvent(State, EMatchEventType::EffectApplied, NowSeconds, Target, static_cast<int32>(Effect), Pointer, static_cast<int32>(Application.Target));
-		// TODO(R-EFE-0): un switch que crece con cada efecto; el que falta (Consulta forzada, S-017) entra aquí.
+		// R-DIS-3 (S-017): ser objetivo de un efecto pone a cero el tiempo sin serlo (Jugador ignorado y el peso "al azar").
+		if (State.Seats.IsValidIndex(Target))
+		{
+			State.Seats[Target].LastTargetedSeconds = NowSeconds;
+		}
 		switch (Effect)
 		{
 		// R-TAB-28 (S-016): el Alto no hace nada más que el corte, que ya hizo quien lanzó el evento (InterruptTurn).
@@ -466,7 +539,22 @@ namespace Soulbound::Rules
 		case EEffect::SendHome: SendHome(State, Seat, NowSeconds); break;
 		case EEffect::LoseTurn: LoseTurn(State, Seat, Application.Amount, NowSeconds); break;
 		case EEffect::ExtraTurn: ExtraTurn(State, Seat, Application.Amount, NowSeconds); break;
-		case EEffect::PlaceSeal: PlaceSeal(State, NowSeconds, Random); break;
+		case EEffect::PlaceSeal:
+		{
+			// R-DIS-2 (S-017): con un Sello hacia el Altar de un disparador (Primer muro con Victoria inminente), en el camino de su
+			// causante; si no, al azar.
+			const int32 TowardsAltar = State.CurrentEvent.IsActive() ? SealTowardsAltarTile(State, State.CurrentEvent.SealTowardsAltarSeat) : INDEX_NONE;
+			if (TowardsAltar != INDEX_NONE)
+			{
+				SealTile(State, TowardsAltar, NowSeconds);
+			}
+			else
+			{
+				PlaceSeal(State, NowSeconds, Random);
+			}
+			break;
+		}
+		case EEffect::ForcedOracle: ForcedOracle(State, Seat, NowSeconds); break;
 		case EEffect::SealAgainstRival: SealAgainstRival(State, Seat, NowSeconds); break;
 		case EEffect::Mark: Mark(State, Seat, Director, Pointer, NowSeconds); break;
 		case EEffect::ShadowLaw: ShadowLaw(State, NowSeconds); break;
@@ -523,8 +611,10 @@ namespace Soulbound::Rules
 			return EWardenEventStart::MatchOver;
 		}
 		// Decisión del autor del 10/10/2026: los eventos se aplican entre turnos. Desde S-016 un golpe llega a mitad de turno,
-		// pero lo corta antes (InterruptTurn) y el evento se aplica en el hueco que deja: también entre turnos.
-		if (State.TurnPhase != ETurnPhase::BetweenTurns)
+		// pero lo corta antes (InterruptTurn) y el evento se aplica en el hueco que deja: también entre turnos. Desde S-017, la
+		// sentencia de un Nodo del Oráculo se aplica dentro del turno, en la fase OracleConsult, con el turno en suspenso.
+		const bool bOracleSentence = State.TurnPhase == ETurnPhase::OracleConsult && State.Oracle.Stage == EOracleStage::Applying;
+		if (State.TurnPhase != ETurnPhase::BetweenTurns && !bOracleSentence)
 		{
 			return EWardenEventStart::NotBetweenTurns;
 		}
@@ -551,18 +641,21 @@ namespace Soulbound::Rules
 		return EWardenEventStart::Started;
 	}
 
-	EWardenEventStart ApplyEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random, bool bInterruptedTurn)
+	EWardenEventStart ApplyEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random, bool bInterruptedTurn, int32 Director)
 	{
 		const EWardenEventStart Result = CanApplyEvent(State, EventId);
 		if (Result != EWardenEventStart::Started)
 		{
 			return Result;
 		}
-		// TODO(R-COM-1): la entrega por el Oráculo es de su story; hasta entonces todo evento se aplica como entrega directa.
+		// S-017 (R-ORA-1): la entrega por el Oráculo la lleva la consulta (OpenOracle); al revelarse, la sentencia llega aquí con su
+		// consultante como quien la dirige.
 		FCurrentWardenEvent& Event = State.CurrentEvent;
 		Event = FCurrentWardenEvent();
 		Event.EventIndex = State.WardenEvents.IndexOf(EventId);
-		Event.Director = EventDirector(State);
+		Event.Director = Director != INDEX_NONE ? Director : EventDirector(State);
+		// R-DIS-2 (S-017): lo que los disparadores activos cambian del evento (dirección preferida, Sello hacia el Altar).
+		ApplyTriggersToEvent(State, ActiveTriggers(State, NowSeconds));
 		// S-016: si llega cortando un turno (un golpe), el Alto vale sobre el cortado, que es quien lo dirige.
 		Event.bInterruptedTurn = bInterruptedTurn;
 		// Un valor del sorteo del Warden; los sorteos del evento salen de él, nunca del de la partida.
@@ -725,6 +818,7 @@ namespace Soulbound::Rules
 					Taunt(State, Application, Event.Director, NowSeconds);
 					break;
 				}
+				SuggestRival(State, Rivals, NowSeconds);
 				OpenEventChoice(State, EChoiceKind::ChosenRival, Event.Director, MoveTemp(Rivals), NowSeconds + State.Params.ShortChoiceClockSeconds);
 				break;
 			}

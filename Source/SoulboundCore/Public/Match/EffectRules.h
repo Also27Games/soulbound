@@ -40,13 +40,14 @@ enum class EEffectResult : uint8
 	SelfTarget,
 	/** El tipo de runa no es una opción válida (S-014). */
 	InvalidRune,
-	/** El efecto se aplica en su story: hoy, Alto y Consulta forzada al Oráculo (S-016, S-017). */
+	/** El efecto se aplica en su story. Desde S-017 se aplican los dieciocho del catálogo: queda para un efecto nuevo. */
 	NotImplemented,
 	/** La Noche de los Ecos con otra Noche activa (R-EFE-18; decisión del autor del 14/10/2026). */
 	AlreadyActive,
 	/**
 	 * Una Prueba del Warden sobre quien ya la tiene (R-EFE-10, S-015; principio del autor del 14/10/2026: el Warden nunca
-	 * parece equivocarse). Nombre propuesto en S-015.
+	 * parece equivocarse). Nombre propuesto en S-015. Desde S-017, también una Consulta forzada sobre quien ya consulta el Oráculo
+	 * o tiene una esperando.
 	 */
 	AlreadyPending,
 	/**
@@ -68,8 +69,9 @@ namespace Soulbound::Rules
 	 * Si el asiento Seat está en juego (decisión del autor del 08/10/2026): es el asiento activo y su turno ha empezado
 	 * (TurnPhase distinta de BetweenTurns), o participa en el duelo en curso, o es el ladrón o la víctima del trilero en
 	 * curso. Entre turnos nadie está en juego, salvo (S-015) los participantes de un duelo o un trilero de un evento del
-	 * Warden, que se juegan entre turnos: el asiento al que le toca el siguiente turno no lo está por eso. Nombre propuesto
-	 * en S-013.
+	 * Warden, que se juegan entre turnos: el asiento al que le toca el siguiente turno no lo está por eso. Desde S-017, quien
+	 * consulta el Oráculo en un Nodo (fase OracleConsult) no está en juego mientras dura la consulta: su turno queda en suspenso
+	 * y su sentencia puede mandarle a casa o al Vacío (R-ORA-2). Nombre propuesto en S-013.
 	 */
 	SOULBOUNDCORE_API bool IsSeatInPlay(const FMatchState& State, int32 Seat);
 
@@ -320,4 +322,26 @@ namespace Soulbound::Rules
 	 * INDEX_NONE si no tiene runas. La usan Perder una runa y las runas que el Warden se lleva (S-015).
 	 */
 	SOULBOUNDCORE_API int32 RandomRuneType(const FMatchState& State, int32 Seat, FRandomStream& Random);
+
+	// S-017: la Consulta forzada y el Sello hacia el Altar de un disparador.
+
+	/**
+	 * Si Seat puede recibir la Consulta forzada (R-EFE-3): InvalidSeat, InVoid, AlreadyPending si ya consulta o tiene una forzada
+	 * esperando; Applied si vale. S-017.
+	 */
+	SOULBOUNDCORE_API EEffectResult CanForcedOracle(const FMatchState& State, int32 Seat);
+
+	/**
+	 * Consulta forzada (glosario `ForcedOracle`, R-EFE-3, R-ORA-1): Seat tendrá que consultar el Oráculo. La consulta espera en
+	 * FOracleState::Queued y la abre la máquina de turnos en el hueco entre turnos, cuando no quedan eventos (OpenOracle con origen
+	 * Forced): el turno siguiente no empieza hasta que se resuelve. Devuelve CanForcedOracle; si no es Applied, no cambia nada. S-017.
+	 */
+	SOULBOUNDCORE_API EEffectResult ForcedOracle(FMatchState& State, int32 Seat, double NowSeconds);
+
+	/**
+	 * Casilla que sellaría un Sello hacia el Altar de Seat (R-DIS-2, S-017: Primer muro con Victoria inminente): la primera
+	 * sellable del camino más corto desde su casilla al Altar, con su transitabilidad (MakeMoverTraits); sin ninguna en ese camino,
+	 * la sellable más cercana a él (como SealAgainstRivalTile). INDEX_NONE si no hay o Seat no está en el tablero. S-017.
+	 */
+	SOULBOUNDCORE_API int32 SealTowardsAltarTile(const FMatchState& State, int32 Seat);
 }

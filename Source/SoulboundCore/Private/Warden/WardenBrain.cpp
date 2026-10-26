@@ -5,6 +5,7 @@
 #include "Match/TurnRules.h"
 #include "Match/WardenEventRules.h"
 #include "Math/RandomStream.h"
+#include "Warden/WardenTriggers.h"
 
 namespace
 {
@@ -63,18 +64,21 @@ namespace
 		return static_cast<EWardenChannel>(Count - 1);
 	}
 
-	/** Evento de Candidates por el peso del acto Act (R-WAR-8, R-SAC-1) con el sorteo Draw, de 0 a 1. */
-	int32 PickEvent(const FMatchState& State, const TArray<int32>& Candidates, EAct Act, double Draw)
+	/**
+	 * Evento de Candidates por el peso del acto Act (R-WAR-8, R-SAC-1) con el sorteo Draw, de 0 a 1. Desde S-017, el peso con los
+	 * disparadores Triggers (R-DIS-1), si lo dirigiera Director.
+	 */
+	int32 PickEvent(const FMatchState& State, const TArray<int32>& Candidates, EAct Act, int32 Director, const TArray<FActiveTrigger>& Triggers, double Draw)
 	{
 		double Sum = 0.0;
 		for (const int32 Index : Candidates)
 		{
-			Sum += State.WardenEvents.Events[Index].WeightIn(Act);
+			Sum += Soulbound::Rules::TriggeredEventWeight(State, Index, Act, Director, Triggers);
 		}
 		double Point = Draw * Sum;
 		for (const int32 Index : Candidates)
 		{
-			const double Weight = State.WardenEvents.Events[Index].WeightIn(Act);
+			const double Weight = Soulbound::Rules::TriggeredEventWeight(State, Index, Act, Director, Triggers);
 			if (Point < Weight)
 			{
 				return Index;
@@ -97,11 +101,13 @@ namespace
 
 FWardenDecision FWardenBrain::Evaluate(const FMatchState& State, double NowSeconds, FRandomStream& Random) const
 {
-	// Siempre los mismos cuatro valores del sorteo, en este orden: así la secuencia del Warden no depende de lo que decida.
+	// Siempre los mismos cinco valores del sorteo, en este orden: así la secuencia del Warden no depende de lo que decida. El quinto
+	// (S-017) elige la entrega de un golpe con "any".
 	const double Variation = Random.FRandRange(-1.0, 1.0);
 	const double InterveneDraw = Random.FRand();
 	const double ChannelDraw = Random.FRand();
 	const double EventDraw = Random.FRand();
+	const double DeliveryDraw = Random.FRand();
 
 	FWardenDecision Decision;
 	const FWardenParams& Params = State.WardenParams;
@@ -112,7 +118,9 @@ FWardenDecision FWardenBrain::Evaluate(const FMatchState& State, double NowSecon
 		return Decision;
 	}
 	Decision.Act = Soulbound::Rules::CurrentAct(State, NowSeconds);
-	// R-WAR-7: durante un duelo, un trilero, un minijuego o un evento, se aplaza.
+	// R-DIS-1, R-WAR-10 (S-017): los disparadores activos, en cada evaluación; quedan en el registro con la decisión.
+	Decision.Triggers = Soulbound::Rules::ActiveTriggers(State, NowSeconds);
+	// R-WAR-7: durante un duelo, un trilero, un minijuego, un evento o, desde S-017, una consulta del Oráculo, se aplaza.
 	if (Soulbound::Rules::IsWardenDeferred(State))
 	{
 		Decision.Kind = EWardenDecisionKind::Deferred;
@@ -127,7 +135,8 @@ FWardenDecision FWardenBrain::Evaluate(const FMatchState& State, double NowSecon
 	// golpe ni escena, se interviene ya, con efecto.
 	Decision.bForcedByGuarantee = LatestOpportunity(State, Decision.NextEvaluationSeconds) - State.Warden.LastEffectSeconds > Params.GuaranteeSeconds;
 	const FWardenActParams& Act = Params.Acts[static_cast<int32>(Decision.Act)];
-	if (!Decision.bForcedByGuarantee && InterveneDraw >= Act.InterveneProbability)
+	// R-DIS-1 (S-017): con Victoria inminente, la probabilidad de intervenir se multiplica (datos, 1,5).
+	if (!Decision.bForcedByGuarantee && InterveneDraw >= Soulbound::Rules::TriggeredInterveneProbability(State, Decision.Act, Decision.Triggers))
 	{
 		return Decision;
 	}
@@ -152,7 +161,12 @@ FWardenDecision FWardenBrain::Evaluate(const FMatchState& State, double NowSecon
 			if (!Candidates.IsEmpty())
 			{
 				Decision.Kind = Tried == EWardenChannel::Strike ? EWardenDecisionKind::Strike : EWardenDecisionKind::Scene;
-				Decision.EventIndex = PickEvent(State, Candidates, Decision.Act, EventDraw);
+				const int32 Director = State.TurnPhase != ETurnPhase::BetweenTurns ? State.ActiveSeat : Soulbound::Rules::EventDirector(State);
+				Decision.EventIndex = PickEvent(State, Candidates, Decision.Act, Director, Decision.Triggers, EventDraw);
+				// R-ORA-1 (S-017): un golpe con "oracle" llega por el Oráculo; con "any", a partes iguales. Las escenas, directas.
+				const EEventDelivery Delivery = State.WardenEvents.Events[Decision.EventIndex].Delivery;
+				Decision.bViaOracle = Decision.Kind == EWardenDecisionKind::Strike
+					&& (Delivery == EEventDelivery::Oracle || (Delivery == EEventDelivery::Any && DeliveryDraw < 0.5));
 				return Decision;
 			}
 		}
@@ -200,7 +214,8 @@ namespace Soulbound::Rules
 
 	bool IsWardenDeferred(const FMatchState& State)
 	{
-		if (State.CurrentEvent.IsActive())
+		// S-017 (R-WAR-7): una consulta del Oráculo abierta, aplicándose o esperando es una escena en curso.
+		if (State.CurrentEvent.IsActive() || State.Oracle.IsBusy())
 		{
 			return true;
 		}
@@ -209,6 +224,7 @@ namespace Soulbound::Rules
 		case ETurnPhase::Duel:
 		case ETurnPhase::ShellGame:
 		case ETurnPhase::SkillTrial:
+		case ETurnPhase::OracleConsult:
 		// End es un instante: la máquina pasa de él a BetweenTurns en el mismo avance.
 		case ETurnPhase::End:
 			return true;
@@ -248,13 +264,12 @@ namespace Soulbound::Rules
 			{
 				continue;
 			}
-			// R-SAC-1: el Oráculo y la Consulta forzada son de S-017; "any" se entrega directo.
-			// TODO(R-COM-1): la entrega por el Oráculo ("oracle" y la mitad de "any") llega con su story (S-017).
+			// R-ORA-1 (S-017): un golpe llega directo o por el Oráculo; una escena solo por "direct" o "any" (que va directa).
 			const bool bImplemented = !Event.Options.ContainsByPredicate([](const FWardenEventOption& Option)
 			{
 				return Option.Applications.ContainsByPredicate([](const FEffectApplication& Application) { return !IsEffectImplemented(Application.Effect); });
 			});
-			if (Event.Delivery == EEventDelivery::Oracle || !bImplemented)
+			if ((Event.Delivery == EEventDelivery::Oracle && Channel != EWardenChannel::Strike) || !bImplemented)
 			{
 				continue;
 			}

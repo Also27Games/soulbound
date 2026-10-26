@@ -84,6 +84,7 @@ namespace
 		case ETurnPhase::ShellGame: return TEXT("trilero");
 		case ETurnPhase::Duel: return TEXT("duelo");
 		case ETurnPhase::End: return TEXT("fin de turno");
+		case ETurnPhase::OracleConsult: return TEXT("consulta del Oráculo");
 		}
 		return TEXT("?");
 	}
@@ -1099,6 +1100,64 @@ void ABoardViewActor::BuildTokens()
 		}
 		TokenActors.Add(Token);
 	}
+
+	// S-017: el orbe de la consulta del Oráculo, una esfera que solo existe para verse y recibir el clic (vista de depuración, sin
+	// asset: la presentación del Oráculo con su barra es de la interfaz, GDD 07).
+	OracleOrb = NewObject<UStaticMeshComponent>(this);
+	OracleOrb->SetStaticMesh(SphereMesh);
+	OracleOrb->SetupAttachment(GetRootComponent());
+	OracleOrb->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	OracleOrb->SetCollisionResponseToAllChannels(ECR_Ignore);
+	OracleOrb->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+	OracleOrb->SetCastShadow(false);
+	OracleOrb->RegisterComponent();
+	OracleOrb->SetWorldScale3D(FVector(OracleOrbDiameter / 100.f));
+	OracleOrb->SetVisibility(false);
+}
+
+bool ABoardViewActor::IsOracleOrb(const UPrimitiveComponent* Component) const
+{
+	return Component && Component == OracleOrb.Get() && OracleOrb->IsVisible();
+}
+
+int32 ABoardViewActor::NearestOracleNode(const FMatchState& State, int32 Seat) const
+{
+	if (!State.Seats.IsValidIndex(Seat) || !State.Board.AreNodesRevealed() || !TilePositions.IsValidIndex(State.Seats[Seat].TileId))
+	{
+		return INDEX_NONE;
+	}
+	const FVector From = TilePositions[State.Seats[Seat].TileId];
+	int32 Nearest = INDEX_NONE;
+	for (const FTileState& Tile : State.Board.Tiles)
+	{
+		if (Tile.PowerNodeEffect == EPowerNodeEffect::Oracle && TilePositions.IsValidIndex(Tile.TileId)
+			&& (Nearest == INDEX_NONE || FVector::DistSquared(From, TilePositions[Tile.TileId]) < FVector::DistSquared(From, TilePositions[Nearest])))
+		{
+			Nearest = Tile.TileId;
+		}
+	}
+	return Nearest;
+}
+
+void ABoardViewActor::RefreshOracleOrb(const FMatchState& State)
+{
+	if (!OracleOrb)
+	{
+		return;
+	}
+	const int32 Seat = State.Oracle.Consultant;
+	if (!State.Oracle.IsWaiting() || !State.Seats.IsValidIndex(Seat))
+	{
+		OracleOrb->SetVisibility(false);
+		return;
+	}
+	// En el Nodo del Oráculo más cercano a su ficha (el de su casilla, si consulta en un Nodo); si no hay, sobre la ficha.
+	const int32 Node = NearestOracleNode(State, Seat);
+	const ASeatTokenActor* Token = TokenActors.IsValidIndex(Seat) ? TokenActors[Seat].Get() : nullptr;
+	const FVector Base = Node != INDEX_NONE ? TokenBase(Node) : Token ? Token->GetActorLocation() : TokenBase(State.Seats[Seat].TileId);
+	OracleOrb->SetWorldLocation(Base + FVector(0.f, 0.f, OracleOrbHeight));
+	Soulbound::Presentation::SetComponentColor(*OracleOrb, BaseMaterial, SeatColor(Seat));
+	OracleOrb->SetVisibility(true);
 }
 
 void ABoardViewActor::BuildCamera()
@@ -1390,8 +1449,34 @@ void ABoardViewActor::RefreshChronicle(const FMatchState& State)
 		case Soulbound::Presentation::EEventSource::Debug: Color = DebugLineColor; break;
 		case Soulbound::Presentation::EEventSource::Seat: break;
 		}
-		// S-016: las evaluaciones del Warden que no hacen nada no tienen línea (una cada 15 s taparía la crónica).
-		const FString Text = Soulbound::Presentation::DescribeEvent(Event, State.Board, &State.WardenEvents);
+		// S-016: las evaluaciones del Warden que no hacen nada no tienen línea (una cada 15 s taparía la crónica). S-017: la decisión
+		// con efecto sí, con sus disparadores entre paréntesis (los WardenTriggered que la siguen, que no tienen línea propia).
+		FString Text;
+		if (Event.Type == EMatchEventType::WardenDecided)
+		{
+			TArray<FMatchEvent> Triggers;
+			bool bViaOracle = false;
+			for (int32 Next = Index + 1; Next < State.EventLog.Num(); ++Next)
+			{
+				const FMatchEvent& After = State.EventLog[Next];
+				if (After.Type == EMatchEventType::WardenTriggered)
+				{
+					Triggers.Add(After);
+					continue;
+				}
+				// Lo que aplica la decisión, en el mismo instante: el corte, el fin del turno y, si va por el Oráculo, su consulta.
+				if (After.ClockSeconds != Event.ClockSeconds || After.Type == EMatchEventType::WardenEventStarted || After.Type == EMatchEventType::WardenEvaluated)
+				{
+					break;
+				}
+				bViaOracle |= After.Type == EMatchEventType::OracleOpened && After.Value == static_cast<int32>(EOracleOrigin::Strike);
+			}
+			Text = Soulbound::Presentation::DescribeWardenDecision(Event, Triggers, bViaOracle, &State.WardenEvents);
+		}
+		else
+		{
+			Text = Soulbound::Presentation::DescribeEvent(Event, State.Board, &State.WardenEvents);
+		}
 		if (!Text.IsEmpty())
 		{
 			Lines.Add({FString::Printf(TEXT("[%s] %s"), *Stamp(Event.ClockSeconds), *Text), Color});
@@ -1518,6 +1603,7 @@ void ABoardViewActor::Refresh()
 	RefreshKit(View);
 
 	RefreshTokens(State);
+	RefreshOracleOrb(State);
 	RefreshChronicle(State);
 }
 
@@ -1887,6 +1973,20 @@ void ABoardViewActor::TickHud()
 	if (!EventText.IsEmpty())
 	{
 		ShowText(11, FColor::Orange, EventText);
+	}
+
+	// Oráculo (S-017): a quién le toca consultar, de dónde viene y cuánto le queda; el humano, con lo que tiene que hacer.
+	if (State.Oracle.IsWaiting() && !State.IsMatchOver())
+	{
+		const int32 Consultant = State.Oracle.Consultant;
+		const bool bHumanOracle = Consultant == HostPtr->GetHumanSeat();
+		const int32 Node = NearestOracleNode(State, Consultant);
+		const FString Where = Node != INDEX_NONE ? FString::Printf(TEXT("el orbe sobre el Nodo %s"), *Soulbound::Presentation::TileShortName(State.Board, Node))
+			: FString(TEXT("el orbe sobre su ficha"));
+		const FString Action = bHumanOracle ? FString::Printf(TEXT("  <- clic en %s para consultar%s"), *Where, State.Oracle.bRefusable ? TEXT(", clic derecho para rechazar (Tifón)") : TEXT(""))
+			: FString::Printf(TEXT(" | %s"), *Where);
+		ShowText(13, bHumanOracle ? FColor::Green : FColor::Orange, FString::Printf(TEXT("ORÁCULO: consulta el asiento %d (%s) | quedan %.0f s%s"), Consultant,
+			*Soulbound::Presentation::OracleOriginText(static_cast<int32>(State.Oracle.Origin)), FMath::Max(0.0, State.Oracle.DeadlineSeconds - State.ClockSeconds), *Action));
 	}
 
 	// Noche de los Ecos (S-014): mientras dura, bien visible.

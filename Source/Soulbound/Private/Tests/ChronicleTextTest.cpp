@@ -1,0 +1,54 @@
+// Tests del texto de la crónica del juego (S-017, decisión del autor del 23/10/2026): los disparadores no tienen línea propia,
+// van entre paréntesis en la decisión del Warden, que solo tiene línea si interviene con efecto. Sin mundo ni actor: las funciones
+// de texto de la vista. Filtro: "Soulbound.Game.Presentation.Cronica".
+
+#include "../../Presentation/EventText.h"
+#include "Match/MatchState.h"
+#include "Misc/AutomationTest.h"
+#include "Warden/WardenBrain.h"
+
+#if WITH_DEV_AUTOMATION_TESTS
+
+namespace
+{
+	constexpr EAutomationTestFlags ChronicleTestFlags = EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter;
+
+	FMatchEvent MakeEvent(EMatchEventType Type, int32 Seat, int32 Value, int32 Detail = INDEX_NONE)
+	{
+		FMatchEvent Event;
+		Event.Type = Type;
+		Event.Seat = Seat;
+		Event.Value = Value;
+		Event.Detail = Detail;
+		return Event;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FChronicleTriggersTest, "Soulbound.Game.Presentation.Cronica.DecisionConDisparadores", ChronicleTestFlags)
+
+bool FChronicleTriggersTest::RunTest(const FString& Parameters)
+{
+	// R-WAR-10, R-DIS-1: en la crónica del juego, WardenTriggered no tiene línea; la decisión con efecto lleva sus disparadores
+	// entre paréntesis ("golpe "Impuesto" (Acaparador: asiento 2)"), y la que no interviene no tiene línea.
+	FWardenEventTable Events;
+	FWardenEventDef& Tax = Events.Events.AddDefaulted_GetRef();
+	Tax.Id = TEXT("impuesto");
+	Tax.Name = TEXT("Impuesto");
+	const FBoardState Board;
+	const FMatchEvent Hoarder = MakeEvent(EMatchEventType::WardenTriggered, 2, static_cast<int32>(EWardenTrigger::Hoarder));
+	const FMatchEvent Stalled = MakeEvent(EMatchEventType::WardenTriggered, INDEX_NONE, static_cast<int32>(EWardenTrigger::StalledMatch));
+	TestTrue(TEXT("WardenTriggered no tiene línea"), Soulbound::Presentation::DescribeEvent(Hoarder, Board, &Events).IsEmpty());
+
+	const FMatchEvent Strike = MakeEvent(EMatchEventType::WardenDecided, INDEX_NONE, 0, static_cast<int32>(EWardenDecisionKind::Strike));
+	TestEqual(TEXT("Golpe con dos disparadores"), Soulbound::Presentation::DescribeWardenDecision(Strike, {Hoarder, Stalled}, false, &Events),
+		FString(TEXT("el Warden decide: golpe \"Impuesto\" (Acaparador: asiento 2; Partida estancada)")));
+	TestEqual(TEXT("Por el Oráculo, sin disparadores"), Soulbound::Presentation::DescribeWardenDecision(Strike, {}, true, &Events),
+		FString(TEXT("el Warden decide: golpe \"Impuesto\" por el Oráculo")));
+	const FMatchEvent Remark = MakeEvent(EMatchEventType::WardenDecided, INDEX_NONE, INDEX_NONE, static_cast<int32>(EWardenDecisionKind::Remark));
+	TestTrue(TEXT("Un comentario no tiene línea de decisión"), Soulbound::Presentation::DescribeWardenDecision(Remark, {Hoarder}, false, &Events).IsEmpty());
+	const FMatchEvent Nothing = MakeEvent(EMatchEventType::WardenDecided, INDEX_NONE, INDEX_NONE, static_cast<int32>(EWardenDecisionKind::None));
+	TestTrue(TEXT("Ni una evaluación que no hace nada"), Soulbound::Presentation::DescribeWardenDecision(Nothing, {Hoarder}, false, &Events).IsEmpty());
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

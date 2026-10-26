@@ -44,6 +44,8 @@ void ASpikeOnlinePlayerController::SetupInputComponent()
 	{
 		// Enlace directo a la tecla: no crea ningún asset de entrada (S-005 no toca assets).
 		InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &ASpikeOnlinePlayerController::OnPrimaryClick);
+		// S-017: el clic derecho en el orbe del Oráculo, el rechazo de Tifón.
+		InputComponent->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &ASpikeOnlinePlayerController::OnSecondaryClick);
 		// Paso a paso (S-007): también sin assets de entrada.
 		InputComponent->BindKey(EKeys::SpaceBar, IE_Pressed, this, &ASpikeOnlinePlayerController::OnStepKey);
 		InputComponent->BindKey(EKeys::Gamepad_FaceButton_Bottom, IE_Pressed, this, &ASpikeOnlinePlayerController::OnStepKey);
@@ -81,6 +83,12 @@ void ASpikeOnlinePlayerController::OnPrimaryClick()
 	FHitResult Hit;
 	if (GetHitResultUnderCursor(ECC_Visibility, false, Hit))
 	{
+		// S-017: con una consulta del Oráculo para el humano, el clic en el orbe consulta.
+		if (const ABoardViewActor* View = Cast<ABoardViewActor>(Hit.GetActor()); View && View->IsOracleOrb(Hit.GetComponent()))
+		{
+			Match->SubmitHumanOracleConsult();
+			return;
+		}
 		if (const ABoardTileActor* Tile = Cast<ABoardTileActor>(Hit.GetActor()))
 		{
 			// Con un salto planar pendiente, el clic en una casilla es la respuesta a la elección (S-009).
@@ -92,6 +100,21 @@ void ASpikeOnlinePlayerController::OnPrimaryClick()
 			{
 				Match->SubmitHumanIntent(Tile->GetTileId());
 			}
+		}
+	}
+}
+
+void ASpikeOnlinePlayerController::OnSecondaryClick()
+{
+	// S-017 (R-ORA-5): el clic derecho en el orbe es el rechazo de Tifón; el motor lo descarta si el humano no puede rechazar.
+	UWorld* World = GetWorld();
+	UMatchHostSubsystem* Match = World ? World->GetSubsystem<UMatchHostSubsystem>() : nullptr;
+	FHitResult Hit;
+	if (Match && Match->HasMatch() && GetHitResultUnderCursor(ECC_Visibility, false, Hit))
+	{
+		if (const ABoardViewActor* View = Cast<ABoardViewActor>(Hit.GetActor()); View && View->IsOracleOrb(Hit.GetComponent()))
+		{
+			Match->SubmitHumanOracleRefuse();
 		}
 	}
 }

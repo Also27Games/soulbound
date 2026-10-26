@@ -81,6 +81,14 @@ enum class ETurnPhase : uint8
 	Duel,
 	/** Fin de turno. */
 	End,
+	/**
+	 * Consulta del Oráculo dentro del turno (R-ORA-2, S-017): el activo acabó en un Nodo del Oráculo. Después de resolver la casilla
+	 * y antes del salto planar y de la acción (R-INT-1), la máquina espera la consulta (SubmitOracleConsult) como espera el
+	 * minijuego en SkillTrial; revelada, la sentencia se aplica aquí como un evento que dirige el consultante. Al acabar, el turno
+	 * sigue en MoveAndResolve, o termina si el consultante dejó el tablero. No se corta. Nombre propuesto en S-017. Va al final
+	 * para no cambiar el valor de las demás en el registro (TurnInterrupted).
+	 */
+	OracleConsult,
 };
 
 /** Qué prueba de habilidad espera el motor (glosario "Minijuego de habilidad"). Nombre propuesto en S-008. */
@@ -666,7 +674,8 @@ enum class EMatchEventType : uint8
 	RuneTakenByWarden,
 	/**
 	 * Un golpe corta el turno en curso (R-TUR-11, S-016): Seat el asiento cortado, Value la fase en que estaba (ETurnPhase). Va
-	 * antes del TurnEnded de ese turno y del evento que lo cortó. Nombre propuesto en S-016.
+	 * antes del TurnEnded de ese turno y del evento que lo cortó. Nombre propuesto en S-016. Desde S-017 también lo corta el fin
+	 * de la carrera (R-PRO-0, R-PRO-3): entonces Detail es 1 y va antes de BondRaceEnded; cortado por el Warden, INDEX_NONE.
 	 */
 	TurnInterrupted,
 	/**
@@ -685,7 +694,7 @@ enum class EMatchEventType : uint8
 	 * Value es la casilla. Uno por casilla, en orden; el de la última va justo antes de Moved. Nombre propuesto en S-020.
 	 */
 	TileEntered,
-	/** Comentario del Warden (glosario `Remark`, R-WAR-4, S-016): sin texto ni efecto; el tipo y la frase son de S-017. Sin asiento. */
+	/** Comentario del Warden (glosario `Remark`, R-WAR-4, S-016): sin texto ni efecto; el tipo y la frase son de la story "La voz del Warden" (decisión del autor del 22/10/2026). Sin asiento. */
 	WardenRemark,
 	/**
 	 * Castigo de insolencia (R-INS-2, S-016): Seat el insolente, Value el nivel que alcanzó con la subida y Detail la gravedad
@@ -703,6 +712,26 @@ enum class EMatchEventType : uint8
 	 * intentó Desvío (la runa no se consume) y 1 si una Liberación sacó a los demás y a él no. Nombre propuesto en S-016.
 	 */
 	FuryRefusal,
+	/** S-017 (R-WAR-10): se abre una consulta del Oráculo. Seat: quien consulta; Value: el origen (EOracleOrigin). */
+	OracleOpened,
+	/** S-017 (R-ORA-3): el consultante consulta dentro del plazo. Seat: el consultante. */
+	OracleConsulted,
+	/** S-017 (R-ORA-3): el plazo se agota sin consultar; la sentencia se aplica igual y la insolencia sube. Seat: el consultante. */
+	OracleIgnored,
+	/** S-017 (R-ORA-5): Tifón rechaza la sentencia. Seat: el consultante; Value: el evento rechazado. */
+	OracleRefused,
+	/**
+	 * S-017 (R-ORA-3, R-ORA-4): la sentencia se revela y se aplica. Seat: el consultante; Value: el evento; Detail: 1 si es la
+	 * segunda, tras un rechazo de Tifón, y 0 si no. Tras ella, un WardenTriggered por disparador con que se sorteó.
+	 */
+	OracleSentence,
+	/** S-017 (R-ORA-4): el orbe muestra "nada": no hay sentencia válida. Seat: el consultante. Sin uso ni insolencia. */
+	OracleEmpty,
+	/**
+	 * S-017 (R-DIS-1, R-WAR-10): un disparador contextual activo, uno por disparador, tras WardenDecided y tras OracleSentence.
+	 * Seat: quien lo causa (INDEX_NONE en Partida estancada); Value: el disparador (EWardenTrigger). Nombre del autor (23/10/2026).
+	 */
+	WardenTriggered,
 };
 
 /** Gravedad de un castigo de insolencia (R-INS-2, S-016, nombre propuesto): la de la tabla, o la Furia. Es el Detail de InsolencePunished. */
@@ -889,6 +918,13 @@ struct SOULBOUNDCORE_API FSeatState
 	 */
 	UPROPERTY()
 	TArray<FPendingPunishment> VoidPunishments;
+
+	/**
+	 * Último instante en que fue objetivo de un efecto o protagonista de un golpe (R-DIS-3, S-017): de aquí salen Jugador ignorado y
+	 * su peso en las direcciones "al azar". 0 desde el inicio. Lo escriben ApplyEffect y el golpe del Warden. Nombre propuesto en S-017.
+	 */
+	UPROPERTY()
+	double LastTargetedSeconds = 0.0;
 };
 
 /**
@@ -960,7 +996,124 @@ struct SOULBOUNDCORE_API FCurrentWardenEvent
 	UPROPERTY()
 	bool bInterruptedTurn = false;
 
+	/**
+	 * Dirección que sustituye a la de las aplicaciones con asiento mientras dura el evento (R-DIS-2, S-017): la preferida por un
+	 * disparador activo al lanzarlo (Enséñame con Líder claro, al líder). bHasTargetOverride falso si no la hay. Nombre propuesto en S-017.
+	 */
+	UPROPERTY()
+	bool bHasTargetOverride = false;
+
+	UPROPERTY()
+	EEffectTarget TargetOverride = EEffectTarget::Leader;
+
+	/**
+	 * Rival sugerido (R-DIS-2, decisión del autor del 23/10/2026): el que un disparador activo propone para la elección de rival
+	 * señalado. Quien señala sigue eligiendo; los dummies lo siguen y la interfaz lo resaltará. INDEX_NONE si no hay. Se sortea
+	 * al abrir cada elección de rival, con el sorteo del evento. Nombre propuesto en S-017.
+	 */
+	UPROPERTY()
+	int32 SuggestedRival = INDEX_NONE;
+
+	/**
+	 * Asiento hacia cuyo camino al Altar cae el Sello del evento (R-DIS-2, S-017: Primer muro con Victoria inminente); INDEX_NONE,
+	 * el Sello al azar de siempre. Nombre propuesto en S-017.
+	 */
+	UPROPERTY()
+	int32 SealTowardsAltarSeat = INDEX_NONE;
+
 	bool IsActive() const { return EventIndex != INDEX_NONE; }
+};
+
+/** De dónde viene una consulta del Oráculo (R-ORA-2, S-017). Es el Value de OracleOpened. Nombre propuesto en S-017. */
+UENUM()
+enum class EOracleOrigin : uint8
+{
+	/** El consultante acabó su movimiento en un Nodo del Oráculo: dentro de su turno. */
+	Node,
+	/** Consulta forzada (`ForcedOracle`), de un evento o de un castigo de insolencia: entre turnos. */
+	Forced,
+	/** Un golpe del Warden entregado por el Oráculo: la sentencia es el decreto que eligió el cerebro (decisión del autor del 23/10/2026). */
+	Strike,
+};
+
+namespace Soulbound::Match
+{
+	/** Orígenes de una consulta del Oráculo (EOracleOrigin, R-ORA-2: Nodo, forzada y golpe). */
+	inline constexpr int32 OracleOriginCount = 3;
+}
+
+/** Por dónde va una consulta del Oráculo (S-017). Nombre propuesto en S-017. */
+UENUM()
+enum class EOracleStage : uint8
+{
+	/** No hay consulta. */
+	None,
+	/** Abierta: espera la intención de consulta (o el rechazo de Tifón) dentro del plazo. */
+	Waiting,
+	/** La sentencia se ha revelado y se está aplicando como evento del Warden (FMatchState::CurrentEvent). */
+	Applying,
+};
+
+/**
+ * Consulta del Oráculo (glosario `Oracle`, R-ORA-1 a R-ORA-5, S-017): quién consulta, de dónde viene, la sentencia sorteada al
+ * abrirla y el plazo. Las Consultas forzadas esperan en Queued a que el hueco entre turnos quede libre. Solo la escriben las reglas
+ * del Oráculo (Match/OracleRules.h) y la máquina de turnos. Nombre propuesto en S-017.
+ */
+USTRUCT()
+struct SOULBOUNDCORE_API FOracleState
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	EOracleStage Stage = EOracleStage::None;
+
+	/** Quien consulta: quien recibe la sentencia (R-ORA-1). */
+	UPROPERTY()
+	int32 Consultant = INDEX_NONE;
+
+	UPROPERTY()
+	EOracleOrigin Origin = EOracleOrigin::Node;
+
+	/** Posición en FMatchState::WardenEvents del decreto sorteado al abrir (R-ORA-4), oculto hasta revelarse. */
+	UPROPERTY()
+	int32 Sentence = INDEX_NONE;
+
+	/** Fin del plazo para consultar (R-ORA-3: FWardenParams::OracleSeconds desde que se abre). */
+	UPROPERTY()
+	double DeadlineSeconds = 0.0;
+
+	/** Si el consultante aún puede rechazarla (R-ORA-5: Tifón, una vez; la segunda sentencia no se rechaza). */
+	UPROPERTY()
+	bool bRefusable = false;
+
+	/** Si llega con el corte de un turno (un golpe por Oráculo): solo así vale el Alto, como en un golpe directo. */
+	UPROPERTY()
+	bool bInterruptedTurn = false;
+
+	/** Si se abrió dentro del turno del consultante (Nodo del Oráculo, fase OracleConsult); si no, entre turnos. */
+	UPROPERTY()
+	bool bInTurn = false;
+
+	/** Si el plazo se agotó sin consultar: la insolencia sube al acabar de aplicar la sentencia. */
+	UPROPERTY()
+	bool bIgnored = false;
+
+	/** Casilla del consultante al abrir: si al acabar está en otra o en el Vacío, dejó el tablero y su turno termina (R-ORA-2). */
+	UPROPERTY()
+	int32 TileAtOpen = INDEX_NONE;
+
+	/** Disparadores activos con que se sorteó la sentencia (R-WAR-10), para registrarlos tras OracleSentence. */
+	UPROPERTY()
+	TArray<FActiveTrigger> Triggers;
+
+	/** Asientos con una Consulta forzada que espera al hueco entre turnos, en orden de llegada. */
+	UPROPERTY()
+	TArray<int32> Queued;
+
+	bool IsActive() const { return Stage != EOracleStage::None; }
+	bool IsWaiting() const { return Stage == EOracleStage::Waiting; }
+	/** Si hay consulta abierta o aplicándose, o alguna esperando: es una escena en curso para el Warden (R-WAR-7). */
+	bool IsBusy() const { return IsActive() || !Queued.IsEmpty(); }
 };
 
 /**
@@ -1133,6 +1286,17 @@ struct SOULBOUNDCORE_API FMatchState
 	/** Estado del Warden (S-016): sorteo propio, usos, última intervención, siguiente evaluación, aplazamiento y escena en espera. */
 	UPROPERTY()
 	FWardenState Warden;
+
+	/** Consulta del Oráculo en curso y las forzadas que esperan (S-017). */
+	UPROPERTY()
+	FOracleState Oracle;
+
+	/**
+	 * Último instante con una runa obtenida o un duelo (R-DIS-1, Partida estancada, S-017); el fin de la carrera también lo fija,
+	 * porque durante ella no cuenta (decisión del autor del 23/10/2026). Nombre propuesto en S-017.
+	 */
+	UPROPERTY()
+	double LastProgressSeconds = 0.0;
 
 	/**
 	 * Ronda (decisión del autor del 10/10/2026: cada vuelta completa del orden de turno): vueltas completas desde el inicio.

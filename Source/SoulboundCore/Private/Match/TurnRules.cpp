@@ -7,11 +7,13 @@
 #include "Match/InsolenceRules.h"
 #include "Match/RuneRules.h"
 #include "Match/MatchEvents.h"
+#include "Match/OracleRules.h"
 #include "Match/ShellGameRules.h"
 #include "Match/VoidRules.h"
 #include "Match/WardenEventRules.h"
 #include "Math/RandomStream.h"
 #include "Warden/WardenRules.h"
+#include "Warden/WardenTriggers.h"
 
 using Soulbound::Rules::LogEvent;
 
@@ -85,6 +87,12 @@ namespace
 		}
 	}
 
+	/** Si la consulta del Oráculo está aplicando su sentencia dentro del turno del consultante (Nodo del Oráculo, S-017). */
+	bool IsApplyingSentenceInTurn(const FMatchState& State)
+	{
+		return State.Oracle.Stage == EOracleStage::Applying && State.Oracle.bInTurn;
+	}
+
 	/** Fase en la que se contesta cada tipo de elección. */
 	ETurnPhase PhaseOf(EChoiceKind Kind)
 	{
@@ -105,6 +113,17 @@ namespace
 		case EChoiceKind::None:
 		default: return ETurnPhase::BetweenTurns;
 		}
+	}
+
+	/**
+	 * Si la máquina está en la fase en que se contesta Kind. Las de los eventos del Warden, entre turnos y, desde S-017, también en
+	 * la fase OracleConsult, donde se aplica la sentencia de un Nodo como evento.
+	 */
+	bool IsAnswerPhase(const FMatchState& State, EChoiceKind Kind)
+	{
+		const ETurnPhase Phase = PhaseOf(Kind);
+		return State.TurnPhase == Phase || (Phase == ETurnPhase::BetweenTurns && Kind != EChoiceKind::None && State.TurnPhase == ETurnPhase::OracleConsult
+			&& IsApplyingSentenceInTurn(State));
 	}
 
 	/** Asiento que sigue a Seat en el orden de turno (R-TUR-1). */
@@ -233,6 +252,7 @@ namespace
 	/**
 	 * Acaba un duelo o un trilero (S-015). Si lo jugaba un evento del Warden (bWaitsForAction), la máquina vuelve a
 	 * BetweenTurns y el evento sigue en la siguiente llamada, sin terminar ningún turno; si no, termina el turno del activo.
+	 * Desde S-017, si el evento es la sentencia de un Nodo del Oráculo, vuelve a OracleConsult, dentro del turno.
 	 */
 	void FinishAction(FMatchState& State, double NowSeconds)
 	{
@@ -241,7 +261,7 @@ namespace
 		{
 			CloseChoice(State);
 			Event.bWaitsForAction = false;
-			State.TurnPhase = ETurnPhase::BetweenTurns;
+			State.TurnPhase = IsApplyingSentenceInTurn(State) ? ETurnPhase::OracleConsult : ETurnPhase::BetweenTurns;
 			// R-INS-2 (S-016): el castigo de quien desatendió y acabó en este duelo o trilero, ahora que ya no está en juego.
 			Soulbound::Rules::DischargePendingPunishments(State, NowSeconds);
 			return;
@@ -485,16 +505,13 @@ namespace
 	}
 
 	/**
-	 * R-CAR-1, R-TAB-27: agotado el tiempo de la carrera, termina al acabar el turno en curso. Se mira al entrar en
-	 * BetweenTurns y antes de empezar un turno, nunca a mitad de uno. Devuelve true si la carrera terminó.
+	 * R-CAR-1, R-TAB-27: la carrera termina cuando debe (IsBondRaceDue: tiempo agotado o sin Nichos Libres) y no hay turno en
+	 * curso. Se mira al entrar en BetweenTurns y antes de empezar un turno; con un turno en curso que se puede cortar, desde
+	 * S-017 (R-PRO-0) lo corta AdvanceTurn antes (CutTurn). Devuelve true si la carrera terminó.
 	 */
-	bool EndBondRaceIfTimeIsUp(FMatchState& State, double NowSeconds, FRandomStream& Random)
+	bool EndBondRaceIfDue(FMatchState& State, double NowSeconds, FRandomStream& Random)
 	{
-		// TODO(R-TAB-26): el fin de carrera que corta el turno en curso es un evento programado (de los que siempre cortan), y
-		// llega con los eventos programados de S-017 (decisión del autor del 19/10/2026); hasta entonces la carrera termina al
-		// acabar el turno en curso. El corte ya existe (InterruptTurn): faltará llamarlo desde el evento programado.
-		return State.MatchPhase == EMatchPhase::BondRace && NowSeconds >= State.Params.RaceDurationSeconds
-			&& Soulbound::Rules::EndBondRace(State, NowSeconds);
+		return Soulbound::Rules::IsBondRaceDue(State, NowSeconds) && Soulbound::Rules::EndBondRace(State, NowSeconds);
 	}
 
 	/** End → BetweenTurns: turno extra del mismo asiento (R-TUR-9) o siguiente del orden (R-TUR-1). */
@@ -521,7 +538,153 @@ namespace
 		// y empezado antes del límite se juega entero, y la carrera termina al acabarlo. Si el turno que acaba aquí ya
 		// pasó el límite y deja un turno extra pendiente, la carrera termina ahora y ese turno extra se juega después,
 		// ya fuera de la carrera y con sus condiciones (confinamiento de los Ecos): decisión del autor del 01/10/2026.
-		EndBondRaceIfTimeIsUp(State, NowSeconds, Random);
+		EndBondRaceIfDue(State, NowSeconds, Random);
+	}
+
+	/**
+	 * Corta el turno en curso (R-TUR-11, R-TAB-26): lo que hace InterruptTurn. Detail: el del TurnInterrupted, INDEX_NONE si lo
+	 * corta el Warden y 1 si lo corta el fin de la carrera (R-PRO-0, S-017). No mira si se puede: eso es de quien llama.
+	 */
+	void CutTurn(FMatchState& State, double NowSeconds, FRandomStream& Random, int32 Detail)
+	{
+		const ETurnPhase Phase = State.TurnPhase;
+		// Consumo fijo (decisión del autor del 04/10/2026): un turno que llegó a PreRoll saca cuatro valores. En PreRoll aún no
+		// tiró: los cuatro; después, los dos de la repetición si siguen pendientes. En Start no llegó: nada.
+		if (Phase == ETurnPhase::PreRoll)
+		{
+			DrawDice(Random);
+			DrawDice(Random);
+		}
+		else
+		{
+			SettleRerollValues(State, Random);
+		}
+		LogEvent(State, EMatchEventType::TurnInterrupted, NowSeconds, State.ActiveSeat, static_cast<int32>(Phase), INDEX_NONE, Detail);
+		// R-TUR-11: la ficha se queda donde está; el turno termina como cualquier otro (turno extra, siguiente, fin de carrera), y
+		// el cortado es el activo del evento que lo cortó (el último que jugó). R-TAB-26 (S-020): a medio camino, "donde está" es
+		// la última casilla en la que entró (o el origen), que no resuelve; el resto del camino se descarta.
+		State.Movement = FMovementState();
+		State.PendingTrial = ESkillTrial::None;
+		State.LastTurnSeat = State.ActiveSeat;
+		EnterEnd(State, NowSeconds);
+		LeaveEnd(State, NowSeconds, Random);
+	}
+
+	/** La consulta, sin sentencia ni consultante; las forzadas que esperan, se quedan. */
+	void ClearOracle(FMatchState& State)
+	{
+		TArray<int32> Queued = MoveTemp(State.Oracle.Queued);
+		State.Oracle = FOracleState();
+		State.Oracle.Queued = MoveTemp(Queued);
+	}
+
+	/**
+	 * Termina la consulta si su sentencia ya se aplicó (no queda evento en curso). Dentro del turno (R-ORA-2), el turno sigue donde
+	 * estaba (el salto planar y la acción, R-INT-1), o termina si el consultante dejó el tablero (Vacío, Vuelta al hogar: en el
+	 * Vacío o en otra casilla). Si el plazo se agotó, la insolencia sube ahora (R-ORA-3): dentro del turno el consultante está en
+	 * juego y su castigo espera al fin del turno, como el del reloj de turno; entre turnos, en el acto.
+	 */
+	void FinishOracleIfDone(FMatchState& State, double NowSeconds)
+	{
+		if (State.Oracle.Stage != EOracleStage::Applying || State.CurrentEvent.IsActive())
+		{
+			return;
+		}
+		const FOracleState Done = State.Oracle;
+		ClearOracle(State);
+		if (Done.bInTurn)
+		{
+			const FSeatState& Seat = State.Seats[Done.Consultant];
+			if (Seat.IsInVoid() || Seat.TileId != Done.TileAtOpen)
+			{
+				EnterEnd(State, NowSeconds);
+			}
+			else
+			{
+				State.TurnPhase = ETurnPhase::MoveAndResolve;
+				OfferFrom(State, NowSeconds, EChoiceKind::PlanarJump);
+			}
+		}
+		if (Done.bIgnored)
+		{
+			Soulbound::Rules::RaiseInsolence(State, Done.Consultant, NowSeconds);
+		}
+	}
+
+	/** Registra los disparadores con que se sorteó la sentencia (R-WAR-10), uno por disparador, tras OracleSentence. */
+	void LogSentenceTriggers(FMatchState& State, double NowSeconds)
+	{
+		for (const FActiveTrigger& Trigger : State.Oracle.Triggers)
+		{
+			LogEvent(State, EMatchEventType::WardenTriggered, NowSeconds, Trigger.Seat, static_cast<int32>(Trigger.Trigger));
+		}
+	}
+
+	/**
+	 * Revela la sentencia Sentence y la aplica (R-ORA-3): OracleSentence (Detail 1 si es la segunda de Tifón) y sus disparadores,
+	 * un uso del evento (R-SAC-1) y el evento, dirigido por el consultante, con un sorteo del Warden. Si se aplica entero en el
+	 * acto, la consulta termina aquí.
+	 */
+	void RevealSentence(FMatchState& State, int32 Sentence, bool bSecond, double NowSeconds)
+	{
+		FOracleState& Oracle = State.Oracle;
+		LogEvent(State, EMatchEventType::OracleSentence, NowSeconds, Oracle.Consultant, Sentence, INDEX_NONE, bSecond ? 1 : 0);
+		LogSentenceTriggers(State, NowSeconds);
+		if (State.Warden.UsesLeft.IsValidIndex(Sentence) && State.Warden.UsesLeft[Sentence] > 0)
+		{
+			--State.Warden.UsesLeft[Sentence];
+		}
+		Oracle.Stage = EOracleStage::Applying;
+		Oracle.bRefusable = false;
+		Oracle.Sentence = Sentence;
+		FRandomStream Draw = Soulbound::Rules::WardenDraw(State);
+		Soulbound::Rules::ApplyEvent(State, State.WardenEvents.Events[Sentence].Id, NowSeconds, Draw, Oracle.bInterruptedTurn, Oracle.Consultant);
+		FinishOracleIfDone(State, NowSeconds);
+	}
+
+	/**
+	 * Lleva la consulta en curso (R-ORA-3): abierta, espera la intención hasta el plazo y, agotado, la sentencia se aplica igual
+	 * (OracleIgnored; la insolencia, al terminar); aplicándose, lleva su evento. Devuelve false si espera.
+	 */
+	bool AdvanceOracle(FMatchState& State, double NowSeconds)
+	{
+		FOracleState& Oracle = State.Oracle;
+		if (Oracle.Stage == EOracleStage::Waiting)
+		{
+			if (NowSeconds < Oracle.DeadlineSeconds)
+			{
+				return false;
+			}
+			LogEvent(State, EMatchEventType::OracleIgnored, NowSeconds, Oracle.Consultant);
+			Oracle.bIgnored = true;
+			RevealSentence(State, Oracle.Sentence, false, NowSeconds);
+			return true;
+		}
+		if (Oracle.Stage == EOracleStage::Applying)
+		{
+			const bool bChanged = State.CurrentEvent.IsActive() ? Soulbound::Rules::AdvanceWardenEvent(State, NowSeconds) : true;
+			FinishOracleIfDone(State, NowSeconds);
+			return bChanged;
+		}
+		// Fase OracleConsult sin consulta: no debería pasar; el turno sigue para no quedarse esperando.
+		if (State.TurnPhase == ETurnPhase::OracleConsult)
+		{
+			State.TurnPhase = ETurnPhase::MoveAndResolve;
+			OfferFrom(State, NowSeconds, EChoiceKind::PlanarJump);
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Si el asiento activo acaba en un Nodo del Oráculo que ya actúa (R-ORA-2, R-TAB-8): Nodos revelados (desde el Despertar), y
+	 * solo si se ha movido este turno, como los demás efectos de casilla (R-INT-1).
+	 */
+	bool LandsOnOracleNode(const FMatchState& State)
+	{
+		const FSeatState& Seat = State.Seats[State.ActiveSeat];
+		return State.bActiveSeatMoved && State.Board.AreNodesRevealed() && State.Board.IsValidTile(Seat.TileId)
+			&& State.Board.Tiles[Seat.TileId].PowerNodeEffect == EPowerNodeEffect::Oracle;
 	}
 
 	/** Si la partida tiene lo que la máquina de turnos necesita: orden de turno sobre asientos existentes y turno activo en él. */
@@ -562,14 +725,37 @@ namespace Soulbound::Rules
 		{
 			return false;
 		}
+		// R-PRO-0, R-PRO-3, R-WAR-4b (S-017): el fin de la carrera corta el turno en curso en ese instante, y después termina la
+		// carrera (LeaveEnd). En un duelo, un trilero, un minijuego o una consulta no se corta: el fin espera a que acaben (R-WAR-4d).
+		if (IsBondRaceDue(State, NowSeconds) && CanInterruptTurn(State))
+		{
+			CutTurn(State, NowSeconds, Random, 1);
+			return true;
+		}
 		switch (State.TurnPhase)
 		{
 		case ETurnPhase::BetweenTurns:
 			// S-014: un evento del Warden en curso se resuelve entero antes de empezar el siguiente turno; mientras espera una
-			// elección, la máquina espera, y el turno siguiente empieza en una llamada posterior.
+			// elección, la máquina espera, y el turno siguiente empieza en una llamada posterior. S-017: si era una sentencia del
+			// Oráculo, su consulta termina con él.
 			if (State.CurrentEvent.IsActive())
 			{
-				return Soulbound::Rules::AdvanceWardenEvent(State, NowSeconds);
+				const bool bChanged = Soulbound::Rules::AdvanceWardenEvent(State, NowSeconds);
+				FinishOracleIfDone(State, NowSeconds);
+				return bChanged;
+			}
+			// S-017 (R-ORA-2): una consulta entre turnos se resuelve antes del turno siguiente; las forzadas que esperan se abren de
+			// una en una, cuando no queda ningún evento.
+			if (State.Oracle.IsActive())
+			{
+				return AdvanceOracle(State, NowSeconds);
+			}
+			if (!State.Oracle.Queued.IsEmpty())
+			{
+				const int32 Consultant = State.Oracle.Queued[0];
+				State.Oracle.Queued.RemoveAt(0);
+				OpenOracle(State, Consultant, EOracleOrigin::Forced, INDEX_NONE, false, NowSeconds);
+				return true;
 			}
 			// S-016 (R-WAR-4): una escena que el Warden decidió con un turno en curso entra en este hueco, antes del turno siguiente.
 			if (State.Warden.PendingScene != INDEX_NONE)
@@ -580,7 +766,7 @@ namespace Soulbound::Rules
 				return true;
 			}
 			// Si el tiempo de carrera se agotó sin turno en curso, termina antes de empezar el siguiente.
-			if (!EndBondRaceIfTimeIsUp(State, NowSeconds, Random))
+			if (!EndBondRaceIfDue(State, NowSeconds, Random))
 			{
 				EnterStart(State, NowSeconds);
 			}
@@ -694,6 +880,12 @@ namespace Soulbound::Rules
 			// R-CAR-4: el Nicho se resuelve aquí. Sin movimiento (R-TAB-18) el asiento sigue donde terminó el anterior,
 			// que nunca es un Nicho Libre para un Eco: lo habría reclamado al llegar.
 			Soulbound::Rules::ResolveNicheLanding(State, State.ActiveSeat, NowSeconds, Random);
+			// R-PRO-0 (S-017): con el último Nicho reclamado, la carrera termina cortando el turno en ese instante, sin salto ni acción.
+			if (IsBondRaceDue(State, NowSeconds))
+			{
+				CutTurn(State, NowSeconds, Random, 1);
+				return true;
+			}
 			// R-RUN-2: la Fuente se resuelve junto al Nicho, solo si el asiento se ha movido (R-RUN-3). Si un Elegido debe
 			// jugar el minijuego, la máquina espera su resultado como espera el destino (SubmitSkillTrialResult).
 			if (Soulbound::Rules::ResolvePowerSourceLanding(State, State.ActiveSeat, NowSeconds) == ERuneLanding::TrialPending)
@@ -701,7 +893,12 @@ namespace Soulbound::Rules
 				State.TurnPhase = ETurnPhase::SkillTrial;
 				return true;
 			}
-			// TODO(R-TUR-2): Nodo del Oráculo, en la story del Warden. El Nodo de Duelo entra en la acción contra un jugador (S-012).
+			// R-ORA-2 (S-017): el Nodo del Oráculo abre la consulta dentro del turno, después de la casilla y antes del salto y de la
+			// acción; sin sentencia posible ("nada"), el turno sigue. El Nodo de Duelo entra en la acción contra un jugador (S-012).
+			if (LandsOnOracleNode(State) && OpenOracle(State, State.ActiveSeat, EOracleOrigin::Node, INDEX_NONE, false, NowSeconds))
+			{
+				return true;
+			}
 			// R-INT-1: después de la casilla, el salto planar y, como mucho, una acción contra un jugador.
 			OfferFrom(State, NowSeconds, EChoiceKind::PlanarJump);
 			return true;
@@ -725,6 +922,9 @@ namespace Soulbound::Rules
 		case ETurnPhase::End:
 			LeaveEnd(State, NowSeconds, Random);
 			return true;
+		case ETurnPhase::OracleConsult:
+			// R-ORA-2, R-ORA-3 (S-017): la consulta del Nodo espera su intención y, revelada, aplica su sentencia dentro del turno.
+			return AdvanceOracle(State, NowSeconds);
 		}
 		return false;
 	}
@@ -837,7 +1037,7 @@ namespace Soulbound::Rules
 		{
 			return EIntentResult::WrongSeat;
 		}
-		if (!Choice.IsOpen() || Choice.Kind != Kind || State.TurnPhase != PhaseOf(Kind) || IsVoidWaitObsolete(State))
+		if (!Choice.IsOpen() || Choice.Kind != Kind || !IsAnswerPhase(State, Kind) || IsVoidWaitObsolete(State))
 		{
 			return EIntentResult::WrongPhase;
 		}
@@ -1043,28 +1243,121 @@ namespace Soulbound::Rules
 		{
 			return false;
 		}
-		const ETurnPhase Phase = State.TurnPhase;
-		// Consumo fijo (decisión del autor del 04/10/2026): un turno que llegó a PreRoll saca cuatro valores. En PreRoll aún no
-		// tiró: los cuatro; después, los dos de la repetición si siguen pendientes. En Start no llegó: nada.
-		if (Phase == ETurnPhase::PreRoll)
-		{
-			DrawDice(Random);
-			DrawDice(Random);
-		}
-		else
-		{
-			SettleRerollValues(State, Random);
-		}
-		LogEvent(State, EMatchEventType::TurnInterrupted, NowSeconds, State.ActiveSeat, static_cast<int32>(Phase));
-		// R-TUR-11: la ficha se queda donde está; el turno termina como cualquier otro (turno extra, siguiente, fin de carrera), y
-		// el cortado es el activo del evento que lo cortó (el último que jugó). R-TAB-26 (S-020): a medio camino, "donde está" es
-		// la última casilla en la que entró (o el origen), que no resuelve; el resto del camino se descarta.
-		State.Movement = FMovementState();
-		State.PendingTrial = ESkillTrial::None;
-		State.LastTurnSeat = State.ActiveSeat;
-		EnterEnd(State, NowSeconds);
-		LeaveEnd(State, NowSeconds, Random);
+		CutTurn(State, NowSeconds, Random, INDEX_NONE);
 		return true;
+	}
+
+	bool IsBondRaceDue(const FMatchState& State, double NowSeconds)
+	{
+		// R-CAR-1: por tiempo o porque ya no queda ningún Nicho Libre (todos vinculados).
+		return State.MatchPhase == EMatchPhase::BondRace && (NowSeconds >= State.Params.RaceDurationSeconds || !HasFreeNiche(State.Board));
+	}
+
+	bool OpenOracle(FMatchState& State, int32 Consultant, EOracleOrigin Origin, int32 Sentence, bool bInterruptedTurn, double NowSeconds)
+	{
+		// El Oráculo es del Warden: sin Warden en la partida (la simulación con bWardenEnabled apagado) no se abre, como no hay
+		// castigos de insolencia sin él (decisión del autor del 19/10/2026).
+		if (!State.WardenParams.HasWarden() || !State.Seats.IsValidIndex(Consultant))
+		{
+			return false;
+		}
+		LogEvent(State, EMatchEventType::OracleOpened, NowSeconds, Consultant, static_cast<int32>(Origin));
+		ClearOracle(State);
+		FOracleState& Oracle = State.Oracle;
+		Oracle.Consultant = Consultant;
+		Oracle.Origin = Origin;
+		Oracle.bInTurn = Origin == EOracleOrigin::Node;
+		Oracle.bInterruptedTurn = bInterruptedTurn;
+		Oracle.TileAtOpen = State.Seats[Consultant].TileId;
+		// Dentro del turno, la fase cambia antes de sortear: la validez de la sentencia se mira con el turno en suspenso (el
+		// consultante puede recibir la Vuelta al hogar o el Vacío, IsSeatInPlay).
+		if (Oracle.bInTurn)
+		{
+			State.TurnPhase = ETurnPhase::OracleConsult;
+		}
+		// R-ORA-4: la sentencia se sortea al abrir, con el sorteo del Warden, para que la partida sea reproducible; la de un golpe
+		// es el decreto que eligió el cerebro (decisión del autor del 23/10/2026).
+		Oracle.Triggers = ActiveTriggers(State, NowSeconds);
+		if (Sentence == INDEX_NONE)
+		{
+			FRandomStream Draw = WardenDraw(State);
+			Sentence = DrawOracleSentence(State, Consultant, NowSeconds, Oracle.Triggers, Draw);
+		}
+		if (Sentence == INDEX_NONE)
+		{
+			// Sin candidatos, "nada": sin uso ni insolencia, y el turno del Nodo sigue (lo lleva quien llama).
+			LogEvent(State, EMatchEventType::OracleEmpty, NowSeconds, Consultant);
+			ClearOracle(State);
+			if (Origin == EOracleOrigin::Node)
+			{
+				State.TurnPhase = ETurnPhase::MoveAndResolve;
+			}
+			return false;
+		}
+		Oracle.Sentence = Sentence;
+		Oracle.DeadlineSeconds = NowSeconds + State.WardenParams.OracleSeconds;
+		// R-ORA-5: Tifón puede rechazarla una vez, venga por donde venga.
+		Oracle.bRefusable = HasAffinity(State, Consultant, EAffinity::RefuseOracle);
+		Oracle.Stage = EOracleStage::Waiting;
+		return true;
+	}
+
+	EIntentResult SubmitOracleConsult(FMatchState& State, int32 Seat, double NowSeconds)
+	{
+		// Glosario "Intención": consulta abierta, su consultante y su plazo; si no, se descarta sin castigo y sin tocar nada.
+		const FOracleState& Oracle = State.Oracle;
+		if (!HasTurnOrder(State) || !Oracle.IsWaiting())
+		{
+			return EIntentResult::WrongPhase;
+		}
+		if (Seat != Oracle.Consultant)
+		{
+			return EIntentResult::WrongSeat;
+		}
+		if (NowSeconds >= Oracle.DeadlineSeconds)
+		{
+			return EIntentResult::ClockExpired;
+		}
+		LogEvent(State, EMatchEventType::OracleConsulted, NowSeconds, Seat);
+		RevealSentence(State, Oracle.Sentence, false, NowSeconds);
+		return EIntentResult::Accepted;
+	}
+
+	EIntentResult SubmitOracleRefuse(FMatchState& State, int32 Seat, double NowSeconds)
+	{
+		FOracleState& Oracle = State.Oracle;
+		if (!HasTurnOrder(State) || !Oracle.IsWaiting())
+		{
+			return EIntentResult::WrongPhase;
+		}
+		if (Seat != Oracle.Consultant)
+		{
+			return EIntentResult::WrongSeat;
+		}
+		if (NowSeconds >= Oracle.DeadlineSeconds)
+		{
+			return EIntentResult::ClockExpired;
+		}
+		if (!Oracle.bRefusable)
+		{
+			return EIntentResult::InvalidOption;
+		}
+		// R-ORA-5: rechazar cuenta como consultar (sin insolencia). La segunda se sortea con el sesgo y se aplica en el acto, sin
+		// consulta ni rechazo; sin candidatos, "nada" y no hay tercera.
+		LogEvent(State, EMatchEventType::OracleRefused, NowSeconds, Seat, Oracle.Sentence);
+		Oracle.bRefusable = false;
+		Oracle.Triggers = ActiveTriggers(State, NowSeconds);
+		FRandomStream Draw = WardenDraw(State);
+		const int32 Second = DrawOracleSentence(State, Seat, NowSeconds, Oracle.Triggers, Draw);
+		if (Second == INDEX_NONE)
+		{
+			LogEvent(State, EMatchEventType::OracleEmpty, NowSeconds, Seat);
+			Oracle.Stage = EOracleStage::Applying;
+			FinishOracleIfDone(State, NowSeconds);
+			return EIntentResult::Accepted;
+		}
+		RevealSentence(State, Second, true, NowSeconds);
+		return EIntentResult::Accepted;
 	}
 
 	bool GrantExtraTurns(FMatchState& State, int32 Seat, int32 Count)

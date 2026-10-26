@@ -12,10 +12,15 @@ namespace Soulbound::Rules
 	 * Añade un evento al registro de partida (R-TUR-15). NowSeconds: marca de tiempo del reloj de partida. Seat: asiento
 	 * afectado (o quien actúa, si hay dos), o INDEX_NONE. Value: el dato del evento (ver FMatchEvent::Value), o INDEX_NONE.
 	 * OtherSeat: el segundo asiento, el afectado cuando Seat actúa (S-010), o INDEX_NONE. Detail: el segundo dato (S-014), o
-	 * INDEX_NONE.
+	 * INDEX_NONE. Desde S-017 también fecha el progreso de la partida (FMatchState::LastProgressSeconds, Partida estancada): una
+	 * runa obtenida o un reto a duelo, vengan de la regla que vengan.
 	 */
 	inline void LogEvent(FMatchState& State, EMatchEventType Type, double NowSeconds, int32 Seat, int32 Value = INDEX_NONE, int32 OtherSeat = INDEX_NONE, int32 Detail = INDEX_NONE)
 	{
+		if (Type == EMatchEventType::RuneObtained || Type == EMatchEventType::DuelChallenged)
+		{
+			State.LastProgressSeconds = NowSeconds;
+		}
 		FMatchEvent& Event = State.EventLog.AddDefaulted_GetRef();
 		Event.Type = Type;
 		Event.ClockSeconds = NowSeconds;

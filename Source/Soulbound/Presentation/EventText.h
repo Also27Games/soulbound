@@ -77,6 +77,19 @@ namespace Soulbound::Presentation
 	/** Gravedad de un castigo de insolencia (EInsolencePunishment en un Detail), en español (S-016, InsolencePunished). */
 	FString InsolencePunishmentText(int32 Kind);
 
+	/**
+	 * La decisión del Warden para la crónica del juego (S-017, decisión del autor del 23/10/2026), solo si interviene con efecto:
+	 * "el Warden decide: golpe "Impuesto" (Acaparador: asiento 2)". Decided: el WardenDecided; Triggers: los WardenTriggered que
+	 * lo siguen; bViaOracle: si el golpe llega por el Oráculo. Vacía para un comentario, nada o un aplazamiento.
+	 */
+	FString DescribeWardenDecision(const FMatchEvent& Decided, const TArray<FMatchEvent>& Triggers, bool bViaOracle, const FWardenEventTable* WardenEvents = nullptr);
+
+	/** De dónde viene una consulta del Oráculo (EOracleOrigin en el Value de OracleOpened), en español (S-017). */
+	FString OracleOriginText(int32 Origin);
+
+	/** Nombre en español de un disparador contextual (EWardenTrigger en el Value de WardenTriggered): "Líder claro" (S-017). */
+	FString TriggerName(int32 Trigger);
+
 	/** Motivo de una salida del Vacío (EVoidExit en el Value de LeftVoid), en español, para la crónica (S-013). */
 	FString VoidExitText(int32 Exit);
 

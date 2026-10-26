@@ -307,6 +307,11 @@ namespace Soulbound::Rules
 					}
 				}
 			}
+			// R-ORA-1 (S-017): el Oráculo solo entrega decretos; un dilema nunca llega por él, ni con "oracle" ni con "any".
+			if (Event.IsDilemma() && Event.Delivery != EEventDelivery::Direct)
+			{
+				return Reject(EWardenEventsError::OracleDilemma, FString::Printf(TEXT("R-ORA-1: evento \"%s\": un dilema solo se entrega directo; el Oráculo entrega decretos."), *Event.Id));
+			}
 		}
 		return FWardenEventsLoadResult();
 	}

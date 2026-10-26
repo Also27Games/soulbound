@@ -13,5 +13,49 @@
     {"levels": [0, 1], "light": 70, "medium": 25, "severe": 5},
     {"levels": [2, 3], "light": 30, "medium": 50, "severe": 20},
     {"levels": [4], "fury": true}
-  ]
+  ],
+  "oracleSeconds": 7,
+  "oracleBias": 0.5,
+  "triggers": {
+    "clearLeaderGap": 2,
+    "imminentVictoryTypes": 5,
+    "imminentVictoryInterveneMultiplier": 1.5,
+    "ignoredMinutes": 4,
+    "ignoredRandomMultiplier": 3,
+    "ignoredSuggestMultiplier": 3,
+    "stalledMinutes": 4,
+    "hoarderCount": 3,
+    "tables": [
+      {"trigger": "ClearLeader", "strikesAgainstActive": 2, "events": [
+        {"event": "el-perseguido", "multiplier": 3},
+        {"event": "cosecha-del-lider", "multiplier": 3},
+        {"event": "destierro-del-lider", "multiplier": 2},
+        {"event": "ensename", "multiplier": 3, "target": "Leader"},
+        {"event": "generosidad-envenenada", "multiplier": 2, "suggestCause": true},
+        {"event": "hazlo-tu", "multiplier": 2, "suggestCause": true},
+        {"event": "el-precio", "multiplier": 2, "suggestCause": true},
+        {"event": "ojo-por-ojo", "multiplier": 2, "suggestCause": true},
+        {"event": "duelo-por-orden", "multiplier": 2, "suggestCause": true},
+        {"event": "trueque", "multiplier": 2, "suggestCause": true}
+      ]},
+      {"trigger": "ImminentVictory", "strikesAgainstActive": 3, "events": [
+        {"event": "destierro-del-lider", "multiplier": 4},
+        {"event": "el-perseguido", "multiplier": 4},
+        {"event": "cosecha-del-lider", "multiplier": 4},
+        {"event": "primer-muro", "multiplier": 3, "sealTowardsAltar": true}
+      ]},
+      {"trigger": "StalledMatch", "events": [
+        {"event": "noche-de-los-ecos", "multiplier": 3},
+        {"event": "piedad", "multiplier": 3},
+        {"event": "amanecer", "multiplier": 3},
+        {"event": "hermanos-de-sangre", "multiplier": 3},
+        {"event": "trueque", "multiplier": 3}
+      ]},
+      {"trigger": "Hoarder", "events": [
+        {"event": "el-precio", "multiplier": 2, "suggestCause": true},
+        {"event": "milagro", "multiplier": 2},
+        {"event": "impuesto", "multiplier": 3, "whenActiveIsCause": true}
+      ]}
+    ]
+  }
 }

@@ -43,7 +43,11 @@ struct SOULBOUNDCORE_API FSimulationParams
 /** Cifras del Warden en un acto de una partida simulada (informe de S-016). Nombre propuesto en S-016. */
 struct SOULBOUNDCORE_API FWardenActReport
 {
-	/** Golpes y escenas aplicados en el acto. */
+	/**
+	 * Golpes y escenas que decide el cerebro en el acto, la medida del pilar 1: los lanzados (WardenEventStarted) y, desde S-017,
+	 * los golpes por el Oráculo al abrir su consulta (OracleOpened con origen golpe). Las sentencias de un Nodo o de una Consulta
+	 * forzada no cuentan: van en SentencesByOrigin (decisión del autor del 23/10/2026).
+	 */
 	int32 EffectInterventions = 0;
 	/** Turnos empezados en el acto. */
 	int32 TurnsStarted = 0;
@@ -51,6 +55,14 @@ struct SOULBOUNDCORE_API FWardenActReport
 	int32 TurnsCut = 0;
 	/** Hueco más largo sin golpe ni escena que empieza en el acto, en segundos (desde el inicio, o hasta el final). */
 	double MaxGapSeconds = 0.0;
+	/** Sentencias del Oráculo reveladas en el acto (OracleSentence), las segundas de Tifón incluidas (S-017). */
+	int32 Sentences = 0;
+	/** Las mismas sentencias por el origen de su consulta, indexadas por EOracleOrigin: Nodo, forzada y golpe (S-017). */
+	TArray<int32> SentencesByOrigin;
+	/** Consultas del acto que acabaron en insolencia: plazo agotado sin consultar (OracleIgnored, S-017). Con dummies, 0. */
+	int32 IgnoredConsults = 0;
+	/** Veces que estuvo activo cada disparador en el acto (WardenTriggered), indexadas por EWardenTrigger (S-017). */
+	TArray<int32> TriggerCounts;
 };
 
 struct SOULBOUNDCORE_API FSimulationResult
@@ -60,12 +72,14 @@ struct SOULBOUNDCORE_API FSimulationResult
 	int32 Turns = 0;
 	/** Evaluaciones del cerebro del Warden (WardenEvaluated), re-evaluaciones tras un aplazamiento incluidas. */
 	int32 Evaluations = 0;
-	/** Intervenciones con efecto del Warden: golpes y escenas aplicados (S-016). */
+	/** Intervenciones con efecto del Warden: golpes y escenas que decide el cerebro (S-016; desde S-017, sin las sentencias de Nodo y forzadas). */
 	int32 Interventions = 0;
 	/** Cifras del Warden por acto (S-016), indexadas por EAct. */
 	TArray<FWardenActReport> WardenActs;
 	/** Furias del Warden en la partida (FuryUnleashed, R-INS-3, S-016). */
 	int32 Furies = 0;
+	/** Turnos que cortó el fin de la carrera (TurnInterrupted con Detail 1, R-PRO-0, S-017): 0 o 1 por partida. */
+	int32 RaceEndCuts = 0;
 	/** Tiempo real que tardó la simulación. */
 	double WallSeconds = 0.0;
 	FMatchState FinalState;

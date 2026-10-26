@@ -77,6 +77,15 @@ namespace Soulbound::Rules
 		// S-016 (R-WAR-10): el Warden viaja en el estado con su sorteo propio, la semilla de la partida más 2 (como el anfitrión y
 		// la simulación hasta S-015), sin tocar el sorteo de la partida; los usos de cada evento y la primera evaluación.
 		State.WardenParams = WardenParams;
+		// S-017 (R-DIS-2): las tablas de los disparadores, enlazadas con los eventos de la partida por su identificador.
+		if (WardenParams.HasWarden())
+		{
+			const FWardenParamsLoadResult Binding = BindWardenTriggerEvents(State.WardenParams, WardenEvents);
+			if (!Binding.IsSuccess())
+			{
+				return Fail(EMatchStartError::InvalidWardenParams, TEXT("Los disparadores del Warden no son válidos: ") + Binding.Message);
+			}
+		}
 		State.Warden.Seed = Random.GetInitialSeed() + 2;
 		// S-016 (R-TAB-12): el reparto de hogares al acabar la carrera, con su propia semilla, más 3, tampoco toca los dados.
 		State.HomeAssignmentSeed = Random.GetInitialSeed() + 3;

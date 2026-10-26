@@ -37,6 +37,11 @@ namespace Soulbound::Rules
 		// R-WAR-10: cada evaluación y cada decisión dejan evento.
 		LogEvent(State, EMatchEventType::WardenEvaluated, NowSeconds, INDEX_NONE, static_cast<int32>(Decision.Act), INDEX_NONE, Decision.bForcedByGuarantee ? 1 : 0);
 		LogEvent(State, EMatchEventType::WardenDecided, NowSeconds, INDEX_NONE, Decision.EventIndex, INDEX_NONE, static_cast<int32>(Decision.Kind));
+		// R-DIS-1, R-WAR-10 (S-017): los disparadores activos y quien los causa, uno por disparador (decisión del autor del 23/10/2026).
+		for (const FActiveTrigger& Trigger : Decision.Triggers)
+		{
+			LogEvent(State, EMatchEventType::WardenTriggered, NowSeconds, Trigger.Seat, static_cast<int32>(Trigger.Trigger));
+		}
 		// R-WAR-3, R-WAR-7: el instante siguiente vive en el estado; una aplazada no lo cambia, se re-evalúa al terminar.
 		State.Warden.bDeferred = Decision.Kind == EWardenDecisionKind::Deferred;
 		if (!State.Warden.bDeferred)
@@ -53,7 +58,8 @@ namespace Soulbound::Rules
 		switch (Decision.Kind)
 		{
 		case EWardenDecisionKind::Remark:
-			// TODO(R-WAR-4): el comentario tiene tipo y frase en S-017; aquí solo queda registrado.
+			// TODO(R-WAR-4): el comentario tiene tipo y frase en la story "La voz del Warden" (decisión del autor del 22/10/2026);
+			// aquí solo queda registrado.
 			LogEvent(State, EMatchEventType::WardenRemark, NowSeconds, INDEX_NONE);
 			break;
 		case EWardenDecisionKind::Strike:
@@ -61,10 +67,28 @@ namespace Soulbound::Rules
 			// R-TUR-11: el golpe corta el turno en curso y su evento entra, en la misma llamada, en el hueco que deja, con el
 			// cortado como activo. Sin turno en curso, entra sin cortar (decisión aceptada por el autor el 19/10/2026).
 			const bool bCut = InterruptTurn(State, NowSeconds, MatchRandom);
-			if (bCut || State.TurnPhase == ETurnPhase::BetweenTurns)
+			if (!bCut && State.TurnPhase != ETurnPhase::BetweenTurns)
 			{
-				LaunchWardenEvent(State, Index, bCut, NowSeconds);
+				break;
 			}
+			// R-DIS-3 (S-017): el protagonista de un golpe deja de estar ignorado.
+			const int32 Protagonist = EventDirector(State);
+			if (State.Seats.IsValidIndex(Protagonist))
+			{
+				State.Seats[Protagonist].LastTargetedSeconds = NowSeconds;
+			}
+			if (Decision.bViaOracle)
+			{
+				// R-ORA-1, R-ORA-2 (S-017): por el Oráculo, el decreto que eligió el cerebro es la sentencia del cortado. Cuenta para la
+				// garantía y ocupa el hueco ya (decisión del autor del 23/10/2026); el uso lo gasta al revelarse.
+				if (OpenOracle(State, Protagonist, EOracleOrigin::Strike, Index, bCut, NowSeconds))
+				{
+					State.Warden.LastEffectSeconds = NowSeconds;
+					State.Warden.bGapUsed = true;
+				}
+				break;
+			}
+			LaunchWardenEvent(State, Index, bCut, NowSeconds);
 			break;
 		}
 		case EWardenDecisionKind::Scene:

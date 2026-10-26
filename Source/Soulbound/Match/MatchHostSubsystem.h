@@ -91,6 +91,15 @@ public:
 	EIntentResult SubmitHumanChoice(EChoiceKind Kind, int32 Option);
 
 	/**
+	 * Consulta del Oráculo del asiento humano (S-017, R-ORA-3): la vista la entrega con un clic en el orbe. Se entrega tal cual a
+	 * SubmitOracleConsult: el motor decide si vale (consulta abierta, suya y en plazo). Devuelve lo que dijo el motor.
+	 */
+	EIntentResult SubmitHumanOracleConsult();
+
+	/** Rechazo de Tifón del asiento humano (S-017, R-ORA-5), con el clic derecho en el orbe; como SubmitHumanOracleConsult. */
+	EIntentResult SubmitHumanOracleRefuse();
+
+	/**
 	 * El anfitrión del Warden pide una evaluación (S-016): el motor la hace y la aplica sobre el estado
 	 * (Soulbound::Rules::EvaluateWarden), aquí se escribe y se avisa, y la partida sigue (un golpe deja el turno entre turnos
 	 * con el evento en marcha). Devuelve la decisión, para el log del anfitrión del Warden.
@@ -272,6 +281,9 @@ private:
 		/** Rendimientos del retador y del retado que entregará, si espera un duelo (S-012). */
 		double ChallengerPerformance = 0.0;
 		double ChallengedPerformance = 0.0;
+		/** Si lo que espera es una consulta del Oráculo (S-017), y si la rechazará (Tifón; los dummies nunca). */
+		bool bOracle = false;
+		bool bRefuseOracle = false;
 	};
 
 	FMatchState State;

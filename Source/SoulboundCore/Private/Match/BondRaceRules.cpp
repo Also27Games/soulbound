@@ -17,11 +17,6 @@ namespace
 		}
 	}
 
-	bool HasFreeNiche(const FBoardState& Board)
-	{
-		return Board.Domains.ContainsByPredicate([](const FDomainState& Domain) { return Domain.NicheState == ENicheState::Free; });
-	}
-
 	/** Si la casilla pertenece a un Dominio con dueño (el Altar no pertenece a ninguno). */
 	bool IsInOwnedDomain(const FBoardState& Board, int32 TileId)
 	{
@@ -36,6 +31,11 @@ namespace
 
 namespace Soulbound::Rules
 {
+	bool HasFreeNiche(const FBoardState& Board)
+	{
+		return Board.Domains.ContainsByPredicate([](const FDomainState& Domain) { return Domain.NicheState == ENicheState::Free; });
+	}
+
 	void ClaimNiche(FMatchState& State, int32 Seat, int32 DomainId, double NowSeconds, FRandomStream& Random)
 	{
 		FDomainState& Domain = State.Board.Domains[DomainId];
@@ -59,11 +59,8 @@ namespace Soulbound::Rules
 			LogEvent(State, EMatchEventType::BoardAwakening, NowSeconds, Seat);
 		}
 
-		// R-CAR-1: la carrera termina antes si se reclama el último Nicho Libre.
-		if (!HasFreeNiche(State.Board))
-		{
-			EndBondRace(State, NowSeconds);
-		}
+		// R-CAR-1: la carrera termina antes si se reclama el último Nicho Libre. Desde S-017 (R-PRO-0) no termina aquí: corta el turno
+		// en curso, así que la termina la máquina de turnos (IsBondRaceDue), después del corte.
 	}
 
 	bool ResolveNicheLanding(FMatchState& State, int32 Seat, double NowSeconds, FRandomStream& Random)
@@ -101,6 +98,8 @@ namespace Soulbound::Rules
 			return false;
 		}
 		const int32 Elects = State.Seats.FilterByPredicate([](const FSeatState& Seat) { return Seat.Role == ESeatRole::Elect; }).Num();
+		// S-017 (decisión del autor del 23/10/2026): Partida estancada no cuenta durante la carrera; su reloj arranca al acabar.
+		State.LastProgressSeconds = NowSeconds;
 
 		// R-CAR-8: sin ningún vínculo, victoria del Warden. Nada más cambia (decisión del autor del 01/10/2026): ni
 		// Olvidados nuevos ni hogares, porque la partida ya no sigue.

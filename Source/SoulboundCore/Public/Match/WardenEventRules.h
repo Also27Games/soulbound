@@ -50,8 +50,8 @@ namespace Soulbound::Rules
 	/**
 	 * Si el efecto Effect vale sobre el asiento Seat en un evento que dirige Director (R-DIR-2, R-DIR-3): en el Vacío solo
 	 * Liberación (y Liberación solo para quien está dentro); el resto, la comprobación de cada efecto (Match/EffectRules.h).
-	 * En los efectos globales (IsGlobalEffect) Seat no cuenta: es su comprobación global. NotImplemented en la Consulta
-	 * forzada. Desde S-016, el Alto (R-TAB-28) solo vale en un evento que llegó cortando un turno
+	 * En los efectos globales (IsGlobalEffect) Seat no cuenta: es su comprobación global. Desde S-017, la Consulta forzada
+	 * (CanForcedOracle). Desde S-016, el Alto (R-TAB-28) solo vale en un evento que llegó cortando un turno
 	 * (FCurrentWardenEvent::bInterruptedTurn) y sobre quien lo dirige, el cortado; si no, NoTurnToCut (burla). Desde S-015: la Prueba del Warden (AlreadyPending sobre quien ya la tiene), el Robo decretado (Seat la víctima,
 	 * Director el ladrón) y el Duelo forzado (Seat el retado, Director el retador; sin runas el retado, NoRunes). S-014.
 	 */
@@ -62,7 +62,9 @@ namespace Soulbound::Rules
 	 * CanApplyEffect y, si vale, registra EffectApplied y aplica el efecto. Pointer: quien señaló a Seat (rival señalado), o
 	 * INDEX_NONE; si lo hay, una Vuelta al hogar o un Vacío cobran su marca (R-EFE-8). Rune: el tipo elegido en Runa regalada y
 	 * Perder una runa "chosen", o INDEX_NONE (al azar al perderla). Random: el sorteo del Warden (Sello, runa al azar).
-	 * Devuelve el resultado de la comprobación; si no es Applied, no cambia nada (NotImplemented en la Consulta forzada). El
+	 * Devuelve el resultado de la comprobación; si no es Applied, no cambia nada. Desde S-017: ser objetivo pone a cero su tiempo
+	 * sin serlo (FSeatState::LastTargetedSeconds, R-DIS-3), la Consulta forzada deja la consulta esperando al hueco y el Sello
+	 * cae hacia el Altar del causante si un disparador lo pide (FCurrentWardenEvent::SealTowardsAltarSeat). El
 	 * Alto (S-016) solo deja su EffectApplied: el corte ya lo hizo quien lanzó el evento.
 	 * Robo decretado y Duelo forzado empiezan su trilero o su duelo, que la máquina juega entre turnos (S-015); en el Duelo
 	 * forzado, Pointer es el retador (INDEX_NONE: Director), así que con "dos rivales señalados" Seat es el segundo señalado.
@@ -101,8 +103,11 @@ namespace Soulbound::Rules
 	 * R-DIR-2): sin objetivos válidos, WardenTaunt y la siguiente. Avanza hasta la primera elección o el final.
 	 * NowSeconds: marca de los eventos. bInterruptedTurn (S-016): si llega con el corte de un turno, el de un golpe; solo así
 	 * vale el Alto. Devuelve CanApplyEvent; si no es Started, no cambia nada. Nombre propuesto en S-014.
+	 * Director (S-017): quien lo dirige si no es EventDirector; la sentencia del Oráculo la dirige el consultante. Al lanzarse se
+	 * aplican los disparadores activos (ApplyTriggersToEvent: dirección preferida y Sello hacia el Altar).
 	 */
-	SOULBOUNDCORE_API EWardenEventStart ApplyEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random, bool bInterruptedTurn = false);
+	SOULBOUNDCORE_API EWardenEventStart ApplyEvent(FMatchState& State, const FString& EventId, double NowSeconds, FRandomStream& Random, bool bInterruptedTurn = false,
+		int32 Director = INDEX_NONE);
 
 	/**
 	 * Lleva el evento en curso (lo llama AdvanceTurn en BetweenTurns): con una elección abierta, espera a su plazo y, agotado,

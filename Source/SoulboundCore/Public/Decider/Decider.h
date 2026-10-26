@@ -50,13 +50,22 @@ public:
 	 * con su story; hasta entonces los dummies rinden al azar con el generador que les pasan. Nombre propuesto en S-012.
 	 */
 	virtual double DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng) = 0;
+
+	/**
+	 * Si el asiento Seat rechaza la sentencia del Oráculo que tiene delante (R-ORA-5, S-017): solo cuenta si puede (Tifón, la
+	 * primera). Quien avanza la partida lo pregunta al abrirse la consulta y entrega SubmitOracleRefuse o SubmitOracleConsult.
+	 * Los dummies nunca rechazan y consultan en el acto (R-VOT-5, decisión del autor del 23/10/2026): nunca son insolentes.
+	 * Nombre propuesto en S-017.
+	 */
+	virtual bool RefusesOracleSentence(const FMatchState& State, int32 Seat, FRandomStream& Rng) = 0;
 };
 
 /**
  * Dummy: elige al azar con el generador que le pasan, así la simulación sigue siendo determinista por semilla. En las
  * elecciones, al azar entre las opciones y "no" si la elección lo admite, todas con la misma probabilidad (S-009): roba
  * a cualquiera de los objetivos o a ninguno, elige cualquier esfera y, si es Koschei, aparta cualquier runa (S-010). Reta a
- * duelo como cualquier otra acción y rinde un número al azar de 0 a 1 (S-012).
+ * duelo como cualquier otra acción y rinde un número al azar de 0 a 1 (S-012). Desde S-017, en un rival señalado sigue al rival
+ * sugerido por un disparador (FCurrentWardenEvent::SuggestedRival), y consulta el Oráculo sin rechazar nunca.
  */
 class SOULBOUNDCORE_API FDummyDecider : public IDecider
 {
@@ -65,6 +74,7 @@ public:
 	virtual bool PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng) override;
 	virtual int32 ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng) override;
 	virtual double DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng) override;
+	virtual bool RefusesOracleSentence(const FMatchState& State, int32 Seat, FRandomStream& Rng) override;
 };
 
 /**
@@ -81,4 +91,5 @@ public:
 	virtual bool PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng) override;
 	virtual int32 ChooseOption(const FMatchState& State, int32 Seat, const FPendingChoice& Choice, FRandomStream& Rng) override;
 	virtual double DuelPerformance(const FMatchState& State, int32 Seat, FRandomStream& Rng) override;
+	virtual bool RefusesOracleSentence(const FMatchState& State, int32 Seat, FRandomStream& Rng) override;
 };

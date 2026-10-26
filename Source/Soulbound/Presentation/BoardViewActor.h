@@ -81,6 +81,12 @@ public:
 
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
+	/**
+	 * Si Component es el orbe de la consulta del Oráculo (S-017): la vista lo enseña mientras alguien consulta, sobre el Nodo del
+	 * Oráculo más cercano a su ficha o, si no hay, sobre la ficha. Un clic en él consulta; el clic derecho, el rechazo de Tifón.
+	 */
+	bool IsOracleOrb(const UPrimitiveComponent* Component) const;
+
 	// ---- Mesa (S-019) ----
 
 	/**
@@ -226,6 +232,16 @@ public:
 	/** Brillo del aro del rol de un Eco, por el de un Elegido (decisión del autor del 20/10/2026). Valor inicial 0,5. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Ficha", meta = (ClampMin = "0", ClampMax = "1"))
 	float EchoRingBrightness = 0.5f;
+
+	// ---- Oráculo (S-017) ----
+
+	/** Diámetro del orbe de la consulta, en cm. Valor inicial 3 (es la vista de depuración, no el orbe del GDD 07). */
+	UPROPERTY(EditAnywhere, Category = "Vista|Oráculo")
+	float OracleOrbDiameter = 3.f;
+
+	/** Altura del centro del orbe sobre la cara de la casilla o la base de la ficha, en cm. Valor inicial 7. */
+	UPROPERTY(EditAnywhere, Category = "Vista|Oráculo")
+	float OracleOrbHeight = 7.f;
 
 	// ---- Paneles ----
 
@@ -522,6 +538,10 @@ private:
 	 * movimiento, desliza.
 	 */
 	void RefreshTokens(const FMatchState& State);
+	/** El orbe de la consulta del Oráculo (S-017): visible mientras alguien consulta, del color de su asiento; oculto si no. */
+	void RefreshOracleOrb(const FMatchState& State);
+	/** El Nodo del Oráculo más cercano a la casilla del asiento Seat (en la mesa), o INDEX_NONE si no hay o los Nodos no actúan. */
+	int32 NearestOracleNode(const FMatchState& State, int32 Seat) const;
 	/** La ficha de Seat llegó a TileId en su recorrido (S-020): entrega la intención de avance de su asiento; al acabar, se recoloca. */
 	void OnTokenTileEntered(int32 Seat, int32 TileId, bool bLast);
 	/** Base de una ficha sobre el centro de la casilla (la cara superior de la losa). */
@@ -674,4 +694,8 @@ private:
 	/** Cadenas del Sello sobre cada casilla que se puede sellar (nula en las demás o si falta la pieza). */
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> SealChains;
+
+	/** El orbe de la consulta del Oráculo (S-017): una esfera de formas básicas que recibe el clic. */
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> OracleOrb;
 };

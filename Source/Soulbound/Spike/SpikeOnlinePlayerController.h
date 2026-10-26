@@ -168,10 +168,13 @@ protected:
 private:
 	/**
 	 * Clic izquierdo (S-005): si hay una casilla bajo el cursor, envía al anfitrión de partida la intención de
-	 * destino del asiento humano; si el humano tiene pendiente un salto planar, la casilla es su respuesta (S-009). El
-	 * motor decide si vale; aquí no se comprueba nada de las reglas.
+	 * destino del asiento humano; si el humano tiene pendiente un salto planar, la casilla es su respuesta (S-009); desde
+	 * S-017, en el orbe del Oráculo, su consulta. El motor decide si vale; aquí no se comprueba nada de las reglas.
 	 */
 	void OnPrimaryClick();
+
+	/** Clic derecho (S-017): en el orbe del Oráculo, el rechazo de Tifón del humano. El motor decide si puede. */
+	void OnSecondaryClick();
 
 	/**
 	 * Tecla numérica (S-009): contesta la elección pendiente del humano. 1 a 9 eligen la opción con ese número, en el

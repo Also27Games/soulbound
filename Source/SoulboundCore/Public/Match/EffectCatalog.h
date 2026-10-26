@@ -27,7 +27,7 @@ enum class EEffect : uint8
 	Halt,
 	/** Revelar Brazal (`RevealBracer`, R-EFE-2): leve. Los tipos de runa del objetivo, visibles unas rondas. */
 	RevealBracer,
-	/** Consulta forzada al Oráculo (`ForcedOracle`): leve. Llega con el Oráculo (S-017). */
+	/** Consulta forzada al Oráculo (`ForcedOracle`): leve. Abre una consulta del Oráculo (S-017, R-EFE-3). */
 	ForcedOracle,
 	/** Vuelta al hogar (`SendHome`, R-EFE-4): medio. */
 	SendHome,
@@ -132,7 +132,7 @@ struct SOULBOUNDCORE_API FEffectDef
 	bool bTakesAmount = false;
 	/** Variantes admitidas; la primera es la de por defecto. Vacío: solo None. */
 	TArray<EEffectVariant> Variants;
-	/** Si el motor lo aplica (17 de 18 desde S-016); la Consulta forzada se carga y valida, pero aplicarla es NotImplemented (S-017). */
+	/** Si el motor lo aplica: los 18 desde S-017, con la Consulta forzada (R-EFE-3). Un efecto de otra story devolvería NotImplemented. */
 	bool bImplemented = false;
 };
 

@@ -415,8 +415,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWardenUsesCandidateTest, "Soulbound.Core.Warde
 
 bool FWardenUsesCandidateTest::RunTest(const FString& Parameters)
 {
-	// CA-WAR-6 (R-SAC-1): un evento sin usos no es candidato. Y los que el Warden no puede entregar hasta S-017 (el Oráculo,
-	// la Consulta forzada) nunca lo son.
+	// CA-WAR-6 (R-SAC-1): un evento sin usos no es candidato. Desde S-017 (CA-ORA-3, R-ORA-1) sí lo son la Consulta forzada y un
+	// golpe que solo llega por el Oráculo; un evento de prueba, fuera de los sacos, nunca.
 	FWardenFixture F;
 	if (!F.StartWithWarden(*this))
 	{
@@ -429,10 +429,14 @@ bool FWardenUsesCandidateTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Sin usos: no"), Soulbound::Rules::EventCandidates(F.State, EWardenChannel::Strike, 600.0).Contains(Haste));
 
 	const TArray<int32> Strikes = Soulbound::Rules::EventCandidates(F.State, EWardenChannel::Strike, 600.0);
-	TestFalse(TEXT("El orbe llama (Consulta forzada): nunca"), Strikes.Contains(F.IndexOf(TEXT("el-orbe-llama"))));
-	TestFalse(TEXT("Voluntad ajena (Consulta forzada): nunca"), Strikes.Contains(F.IndexOf(TEXT("voluntad-ajena"))));
+	TestTrue(TEXT("El orbe llama (Consulta forzada): candidato"), Strikes.Contains(F.IndexOf(TEXT("el-orbe-llama"))));
+	TestTrue(TEXT("Voluntad ajena (Consulta forzada): candidato"), Strikes.Contains(F.IndexOf(TEXT("voluntad-ajena"))));
 	F.State.WardenEvents.Events[F.IndexOf(TEXT("impuesto"))].Delivery = EEventDelivery::Oracle;
-	TestFalse(TEXT("Un evento solo por Oráculo: nunca"), Soulbound::Rules::EventCandidates(F.State, EWardenChannel::Strike, 600.0).Contains(F.IndexOf(TEXT("impuesto"))));
+	TestTrue(TEXT("Un golpe solo por Oráculo: candidato"), Soulbound::Rules::EventCandidates(F.State, EWardenChannel::Strike, 600.0).Contains(F.IndexOf(TEXT("impuesto"))));
+	const int32 Back = F.IndexOf(TEXT("marcha-atras"));
+	TestTrue(TEXT("Marcha atrás, directa: candidata"), Soulbound::Rules::EventCandidates(F.State, EWardenChannel::Scene, 600.0).Contains(Back));
+	F.State.WardenEvents.Events[Back].Delivery = EEventDelivery::Oracle;
+	TestFalse(TEXT("Una escena solo por Oráculo: no (el Oráculo entrega golpes)"), Soulbound::Rules::EventCandidates(F.State, EWardenChannel::Scene, 600.0).Contains(Back));
 	TestFalse(TEXT("Un evento de prueba, fuera de los sacos: nunca"), Strikes.Contains(F.IndexOf(TEXT("pierdes-un-turno"))));
 	return true;
 }
