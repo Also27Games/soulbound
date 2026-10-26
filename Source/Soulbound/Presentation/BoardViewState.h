@@ -42,4 +42,15 @@ namespace Soulbound::Presentation
 	 * @return El estado de vista.
 	 */
 	SOULBOUND_API FBoardViewState ComputeBoardViewState(const FMatchState& State, bool bNicheThroneConfigured);
+
+		/**
+		 * Tinte del suelo de una cuña (S-019, R-VIS-2, R-VIS-5): blanco mezclado hacia el color del Dominio por Strength, y
+		 * apagado por ForgottenDim si el Dominio está Olvidado. Es el valor del parámetro `Color` de M_ColorVertice.
+		 * @param DomainColor Color del Dominio.
+		 * @param bForgotten Si el Dominio está Olvidado.
+		 * @param Strength Cuánto se acerca el blanco al color del Dominio, de 0 (blanco) a 1 (el color entero).
+		 * @param ForgottenDim Factor que multiplica el color si el Dominio está Olvidado.
+		 * @return El color con que multiplicar el color por vértice del suelo.
+		 */
+		SOULBOUND_API FLinearColor WedgeFloorTint(const FLinearColor& DomainColor, bool bForgotten, float Strength, float ForgottenDim);
 }

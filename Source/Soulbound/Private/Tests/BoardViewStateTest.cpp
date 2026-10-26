@@ -213,4 +213,25 @@ bool FBoardViewVoidTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// R-VIS-2, R-VIS-5 (decisión del autor del 22/10/2026 sobre S-019): el suelo de la cuña se tiñe con el color de su Dominio, mezclando
+// blanco hacia él por Strength, y se apaga por ForgottenDim si el Dominio está Olvidado. Con Strength 0, blanco.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardViewFloorTintTest, "Soulbound.Game.Presentation.Tablero3D.SueloDeLaCunaTenidoPorDominio", ViewStateTestFlags)
+bool FBoardViewFloorTintTest::RunTest(const FString& Parameters)
+{
+	const FLinearColor Domain(0.8f, 0.2f, 0.4f);
+	constexpr float Strength = 0.35f;
+	constexpr float Dim = 0.3f;
+	const FLinearColor Mixed = FLinearColor::White + (Domain - FLinearColor::White) * Strength;
+
+	const FLinearColor Alive = Soulbound::Presentation::WedgeFloorTint(Domain, false, Strength, Dim);
+	TestTrue(TEXT("Sin Olvidar, el blanco mezclado al 35 % con el color del Dominio"), Alive.Equals(Mixed, KINDA_SMALL_NUMBER));
+
+	const FLinearColor Forgotten = Soulbound::Presentation::WedgeFloorTint(Domain, true, Strength, Dim);
+	TestTrue(TEXT("Olvidado, lo mismo multiplicado por ForgottenDim"), Forgotten.Equals(FLinearColor(Mixed.R * Dim, Mixed.G * Dim, Mixed.B * Dim, Mixed.A), KINDA_SMALL_NUMBER));
+
+	const FLinearColor Plain = Soulbound::Presentation::WedgeFloorTint(Domain, false, 0.f, Dim);
+	TestTrue(TEXT("Con Strength 0, blanco"), Plain.Equals(FLinearColor::White, KINDA_SMALL_NUMBER));
+	return true;
+}
+
 #endif
