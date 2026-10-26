@@ -792,6 +792,8 @@ void ABoardViewActor::BuildKit()
 				// R-VIS-1: el suelo de la cuña se escala en X e Y al radio de la mesa; el resto del kit, no.
 				Floor->SetRelativeScale3D(FVector(Layout.KitScale, Layout.KitScale, 1.f));
 				KitFixedPieces.Add(Floor);
+				WedgeFloors.Add(Floor);
+				WedgeFloorDomains.Add(Wedge.DomainId);
 			}
 		}
 	}
@@ -1517,6 +1519,18 @@ void ABoardViewActor::Refresh()
 	else if (State.PendingChoice.Kind == EChoiceKind::PlanarJump)
 	{
 		Reachable.Append(State.PendingChoice.Options);
+	}
+
+	// El suelo de cada cuña lleva el color de su Dominio, apagado si está Olvidado (S-019, R-VIS-2, R-VIS-5).
+	for (int32 Index = 0; Index < WedgeFloors.Num(); ++Index)
+	{
+		const int32 DomainId = WedgeFloorDomains[Index];
+		UStaticMeshComponent* Floor = WedgeFloors[Index];
+		if (Floor && State.Board.Domains.IsValidIndex(DomainId))
+		{
+			const bool bForgotten = State.Board.Domains[DomainId].State == EDomainState::Forgotten;
+			Soulbound::Presentation::SetComponentColor(*Floor, KitVertexColorMaterial.Get(), Soulbound::Presentation::WedgeFloorTint(DomainColor(DomainId), bForgotten, FloorTintStrength, ForgottenDim));
+		}
 	}
 
 	for (const FTileState& Tile : State.Board.Tiles)

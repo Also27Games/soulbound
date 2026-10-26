@@ -31,3 +31,14 @@ FBoardViewState Soulbound::Presentation::ComputeBoardViewState(const FMatchState
 	}
 	return View;
 }
+
+FLinearColor Soulbound::Presentation::WedgeFloorTint(const FLinearColor& DomainColor, bool bForgotten, float Strength, float ForgottenDim)
+{
+	const float Mix = FMath::Clamp(Strength, 0.f, 1.f);
+	const FLinearColor Mixed = FLinearColor::White + (DomainColor - FLinearColor::White) * Mix;
+	if (!bForgotten)
+	{
+		return Mixed;
+	}
+	return FLinearColor(Mixed.R * ForgottenDim, Mixed.G * ForgottenDim, Mixed.B * ForgottenDim, Mixed.A);
+}
