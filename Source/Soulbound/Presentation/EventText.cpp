@@ -130,6 +130,16 @@ namespace Soulbound::Presentation
 		// inundaría (como TileEntered desde S-020); van entre paréntesis en la decisión del Warden (DescribeWardenDecision).
 		case EMatchEventType::WardenTriggered:
 			return FString();
+		// S-017 (PR B): las votaciones. Los votos llegan todos al resolverse (R-VOT-3, decisión del autor del 26/10/2026).
+		case EMatchEventType::VoteStarted:
+		{
+			const FWardenEventDef* Def = WardenEvents && WardenEvents->Events.IsValidIndex(Event.Value) ? &WardenEvents->Events[Event.Value] : nullptr;
+			return FString::Printf(TEXT("VOTACIÓN \"%s\": todos votan a otro (%d se pueden votar)"), Def ? *Def->DisplayName() : TEXT("?"), Event.Detail);
+		}
+		case EMatchEventType::VoteCast:
+			return FString::Printf(TEXT("el asiento %d votó al asiento %d%s"), Event.Seat, Event.OtherSeat, Event.Detail == 1 ? TEXT(" (al azar: no votó a tiempo)") : TEXT(""));
+		case EMatchEventType::VoteResolved:
+			return FString::Printf(TEXT("el más votado: asiento %d, con %d votos%s"), Event.Seat, Event.Value, Event.Detail == 1 ? TEXT(" (desempate del Warden)") : TEXT(""));
 		case EMatchEventType::WardenEvaluated:
 		case EMatchEventType::WardenDecided:
 			return FString();
@@ -248,6 +258,7 @@ namespace Soulbound::Presentation
 		case EEffectTarget::Everyone: return TEXT("a todos");
 		case EEffectTarget::RandomPlayer: return TEXT("al azar");
 		case EEffectTarget::Echoes: return TEXT("a los Ecos");
+		case EEffectTarget::MostVoted: return TEXT("al más votado");
 		case EEffectTarget::None: return TEXT("");
 		}
 		return TEXT("");
@@ -507,6 +518,8 @@ namespace Soulbound::Presentation
 		case EMatchEventType::OracleSentence:
 		case EMatchEventType::OracleEmpty:
 		case EMatchEventType::WardenTriggered:
+		case EMatchEventType::VoteStarted:
+		case EMatchEventType::VoteResolved:
 			return EEventSource::Warden;
 		case EMatchEventType::Bonded:
 		case EMatchEventType::BoardAwakening:

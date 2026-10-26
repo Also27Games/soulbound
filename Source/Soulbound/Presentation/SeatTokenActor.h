@@ -100,6 +100,13 @@ public:
 	/** Asiento activo: se eleva, gira y enseña el aro. Inactivo, vuelve a su sitio sin giro y sin aro. */
 	void SetActive(bool bInActive);
 
+	/**
+	 * Si la ficha recibe el clic (S-017: durante una votación, para votar). Fuera de ella no lo recibe, para no tapar la casilla que
+	 * tiene debajo (decisión del autor del 26/10/2026). Lo recibe una esfera invisible del tamaño de la ficha: las piezas del kit no
+	 * traen colisión.
+	 */
+	void SetClickable(bool bClickable);
+
 private:
 	/** Un aro de segmentos (las formas básicas del motor no traen un anillo) bajo Parent, a la altura Z. */
 	void BuildRing(USceneComponent* Parent, TArray<TObjectPtr<UStaticMeshComponent>>& OutSegments, float Diameter, float Width, float Z);
@@ -110,6 +117,10 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> Mesh;
+
+	/** Esfera invisible que recibe el clic durante una votación (S-017, SetClickable). */
+	UPROPERTY()
+	TObjectPtr<UStaticMeshComponent> ClickTarget;
 
 	UPROPERTY()
 	TObjectPtr<UTextRenderComponent> Label;

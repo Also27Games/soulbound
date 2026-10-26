@@ -45,6 +45,16 @@ ASeatTokenActor::ASeatTokenActor()
 	Mesh->SetStaticMesh(EchoMesh);
 	BaseMaterial = Material.Succeeded() ? Material.Object : nullptr;
 
+	// S-017: la esfera del clic para votar, invisible y sin colisión hasta que haya una votación (SetClickable).
+	ClickTarget = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ClickTarget"));
+	ClickTarget->SetupAttachment(GetRootComponent());
+	ClickTarget->SetStaticMesh(EchoMesh);
+	ClickTarget->SetVisibility(false);
+	ClickTarget->SetCastShadow(false);
+	ClickTarget->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	ClickTarget->SetCollisionResponseToAllChannels(ECR_Ignore);
+	ClickTarget->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+
 	// La ficha no recibe clics ni choca con nada: el clic va a la casilla que hay debajo.
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Mesh->SetCastShadow(false);
@@ -71,7 +81,15 @@ void ASeatTokenActor::Configure(float InLabelSize, float InLift, float InSpinDeg
 	Label->SetWorldSize(InLabelSize);
 	Label->SetRelativeLocation(FVector(0.f, 0.f, TokenDiameter + LabelClearance));
 	BuildRing(RingRoot, RingSegments, RingDiameter, RingWidth, RingZ);
+	// La esfera del clic, algo mayor que la ficha para acertar con el ratón; con la carta, la vuelve a medir UseCard.
+	ClickTarget->SetRelativeScale3D(FVector(TokenDiameter * 1.5f / 100.f));
+	ClickTarget->SetRelativeLocation(FVector(0.f, 0.f, TokenDiameter * 0.5f));
 	SetActive(false);
+}
+
+void ASeatTokenActor::SetClickable(bool bClickable)
+{
+	ClickTarget->SetCollisionEnabled(bClickable ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 }
 
 UStaticMeshComponent* ASeatTokenActor::UseCard(UStaticMesh* Card, UMaterialInterface* InRoleRingMaterial, float RoleRingScale, float RoleRingWidth, float InEchoBrightness)
@@ -89,6 +107,9 @@ UStaticMeshComponent* ASeatTokenActor::UseCard(UStaticMesh* Card, UMaterialInter
 	Mesh->SetRelativeLocation(FVector::ZeroVector);
 	const FBoxSphereBounds Bounds = Card->GetBounds();
 	const float Footprint = 2.f * FMath::Max(Bounds.BoxExtent.X, Bounds.BoxExtent.Y);
+	// S-017: la esfera del clic, del alto de la carta.
+	ClickTarget->SetRelativeScale3D(FVector(2.f * FMath::Max(Bounds.BoxExtent.Z, Bounds.BoxExtent.X) / 100.f));
+	ClickTarget->SetRelativeLocation(FVector(0.f, 0.f, Bounds.Origin.Z));
 	Label->SetRelativeLocation(FVector(0.f, 0.f, Bounds.Origin.Z + Bounds.BoxExtent.Z + LabelClearance));
 	// Sobre la carta oscura, el número en blanco.
 	Label->SetTextRenderColor(FColor::White);

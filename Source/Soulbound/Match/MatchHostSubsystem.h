@@ -100,6 +100,12 @@ public:
 	EIntentResult SubmitHumanOracleRefuse();
 
 	/**
+	 * Voto del asiento humano por Voted (S-017, R-VOT-1): la vista lo entrega con un clic en la ficha del votado. Se entrega tal cual a
+	 * SubmitVote: el motor decide si vale. Devuelve lo que dijo el motor.
+	 */
+	EIntentResult SubmitHumanVote(int32 Voted);
+
+	/**
 	 * El anfitrión del Warden pide una evaluación (S-016): el motor la hace y la aplica sobre el estado
 	 * (Soulbound::Rules::EvaluateWarden), aquí se escribe y se avisa, y la partida sigue (un golpe deja el turno entre turnos
 	 * con el evento en marcha). Devuelve la decisión, para el log del anfitrión del Warden.
@@ -296,6 +302,13 @@ private:
 	 */
 	FDummyDecider HumanTrialDecider;
 	FPendingDecision Pending;
+	/**
+	 * Votos de los dummies en la votación abierta (S-017): a quién votará cada asiento y cuándo (su retardo, o la mitad de lo que
+	 * queda). Indexados por asiento; se vacían al cerrarse la votación.
+	 */
+	TArray<TOptional<TPair<double, int32>>> PendingVotes;
+	/** Plazo de la votación a la que pertenecen PendingVotes: si cambia, es otra votación y se vacían. */
+	double PendingVotesDeadline = -1.0;
 #if !UE_BUILD_SHIPPING
 	/** Resultado fijado del próximo minijuego del humano (S-011); sin valor, lo resuelve el dummy. Se gasta al usarlo. */
 	TOptional<bool> ForcedTrialResult;
