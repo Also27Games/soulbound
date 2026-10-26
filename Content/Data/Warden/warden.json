@@ -16,6 +16,7 @@
   ],
   "oracleSeconds": 7,
   "oracleBias": 0.5,
+  "voteSeconds": 8,
   "triggers": {
     "clearLeaderGap": 2,
     "imminentVictoryTypes": 5,
@@ -49,7 +50,8 @@
         {"event": "piedad", "multiplier": 3},
         {"event": "amanecer", "multiplier": 3},
         {"event": "hermanos-de-sangre", "multiplier": 3},
-        {"event": "trueque", "multiplier": 3}
+        {"event": "trueque", "multiplier": 3},
+        {"event": "favor", "multiplier": 3}
       ]},
       {"trigger": "Hoarder", "events": [
         {"event": "el-precio", "multiplier": 2, "suggestCause": true},

@@ -134,8 +134,32 @@ namespace
 		case EEffectTarget::TwoChosenRivals:
 		case EEffectTarget::None:
 			break;
+		case EEffectTarget::MostVoted:
+			// S-017: los que se pueden votar, sin nadie que dirija (VoteVotables).
+			for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
+			{
+				Seats.Add(Seat);
+			}
+			break;
 		}
 		return Seats;
+	}
+
+	/**
+	 * A quién se puede votar con el efecto Effect (R-VOT-2, S-017): los asientos sobre los que vale, en orden de asiento. En una
+	 * votación no dirige nadie (decisión del autor del 26/10/2026): se mira sin quien dirige, así que también vale el último que jugó.
+	 */
+	TArray<int32> VoteVotables(const FMatchState& State, EEffect Effect)
+	{
+		TArray<int32> Votables;
+		for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
+		{
+			if (Soulbound::Rules::CanApplyEffect(State, Effect, Seat, INDEX_NONE) == EEffectResult::Applied)
+			{
+				Votables.Add(Seat);
+			}
+		}
+		return Votables;
 	}
 
 	/**
@@ -301,6 +325,24 @@ namespace
 			OpenEventChoice(State, EChoiceKind::ChosenRival, Director, MoveTemp(Rivals), NowSeconds + State.Params.ShortChoiceClockSeconds);
 			return;
 		}
+		if (Application.Target == EEffectTarget::MostVoted)
+		{
+			// R-VOT-1, R-VOT-2 (S-017): votan todos, también los del Vacío; se puede votar a quien el efecto admita. Sin nadie, burla.
+			TArray<int32> Votables = VoteVotables(State, Application.Effect);
+			if (Votables.IsEmpty())
+			{
+				Taunt(State, Application, Director, NowSeconds);
+				return;
+			}
+			FVoteState& Vote = State.Vote;
+			Vote = FVoteState();
+			Vote.bOpen = true;
+			Vote.DeadlineSeconds = NowSeconds + State.WardenParams.VoteSeconds;
+			Vote.Votes.Init(INDEX_NONE, State.Seats.Num());
+			LogEvent(State, EMatchEventType::VoteStarted, NowSeconds, INDEX_NONE, State.CurrentEvent.EventIndex, INDEX_NONE, Votables.Num());
+			Vote.Votables = MoveTemp(Votables);
+			return;
+		}
 		if (Application.Target == EEffectTarget::TwoChosenRivals)
 		{
 			// R-DIR-1, R-EFE-13: quien dirige señala dos rivales válidos, uno tras otro; el primero es el retador. Con menos de
@@ -390,8 +432,10 @@ namespace
 	/** Sigue el evento en curso hasta la siguiente elección o hasta el final (R-COM-3: las aplicaciones, en orden). */
 	void ContinueEvent(FMatchState& State, double NowSeconds)
 	{
-		// S-015: con un duelo o un trilero del evento en curso (bWaitsForAction) la máquina espera; sigue al acabar.
-		while (State.CurrentEvent.IsActive() && !State.PendingChoice.IsOpen() && State.CurrentEvent.Option != INDEX_NONE && !State.CurrentEvent.bWaitsForAction)
+		// S-015: con un duelo o un trilero del evento en curso (bWaitsForAction) la máquina espera; sigue al acabar. S-017: con una
+		// votación abierta, también.
+		while (State.CurrentEvent.IsActive() && !State.PendingChoice.IsOpen() && State.CurrentEvent.Option != INDEX_NONE && !State.CurrentEvent.bWaitsForAction
+			&& !State.Vote.IsOpen())
 		{
 			FCurrentWardenEvent& Event = State.CurrentEvent;
 			if (!Event.PendingTargets.IsEmpty())
@@ -589,6 +633,11 @@ namespace Soulbound::Rules
 			Rivals.Remove(Director);
 			return Rivals.Num() >= (Application.Target == EEffectTarget::TwoChosenRivals ? 2 : 1);
 		}
+		// S-017: una votación, si hay alguien a quien votar.
+		if (Application.Target == EEffectTarget::MostVoted)
+		{
+			return !VoteVotables(State, Application.Effect).IsEmpty();
+		}
 		TArray<int32> Targets = ValidTargets(State, Application.Effect, PointedSeats(State, Application.Target, Director), Director);
 		if (Application.Effect == EEffect::DecreedTheft)
 		{
@@ -726,6 +775,16 @@ namespace Soulbound::Rules
 		{
 			return false;
 		}
+		// S-017 (R-VOT-1, R-VOT-4): una votación espera a que voten todos (SubmitVote la resuelve con el último) o a su plazo.
+		if (State.Vote.IsOpen())
+		{
+			if (NowSeconds < State.Vote.DeadlineSeconds)
+			{
+				return false;
+			}
+			ResolveVote(State, NowSeconds);
+			return true;
+		}
 		if (State.PendingChoice.IsOpen())
 		{
 			if (NowSeconds < State.PendingChoice.DeadlineSeconds)
@@ -791,11 +850,88 @@ namespace Soulbound::Rules
 
 	TArray<int32> VoteOptions(const FMatchState& State, int32 Seat)
 	{
-		return {};
+		// R-VOT-2: nadie se vota a sí mismo.
+		TArray<int32> Options;
+		if (State.Vote.IsOpen() && State.Seats.IsValidIndex(Seat))
+		{
+			Options = State.Vote.Votables;
+			Options.Remove(Seat);
+		}
+		return Options;
 	}
 
 	void ResolveVote(FMatchState& State, double NowSeconds)
 	{
+		if (!State.Vote.IsOpen() || !State.CurrentEvent.IsActive())
+		{
+			State.Vote = FVoteState();
+			return;
+		}
+		// R-VOT-4: quien podía votar y no votó recibe un voto al azar entre los suyos, con el sorteo del evento.
+		TArray<int32> Votes = State.Vote.Votes;
+		TArray<int32> Ignored;
+		for (int32 Seat = 0; Seat < Votes.Num(); ++Seat)
+		{
+			const TArray<int32> Options = VoteOptions(State, Seat);
+			if (Votes[Seat] == INDEX_NONE && !Options.IsEmpty())
+			{
+				Votes[Seat] = Options[NextDraw(State).RandRange(0, Options.Num() - 1)];
+				Ignored.Add(Seat);
+			}
+		}
+		// R-VOT-3: los votos, públicos al resolverse, en orden de asiento (decisión del autor del 26/10/2026); después, el más votado.
+		TArray<int32> Counts;
+		Counts.Init(0, State.Seats.Num());
+		for (int32 Seat = 0; Seat < Votes.Num(); ++Seat)
+		{
+			if (Votes[Seat] != INDEX_NONE)
+			{
+				LogEvent(State, EMatchEventType::VoteCast, NowSeconds, Seat, INDEX_NONE, Votes[Seat], Ignored.Contains(Seat) ? 1 : 0);
+				++Counts[Votes[Seat]];
+			}
+		}
+		const int32 Most = FMath::Max(Counts);
+		TArray<int32> Tied;
+		for (int32 Seat = 0; Seat < Counts.Num(); ++Seat)
+		{
+			if (Counts[Seat] == Most && Most > 0)
+			{
+				Tied.Add(Seat);
+			}
+		}
+		State.Vote = FVoteState();
+		const FEffectApplication Application = ApplicationInProgress(State);
+		if (Tied.IsEmpty())
+		{
+			// Nadie votó (nadie tenía a quién): burla.
+			Taunt(State, Application, INDEX_NONE, NowSeconds);
+		}
+		else
+		{
+			// R-VOT-3: con empate, el Warden desempata entre los empatados con su sorteo, y lo registra.
+			const int32 Chosen = Tied.Num() > 1 ? Tied[NextDraw(State).RandRange(0, Tied.Num() - 1)] : Tied[0];
+			LogEvent(State, EMatchEventType::VoteResolved, NowSeconds, Chosen, Most, INDEX_NONE, Tied.Num() > 1 ? 1 : 0);
+			// El efecto, con la validación de siempre y sin nadie que dirija ni señale: no cobra marcas (R-EFE-8). Un regalo que se
+			// elige (Runa regalada): lo elige el más votado, con el reloj corto.
+			if (AsksTarget(Application))
+			{
+				State.CurrentEvent.PendingTargets = {Chosen};
+			}
+			else
+			{
+				FRandomStream Draw = NextDraw(State);
+				if (ApplyEffect(State, Application, Chosen, INDEX_NONE, INDEX_NONE, INDEX_NONE, NowSeconds, Draw) != EEffectResult::Applied)
+				{
+					Taunt(State, Application, Chosen, NowSeconds);
+				}
+			}
+		}
+		// R-VOT-4, R-INS-1: primero el efecto, después la insolencia de quien no votó, en orden de asiento (decisión del 26/10/2026).
+		ContinueEvent(State, NowSeconds);
+		for (const int32 Seat : Ignored)
+		{
+			RaiseInsolence(State, Seat, NowSeconds);
+		}
 	}
 
 	void AnswerWardenEventChoice(FMatchState& State, EChoiceKind Kind, int32 Option, double NowSeconds)

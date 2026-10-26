@@ -5,6 +5,7 @@
 #include "Match/EffectCatalog.h"
 #include "Match/MatchStart.h"
 #include "Match/TurnRules.h"
+#include "Match/WardenEventRules.h"
 #include "Warden/WardenRules.h"
 
 namespace
@@ -163,6 +164,17 @@ namespace
 			{
 				++Acts[ActAt(Event.ClockSeconds)].IgnoredConsults;
 			}
+			// S-017 (PR B): votaciones resueltas, desempates y votos al azar de quien no votó.
+			else if (Event.Type == EMatchEventType::VoteResolved)
+			{
+				FWardenActReport& Act = Acts[ActAt(Event.ClockSeconds)];
+				++Act.Votes;
+				Act.VoteTies += Event.Detail == 1 ? 1 : 0;
+			}
+			else if (Event.Type == EMatchEventType::VoteCast && Event.Detail == 1)
+			{
+				++Acts[ActAt(Event.ClockSeconds)].RandomVotes;
+			}
 			else if (Event.Type == EMatchEventType::WardenTriggered && Acts[0].TriggerCounts.IsValidIndex(Event.Value))
 			{
 				++Acts[ActAt(Event.ClockSeconds)].TriggerCounts[Event.Value];
@@ -238,6 +250,8 @@ FSimulationResult FMatchSimulation::Run()
 	int32 LoggedEvents = 0;
 	// Casillas en las que ha entrado la ficha en el movimiento en curso (S-020), para la línea del camino.
 	TArray<int32> EnteredTiles;
+	// Votos de la votación que se está resolviendo (S-017), para su línea: "0→3".
+	TArray<FString> CastVotes;
 
 	// Pasa al registro de texto lo que el motor ha dejado en su registro de eventos y la crónica no cuenta ya de otra
 	// forma: agotamientos, turnos saltados, Sellos que caen por el tope y la carrera por el vínculo (vínculos, Despertar,
@@ -245,7 +259,7 @@ FSimulationResult FMatchSimulation::Run()
 	// los escribe StepTurn, que tiene las opciones. Desde S-016, el Warden real: sus eventos con canal y nombre, sus
 	// comentarios, los turnos que corta con la fase y lo que aplican sus efectos. Desde S-020, tras cada movimiento, una línea
 	// con su camino (decisión del autor del 20/10/2026), de los TileEntered que lo preceden.
-	auto LogNewEvents = [&Result, &State, &LoggedEvents, &EnteredTiles]()
+	auto LogNewEvents = [&Result, &State, &LoggedEvents, &EnteredTiles, &CastVotes]()
 	{
 		for (; LoggedEvents < State.EventLog.Num(); ++LoggedEvents)
 		{
@@ -470,6 +484,17 @@ FSimulationResult FMatchSimulation::Run()
 			{
 				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d (Tifón) rechaza la sentencia"), *Stamp(Event.ClockSeconds), Event.Seat));
 			}
+			// S-017 (PR B): una línea por votación resuelta, con los votos (el que no votó, con un asterisco: su voto fue al azar).
+			else if (Event.Type == EMatchEventType::VoteCast)
+			{
+				CastVotes.Add(FString::Printf(TEXT("%d→%d%s"), Event.Seat, Event.OtherSeat, Event.Detail == 1 ? TEXT("*") : TEXT("")));
+			}
+			else if (Event.Type == EMatchEventType::VoteResolved)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    votación: %s | el más votado: asiento %d, con %d votos%s"), *Stamp(Event.ClockSeconds),
+					*FString::Join(CastVotes, TEXT(", ")), Event.Seat, Event.Value, Event.Detail == 1 ? TEXT(" (desempate del Warden)") : TEXT("")));
+				CastVotes.Reset();
+			}
 		}
 	};
 
@@ -507,6 +532,31 @@ FSimulationResult FMatchSimulation::Run()
 					return TNumericLimits<double>::Max();
 				}
 				continue;
+			}
+			// S-017 (R-VOT-5): una votación abierta, todos los que tienen a quién votar votan en el acto con su decisor, en orden de
+			// asiento; el último voto la resuelve.
+			if (State.Vote.IsOpen())
+			{
+				LogNewEvents();
+				bool bVoted = false;
+				for (int32 Seat = 0; Seat < State.Seats.Num() && State.Vote.IsOpen(); ++Seat)
+				{
+					const TArray<int32> Options = Soulbound::Rules::VoteOptions(State, Seat);
+					if (State.Vote.Votes[Seat] != INDEX_NONE || Options.IsEmpty() || !Deciders.IsValidIndex(Seat) || !Deciders[Seat].IsValid())
+					{
+						continue;
+					}
+					if (Soulbound::Rules::SubmitVote(State, Seat, Deciders[Seat]->ChooseVote(State, Seat, Options, DeciderRng), Now) != EIntentResult::Accepted)
+					{
+						return TNumericLimits<double>::Max();
+					}
+					bVoted = true;
+				}
+				LogNewEvents();
+				if (bVoted)
+				{
+					continue;
+				}
 			}
 			// S-017 (R-VOT-5, R-ORA-3): una consulta del Oráculo, dentro del turno o entre turnos, se consulta en el acto con el decisor
 			// del consultante (los dummies nunca rechazan): así nunca se agota.

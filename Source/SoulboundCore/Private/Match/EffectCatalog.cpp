@@ -130,7 +130,16 @@ namespace Soulbound::Rules
 
 	bool AdmitsMostVoted(EEffect Effect)
 	{
-		return false;
+		// En una votación no dirige nadie: fuera los globales, el Alto (solo corta) y los que necesitan a alguien que actúe.
+		if (IsGlobalEffect(Effect) || Effect == EEffect::Halt || Effect == EEffect::DecreedTheft || Effect == EEffect::ForcedDuel)
+		{
+			return false;
+		}
+		return EffectDefOf(Effect).AllowedTargets.ContainsByPredicate([](EEffectTarget Target)
+		{
+			return Target == EEffectTarget::ActivePlayer || Target == EEffectTarget::ChosenRival || Target == EEffectTarget::Leader
+				|| Target == EEffectTarget::NextPlayer || Target == EEffectTarget::RandomPlayer;
+		});
 	}
 
 	bool ParseEffectVariantCode(const FString& Code, EEffectVariant& OutVariant)

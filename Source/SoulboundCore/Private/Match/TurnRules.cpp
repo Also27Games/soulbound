@@ -1362,7 +1362,40 @@ namespace Soulbound::Rules
 
 	EIntentResult SubmitVote(FMatchState& State, int32 Seat, int32 Voted, double NowSeconds)
 	{
-		return EIntentResult::WrongPhase;
+		// Glosario "Intención": votación abierta, asiento, un voto por asiento, plazo y votado; si no, se descarta sin castigo.
+		FVoteState& Vote = State.Vote;
+		if (!Vote.IsOpen())
+		{
+			return EIntentResult::WrongPhase;
+		}
+		if (!Vote.Votes.IsValidIndex(Seat))
+		{
+			return EIntentResult::WrongSeat;
+		}
+		if (Vote.Votes[Seat] != INDEX_NONE)
+		{
+			return EIntentResult::WrongPhase;
+		}
+		if (NowSeconds >= Vote.DeadlineSeconds)
+		{
+			return EIntentResult::ClockExpired;
+		}
+		if (!VoteOptions(State, Seat).Contains(Voted))
+		{
+			return EIntentResult::InvalidOption;
+		}
+		Vote.Votes[Seat] = Voted;
+		// R-VOT-3: se resuelve cuando han votado todos los que tienen a quién votar (quien no tiene, no vota, sin insolencia).
+		bool bAllVoted = true;
+		for (int32 Voter = 0; Voter < Vote.Votes.Num(); ++Voter)
+		{
+			bAllVoted &= Vote.Votes[Voter] != INDEX_NONE || VoteOptions(State, Voter).IsEmpty();
+		}
+		if (bAllVoted)
+		{
+			ResolveVote(State, NowSeconds);
+		}
+		return EIntentResult::Accepted;
 	}
 
 	bool GrantExtraTurns(FMatchState& State, int32 Seat, int32 Count)
