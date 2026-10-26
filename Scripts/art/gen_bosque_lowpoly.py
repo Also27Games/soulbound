@@ -54,7 +54,7 @@ from mathutils.geometry import delaunay_2d_cdt
 # ---------------------------------------------------------------------------------------------------------
 # Paleta: ocho colores en sRGB. El cian es el único acento de color.
 # ---------------------------------------------------------------------------------------------------------
-TIERRA_OSCURA, TIERRA_CLARA, PIEDRA_CLARA, PIEDRA_MEDIA, MADERA, NEGRO, CIAN, HUESO = range(8)
+TIERRA_OSCURA, TIERRA_CLARA, PIEDRA_CLARA, PIEDRA_MEDIA, MADERA, NEGRO, CIAN, HUESO, TIERRA_NEUTRA = range(9)
 PALETA = [
     (44, 37, 34),     # tierra oscura
     (92, 78, 64),     # tierra clara (senderos del grafo): más clara que en la ronda 4, para que se lean
@@ -64,6 +64,8 @@ PALETA = [
     (24, 26, 36),     # negro azulado (hueco, hierro, grietas, agua)
     (90, 210, 220),   # acento cian (magia)
     (205, 194, 172),  # hueso claro (borde de casilla, huesos, cera, ficha)
+    (104, 96, 88),    # tierra neutra del suelo liso del kit (26/10/2026): gris tierra medio, poco saturado, para que el
+                      # tinte por Dominio de la vista (multiplica) se vea; sobre el marrón oscuro no se veía
 ]
 # Índices que no son colores nuevos, sino un color de la paleta con otro material:
 CIAN_TENUE = 20   # cian con emisión débil (el agua de la Fuente de Poder)
@@ -551,7 +553,7 @@ def lados_de_sendero(grafo, ancho, paso=0.006):
     return puntos, aristas
 
 
-def pieza_suelo(rng, terreno, grafo, manchas=True, lados_extra=0.0):
+def pieza_suelo(rng, terreno, grafo, manchas=True, lados_extra=0.0, color_base=TIERRA_OSCURA):
     """Tierra del Dominio: triangulación de Delaunay con el contorno y los bordes de los senderos como
     restricción. Los senderos del grafo son tierra clara; el resto, tierra oscura con alguna mancha clara
     lejos del grafo, para que ninguna mancha se lea como un sendero. Sin manchas (el suelo liso del kit,
@@ -600,13 +602,13 @@ def pieza_suelo(rng, terreno, grafo, manchas=True, lados_extra=0.0):
         elif manchas and d > 0.08 and terreno.tono(cx, cy) + rng.uniform(-0.2, 0.2) > 0.55:
             color = TIERRA_CLARA
         else:
-            color = TIERRA_OSCURA
+            color = color_base
         cara(bm, capa, [a, b, c], color)
     # Faldón hasta la peana por todo el contorno (se mete un poco en ella para que no quede rendija).
     arriba = [verts[de_original[i]] for i in range(n)]
     abajo = [bm.verts.new((v.co.x, v.co.y, PEANA_ALTO - 0.002)) for v in arriba]
     for i in range(n):
-        cara(bm, capa, [abajo[i], abajo[(i + 1) % n], arriba[(i + 1) % n], arriba[i]], TIERRA_OSCURA)
+        cara(bm, capa, [abajo[i], abajo[(i + 1) % n], arriba[(i + 1) % n], arriba[i]], color_base)
     return bm
 
 
@@ -2259,7 +2261,7 @@ def main():
     # Suelo liso del kit: la cuña sin senderos pintados, para que la vista coloque losas y senderos desde
     # los datos del tablero. Solo se exporta; el render de conjunto usa el suelo con senderos.
     piezas["suelo_liso"] = malla("suelo_liso", pieza_suelo(rng, Terreno(rng, [], [], amplitud=0.001, n_montes=0), [],
-                                                          manchas=False, lados_extra=PEANA_CANTO))
+                                                          manchas=False, lados_extra=PEANA_CANTO, color_base=TIERRA_NEUTRA))
 
     # Ficha de prueba sobre una losa del principal. No es escenografía: fuera del recuento del Dominio.
     ficha_me = malla("ficha_prueba", pieza_ficha(rng))
