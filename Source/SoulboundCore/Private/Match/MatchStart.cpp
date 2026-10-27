@@ -29,7 +29,7 @@ namespace
 namespace Soulbound::Rules
 {
 	FMatchStartResult StartMatch(const FBoardState& Board, const FMatchParams& Params, const FElectsTable& Elects, int32 PlayerCount, FRandomStream& Random,
-		const FWardenEventTable& WardenEvents, const FWardenParams& WardenParams)
+		const FWardenEventTable& WardenEvents, const FWardenParams& WardenParams, const FWardenLineTable& WardenLines)
 	{
 		using Soulbound::Board::DomainCount;
 

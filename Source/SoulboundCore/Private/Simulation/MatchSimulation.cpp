@@ -285,7 +285,7 @@ FSimulationResult FMatchSimulation::Run()
 	// los eventos y, si juega, el Warden.
 	const FWardenParams WardenParams = Params.bWardenEnabled ? Params.WardenParams : FWardenParams();
 	FMatchStartResult Start = Soulbound::Rules::StartMatch(Params.Board, Params.MatchParams, Params.Elects, Soulbound::Match::MaxPlayers, Rng,
-		Params.WardenEvents, WardenParams);
+		Params.WardenEvents, WardenParams, Params.WardenLines);
 	if (!Start.IsSuccess())
 	{
 		Result.Log.Add(FString::Printf(TEXT("error semilla=%d \"%s\""), Params.Seed, *Start.Message));

@@ -5,6 +5,7 @@
 #include "Elects/Elects.h"
 #include "Match/MatchParams.h"
 #include "Match/WardenEvents.h"
+#include "Warden/WardenLines.h"
 #include "MatchState.generated.h"
 
 namespace Soulbound::Match
@@ -781,6 +782,17 @@ enum class EMatchEventType : uint8
 	FinalChallengeFailed,
 	/** S-018 (R-VIC-2): el aspirante supera el desafío final y gana la partida. Es el último evento de la partida. Nombre propuesto en S-018. */
 	MatchWon,
+	/**
+	 * S-021 (R-WAR-10): el Warden dice una frase. Seat: el destinatario (INDEX_NONE a la mesa); Value: la posición de la entrada en
+	 * FMatchState::WardenLines; Detail: la variante. Va justo después del evento que la causa. El motor no guarda texto: la presentación
+	 * lo lee de la tabla. Nombre propuesto en S-021.
+	 */
+	WardenSpoke,
+	/**
+	 * S-021 (R-PRO-5): aviso del final, sin efecto y sin cortar nada, a falta de 60 s y de 10 s para matchEndSeconds. Value: los segundos
+	 * que quedan. Una sola vez cada uno y nunca después del fin. Nombre propuesto en S-021.
+	 */
+	MatchEndWarning,
 };
 
 namespace Soulbound::Match
@@ -1254,6 +1266,32 @@ struct SOULBOUNDCORE_API FWardenState
 	/** Si el hueco entre turnos en curso ya tuvo su intervención con efecto (R-WAR-4: como mucho una). Lo limpia el inicio de turno. */
 	UPROPERTY()
 	bool bGapUsed = false;
+
+	/**
+	 * Semilla del sorteo propio de la voz (R-WAR-9, S-021): la de la partida más 5, fijada por StartMatch. Cada sorteo la combina con
+	 * VoiceDraws (DrawWardenLine). La voz no gasta valores del sorteo del Warden ni del de los dados: así las partidas y las cifras
+	 * de S-018 no cambian.
+	 */
+	UPROPERTY()
+	int32 VoiceSeed = 0;
+
+	/** Sorteos hechos con VoiceSeed. */
+	UPROPERTY()
+	int32 VoiceDraws = 0;
+
+	/** Última variante usada de cada frase, por clave (R-WAR-9): el sorteo no la repite. Sin clave, aún no se ha dicho. */
+	UPROPERTY()
+	TMap<FString, int32> LastLineVariant;
+
+	/**
+	 * Si ya se disparó el aviso de a falta de 60 s (R-PRO-5, S-021) y el de a falta de 10 s. Una sola vez cada uno. Viven en el estado,
+	 * no se deducen del reloj: así no dependen de que AdvanceTurn pase justo en ese segundo.
+	 */
+	UPROPERTY()
+	bool bLastMinuteWarned = false;
+
+	UPROPERTY()
+	bool bTenSecondsWarned = false;
 };
 
 /**
@@ -1365,6 +1403,13 @@ struct SOULBOUNDCORE_API FMatchState
 	 */
 	UPROPERTY()
 	FWardenEventTable WardenEvents;
+
+	/**
+	 * Frases del Warden de la partida (S-021, R-VOZ-5): las de Content/Data/Warden/frases.json, que recibe StartMatch. Vacía, el
+	 * Warden no habla y el registro no lleva ningún WardenSpoke (los tests de reglas que no miran la voz).
+	 */
+	UPROPERTY()
+	FWardenLineTable WardenLines;
 
 	/** Evento del Warden en curso (S-014); sin evento, EventIndex INDEX_NONE. */
 	UPROPERTY()
