@@ -483,7 +483,7 @@ FSimulationResult FMatchSimulation::Run()
 			}
 			else if (Event.Type == EMatchEventType::WardenRemark)
 			{
-				Result.Log.Add(FString::Printf(TEXT("%s Warden comenta (sin frase hasta la story \"La voz del Warden\")"), *Stamp(Event.ClockSeconds)));
+				Result.Log.Add(FString::Printf(TEXT("%s Warden comenta"), *Stamp(Event.ClockSeconds)));
 			}
 			else if (Event.Type == EMatchEventType::TurnInterrupted)
 			{

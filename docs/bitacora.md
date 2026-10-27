@@ -4,6 +4,31 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo de la story; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera.
 
+## S-021 (A1). La voz del Warden: frases en datos, sorteo, línea y avisos (27/10/2026, rama `story/S-021-la-voz-del-warden`, base `main`, story S-021)
+
+- **Qué se pidió**: el primer corte de S-021 (el autor aprobó el corte A1/A2/A3 en el plan, tres PR en la misma rama): la tabla de frases en `frases.json` con todas sus claves, el sorteo propio de la voz, el registro `WardenSpoke`, los avisos del final, la línea del Warden en pantalla con la crónica y `SbSay`. Quedan para A2 los tipos de comentario (CA-COM-1) y para A3 las instrucciones y el perfil (CA-INS-1 y 2).
+- **Qué se decidió**:
+  - la voz es **solo registro**: `WardenSpoke` lleva la posición de la entrada y la variante, y el texto se lee de la tabla en la presentación; sin tabla (los tests de reglas) el Warden no habla y el registro es el de antes;
+  - el sorteo de la voz es propio (`VoiceSeed`, semilla + 5, y `VoiceDraws` en `FWardenState`), así que no mueve ni los dados ni el Warden: lo comprueba CA-VOZ-4 con las cifras exactas de S-018 (B);
+  - los avisos del final guardan en el estado si ya sonaron (dos bools), no lo deducen del reloj;
+  - `frases.json` es una lista de entradas, como dice la story, y trae una variante provisional `(pendiente) <clave>` por clave; las frases reales son del autor.
+- **Cómo funciona**:
+  - `RequiredWardenLineKeys` construye las claves exigidas de los eventos, los enums y los Elegidos, y el cargador falla nombrando la clave que falta, la repetida o la variante vacía. `DrawWardenLine` elige variante sin repetir la última; `SpeakWardenLine` la registra.
+  - `StartMatch` abre la partida con el inicio, una frase por Dominio corrompido y una por posición del orden. Las demás salen justo después de `WardenEventStarted` (por el Oráculo, de `OracleSentence`), `InsolencePunished`, `FuryUnleashed`, `Bonded`, `BondRaceEnded`, `AspirantAnnounced`, `WardenVictory` y `MatchWon`.
+  - La vista recoge los `WardenSpoke` nuevos en una cola (`FWardenLineQueue`) y los enseña en una línea grande abajo, con "Warden:", "Warden, al asiento 2:" o "Warden, a ti:"; las de la apertura hacen cola y una dicha más tarde sustituye a las que quedaban. La crónica pone la misma frase en el color del Warden y la sentencia del Oráculo ocupa una sola línea.
+- **Dudas y resolución**: las cinco del plan, resueltas por el autor. Al implementar, dos decisiones que no estaban en la story y van al PR: el momento de la frase de un evento (tras `WardenEventStarted`, no "tras aplicarse", porque un dilema se aplica mucho después) y `presentacion:<dominio>` con el número del Dominio, porque `elegidos.json` no tiene identificador de Elegido.
+- **Tests**:
+  - nuevos: `Voice.CargadorDeFrases` (CA-VOZ-2), `Voice.SorteoSinRepetir` (CA-WAR-9), `Voice.AcotacionesDeAudio`, seis de registro (`RegistroAlEmpezar`, `RegistroDelGolpe`, `RegistroDeLaInsolencia`, `RegistroDeLaCarrera`, `RegistroDelFinal`, `EdicionSbSay`; CA-VOZ-3), `Voice.AvisosDelFinal` (CA-PRO-5), `Voice.LaVozNoCambiaLaPartida` (CA-VOZ-4) y cuatro de presentación (`Voz.TextoDeLaFrase`, `AQuienHabla`, `SentenciaEnUnaLinea`, `ColaDeLaLinea`);
+  - se vieron en rojo con la API como esqueleto, en dos commits aparte (los 10 del motor y los 5 de la presentación y `SbSay`);
+  - total: 348 en verde; la suite sigue en unos 88 s.
+- **Informe**: con las frases cargadas, el tablero de 86 da exactamente las cifras de S-018 (B): rápido, gana un jugador el 58 % (minuto 19,5) y 2,00 desafíos por partida; humano, el 6 % (minuto 29,0), el 94 % el Warden por tiempo, 0,26 desafíos, Ecos 18,5 % y cortes por acto 14,8 / 21,3 / 31,5 %.
+- **Pendiente**: A2 y A3; los criterios manuales en PIE (la línea en pantalla, la crónica, `SbSay` y `SbClock`), que no se han podido ejecutar en esta sesión porque el editor no estaba abierto; las frases reales (commit del autor).
+- **Proceso**:
+  - tiempo: una sesión;
+  - preguntas que pararon al agente: una parada (el plan, con cinco dudas y el corte);
+  - correcciones tras fusionar: por anotar;
+  - build y tests: los tests en rojo compilaron a la primera, en las dos tandas. Tras implementar falló un caso del cargador (`TryGetStringField` acepta un número como texto) y un nombre de ayudante de test chocó con otro en el unity build del módulo del juego; corregidos, 348 en verde.
+
 ## H-001. Vista previa del tablero en el editor (27/10/2026, rama `main`, herramienta sin story)
 
 - **Qué se pidió**: un actor de solo editor que enseña el tablero en el nivel, sin partida, para decorar a mano alrededor de las losas, sin duplicar la colocación del kit que ya hace `ABoardViewActor`.

@@ -63,8 +63,8 @@ namespace Soulbound::Rules
 		switch (Decision.Kind)
 		{
 		case EWardenDecisionKind::Remark:
-			// TODO(R-WAR-4): el comentario tiene tipo y frase en la story "La voz del Warden" (decisión del autor del 22/10/2026);
-			// aquí solo queda registrado.
+			// TODO(R-COM-1): el comentario aún no lleva tipo ni asiento (EWardenRemarkKind) ni su frase (WardenSpoke): llegan con el corte
+			// A2 de la story "La voz del Warden" (S-021), que cambia Value (tipo) y Seat (destinatario). Aquí solo queda registrado.
 			LogEvent(State, EMatchEventType::WardenRemark, NowSeconds, INDEX_NONE);
 			break;
 		case EWardenDecisionKind::Strike:
