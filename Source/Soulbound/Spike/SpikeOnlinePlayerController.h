@@ -134,6 +134,13 @@ public:
 	UFUNCTION(Exec)
 	void SbStrike(FString Id);
 
+	/**
+	 * SbClock <segundos>: adelanta el reloj de partida a esos segundos (S-018), para probar el fin a los 40 minutos sin esperarlo
+	 * (SbClock 2390 y diez segundos). Solo hacia delante. Cuerpo vacío en Shipping.
+	 */
+	UFUNCTION(Exec)
+	void SbClock(FString Seconds);
+
 	/** SbEvents: lista los identificadores de los eventos del Warden cargados, con su texto (S-014). */
 	UFUNCTION(Exec)
 	void SbEvents();

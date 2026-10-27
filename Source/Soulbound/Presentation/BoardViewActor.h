@@ -148,6 +148,16 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
 	float HaloScale = 1.35f;
 
+	/**
+	 * Diámetro del halo del aspirante bajo el Altar (S-018), por el del halo de alcanzable: más ancho, para que se vea alrededor. Con
+	 * dos o más aspirantes, cada halo es AspirantHaloStep más ancho que el anterior. Valores iniciales 1,25 y 0,15.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
+	float AspirantHaloScale = 1.25f;
+
+	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
+	float AspirantHaloStep = 0.15f;
+
 	/** Diámetro del aro de las casillas de un Dominio Olvidado, por el de la casilla. Valor inicial 1,2. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
 	float ForgottenRingScale = 1.2f;
@@ -547,6 +557,8 @@ private:
 	void RefreshTokens(const FMatchState& State);
 	/** El orbe de la consulta del Oráculo (S-017): visible mientras alguien consulta, del color de su asiento; oculto si no. */
 	void RefreshOracleOrb(const FMatchState& State);
+	/** Los halos del aspirante (S-018): bajo el Altar, uno del color de cada asiento aspirante, de dentro afuera por asiento; ocultos si no. */
+	void RefreshAspirantHalos(const FMatchState& State);
 	/** La ficha de Seat llegó a TileId en su recorrido (S-020): entrega la intención de avance de su asiento; al acabar, se recoloca. */
 	void OnTokenTileEntered(int32 Seat, int32 TileId, bool bLast);
 	/** Base de una ficha sobre el centro de la casilla (la cara superior de la losa). */
@@ -555,7 +567,7 @@ private:
 	void RefreshChronicle(const FMatchState& State);
 	/** Texto de depuración del turno; y pone la cámara como vista del jugador local si aún no lo es. */
 	void TickHud();
-	void ShowText(int32 Line, const FColor& Color, const FString& Text) const;
+	void ShowText(int32 Line, const FColor& Color, const FString& Text, float Scale = 1.f) const;
 
 	FLinearColor DomainColor(int32 DomainId) const;
 	FLinearColor SeatColor(int32 Seat) const;
@@ -710,4 +722,8 @@ private:
 	/** El orbe de la consulta del Oráculo (S-017): una esfera de formas básicas que recibe el clic. */
 	UPROPERTY()
 	TObjectPtr<UStaticMeshComponent> OracleOrb;
+
+	/** Los halos del aspirante (S-018), uno por asiento: discos de formas básicas bajo el Altar. */
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> AspirantHalos;
 };

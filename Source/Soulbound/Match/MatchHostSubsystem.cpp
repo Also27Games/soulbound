@@ -685,6 +685,24 @@ FDebugEditOutcome UMatchHostSubsystem::DebugBanish(int32 Seat)
 	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("asiento %d desterrado al Vacío"), Seat) : Soulbound::Presentation::DescribeEffectResult(Result));
 }
 
+FDebugEditOutcome UMatchHostSubsystem::DebugSetClock(double Seconds)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	const double Now = MatchSeconds();
+	State.ClockSeconds = Now;
+	const EDebugEditResult Result = Soulbound::Debug::SetClock(State, Seconds, Now);
+	const bool bApplied = Result == EDebugEditResult::Applied;
+	if (bApplied)
+	{
+		StepClock.Skip(Seconds - Now);
+	}
+	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("reloj de partida en %02d:%02d"), FMath::FloorToInt32(Seconds) / 60, FMath::FloorToInt32(Seconds) % 60)
+		: FString::Printf(TEXT("el reloj solo se adelanta: ahora marca %.0f s"), Now));
+}
+
 FDebugEditOutcome UMatchHostSubsystem::DebugSetInsolence(int32 Seat, int32 Level)
 {
 	if (!bHasMatch)

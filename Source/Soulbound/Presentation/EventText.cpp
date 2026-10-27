@@ -32,7 +32,10 @@ namespace Soulbound::Presentation
 		case EMatchEventType::BoardAwakening: return FString::Printf(TEXT("el asiento %d despierta el tablero"), Event.Seat);
 		case EMatchEventType::HomeAssigned: return FString::Printf(TEXT("el asiento %d queda Eco, con hogar en el Dominio %d"), Event.Seat, Event.Value);
 		case EMatchEventType::ReturnedHome: return FString::Printf(TEXT("el asiento %d vuelve a su hogar, %s"), Event.Seat, *TileShortName(Board, Event.Value));
-		case EMatchEventType::WardenVictory: return FString(TEXT("VICTORIA DEL WARDEN: nadie se ha vinculado"));
+		// S-018: con el motivo; el tiempo agotado también es victoria del Warden.
+		case EMatchEventType::WardenVictory:
+			return Event.Value == static_cast<int32>(EMatchEndReason::TimeOut) ? FString(TEXT("VICTORIA DEL WARDEN: se acaba el tiempo"))
+				: FString(TEXT("VICTORIA DEL WARDEN: nadie se ha vinculado"));
 		case EMatchEventType::BondRaceEnded: return FString::Printf(TEXT("fin de la carrera: %d Elegidos"), Event.Value);
 		case EMatchEventType::RuneObtained: return FString::Printf(TEXT("el asiento %d obtiene la runa del Dominio %d"), Event.Seat, Event.Value);
 		// El minijuego real no existe aún (su story): el decisor del asiento lo resuelve al azar, y la crónica lo dice.
@@ -104,7 +107,12 @@ namespace Soulbound::Presentation
 		// S-016: el corte de un golpe y el comentario; las evaluaciones y las decisiones no tienen línea (sí, su registro).
 		case EMatchEventType::TurnInterrupted:
 			// S-017 (R-PRO-0): también lo corta el fin de la carrera.
-			return Event.Detail == 1
+			// S-018: y el fin de la partida, que corta también lo que el Warden no corta.
+			if (Event.Detail == Soulbound::Match::MatchEndCut)
+			{
+				return FString::Printf(TEXT("FIN DE LA PARTIDA: CORTA el turno del asiento %d: lo que estaba a medias no se resuelve"), Event.Seat);
+			}
+			return Event.Detail == Soulbound::Match::RaceEndCut
 				? FString::Printf(TEXT("FIN DE LA CARRERA: CORTA el turno del asiento %d %s: %s"), Event.Seat, *TurnPhaseText(Event.Value), *TurnCutLossText(Event.Value))
 				: FString::Printf(TEXT("GOLPE: el Warden CORTA el turno del asiento %d %s: %s"), Event.Seat, *TurnPhaseText(Event.Value), *TurnCutLossText(Event.Value));
 		case EMatchEventType::WardenRemark:
@@ -202,6 +210,16 @@ namespace Soulbound::Presentation
 			return FString::Printf(TEXT("el asiento %d GANA el duelo al Warden y no pierde nada"), Event.Seat);
 		case EMatchEventType::RuneTakenByWarden:
 			return FString::Printf(TEXT("el WARDEN ROBA al asiento %d: su runa del Dominio %d vuelve a su Fuente"), Event.Seat, Event.Value);
+		// S-018: el aspirante, el desafío final y la victoria de un jugador. El minijuego real no existe aún: el resultado es al azar.
+		case EMatchEventType::AspirantAnnounced:
+			return FString::Printf(TEXT("el asiento %d es ASPIRANTE: está en el Altar con las seis runas; en su próximo turno, el desafío final"), Event.Seat);
+		case EMatchEventType::FinalChallengeStarted:
+			return FString::Printf(TEXT("el asiento %d juega el DESAFÍO FINAL (%s) en vez de su turno"), Event.Seat, *DifficultyText(Event.Value));
+		case EMatchEventType::FinalChallengeFailed:
+			return FString::Printf(TEXT("el asiento %d FALLA el desafío final (resuelto al azar): el Warden le arranca la runa del Dominio %d, que vuelve a su Fuente, y lo manda a casa"),
+				Event.Seat, Event.Value);
+		case EMatchEventType::MatchWon:
+			return FString::Printf(TEXT("VICTORIA DEL ASIENTO %d: supera el desafío final (resuelto al azar)"), Event.Seat);
 		case EMatchEventType::DebugEdit:
 			return Event.Seat == INDEX_NONE ? FString::Printf(TEXT("EDICIÓN DE DEPURACIÓN: %s"), *DebugKindName(Event.Value))
 				: FString::Printf(TEXT("EDICIÓN DE DEPURACIÓN: %s (asiento %d)"), *DebugKindName(Event.Value), Event.Seat);
@@ -230,6 +248,7 @@ namespace Soulbound::Presentation
 		case EDebugEditKind::LaunchEvent: return TEXT("lanzar un evento del Warden");
 		case EDebugEditKind::SetInsolence: return TEXT("fijar la insolencia");
 		case EDebugEditKind::StrikeEvent: return TEXT("golpe del Warden ahora");
+		case EDebugEditKind::SetClock: return TEXT("adelantar el reloj de partida");
 		}
 		return TEXT("edición desconocida");
 	}
@@ -527,6 +546,9 @@ namespace Soulbound::Presentation
 		case EMatchEventType::ReturnedHome:
 		case EMatchEventType::WardenVictory:
 		case EMatchEventType::BondRaceEnded:
+		// S-018: el final de la partida, como el de la carrera.
+		case EMatchEventType::AspirantAnnounced:
+		case EMatchEventType::MatchWon:
 			return EEventSource::Race;
 		default:
 			return EEventSource::Seat;

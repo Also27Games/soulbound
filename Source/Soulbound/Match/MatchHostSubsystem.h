@@ -204,6 +204,13 @@ public:
 	 * paso si el evento espera una elección.
 	 */
 	FDebugEditOutcome DebugStrikeEvent(const FString& EventId);
+
+	/**
+	 * Adelanta el reloj de partida a Seconds (S-018, SbClock, Soulbound::Debug::SetClock): el estado y el reloj del anfitrión
+	 * (FStepClock::Skip). Lo que venza por ello (fin de carrera, evaluaciones del Warden, fin de la partida a los 40 minutos) llega en
+	 * el siguiente paso, como si el tiempo hubiera pasado. Hacia atrás se rechaza.
+	 */
+	FDebugEditOutcome DebugSetClock(double Seconds);
 #endif
 
 	/** Se lanza tras cada cambio del estado. */
