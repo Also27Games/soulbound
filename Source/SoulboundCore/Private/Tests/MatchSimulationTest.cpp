@@ -237,10 +237,13 @@ bool FMatchSimulationDeterminismTest::RunTest(const FString& Parameters)
 	// empezar su turno, antes del reloj de turno, así que caben duración entre respuesta (margen de uno por redondeo).
 	// Hasta S-003 aquí se exigían 80 turnos: el turno de mentira del spike duraba TurnPeriodSeconds (30 s). Desde S-010 se
 	// descuenta el tiempo de los trileros: cada uno alarga su turno la muestra y la mezcla (la esfera, el dummy la elige al
-	// instante).
+	// instante). Desde S-018 un dummy puede ganar (sin Warden no hay fin por tiempo, pero sí victoria de un jugador): la partida dura
+	// hasta su final, y cada desafío final fallado es un turno sin tirada que no consume tiempo.
 	const double ShellSeconds = Soulbound::Tests::EventsOfType(A.FinalState, EMatchEventType::ShellGameStarted).Num()
 		* (Params.MatchParams.ShellRevealSeconds + Params.MatchParams.ShellShuffleSeconds);
-	const double ExpectedTurns = (Params.DurationSeconds - ShellSeconds) / Params.DummyResponseSeconds;
+	const double PlayedSeconds = A.FinalState.IsMatchOver() ? A.FinalState.ClockSeconds : Params.DurationSeconds;
+	const int32 FailedChallenges = Soulbound::Tests::EventsOfType(A.FinalState, EMatchEventType::FinalChallengeFailed).Num();
+	const double ExpectedTurns = (PlayedSeconds - ShellSeconds) / Params.DummyResponseSeconds + FailedChallenges;
 	TestTrue(TEXT("Se juegan turnos"), A.Turns > 0);
 	TestTrue(FString::Printf(TEXT("Turnos derivados de los parametros: %d frente a %.1f"), A.Turns, ExpectedTurns), FMath::Abs(A.Turns - ExpectedTurns) <= 1.0);
 	// Hasta S-015 aquí se exigía una evaluación del cerebro del spike cada 15 s y alguna intervención; apagado, ninguna.
@@ -314,7 +317,7 @@ bool FMatchSimulationTurnMachineTest::RunTest(const FString& Parameters)
 		return false;
 	}
 
-	int32 Started = 0, Rolled = 0, Ended = 0, Expired = 0;
+	int32 Started = 0, Rolled = 0, Ended = 0, Expired = 0, Challenges = 0;
 	for (const FMatchEvent& Event : State.EventLog)
 	{
 		switch (Event.Type)
@@ -329,13 +332,16 @@ bool FMatchSimulationTurnMachineTest::RunTest(const FString& Parameters)
 		case EMatchEventType::Rolled: ++Rolled; break;
 		case EMatchEventType::TurnEnded: ++Ended; break;
 		case EMatchEventType::TurnClockExpired: ++Expired; break;
+		// S-018: el desafío final ocupa el turno del aspirante, sin tirada.
+		case EMatchEventType::FinalChallengeStarted: ++Challenges; break;
 		default: break;
 		}
 	}
 	TestTrue(TEXT("Hay turnos en el registro"), Ended > 0);
 	TestEqual(TEXT("Un fin por turno jugado"), Ended, Result.Turns);
 	TestEqual(TEXT("Turnos jugados del estado"), State.TurnCount, Result.Turns);
-	TestTrue(TEXT("Cada inicio tiene su tirada (el último turno puede quedar a medias)"), Started == Rolled && (Started == Ended || Started == Ended + 1));
+	TestTrue(TEXT("Cada inicio tiene su tirada o su desafío final (el último turno puede quedar a medias, o ser el de la victoria)"),
+		Started == Rolled + Challenges && (Started == Ended || Started == Ended + 1));
 	TestEqual(TEXT("El dummy nunca agota el reloj"), Expired, 0);
 	return true;
 }
@@ -1082,6 +1088,10 @@ bool FMatchSimulationEndingTest::RunTest(const FString& Parameters)
 				&& Last.Value == static_cast<int32>(State.EndReason) && (State.EndReason == EMatchEndReason::NobodyBonded || Last.ClockSeconds == End));
 		}
 		TestTrue(FString::Printf(TEXT("Semilla %d: el reloj no pasa del fin"), Seed), State.ClockSeconds <= End);
+		// Para leer, no para juzgar: el informe por tablero y por ritmo es del corte B.
+		AddInfo(FString::Printf(TEXT("Semilla %d: %s en el minuto %.1f, %d desafíos finales"), Seed,
+			State.Outcome == EMatchOutcome::PlayerVictory ? *FString::Printf(TEXT("gana el asiento %d"), State.WinnerSeat) : TEXT("gana el Warden"),
+			State.ClockSeconds / 60.0, CountEvents(State, EMatchEventType::FinalChallengeStarted)));
 	}
 	return true;
 }

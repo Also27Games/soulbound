@@ -182,6 +182,11 @@ namespace Soulbound::Rules
 			return Reject(EMatchParamsError::MalformedData, FString::Printf(TEXT("R-DIR-4: el rendimiento del Warden en su duelo debe estar entre 0 y 1 (es %g)."),
 				Params.WardenDuelPerformance));
 		}
+		// S-018: el desafío final con una de las tres dificultades.
+		if (!IsKnownDifficulty(Params.FinalChallengeDifficulty))
+		{
+			return Reject(EMatchParamsError::MalformedData, TEXT("R-VIC-1: la dificultad del desafío final debe ser fácil, normal o difícil."));
+		}
 		return FMatchParamsLoadResult();
 	}
 
@@ -255,6 +260,11 @@ namespace Soulbound::Rules
 		if (!Root->TryGetStringField(TEXT("wardenTrialDifficulty"), TrialDifficulty) || !ParseDifficulty(TrialDifficulty, Params.WardenTrialDifficulty))
 		{
 			return Reject(EMatchParamsError::MalformedData, TEXT("El parámetro \"wardenTrialDifficulty\" falta o no es \"easy\", \"normal\" o \"hard\"."));
+		}
+		FString FinalDifficulty;
+		if (!Root->TryGetStringField(TEXT("finalChallengeDifficulty"), FinalDifficulty) || !ParseDifficulty(FinalDifficulty, Params.FinalChallengeDifficulty))
+		{
+			return Reject(EMatchParamsError::MalformedData, TEXT("El parámetro \"finalChallengeDifficulty\" falta o no es \"easy\", \"normal\" o \"hard\"."));
 		}
 
 		FMatchParamsLoadResult Result = ValidateMatchParams(Params);
