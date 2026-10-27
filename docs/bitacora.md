@@ -4,6 +4,16 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo de la story; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera.
 
+## H-001. Vista previa del tablero en el editor (27/10/2026, rama `main`, herramienta sin story)
+
+- **Qué se pidió**: un actor de solo editor que enseña el tablero en el nivel, sin partida, para decorar a mano alrededor de las losas, sin duplicar la colocación del kit que ya hace `ABoardViewActor`.
+- **Qué se decidió**: la colocación del kit sale de la vista a `FBoardKit` (`Presentation/BoardKit`), que comparten la vista de partida y `ABoardPreviewActor`. Las referencias del kit y los parámetros se quedan como `UPROPERTY` Config de `ABoardViewActor` para no tocar `DefaultGame.ini`; la vista previa los lee del CDO. `BoardRelativePath` vacío significa "el de `UMatchHostSubsystem`", resuelto al pulsar Construir, para que no quede una copia vieja guardada en el mapa. La clase está siempre declarada (`bIsEditorOnlyActor`) y solo los cuerpos van bajo `WITH_EDITOR`.
+- **Cómo funciona**: Construir carga el JSON, calcula `ComputeBoardLayout` y llama a `PlaceFixed` (suelos de cuña, losas, senderos, Altar), `TintWedgeFloors` y `PlaceStructures` (todas visibles, sin runas flotantes ni cadenas), con componentes `RF_Transient`. Limpiar destruye los componentes de malla del actor. Una pieza que falta no se coloca y se avisa en el registro.
+- **Dudas y resolución**: seis en el plan, resueltas por el autor (ruta vacía = la del anfitrión; sin respaldo de formas básicas; estructuras todas, sin runas ni cadenas; sin probar `#if` sobre la `UCLASS`; bitácora y PR con "Lo que no cambia"; tres commits). Al compilar apareció un choque latente de la compilación unificada: `AngleOf` está en el espacio anónimo de `BoardLayout.cpp` y de `BoardLayoutTest.cpp`, y añadir archivos los agrupó; se renombró en el test (`DirectionAngleOf`).
+- **Tests**: 3 nuevos en `BoardKitTest` (pieza de cada losa, de cada estructura y nombre de cada pieza), vistos en rojo con los mapeos como esqueleto y en verde después. 333 en verde por consola. La colocación de componentes necesita mundo y no tiene test; su lógica de posiciones la cubre `BoardLayoutTest`.
+- **Pendiente**: colocar el actor en el nivel y comprobarlo en el editor (lo hace el autor, en commit aparte); una partida en PIE antes de fusionar; si hace falta ver las runas flotantes o las cadenas en la vista previa, son opciones de `FBoardKitStructureOptions` ya previstas.
+- **Proceso**: tiempo: por anotar. Preguntas que pararon al agente: una parada (el plan, con seis dudas). Correcciones tras fusionar: por anotar. Build y tests: la primera compilación con el actor falló por el choque de `AngleOf` descrito arriba; después, build y tests en verde. Los de `BoardKitTest` se vieron en rojo antes de implementar.
+
 ## S-018 (B). Victoria: ritmo humano e informe (27/10/2026, rama `main`, story S-018)
 
 - **Qué se pidió**: la segunda parte de S-018:
