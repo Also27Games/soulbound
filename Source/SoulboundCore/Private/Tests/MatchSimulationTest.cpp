@@ -165,6 +165,105 @@ namespace
 	{
 		return Soulbound::Tests::EventsOfType(State, Type).Num();
 	}
+
+	/** Los dos ritmos del informe (S-018), con el nombre de su bloque. */
+	const TArray<TPair<const TCHAR*, FSimulationPace>>& ReportPaces()
+	{
+		static const TArray<TPair<const TCHAR*, FSimulationPace>> Paces = {{TEXT("rápido"), FSimulationPace::Fast()}, {TEXT("humano"), FSimulationPace::Human()}};
+		return Paces;
+	}
+
+	/** Cabecera del bloque del informe de un tablero con un ritmo (S-018): así lo encuentran CA-SIM-2 y quien lee. */
+	FString ReportHeader(const FString& BoardFile, const TCHAR* PaceName)
+	{
+		return FString::Printf(TEXT("Informe | %s | ritmo %s"), *BoardFile, PaceName);
+	}
+
+	/** Comienzos de las líneas nuevas de cada bloque del informe (S-018, CA-SIM-2). */
+	const TArray<const TCHAR*>& NewReportLines()
+	{
+		static const TArray<const TCHAR*> Lines = {
+			TEXT("    resultado: "),
+			TEXT("    victoria de un jugador, minuto medio: "),
+			TEXT("    desafíos finales por partida: "),
+			TEXT("    aspirantes que no llegan a desafiar, por partida: "),
+			TEXT("    Expulsiones desde el Altar: "),
+		};
+		return Lines;
+	}
+
+	/**
+	 * CA-SIM-2: el informe tiene un bloque por tablero y por ritmo, y cada bloque, las líneas nuevas. Un bloque va de su cabecera a la
+	 * siguiente línea sin sangría.
+	 */
+	void CheckReportBlocks(FAutomationTestBase& Test, const TArray<FString>& Lines, const TArray<FString>& Boards)
+	{
+		for (const FString& Board : Boards)
+		{
+			for (const TPair<const TCHAR*, FSimulationPace>& Pace : ReportPaces())
+			{
+				const FString Header = ReportHeader(Board, Pace.Key);
+				const int32 Start = Lines.IndexOfByPredicate([&Header](const FString& Line) { return Line.StartsWith(Header); });
+				if (!Test.TestTrue(FString::Printf(TEXT("Hay bloque de %s con ritmo %s"), *Board, Pace.Key), Start != INDEX_NONE))
+				{
+					continue;
+				}
+				int32 End = Start + 1;
+				while (End < Lines.Num() && Lines[End].StartsWith(TEXT("    ")))
+				{
+					++End;
+				}
+				for (const TCHAR* Prefix : NewReportLines())
+				{
+					bool bFound = false;
+					for (int32 Index = Start + 1; Index < End && !bFound; ++Index)
+					{
+						bFound = Lines[Index].StartsWith(Prefix);
+					}
+					Test.TestTrue(FString::Printf(TEXT("%s: línea \"%s\""), *Header, *FString(Prefix).TrimStart()), bFound);
+				}
+			}
+		}
+	}
+
+	/** Segundos entre cada evento From y el siguiente To del registro: cuánto tardó lo que el primero abre. */
+	TArray<double> GapsBetween(const FMatchState& State, EMatchEventType From, EMatchEventType To)
+	{
+		TArray<double> Gaps;
+		double Opened = -1.0;
+		for (const FMatchEvent& Event : State.EventLog)
+		{
+			if (Event.Type == From)
+			{
+				Opened = Event.ClockSeconds;
+			}
+			else if (Event.Type == To && Opened >= 0.0)
+			{
+				Gaps.Add(Event.ClockSeconds - Opened);
+				Opened = -1.0;
+			}
+		}
+		return Gaps;
+	}
+
+	/** Duración media de los turnos jugados de una partida: de cada TurnStarted a su TurnEnded. */
+	void AddTurnDurations(const FMatchState& State, double& Sum, int32& Count)
+	{
+		double Started = -1.0;
+		for (const FMatchEvent& Event : State.EventLog)
+		{
+			if (Event.Type == EMatchEventType::TurnStarted)
+			{
+				Started = Event.ClockSeconds;
+			}
+			else if (Event.Type == EMatchEventType::TurnEnded && Started >= 0.0)
+			{
+				Sum += Event.ClockSeconds - Started;
+				++Count;
+				Started = -1.0;
+			}
+		}
+	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationDeterminismTest,
@@ -233,7 +332,7 @@ bool FMatchSimulationDeterminismTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Hay tiradas con los mismos dados que comparar"), Compared > 0);
 	TestFalse(TEXT("Y la partida es otra: el decisor distinto sí cambia los destinos"), Soulbound::Tests::SameState(A.FinalState, Other.FinalState));
 
-	// Los turnos no son una constante: salen de los parámetros. El dummy confirma a los DummyResponseSeconds de
+	// Los turnos no son una constante: salen de los parámetros. El dummy confirma a los Pace.DestinationSeconds (S-018) de
 	// empezar su turno, antes del reloj de turno, así que caben duración entre respuesta (margen de uno por redondeo).
 	// Hasta S-003 aquí se exigían 80 turnos: el turno de mentira del spike duraba TurnPeriodSeconds (30 s). Desde S-010 se
 	// descuenta el tiempo de los trileros: cada uno alarga su turno la muestra y la mezcla (la esfera, el dummy la elige al
@@ -243,7 +342,7 @@ bool FMatchSimulationDeterminismTest::RunTest(const FString& Parameters)
 		* (Params.MatchParams.ShellRevealSeconds + Params.MatchParams.ShellShuffleSeconds);
 	const double PlayedSeconds = A.FinalState.IsMatchOver() ? A.FinalState.ClockSeconds : Params.DurationSeconds;
 	const int32 FailedChallenges = Soulbound::Tests::EventsOfType(A.FinalState, EMatchEventType::FinalChallengeFailed).Num();
-	const double ExpectedTurns = (PlayedSeconds - ShellSeconds) / Params.DummyResponseSeconds + FailedChallenges;
+	const double ExpectedTurns = (PlayedSeconds - ShellSeconds) / Params.Pace.DestinationSeconds + FailedChallenges;
 	TestTrue(TEXT("Se juegan turnos"), A.Turns > 0);
 	TestTrue(FString::Printf(TEXT("Turnos derivados de los parametros: %d frente a %.1f"), A.Turns, ExpectedTurns), FMath::Abs(A.Turns - ExpectedTurns) <= 1.0);
 	// Hasta S-015 aquí se exigía una evaluación del cerebro del spike cada 15 s y alguna intervención; apagado, ninguna.
@@ -576,7 +675,10 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 	// partida; desde S-010, los robos y las runas que cambian de mano por partida; desde S-012, los duelos por partida
 	// (objetivo del GDD 04: de 3 a 8) y cuántos gana el retado. Objetivo del GDD 03, para el autor: nadie vinculado < 5 %, Eco por jugador entre 15 y
 	// 35 %. Solo comprueba que cada partida cierra su carrera. Imprime con SOULBOUND_INFORME=1 (Scripts/test.ps1
-	// -Informe); sin ella, una línea de resumen.
+	// -Informe); sin ella, una línea de resumen. Desde S-018 (corte B), un bloque por tablero y por ritmo (rápido y humano), que empieza
+	// con el resultado de las partidas, el minuto medio de la victoria de un jugador, los desafíos (y los que corta el reloj), los
+	// aspirantes que no llegan a desafiar y las Expulsiones desde el Altar con el ping-pong; y CA-SIM-2: que cada bloque las imprime y
+	// que toda partida termina con uno de los tres finales.
 	constexpr int32 Games = 50;
 	const TArray<FString> Boards = Soulbound::Tests::BoardFileNames();
 	if (!TestTrue(TEXT("Hay archivos de tablero"), Boards.Num() > 0))
@@ -587,194 +689,273 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 	TArray<FString> Lines;
 	for (const FString& BoardFile : Boards)
 	{
-		FSimulationParams Params;
-		if (!MakeBoardParams(*this, BoardFile, 1, Params))
+		// S-018 (corte B): un bloque por ritmo, el rápido y el humano.
+		for (const TPair<const TCHAR*, FSimulationPace>& Pace : ReportPaces())
 		{
-			continue;
-		}
-		int32 WardenVictories = 0;
-		int32 Elects = 0;
-		int32 EchoSeats = 0;
-		int32 Seats = 0;
-		double RaceEndSum = 0.0;
-		double WallSum = 0.0;
-		TArray<int32> RunesPerSeat;
-		RunesPerSeat.Init(0, Soulbound::Match::SeatCount);
-		int32 SourcesTotal = 0;
-		int32 SourcesDepleted = 0;
-		int32 Rolls = 0;
-		int32 TwoDiceRolls = 0;
-		int32 Jumps = 0;
-		int32 Expulsions = 0;
-		int32 Thefts = 0;
-		int32 StolenRunes = 0;
-		int32 Duels = 0;
-		int32 DuelsWon = 0;
-		int32 DuelsWonByChallenged = 0;
-		// S-016: el Warden por acto (intervenciones con efecto, turnos empezados y cortados, hueco más largo).
-		TArray<FWardenActReport> WardenActs;
-		WardenActs.SetNum(Soulbound::Warden::ActCount);
-		for (FWardenActReport& Act : WardenActs)
-		{
-			Act.TriggerCounts.Init(0, Soulbound::Warden::TriggerCount);
-			Act.SentencesByOrigin.Init(0, OracleOriginCount);
-		}
-		int32 Furies = 0;
-		// S-017: cortes del fin de carrera.
-		int32 RaceEndCuts = 0;
-		for (int32 Seed = 1; Seed <= Games; ++Seed)
-		{
-			Params.Seed = Seed;
-			const FSimulationResult Result = FMatchSimulation(Params, FourRaceDummies()).Run();
-			if (TestEqual(FString::Printf(TEXT("%s, semilla %d: cifras del Warden de los tres actos"), *BoardFile, Seed), Result.WardenActs.Num(), Soulbound::Warden::ActCount))
-			{
-				int32 Interventions = 0;
-				int32 Sentences = 0;
-				int32 Ignored = 0;
-				int32 Triggered = 0;
-				int32 Votes = 0;
-				for (int32 Act = 0; Act < Soulbound::Warden::ActCount; ++Act)
-				{
-					const FWardenActReport& Report = Result.WardenActs[Act];
-					TestTrue(TEXT("Un acto no corta más turnos de los que empieza"), Report.TurnsCut <= Report.TurnsStarted);
-					WardenActs[Act].EffectInterventions += Report.EffectInterventions;
-					WardenActs[Act].TurnsStarted += Report.TurnsStarted;
-					WardenActs[Act].TurnsCut += Report.TurnsCut;
-					WardenActs[Act].MaxGapSeconds = FMath::Max(WardenActs[Act].MaxGapSeconds, Report.MaxGapSeconds);
-					Interventions += Report.EffectInterventions;
-					// S-017: sentencias, consultas con insolencia y disparadores activos, por acto.
-					WardenActs[Act].Sentences += Report.Sentences;
-					WardenActs[Act].IgnoredConsults += Report.IgnoredConsults;
-					// S-017 (PR B): votaciones, desempates y votos al azar.
-					WardenActs[Act].Votes += Report.Votes;
-					WardenActs[Act].VoteTies += Report.VoteTies;
-					WardenActs[Act].RandomVotes += Report.RandomVotes;
-					Votes += Report.Votes;
-					// S-017 (decisión del autor del 23/10/2026): las sentencias, por el origen de su consulta, aparte de las intervenciones.
-					int32 ByOrigin = 0;
-					if (TestEqual(TEXT("Una cuenta de sentencias por origen"), Report.SentencesByOrigin.Num(), OracleOriginCount))
-					{
-						for (int32 Origin = 0; Origin < OracleOriginCount; ++Origin)
-						{
-							WardenActs[Act].SentencesByOrigin[Origin] += Report.SentencesByOrigin[Origin];
-							ByOrigin += Report.SentencesByOrigin[Origin];
-						}
-					}
-					TestEqual(TEXT("Las sentencias por origen suman las del acto"), ByOrigin, Report.Sentences);
-					Sentences += Report.Sentences;
-					Ignored += Report.IgnoredConsults;
-					if (TestEqual(TEXT("Una cuenta por disparador"), Report.TriggerCounts.Num(), Soulbound::Warden::TriggerCount))
-					{
-						for (int32 Trigger = 0; Trigger < Soulbound::Warden::TriggerCount; ++Trigger)
-						{
-							WardenActs[Act].TriggerCounts[Trigger] += Report.TriggerCounts[Trigger];
-							Triggered += Report.TriggerCounts[Trigger];
-						}
-					}
-				}
-				TestEqual(TEXT("Las intervenciones por acto suman las de la partida"), Interventions, Result.Interventions);
-				// S-017 (decisión del autor del 23/10/2026): solo lo que decide el cerebro, la medida del pilar 1. Los eventos lanzados
-				// que no son sentencias, más los golpes por el Oráculo, que cuentan al abrir su consulta.
-				const int32 StrikesByOracle = Soulbound::Tests::EventsOfType(Result.FinalState, EMatchEventType::OracleOpened)
-					.FilterByPredicate([](const FMatchEvent& Event) { return Event.Value == static_cast<int32>(EOracleOrigin::Strike); }).Num();
-				TestEqual(TEXT("Las intervenciones no cuentan las sentencias, sí los golpes por el Oráculo"), Result.Interventions,
-					CountEvents(Result.FinalState, EMatchEventType::WardenEventStarted) - CountEvents(Result.FinalState, EMatchEventType::OracleSentence) + StrikesByOracle);
-				TestEqual(TEXT("Las sentencias por acto son las del registro"), Sentences, CountEvents(Result.FinalState, EMatchEventType::OracleSentence));
-				TestEqual(TEXT("Las consultas con insolencia son las del registro"), Ignored, CountEvents(Result.FinalState, EMatchEventType::OracleIgnored));
-				TestEqual(TEXT("Los disparadores por acto son los del registro"), Triggered, CountEvents(Result.FinalState, EMatchEventType::WardenTriggered));
-				TestEqual(TEXT("Las votaciones por acto son las del registro"), Votes, CountEvents(Result.FinalState, EMatchEventType::VoteResolved));
-			}
-			RaceEndCuts += Result.RaceEndCuts;
-			TestEqual(TEXT("Los cortes del fin de carrera son los del registro"), Result.RaceEndCuts, Soulbound::Tests::EventsOfType(Result.FinalState, EMatchEventType::TurnInterrupted)
-				.FilterByPredicate([](const FMatchEvent& Event) { return Event.Detail == 1; }).Num());
-			// S-016 (B): las Furias, contadas del registro.
-			TestEqual(TEXT("Las Furias del resultado son las del registro"), Result.Furies, CountEvents(Result.FinalState, EMatchEventType::FuryUnleashed));
-			Furies += Result.Furies;
-			const FMatchState& State = Result.FinalState;
-			const TArray<FMatchEvent> Ended = Soulbound::Tests::EventsOfType(State, EMatchEventType::BondRaceEnded);
-			if (!TestEqual(FString::Printf(TEXT("%s, semilla %d: la carrera termina una vez"), *BoardFile, Seed), Ended.Num(), 1))
+			FSimulationParams Params;
+			if (!MakeBoardParams(*this, BoardFile, 1, Params))
 			{
 				continue;
 			}
-			RaceEndSum += Ended[0].ClockSeconds;
-			WardenVictories += State.Outcome == EMatchOutcome::WardenVictory ? 1 : 0;
-			for (const FSeatState& Seat : State.Seats)
+			// S-018 (corte B): el ritmo del bloque.
+			Params.Pace = Pace.Value;
+			int32 WardenVictories = 0;
+			// S-018: los tres finales, el minuto de las victorias, los desafíos (y los que corta el reloj), los aspirantes que no llegan a
+			// desafiar y las Expulsiones desde el Altar, con las partidas que tienen una racha de tres o más (el ping-pong).
+			int32 PlayerWins = 0;
+			int32 TimeOuts = 0;
+			double WinMinuteSum = 0.0;
+			int32 Challenges = 0;
+			int32 ChallengesCut = 0;
+			int32 StalledAspirants = 0;
+			int32 AltarExpulsions = 0;
+			int32 PingPongGames = 0;
+			int32 Elects = 0;
+			int32 EchoSeats = 0;
+			int32 Seats = 0;
+			double RaceEndSum = 0.0;
+			double WallSum = 0.0;
+			TArray<int32> RunesPerSeat;
+			RunesPerSeat.Init(0, Soulbound::Match::SeatCount);
+			int32 SourcesTotal = 0;
+			int32 SourcesDepleted = 0;
+			int32 Rolls = 0;
+			int32 TwoDiceRolls = 0;
+			int32 Jumps = 0;
+			int32 Expulsions = 0;
+			int32 Thefts = 0;
+			int32 StolenRunes = 0;
+			int32 Duels = 0;
+			int32 DuelsWon = 0;
+			int32 DuelsWonByChallenged = 0;
+			// S-016: el Warden por acto (intervenciones con efecto, turnos empezados y cortados, hueco más largo).
+			TArray<FWardenActReport> WardenActs;
+			WardenActs.SetNum(Soulbound::Warden::ActCount);
+			for (FWardenActReport& Act : WardenActs)
 			{
-				Elects += Seat.Role == ESeatRole::Elect ? 1 : 0;
-				EchoSeats += Seat.Role == ESeatRole::LostEcho ? 1 : 0;
-				++Seats;
+				Act.TriggerCounts.Init(0, Soulbound::Warden::TriggerCount);
+				Act.SentencesByOrigin.Init(0, OracleOriginCount);
 			}
-			WallSum += Result.WallSeconds;
-			const TArray<FMatchEvent> Obtained = Soulbound::Tests::EventsOfType(State, EMatchEventType::RuneObtained);
-			for (const FMatchEvent& Event : Obtained)
+			int32 Furies = 0;
+			// S-017: cortes del fin de carrera.
+			int32 RaceEndCuts = 0;
+			for (int32 Seed = 1; Seed <= Games; ++Seed)
 			{
-				// Runas obtenidas por asiento, contadas del registro: las devueltas no restan.
-				RunesPerSeat[Event.Seat] += 1;
+				Params.Seed = Seed;
+				const FSimulationResult Result = FMatchSimulation(Params, FourRaceDummies()).Run();
+				if (TestEqual(FString::Printf(TEXT("%s, semilla %d: cifras del Warden de los tres actos"), *BoardFile, Seed), Result.WardenActs.Num(), Soulbound::Warden::ActCount))
+				{
+					int32 Interventions = 0;
+					int32 Sentences = 0;
+					int32 Ignored = 0;
+					int32 Triggered = 0;
+					int32 Votes = 0;
+					for (int32 Act = 0; Act < Soulbound::Warden::ActCount; ++Act)
+					{
+						const FWardenActReport& Report = Result.WardenActs[Act];
+						TestTrue(TEXT("Un acto no corta más turnos de los que empieza"), Report.TurnsCut <= Report.TurnsStarted);
+						WardenActs[Act].EffectInterventions += Report.EffectInterventions;
+						WardenActs[Act].TurnsStarted += Report.TurnsStarted;
+						WardenActs[Act].TurnsCut += Report.TurnsCut;
+						WardenActs[Act].MaxGapSeconds = FMath::Max(WardenActs[Act].MaxGapSeconds, Report.MaxGapSeconds);
+						Interventions += Report.EffectInterventions;
+						// S-017: sentencias, consultas con insolencia y disparadores activos, por acto.
+						WardenActs[Act].Sentences += Report.Sentences;
+						WardenActs[Act].IgnoredConsults += Report.IgnoredConsults;
+						// S-017 (PR B): votaciones, desempates y votos al azar.
+						WardenActs[Act].Votes += Report.Votes;
+						WardenActs[Act].VoteTies += Report.VoteTies;
+						WardenActs[Act].RandomVotes += Report.RandomVotes;
+						Votes += Report.Votes;
+						// S-017 (decisión del autor del 23/10/2026): las sentencias, por el origen de su consulta, aparte de las intervenciones.
+						int32 ByOrigin = 0;
+						if (TestEqual(TEXT("Una cuenta de sentencias por origen"), Report.SentencesByOrigin.Num(), OracleOriginCount))
+						{
+							for (int32 Origin = 0; Origin < OracleOriginCount; ++Origin)
+							{
+								WardenActs[Act].SentencesByOrigin[Origin] += Report.SentencesByOrigin[Origin];
+								ByOrigin += Report.SentencesByOrigin[Origin];
+							}
+						}
+						TestEqual(TEXT("Las sentencias por origen suman las del acto"), ByOrigin, Report.Sentences);
+						Sentences += Report.Sentences;
+						Ignored += Report.IgnoredConsults;
+						if (TestEqual(TEXT("Una cuenta por disparador"), Report.TriggerCounts.Num(), Soulbound::Warden::TriggerCount))
+						{
+							for (int32 Trigger = 0; Trigger < Soulbound::Warden::TriggerCount; ++Trigger)
+							{
+								WardenActs[Act].TriggerCounts[Trigger] += Report.TriggerCounts[Trigger];
+								Triggered += Report.TriggerCounts[Trigger];
+							}
+						}
+					}
+					TestEqual(TEXT("Las intervenciones por acto suman las de la partida"), Interventions, Result.Interventions);
+					// S-017 (decisión del autor del 23/10/2026): solo lo que decide el cerebro, la medida del pilar 1. Los eventos lanzados
+					// que no son sentencias, más los golpes por el Oráculo, que cuentan al abrir su consulta.
+					const int32 StrikesByOracle = Soulbound::Tests::EventsOfType(Result.FinalState, EMatchEventType::OracleOpened)
+						.FilterByPredicate([](const FMatchEvent& Event) { return Event.Value == static_cast<int32>(EOracleOrigin::Strike); }).Num();
+					TestEqual(TEXT("Las intervenciones no cuentan las sentencias, sí los golpes por el Oráculo"), Result.Interventions,
+						CountEvents(Result.FinalState, EMatchEventType::WardenEventStarted) - CountEvents(Result.FinalState, EMatchEventType::OracleSentence) + StrikesByOracle);
+					TestEqual(TEXT("Las sentencias por acto son las del registro"), Sentences, CountEvents(Result.FinalState, EMatchEventType::OracleSentence));
+					TestEqual(TEXT("Las consultas con insolencia son las del registro"), Ignored, CountEvents(Result.FinalState, EMatchEventType::OracleIgnored));
+					TestEqual(TEXT("Los disparadores por acto son los del registro"), Triggered, CountEvents(Result.FinalState, EMatchEventType::WardenTriggered));
+					TestEqual(TEXT("Las votaciones por acto son las del registro"), Votes, CountEvents(Result.FinalState, EMatchEventType::VoteResolved));
+				}
+				RaceEndCuts += Result.RaceEndCuts;
+				TestEqual(TEXT("Los cortes del fin de carrera son los del registro"), Result.RaceEndCuts, Soulbound::Tests::EventsOfType(Result.FinalState, EMatchEventType::TurnInterrupted)
+					.FilterByPredicate([](const FMatchEvent& Event) { return Event.Detail == 1; }).Num());
+				// S-016 (B): las Furias, contadas del registro.
+				TestEqual(TEXT("Las Furias del resultado son las del registro"), Result.Furies, CountEvents(Result.FinalState, EMatchEventType::FuryUnleashed));
+				Furies += Result.Furies;
+				const FMatchState& State = Result.FinalState;
+				// CA-SIM-2 (S-018): toda partida termina con uno de los tres finales.
+				TestTrue(FString::Printf(TEXT("%s, ritmo %s, semilla %d: termina con uno de los tres finales"), *BoardFile, Pace.Key, Seed),
+					State.IsMatchOver() && State.Outcome != EMatchOutcome::Undecided);
+				PlayerWins += State.Outcome == EMatchOutcome::PlayerVictory ? 1 : 0;
+				TimeOuts += State.Outcome == EMatchOutcome::WardenVictory && State.EndReason == EMatchEndReason::TimeOut ? 1 : 0;
+				WinMinuteSum += State.Outcome == EMatchOutcome::PlayerVictory ? State.ClockSeconds / 60.0 : 0.0;
+				{
+					// Un anuncio que no llega a su desafío: lo deja atrás otro anuncio del mismo asiento o el final de la partida. Una racha de
+					// Expulsiones desde el Altar la rompe una Expulsión fuera de él o un intento de desafío (decisión del autor del 27/10/2026).
+					const int32 Altar = State.Board.FindAltar();
+					TArray<bool> Announced;
+					Announced.Init(false, State.Seats.Num());
+					bool bChallengeOpen = false;
+					int32 Run = 0;
+					int32 LongestRun = 0;
+					for (const FMatchEvent& Event : State.EventLog)
+					{
+						switch (Event.Type)
+						{
+						case EMatchEventType::AspirantAnnounced:
+							StalledAspirants += Announced[Event.Seat] ? 1 : 0;
+							Announced[Event.Seat] = true;
+							break;
+						case EMatchEventType::FinalChallengeStarted:
+							++Challenges;
+							Announced[Event.Seat] = false;
+							bChallengeOpen = true;
+							Run = 0;
+							break;
+						case EMatchEventType::MatchWon:
+						case EMatchEventType::FinalChallengeFailed:
+							bChallengeOpen = false;
+							break;
+						case EMatchEventType::TurnInterrupted:
+							ChallengesCut += Event.Detail == Soulbound::Match::MatchEndCut && bChallengeOpen ? 1 : 0;
+							break;
+						case EMatchEventType::Expelled:
+							AltarExpulsions += Event.Detail == Altar ? 1 : 0;
+							Run = Event.Detail == Altar ? Run + 1 : 0;
+							LongestRun = FMath::Max(LongestRun, Run);
+							break;
+						default:
+							break;
+						}
+					}
+					StalledAspirants += Announced.FilterByPredicate([](bool bPending) { return bPending; }).Num();
+					PingPongGames += LongestRun >= 3 ? 1 : 0;
+				}
+				const TArray<FMatchEvent> Ended = Soulbound::Tests::EventsOfType(State, EMatchEventType::BondRaceEnded);
+				if (!TestEqual(FString::Printf(TEXT("%s, semilla %d: la carrera termina una vez"), *BoardFile, Seed), Ended.Num(), 1))
+				{
+					continue;
+				}
+				RaceEndSum += Ended[0].ClockSeconds;
+				// Desde S-018 el Warden también gana por tiempo: aquí solo cuenta la de nadie vinculado.
+				WardenVictories += State.Outcome == EMatchOutcome::WardenVictory && State.EndReason == EMatchEndReason::NobodyBonded ? 1 : 0;
+				for (const FSeatState& Seat : State.Seats)
+				{
+					Elects += Seat.Role == ESeatRole::Elect ? 1 : 0;
+					EchoSeats += Seat.Role == ESeatRole::LostEcho ? 1 : 0;
+					++Seats;
+				}
+				WallSum += Result.WallSeconds;
+				const TArray<FMatchEvent> Obtained = Soulbound::Tests::EventsOfType(State, EMatchEventType::RuneObtained);
+				for (const FMatchEvent& Event : Obtained)
+				{
+					// Runas obtenidas por asiento, contadas del registro: las devueltas no restan.
+					RunesPerSeat[Event.Seat] += 1;
+				}
+				for (const FTileState& Tile : State.Board.Tiles)
+				{
+					SourcesTotal += Tile.Type == ETileType::PowerSource ? 1 : 0;
+					SourcesDepleted += Tile.Type == ETileType::PowerSource && State.Board.Phase == EBoardPhase::Awakened && Tile.RuneReserve == 0 ? 1 : 0;
+				}
+				// S-009: turnos con dos dados (sobre las tiradas), saltos planares y expulsiones.
+				Rolls += CountEvents(State, EMatchEventType::Rolled);
+				TwoDiceRolls += Soulbound::Tests::EventsOfType(State, EMatchEventType::DiceChosen).FilterByPredicate([](const FMatchEvent& Event) { return Event.Value == 2; }).Num();
+				Jumps += CountEvents(State, EMatchEventType::PlanarJumped);
+				Expulsions += CountEvents(State, EMatchEventType::Expelled);
+				// S-010: robos (todo intento: con trilero, a quien no tiene runas o anulado por Koschei) y runas que cambian de mano.
+				Thefts += CountEvents(State, EMatchEventType::ShellGameStarted) + CountEvents(State, EMatchEventType::StealNoRunes)
+					+ CountEvents(State, EMatchEventType::StealCancelled);
+				StolenRunes += CountEvents(State, EMatchEventType::RuneStolen);
+				// S-012: duelos (todo reto: con duelo o a quien no tiene runas) y cuántos se resuelven a favor del retado.
+				Duels += CountEvents(State, EMatchEventType::DuelChallenged) + CountEvents(State, EMatchEventType::DuelNoRunes);
+				const TArray<FMatchEvent> Won = Soulbound::Tests::EventsOfType(State, EMatchEventType::DuelWon);
+				DuelsWon += Won.Num();
+				DuelsWonByChallenged += Won.FilterByPredicate([](const FMatchEvent& Event) { return Event.Value == 1; }).Num();
 			}
-			for (const FTileState& Tile : State.Board.Tiles)
-			{
-				SourcesTotal += Tile.Type == ETileType::PowerSource ? 1 : 0;
-				SourcesDepleted += Tile.Type == ETileType::PowerSource && State.Board.Phase == EBoardPhase::Awakened && Tile.RuneReserve == 0 ? 1 : 0;
-			}
-			// S-009: turnos con dos dados (sobre las tiradas), saltos planares y expulsiones.
-			Rolls += CountEvents(State, EMatchEventType::Rolled);
-			TwoDiceRolls += Soulbound::Tests::EventsOfType(State, EMatchEventType::DiceChosen).FilterByPredicate([](const FMatchEvent& Event) { return Event.Value == 2; }).Num();
-			Jumps += CountEvents(State, EMatchEventType::PlanarJumped);
-			Expulsions += CountEvents(State, EMatchEventType::Expelled);
-			// S-010: robos (todo intento: con trilero, a quien no tiene runas o anulado por Koschei) y runas que cambian de mano.
-			Thefts += CountEvents(State, EMatchEventType::ShellGameStarted) + CountEvents(State, EMatchEventType::StealNoRunes)
-				+ CountEvents(State, EMatchEventType::StealCancelled);
-			StolenRunes += CountEvents(State, EMatchEventType::RuneStolen);
-			// S-012: duelos (todo reto: con duelo o a quien no tiene runas) y cuántos se resuelven a favor del retado.
-			Duels += CountEvents(State, EMatchEventType::DuelChallenged) + CountEvents(State, EMatchEventType::DuelNoRunes);
-			const TArray<FMatchEvent> Won = Soulbound::Tests::EventsOfType(State, EMatchEventType::DuelWon);
-			DuelsWon += Won.Num();
-			DuelsWonByChallenged += Won.FilterByPredicate([](const FMatchEvent& Event) { return Event.Value == 1; }).Num();
-		}
 
-		Lines.Add(FString::Printf(TEXT("Informe de carrera | %s | %d casillas | %d partidas | 4 dummies de carrera | carrera de %.0f s"),
-			*BoardFile, Params.Board.Tiles.Num(), Games, Params.MatchParams.RaceDurationSeconds));
-		Lines.Add(FString::Printf(TEXT("    partidas sin ningún vínculo (victoria del Warden): %.1f %% (objetivo < 5 %%)"), 100.0 * WardenVictories / Games));
-		Lines.Add(FString::Printf(TEXT("    Elegidos por partida, de media: %.2f de 4"), static_cast<double>(Elects) / Games));
-		Lines.Add(FString::Printf(TEXT("    asientos que quedan Eco: %.1f %% (objetivo por jugador entre 15 y 35 %%)"), Seats > 0 ? 100.0 * EchoSeats / Seats : 0.0));
-		Lines.Add(FString::Printf(TEXT("    fin de carrera, segundo medio: %.1f"), RaceEndSum / Games));
-		Lines.Add(FString::Printf(TEXT("    runas obtenidas por asiento, de media por partida: %s"),
-			*FString::JoinBy(RunesPerSeat, TEXT(" | "), [](int32 Sum) { return FString::Printf(TEXT("%.2f"), static_cast<double>(Sum) / Games); })));
-		Lines.Add(FString::Printf(TEXT("    Fuentes agotadas al final: %.1f %%"), SourcesTotal > 0 ? 100.0 * SourcesDepleted / SourcesTotal : 0.0));
-		Lines.Add(FString::Printf(TEXT("    turnos con dos dados: %.1f %% de las tiradas"), Rolls > 0 ? 100.0 * TwoDiceRolls / Rolls : 0.0));
-		Lines.Add(FString::Printf(TEXT("    saltos planares por partida, de media: %.2f"), static_cast<double>(Jumps) / Games));
-		Lines.Add(FString::Printf(TEXT("    expulsiones por partida, de media: %.2f"), static_cast<double>(Expulsions) / Games));
-		Lines.Add(FString::Printf(TEXT("    robos por partida, de media: %.2f (desde S-012, también el botín de los duelos)"), static_cast<double>(Thefts) / Games));
-		Lines.Add(FString::Printf(TEXT("    runas que cambian de mano por partida, de media: %.2f"), static_cast<double>(StolenRunes) / Games));
-		Lines.Add(FString::Printf(TEXT("    duelos por partida, de media: %.2f (objetivo del GDD 04: de 3 a 8)"), static_cast<double>(Duels) / Games));
-		Lines.Add(FString::Printf(TEXT("    duelos que gana el retado: %d de %d (%.1f %%)"), DuelsWonByChallenged, DuelsWon,
-			DuelsWon > 0 ? 100.0 * DuelsWonByChallenged / DuelsWon : 0.0));
-		static const TCHAR* const ActNames[] = {TEXT("I"), TEXT("II"), TEXT("III")};
-		for (int32 Act = 0; Act < Soulbound::Warden::ActCount; ++Act)
-		{
-			const FWardenActReport& Report = WardenActs[Act];
-			const double Target = Params.WardenParams.Acts.IsValidIndex(Act) ? Params.WardenParams.Acts[Act].CutTarget : 0.0;
-			Lines.Add(FString::Printf(TEXT("    Warden, Acto %s: %.2f intervenciones con efecto por partida | %.1f %% de turnos cortados (objetivo %.0f %%) | hueco máximo sin golpe ni escena: %.0f s"),
-				ActNames[Act], static_cast<double>(Report.EffectInterventions) / Games, Report.TurnsStarted > 0 ? 100.0 * Report.TurnsCut / Report.TurnsStarted : 0.0,
-				100.0 * Target, Report.MaxGapSeconds));
-			// S-017: el Oráculo y los disparadores contextuales.
-			static const TCHAR* const TriggerNames[] = {TEXT("Líder claro"), TEXT("Victoria inminente"), TEXT("Jugador ignorado"), TEXT("Partida estancada"), TEXT("Acaparador")};
-			FString Triggers;
-			for (int32 Trigger = 0; Trigger < Report.TriggerCounts.Num(); ++Trigger)
+			Lines.Add(FString::Printf(TEXT("%s | %d casillas | %d partidas | 4 dummies de carrera | carrera de %.0f s"),
+				*ReportHeader(BoardFile, Pace.Key), Params.Board.Tiles.Num(), Games, Params.MatchParams.RaceDurationSeconds));
+			// S-018: las líneas nuevas, primero; las de siempre, después.
+			Lines.Add(FString::Printf(TEXT("    resultado: gana un jugador %.1f %% | el Warden por tiempo %.1f %% | el Warden por nadie vinculado %.1f %%"),
+				100.0 * PlayerWins / Games, 100.0 * TimeOuts / Games, 100.0 * WardenVictories / Games));
+			Lines.Add(PlayerWins > 0 ? FString::Printf(TEXT("    victoria de un jugador, minuto medio: %.1f (en %d partidas)"), WinMinuteSum / PlayerWins, PlayerWins)
+				: FString(TEXT("    victoria de un jugador, minuto medio: sin victorias")));
+			Lines.Add(FString::Printf(TEXT("    desafíos finales por partida: %.2f | cortados por el reloj: %d"), static_cast<double>(Challenges) / Games, ChallengesCut));
+			Lines.Add(FString::Printf(TEXT("    aspirantes que no llegan a desafiar, por partida: %.2f"), static_cast<double>(StalledAspirants) / Games));
+			Lines.Add(FString::Printf(TEXT("    Expulsiones desde el Altar: %s | partidas con tres o más seguidas: %d de %d (%.1f %%; el arreglo entra con más del 10 %%)"),
+				Challenges > 0 ? *FString::Printf(TEXT("%.2f por intento de desafío (%d en %d intentos)"), static_cast<double>(AltarExpulsions) / Challenges, AltarExpulsions, Challenges)
+					: *FString::Printf(TEXT("%d, sin intentos de desafío"), AltarExpulsions),
+				PingPongGames, Games, 100.0 * PingPongGames / Games));
+			Lines.Add(FString::Printf(TEXT("    partidas sin ningún vínculo (victoria del Warden): %.1f %% (objetivo < 5 %%)"), 100.0 * WardenVictories / Games));
+			Lines.Add(FString::Printf(TEXT("    Elegidos por partida, de media: %.2f de 4"), static_cast<double>(Elects) / Games));
+			Lines.Add(FString::Printf(TEXT("    asientos que quedan Eco: %.1f %% (objetivo por jugador entre 15 y 35 %%)"), Seats > 0 ? 100.0 * EchoSeats / Seats : 0.0));
+			Lines.Add(FString::Printf(TEXT("    fin de carrera, segundo medio: %.1f"), RaceEndSum / Games));
+			Lines.Add(FString::Printf(TEXT("    runas obtenidas por asiento, de media por partida: %s"),
+				*FString::JoinBy(RunesPerSeat, TEXT(" | "), [](int32 Sum) { return FString::Printf(TEXT("%.2f"), static_cast<double>(Sum) / Games); })));
+			Lines.Add(FString::Printf(TEXT("    Fuentes agotadas al final: %.1f %%"), SourcesTotal > 0 ? 100.0 * SourcesDepleted / SourcesTotal : 0.0));
+			Lines.Add(FString::Printf(TEXT("    turnos con dos dados: %.1f %% de las tiradas"), Rolls > 0 ? 100.0 * TwoDiceRolls / Rolls : 0.0));
+			Lines.Add(FString::Printf(TEXT("    saltos planares por partida, de media: %.2f"), static_cast<double>(Jumps) / Games));
+			Lines.Add(FString::Printf(TEXT("    expulsiones por partida, de media: %.2f"), static_cast<double>(Expulsions) / Games));
+			Lines.Add(FString::Printf(TEXT("    robos por partida, de media: %.2f (desde S-012, también el botín de los duelos)"), static_cast<double>(Thefts) / Games));
+			Lines.Add(FString::Printf(TEXT("    runas que cambian de mano por partida, de media: %.2f"), static_cast<double>(StolenRunes) / Games));
+			Lines.Add(FString::Printf(TEXT("    duelos por partida, de media: %.2f (objetivo del GDD 04: de 3 a 8)"), static_cast<double>(Duels) / Games));
+			Lines.Add(FString::Printf(TEXT("    duelos que gana el retado: %d de %d (%.1f %%)"), DuelsWonByChallenged, DuelsWon,
+				DuelsWon > 0 ? 100.0 * DuelsWonByChallenged / DuelsWon : 0.0));
+			static const TCHAR* const ActNames[] = {TEXT("I"), TEXT("II"), TEXT("III")};
+			for (int32 Act = 0; Act < Soulbound::Warden::ActCount; ++Act)
 			{
-				Triggers += FString::Printf(TEXT("%s%s %.2f"), Trigger > 0 ? TEXT(", ") : TEXT(""), TriggerNames[Trigger], static_cast<double>(Report.TriggerCounts[Trigger]) / Games);
+				const FWardenActReport& Report = WardenActs[Act];
+				const double Target = Params.WardenParams.Acts.IsValidIndex(Act) ? Params.WardenParams.Acts[Act].CutTarget : 0.0;
+				Lines.Add(FString::Printf(TEXT("    Warden, Acto %s: %.2f intervenciones con efecto por partida | %.1f %% de turnos cortados (objetivo %.0f %%) | hueco máximo sin golpe ni escena: %.0f s"),
+					ActNames[Act], static_cast<double>(Report.EffectInterventions) / Games, Report.TurnsStarted > 0 ? 100.0 * Report.TurnsCut / Report.TurnsStarted : 0.0,
+					100.0 * Target, Report.MaxGapSeconds));
+				// S-017: el Oráculo y los disparadores contextuales.
+				static const TCHAR* const TriggerNames[] = {TEXT("Líder claro"), TEXT("Victoria inminente"), TEXT("Jugador ignorado"), TEXT("Partida estancada"), TEXT("Acaparador")};
+				FString Triggers;
+				for (int32 Trigger = 0; Trigger < Report.TriggerCounts.Num(); ++Trigger)
+				{
+					Triggers += FString::Printf(TEXT("%s%s %.2f"), Trigger > 0 ? TEXT(", ") : TEXT(""), TriggerNames[Trigger], static_cast<double>(Report.TriggerCounts[Trigger]) / Games);
+				}
+				Lines.Add(FString::Printf(TEXT("    Oráculo, Acto %s: %.2f sentencias por partida (Nodo %.2f, forzada %.2f, golpe %.2f) | consultas que acaban en insolencia: %d (con dummies, 0)"),
+					ActNames[Act], static_cast<double>(Report.Sentences) / Games, static_cast<double>(Report.SentencesByOrigin[0]) / Games,
+					static_cast<double>(Report.SentencesByOrigin[1]) / Games, static_cast<double>(Report.SentencesByOrigin[2]) / Games, Report.IgnoredConsults));
+				Lines.Add(FString::Printf(TEXT("    Disparadores, Acto %s: veces activos por partida: %s"), ActNames[Act], *Triggers));
+				Lines.Add(FString::Printf(TEXT("    Votaciones, Acto %s: %.2f por partida | desempates del Warden: %d | votos al azar por no votar: %d (con dummies, 0)"), ActNames[Act],
+					static_cast<double>(Report.Votes) / Games, Report.VoteTies, Report.RandomVotes));
 			}
-			Lines.Add(FString::Printf(TEXT("    Oráculo, Acto %s: %.2f sentencias por partida (Nodo %.2f, forzada %.2f, golpe %.2f) | consultas que acaban en insolencia: %d (con dummies, 0)"),
-				ActNames[Act], static_cast<double>(Report.Sentences) / Games, static_cast<double>(Report.SentencesByOrigin[0]) / Games,
-				static_cast<double>(Report.SentencesByOrigin[1]) / Games, static_cast<double>(Report.SentencesByOrigin[2]) / Games, Report.IgnoredConsults));
-			Lines.Add(FString::Printf(TEXT("    Disparadores, Acto %s: veces activos por partida: %s"), ActNames[Act], *Triggers));
-			Lines.Add(FString::Printf(TEXT("    Votaciones, Acto %s: %.2f por partida | desempates del Warden: %d | votos al azar por no votar: %d (con dummies, 0)"), ActNames[Act],
-				static_cast<double>(Report.Votes) / Games, Report.VoteTies, Report.RandomVotes));
+			Lines.Add(FString::Printf(TEXT("    turnos cortados por el fin de la carrera: %d en %d partidas"), RaceEndCuts, Games));
+			Lines.Add(FString::Printf(TEXT("    Furias del Warden por partida, de media: %.2f"), static_cast<double>(Furies) / Games));
+			Lines.Add(FString::Printf(TEXT("    tiempo real: %.3f s en total"), WallSum));
 		}
-		Lines.Add(FString::Printf(TEXT("    turnos cortados por el fin de la carrera: %d en %d partidas"), RaceEndCuts, Games));
-		Lines.Add(FString::Printf(TEXT("    Furias del Warden por partida, de media: %.2f"), static_cast<double>(Furies) / Games));
-		Lines.Add(FString::Printf(TEXT("    tiempo real: %.3f s en total"), WallSum));
 	}
+
+	// CA-SIM-2 (S-018): un bloque por tablero y por ritmo, cada uno con las líneas nuevas.
+	CheckReportBlocks(*this, Lines, Boards);
 
 	if (FPlatformMisc::GetEnvironmentVariable(TEXT("SOULBOUND_INFORME")) == TEXT("1"))
 	{
@@ -1093,6 +1274,90 @@ bool FMatchSimulationEndingTest::RunTest(const FString& Parameters)
 			State.Outcome == EMatchOutcome::PlayerVictory ? *FString::Printf(TEXT("gana el asiento %d"), State.WinnerSeat) : TEXT("gana el Warden"),
 			State.ClockSeconds / 60.0, CountEvents(State, EMatchEventType::FinalChallengeStarted)));
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationHumanPaceTest,
+	"Soulbound.Core.Simulation.RitmoHumano",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationHumanPaceTest::RunTest(const FString& Parameters)
+{
+	// CA-SIM-1 (S-018, decisión 1 del autor): con el ritmo humano, 50 partidas: todos los decisores responden dentro de sus relojes
+	// (insolencia 0 en todos los asientos y ningún plazo agotado), la partida es reproducible por semilla (dos veces, el mismo registro), y
+	// los turnos duran más que con el ritmo rápido. Además, cada espera dura lo de su perfil: el duelo 8 s, la votación 4 s y la consulta
+	// 3 s (las tres caben en la mitad de su plazo, o no tienen plazo), y el desafío final 8 s. Cuatro dummies de carrera sobre el tablero de
+	// 35 casillas, con el Warden; semillas fijas 1 a 50.
+	constexpr int32 Games = 50;
+	const FSimulationPace Human = FSimulationPace::Human();
+	double HumanTurns = 0.0;
+	double FastTurns = 0.0;
+	int32 HumanCount = 0;
+	int32 FastCount = 0;
+	TMap<FString, int32> Samples;
+	for (int32 Seed = 1; Seed <= Games; ++Seed)
+	{
+		FSimulationParams Params;
+		if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), Seed, Params))
+		{
+			return false;
+		}
+		const FSimulationResult Fast = FMatchSimulation(Params, FourRaceDummies()).Run();
+		AddTurnDurations(Fast.FinalState, FastTurns, FastCount);
+
+		Params.Pace = Human;
+		const FSimulationResult A = FMatchSimulation(Params, FourRaceDummies()).Run();
+		const FSimulationResult B = FMatchSimulation(Params, FourRaceDummies()).Run();
+		const FMatchState& State = A.FinalState;
+		AddTurnDurations(State, HumanTurns, HumanCount);
+		TestTrue(FString::Printf(TEXT("Semilla %d: dos veces, el mismo registro"), Seed), A.Log == B.Log && Soulbound::Tests::SameState(A.FinalState, B.FinalState));
+		for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
+		{
+			TestEqual(FString::Printf(TEXT("Semilla %d: insolencia 0 en el asiento %d"), Seed, Seat), State.Seats[Seat].Insolence, 0);
+		}
+		for (const EMatchEventType Type : {EMatchEventType::TurnClockExpired, EMatchEventType::ChoiceExpired, EMatchEventType::ShellGameExpired,
+			EMatchEventType::WardenIgnored, EMatchEventType::OracleIgnored})
+		{
+			TestEqual(FString::Printf(TEXT("Semilla %d: ningún plazo agotado (evento %d)"), Seed, static_cast<int32>(Type)), CountEvents(State, Type), 0);
+		}
+		TestEqual(FString::Printf(TEXT("Semilla %d: ningún voto al azar"), Seed),
+			Soulbound::Tests::EventsOfType(State, EMatchEventType::VoteCast).FilterByPredicate([](const FMatchEvent& Event) { return Event.Detail == 1; }).Num(), 0);
+
+		// Cada espera, lo de su perfil.
+		struct FWait
+		{
+			const TCHAR* Name;
+			EMatchEventType From;
+			EMatchEventType To;
+			double Seconds;
+		};
+		const FWait Waits[] = {
+			{TEXT("duelo"), EMatchEventType::DuelChallenged, EMatchEventType::DuelWon, Human.DuelSeconds},
+			{TEXT("votación"), EMatchEventType::VoteStarted, EMatchEventType::VoteResolved, Human.VoteSeconds},
+			{TEXT("consulta"), EMatchEventType::OracleOpened, EMatchEventType::OracleSentence, Human.OracleSeconds},
+			{TEXT("desafío superado"), EMatchEventType::FinalChallengeStarted, EMatchEventType::MatchWon, Human.TrialSeconds},
+			{TEXT("desafío fallado"), EMatchEventType::FinalChallengeStarted, EMatchEventType::FinalChallengeFailed, Human.TrialSeconds},
+		};
+		for (const FWait& Wait : Waits)
+		{
+			for (const double Gap : GapsBetween(State, Wait.From, Wait.To))
+			{
+				Samples.FindOrAdd(Wait.Name) += 1;
+				if (!FMath::IsNearlyEqual(Gap, Wait.Seconds, 1e-6))
+				{
+					AddError(FString::Printf(TEXT("Semilla %d: %s de %.3f s, no de %.1f s"), Seed, Wait.Name, Gap, Wait.Seconds));
+				}
+			}
+		}
+	}
+	for (const TCHAR* Name : {TEXT("duelo"), TEXT("votación"), TEXT("consulta")})
+	{
+		TestTrue(FString::Printf(TEXT("Hay esperas de %s que medir"), Name), Samples.FindRef(Name) > 0);
+	}
+	const double HumanMean = HumanCount > 0 ? HumanTurns / HumanCount : 0.0;
+	const double FastMean = FastCount > 0 ? FastTurns / FastCount : 0.0;
+	AddInfo(FString::Printf(TEXT("Turno medio: %.1f s con el ritmo humano, %.1f s con el rápido"), HumanMean, FastMean));
+	TestTrue(TEXT("Con el ritmo humano los turnos duran más"), HumanMean > FastMean);
 	return true;
 }
 

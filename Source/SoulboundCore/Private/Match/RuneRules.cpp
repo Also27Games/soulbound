@@ -281,9 +281,11 @@ namespace Soulbound::Rules
 	{
 		// R-POD-4, R-TAB-13: el objetivo vuelve a su hogar. No es un movimiento suyo: no resuelve casilla, no toca
 		// bActiveSeatMoved (que es del asiento activo) ni sus turnos (R-INT-4).
+		const int32 From = State.Seats[Target].TileId;
 		State.Seats[Target].TileId = HomeTile(State, Target);
-		// Seat expulsa y Target es el afectado, en OtherSeat; Value nunca lleva un asiento (decisión del autor del 05/10/2026).
-		LogEvent(State, EMatchEventType::Expelled, NowSeconds, Seat, INDEX_NONE, Target);
+		// Seat expulsa y Target es el afectado, en OtherSeat; Value nunca lleva un asiento (decisión del autor del 05/10/2026). Desde
+		// S-018 (corte B), Detail es la casilla de la que sale el expulsado: con ella se mide el ping-pong de Expulsiones en el Altar.
+		LogEvent(State, EMatchEventType::Expelled, NowSeconds, Seat, INDEX_NONE, Target, From);
 		// R-EFE-8 (S-014): expulsar a un Marcado cobra su marca.
 		CollectMark(State, Seat, Target, NowSeconds);
 	}

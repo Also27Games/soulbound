@@ -4,6 +4,55 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo de la story; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera.
 
+## S-018 (B). Victoria: ritmo humano e informe (27/10/2026, rama `main`, story S-018)
+
+- **Qué se pidió**: la segunda parte de S-018:
+  - un ritmo para la simulación, con dos presets, rápido y humano, como valores de `FSimulationParams`;
+  - CA-SIM-1 y CA-SIM-2;
+  - el informe por tablero y por ritmo, con las líneas nuevas: resultado, minuto de la victoria, desafíos y los que corta el reloj, Expulsiones desde el Altar y ping-pong;
+  - `Expelled` con la casilla de origen;
+  - el bloque del tablero de 86 con los dos ritmos, para que el autor decida en el PR el arreglo del ping-pong, la probabilidad del desafío o la reserva de las Fuentes.
+- **Qué se decidió**: el autor aprobó las seis recomendaciones del plan:
+  - cada respuesta llega a su hora o a la mitad de lo que queda de su plazo, lo que ocurra antes, y los valores del preset humano no cambian. **Por eso el ritmo humano nunca produce insolencia**: ningún dummy agota un plazo, tampoco con Celeridad, la repetición de Apep y el destino seguidos, ni con el reloj corto de 6 s o la esfera de 5 s;
+  - variación uniforme sacada de un generador propio con semilla Seed + 4; el ritmo rápido no saca nada y sus partidas son idénticas a las de antes;
+  - una racha de ping-pong son `Expelled` seguidos con origen en el Altar; la rompen una Expulsión fuera del Altar o un intento de desafío;
+  - Expulsiones desde el Altar por intento de desafío, sumadas de las 50 partidas;
+  - "los corta el reloj" son los desafíos en curso a las 40:00, y aparte se cuentan los aspirantes que nunca llegan a desafiar (el dato que dice si el ping-pong o el Warden los frenan);
+  - todos los votos a la vez, a los 4 s.
+- **Cómo funciona**:
+  - `FSimulationPace` tiene los presets `Fast()` y `Human()` y sustituye a `DummyResponseSeconds`.
+  - En la simulación, cada espera que no es el destino (elección, votación, consulta, prueba, duelo) tiene una respuesta pendiente (`FPacedAnswer`): la distinguen su tipo, dos datos y su plazo, y se sortea su hora la primera vez. Si lo que se espera cambia (por ejemplo, un golpe corta el turno), deja de valer y se pide otra. Con un tiempo de 0, el camino es el de antes.
+  - El destino usa la misma regla de la mitad del plazo. La línea de turno de la crónica se escribe una vez por turno, también si la repetición de Apep espera.
+  - `ApplyExpel` guarda en `Detail` la casilla de origen, y la crónica marca las Expulsiones desde el Altar.
+- **Dudas y resolución**: las seis del plan (arriba). Al implementar, un test propio mal escrito: la comprobación de la casilla de origen leía el último evento del registro, que después de expulsar es `TurnEnded`; se corrigió para buscar el `Expelled`.
+- **Tests**:
+  - nuevo: `Simulation.RitmoHumano` (CA-SIM-1, 50 partidas con los dos ritmos);
+  - ampliados: `Simulation.InformeDeCarrera` (CA-SIM-2) y `Powers.ExpulsionMandaAlHogar`;
+  - se vieron en rojo con el ritmo sin aplicar (3 fallos, commit aparte);
+  - total: 330 en verde. La suite pasa de unos 36 a unos 71 s, por el informe doble y CA-SIM-1.
+- **Informe, tablero de 86** (50 partidas, cuatro dummies de carrera):
+
+  | | Ritmo rápido | Ritmo humano |
+  |---|---|---|
+  | Gana un jugador | 58 % (minuto 19,5) | 6 % (minuto 29,0) |
+  | Gana el Warden por tiempo | 42 % | 94 % |
+  | Desafíos finales por partida | 2,00 | 0,26 |
+  | Aspirantes que no llegan a desafiar, por partida | 0,20 | 0,18 |
+  | Expulsiones desde el Altar por intento de desafío | 0,23 (23 en 100) | 0,15 (2 en 13) |
+  | Partidas con ping-pong (tres o más Expulsiones seguidas en el Altar) | 1 de 50 (2 %) | 0 de 50 (0 %) |
+
+  Con el ritmo humano, además: Ecos 18,5 % (objetivo entre 15 y 35 %); turnos cortados por acto 14,8, 21,3 y 31,5 % (objetivos 15, 25 y 35 %).
+- **Decisiones del autor en el PR, con el informe delante** (27/10/2026):
+  - **Ping-pong: no entra ningún arreglo.** El umbral (más de 1 partida de cada 10) se juzga en el tablero de 86, y no se alcanza. Partidas con ping-pong por tablero, rápido / humano: 86 casillas, 2 % / 0 %; 35 casillas, 32 % / 2 %; tablero de pruebas (31 casillas), 44 % / 18 %. En los de 15 (91 casillas) y 82 tampoco llega (4 % / 0 % y 0 % / 0 %). El ping-pong es cosa de tableros pequeños, donde el Altar está a pocas casillas de todo; si un tablero de juego baja de ese tamaño, se vuelve a medir.
+  - **Victoria: no se toca ningún dato ahora.** Con dummies lentos y que no planifican, el 6 % es una cifra pesimista; la decisión se toma tras el test de usabilidad con personas. Las palancas, en este orden: (1) la reserva de las Fuentes (más runas, antes en el Altar), (2) la duración de la partida, (3) la probabilidad del desafío final (`finalChallengeDifficulty`; en la simulación, `DummyFinalChallengeSuccessChance`, hoy 0,35).
+  - **Fin de la carrera con ritmo humano: se acepta.** La simulación lo aplica en el siguiente suceso de turno, como antes, así que puede llegar unos segundos tarde si vence mientras un dummy piensa una respuesta. Arreglarlo cambiaría también las partidas a ritmo rápido.
+- **Pendiente**: la decisión sobre la victoria, tras el test de usabilidad con personas.
+- **Proceso**:
+  - tiempo: una sesión;
+  - preguntas que pararon al agente: dos paradas (el plan, con seis dudas; y las decisiones del autor en el PR, con el informe delante, previstas en la story);
+  - correcciones tras fusionar: por anotar;
+  - build y tests: los tests en rojo compilaron a la primera. Tras implementar falló un test, por el error del propio test; corregido, 330 en verde.
+
 ## S-018 (A). Victoria: desafío final y fin por tiempo (27/10/2026, rama `main`, story S-018)
 
 - **Qué se pidió**: el final de la partida. Quien empieza su turno en el Altar con los seis tipos de runa (el aspirante, Elegido o Eco) juega el desafío final en vez del turno: si lo supera, gana; si lo falla, el Warden le arranca una runa y lo manda a casa. A los 40 minutos gana el Warden y se corta todo. Además: anuncio del aspirante (R-PRO-4), dummies que superan el desafío con 0,35, dummy de carrera que va al Altar, `SbClock`, crónica y vista. El ritmo humano, el informe y la medida del ping-pong de Expulsión van en el corte B.
