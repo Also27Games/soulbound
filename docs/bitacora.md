@@ -31,15 +31,25 @@ La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar
   - se vieron en rojo con el ritmo sin aplicar (3 fallos, commit aparte);
   - total: 330 en verde. La suite pasa de unos 36 a unos 71 s, por el informe doble y CA-SIM-1.
 - **Informe, tablero de 86** (50 partidas, cuatro dummies de carrera):
-  - ritmo rápido: gana un jugador el 58 % de las partidas, en el minuto 19,5 de media; 2,0 desafíos por partida; ping-pong en 1 de 50 (2 %);
-  - ritmo humano: gana un jugador el 6 %, en el minuto 29,0; 0,26 desafíos por partida; 0,18 aspirantes por partida que no llegan a desafiar; ping-pong en 0 de 50; Ecos 18,5 % (objetivo entre 15 y 35 %); turnos cortados por acto 14,8, 21,3 y 31,5 % (objetivos 15, 25 y 35 %);
-  - el umbral del arreglo (más de 1 de cada 10) no se alcanza en el de 86; sí en el de pruebas (18 % humano, 44 % rápido) y en el de 35 con el ritmo rápido (32 %).
-- **Pendiente**:
-  - las decisiones del autor en el PR: el arreglo del ping-pong, y la probabilidad del desafío o la reserva de las Fuentes;
-  - aviso: la simulación aplica el fin de la carrera en el siguiente suceso de turno, como antes. Con el ritmo humano, si la carrera vence mientras se espera una respuesta, puede llegar unos segundos tarde.
+
+  | | Ritmo rápido | Ritmo humano |
+  |---|---|---|
+  | Gana un jugador | 58 % (minuto 19,5) | 6 % (minuto 29,0) |
+  | Gana el Warden por tiempo | 42 % | 94 % |
+  | Desafíos finales por partida | 2,00 | 0,26 |
+  | Aspirantes que no llegan a desafiar, por partida | 0,20 | 0,18 |
+  | Expulsiones desde el Altar por intento de desafío | 0,23 (23 en 100) | 0,15 (2 en 13) |
+  | Partidas con ping-pong (tres o más Expulsiones seguidas en el Altar) | 1 de 50 (2 %) | 0 de 50 (0 %) |
+
+  Con el ritmo humano, además: Ecos 18,5 % (objetivo entre 15 y 35 %); turnos cortados por acto 14,8, 21,3 y 31,5 % (objetivos 15, 25 y 35 %).
+- **Decisiones del autor en el PR, con el informe delante** (27/10/2026):
+  - **Ping-pong: no entra ningún arreglo.** El umbral (más de 1 partida de cada 10) se juzga en el tablero de 86, y no se alcanza. Partidas con ping-pong por tablero, rápido / humano: 86 casillas, 2 % / 0 %; 35 casillas, 32 % / 2 %; tablero de pruebas (31 casillas), 44 % / 18 %. En los de 15 (91 casillas) y 82 tampoco llega (4 % / 0 % y 0 % / 0 %). El ping-pong es cosa de tableros pequeños, donde el Altar está a pocas casillas de todo; si un tablero de juego baja de ese tamaño, se vuelve a medir.
+  - **Victoria: no se toca ningún dato ahora.** Con dummies lentos y que no planifican, el 6 % es una cifra pesimista; la decisión se toma tras el test de usabilidad con personas. Las palancas, en este orden: (1) la reserva de las Fuentes (más runas, antes en el Altar), (2) la duración de la partida, (3) la probabilidad del desafío final (`finalChallengeDifficulty`; en la simulación, `DummyFinalChallengeSuccessChance`, hoy 0,35).
+  - **Fin de la carrera con ritmo humano: se acepta.** La simulación lo aplica en el siguiente suceso de turno, como antes, así que puede llegar unos segundos tarde si vence mientras un dummy piensa una respuesta. Arreglarlo cambiaría también las partidas a ritmo rápido.
+- **Pendiente**: la decisión sobre la victoria, tras el test de usabilidad con personas.
 - **Proceso**:
   - tiempo: una sesión;
-  - preguntas que pararon al agente: una parada (el plan, con seis dudas);
+  - preguntas que pararon al agente: dos paradas (el plan, con seis dudas; y las decisiones del autor en el PR, con el informe delante, previstas en la story);
   - correcciones tras fusionar: por anotar;
   - build y tests: los tests en rojo compilaron a la primera. Tras implementar falló un test, por el error del propio test; corregido, 330 en verde.
 
