@@ -17,8 +17,10 @@
   tablero de Content/Data/Boards y sobre 50 partidas con dummies de carrera, el % de partidas sin ningún vínculo, los
   Elegidos por partida de media, el % de asientos que quedan Eco y el segundo medio de fin de carrera (S-006), las runas
   y Fuentes (S-008), el % de tiradas con dos dados y los saltos planares y expulsiones por partida (S-009), los robos y
-  las runas que cambian de mano (S-010), y los duelos por partida y cuántos gana el retado (S-012). Son cifras para el
-  autor; el test no las juzga.
+  las runas que cambian de mano (S-010), y los duelos por partida y cuántos gana el retado (S-012). Desde S-018, un bloque
+  por tablero y por ritmo de la simulación (rápido y humano), que empieza con el resultado de las partidas, el minuto medio de
+  la victoria, los desafíos finales, los aspirantes que no llegan a desafiar y las Expulsiones desde el Altar. Son cifras
+  para el autor; el test no las juzga, salvo que cada bloque las imprime y que toda partida termina (CA-SIM-2).
   Arranca el editor en modo comandlet (-nullrhi, sin ventana), ejecuta los tests y resume el resultado.
   Devuelve código 1 si algún test falla o si no se ejecutó ninguno. Compila antes con Scripts\build.ps1 -Que editor.
   Motor: variable de entorno UE_ROOT o, si no existe, C:\UE_Engines\UE_5.8.
