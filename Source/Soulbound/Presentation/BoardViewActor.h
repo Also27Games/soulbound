@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "InputCoreTypes.h"
+#include "BoardKit.h"
 #include "BoardLayout.h"
 #include "BoardViewActor.generated.h"
 
@@ -22,29 +23,6 @@ class USpotLightComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 class UTextRenderComponent;
-
-/** Pieza del kit de arte del tablero (S-019, R-VIS-8): una por referencia configurable de la vista. */
-enum class EBoardKitPiece : uint8
-{
-	Slab,
-	CrackedSlab,
-	NicheSlab,
-	SourceSlab,
-	NodeSlab,
-	PathSegment,
-	Pedestal,
-	PlainFloor,
-	Altar,
-	NicheThrone,
-	Pylon,
-	FloatingRune,
-	PlanarArch,
-	DuelSwords,
-	OracleOrb,
-	SealChains,
-	TokenCard,
-	Count,
-};
 
 /**
  * Vista de depuración de la partida (S-005; nombre propuesto): genera desde los datos, al iniciar la partida, las
@@ -317,6 +295,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey DebugTextToggleKey = EKeys::T;
 
+	/** Color de un Dominio (0 a 5); gris oscuro si no existe. Lo usa también el kit para teñir el suelo de las cuñas. */
+	FLinearColor DomainColor(int32 DomainId) const;
+
 	/** Las teclas de la vista y lo que hace cada una, en una línea (para SbHelp y la línea del paso a paso). */
 	FString DescribeViewKeys() const;
 
@@ -429,6 +410,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Kit")
 	FString DimSlotTag = TEXT("Tenue");
 
+	/** La referencia configurada de una pieza del kit (S-019, R-VIS-8). */
+	const TSoftObjectPtr<UStaticMesh>& KitReference(EBoardKitPiece Piece) const;
+
 	// ---- Colores. Seis Dominios con tonos separados; tipos y estados contrastados con ellos. ----
 
 	/** Color de cada Dominio (0 a 5): azul, rojo, verde, magenta, cian, amarillo. */
@@ -502,21 +486,6 @@ public:
 	FLinearColor DebugLineColor = FLinearColor(1.f, 0.f, 1.f);
 
 private:
-	/** Carga las piezas del kit (S-019) y avisa una vez en el registro por cada una que falte. */
-	void LoadKit();
-	/** Referencia configurada de una pieza y su nombre para el registro. */
-	const TSoftObjectPtr<UStaticMesh>& KitReference(EBoardKitPiece Piece, const TCHAR*& OutName) const;
-	/** La pieza cargada, o nula si no está (respaldo). */
-	UStaticMesh* KitMesh(EBoardKitPiece Piece) const;
-	/** La pieza del kit de una losa. */
-	static EBoardKitPiece SlabPiece(EBoardSlab Slab);
-	/** La pieza del kit de una estructura; Count con None. */
-	static EBoardKitPiece StructurePiece(EBoardStructure Structure);
-	/** Pone a cada ranura de la pieza su material del kit: emisivo, tenue o color por vértice según el nombre de la ranura. */
-	void ApplyKitMaterials(UStaticMeshComponent& Component) const;
-	/** Un componente de una pieza del kit en la mesa, sin colisión; oculto si bVisible es falso. */
-	UStaticMeshComponent* AddKitPiece(UStaticMesh* Mesh, const FVector& Location, float Yaw, bool bVisible);
-
 	void BuildEdges();
 	void BuildTiles();
 	/** Las piezas del kit que haya: cuñas, Altar, losas, senderos, estructuras, runas flotantes y cadenas (S-019). */
@@ -569,7 +538,6 @@ private:
 	void TickHud();
 	void ShowText(int32 Line, const FColor& Color, const FString& Text, float Scale = 1.f) const;
 
-	FLinearColor DomainColor(int32 DomainId) const;
 	FLinearColor SeatColor(int32 Seat) const;
 
 	TWeakObjectPtr<UMatchHostSubsystem> Host;
@@ -580,8 +548,10 @@ private:
 	TArray<FVector> TilePositions;
 	/** Si la casilla lleva la losa del kit (su forma básica queda oculta, para el clic). */
 	TArray<bool> TileHasKitSlab;
-	/** Si el trono está configurado: referencia no vacía, exista o no el asset (R-VIS-5, R-VIS-8). */
-	bool bNicheThroneConfigured = false;
+	/** El kit cargado (S-019) y lo que de él se colocó sobre la mesa; el kit lo comparte la vista previa del editor. */
+	FBoardKit Kit;
+	FBoardKitFixedPieces KitFixed;
+	FBoardKitStructures KitStructures;
 	bool bSeatedView = false;
 	bool bOverlayHidden = false;
 	bool bPanelsHidden = false;
@@ -678,46 +648,6 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<USkyLightComponent> SkyLight;
-
-	/** Las piezas del kit cargadas, indexadas por EBoardKitPiece; nula la que falta. */
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UStaticMesh>> KitMeshes;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UMaterialInterface> KitVertexColorMaterial;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UMaterialInterface> KitEmissiveMaterial;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UMaterialInterface> KitDimMaterial;
-
-	/** Losas y senderos del kit, una malla instanciada por pieza. */
-	UPROPERTY()
-	TArray<TObjectPtr<UInstancedStaticMeshComponent>> KitInstances;
-
-	/** Cuñas y Altar del kit. */
-	UPROPERTY()
-	TArray<TObjectPtr<UStaticMeshComponent>> KitFixedPieces;
-
-	/** Suelos de cuña (`peana` y `suelo_liso`) que se tiñen por Dominio, y el Dominio de cada uno (mismo índice). */
-	UPROPERTY()
-	TArray<TObjectPtr<UStaticMeshComponent>> WedgeFloors;
-
-	UPROPERTY()
-	TArray<int32> WedgeFloorDomains;
-
-	/** Estructura junto a cada casilla (nula si no lleva o falta la pieza). */
-	UPROPERTY()
-	TArray<TObjectPtr<UStaticMeshComponent>> Structures;
-
-	/** Runa flotante sobre el pilón de cada Fuente (nula en las demás o si falta la pieza). */
-	UPROPERTY()
-	TArray<TObjectPtr<UStaticMeshComponent>> FloatingRunes;
-
-	/** Cadenas del Sello sobre cada casilla que se puede sellar (nula en las demás o si falta la pieza). */
-	UPROPERTY()
-	TArray<TObjectPtr<UStaticMeshComponent>> SealChains;
 
 	/** El orbe de la consulta del Oráculo (S-017): una esfera de formas básicas que recibe el clic. */
 	UPROPERTY()
