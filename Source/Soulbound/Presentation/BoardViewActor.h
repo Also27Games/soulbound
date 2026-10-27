@@ -5,6 +5,7 @@
 #include "InputCoreTypes.h"
 #include "BoardKit.h"
 #include "BoardLayout.h"
+#include "WardenLineQueue.h"
 #include "BoardViewActor.generated.h"
 
 struct FBoardViewState;
@@ -244,6 +245,17 @@ public:
 	/** Líneas de crónica que se conservan; al pasarse se recortan las más viejas. Valor inicial 300. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Paneles")
 	int32 ChronicleMaxLines = 300;
+
+	/**
+	 * Segundos que se enseña cada frase de la línea del Warden, grande en la parte baja de la pantalla, o hasta la siguiente línea (S-021,
+	 * R-VOZ-1 sin audio). Valor inicial 6; en DefaultGame.ini.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	float WardenLineSeconds = 6.f;
+
+	/** Tamaño de la letra de la línea del Warden (S-021). Valor inicial 28. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	int32 WardenLineFontSize = 28;
 
 	/** Margen de la cámara alrededor del tablero (1 = justo al borde). Valor inicial 1,04. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Paneles")
@@ -534,6 +546,15 @@ private:
 	FVector TokenBase(int32 TileId) const;
 	/** Reconstruye el panel de crónica si el registro de eventos ha crecido. */
 	void RefreshChronicle(const FMatchState& State);
+
+	/**
+	 * Recoge los WardenSpoke nuevos del registro y los pone en la cola de la línea del Warden (S-021), con el prefijo de a quién hablan.
+	 * Un registro más corto que lo recorrido es una partida nueva: la cola empieza de cero.
+	 */
+	void RefreshWardenLine(const FMatchState& State);
+
+	/** La frase que toca enseñar ahora en la línea del Warden (vacía si ninguna): avanza la cola con el reloj real. */
+	FString WardenLineNow();
 	/** Texto de depuración del turno; y pone la cámara como vista del jugador local si aún no lo es. */
 	void TickHud();
 	void ShowText(int32 Line, const FColor& Color, const FString& Text, float Scale = 1.f) const;
@@ -566,6 +587,12 @@ private:
 
 	TSharedPtr<SChroniclePanel> ChroniclePanel;
 	TSharedPtr<SWidget> Overlay;
+
+	/** La línea del Warden en pantalla (S-021): una capa aparte, que no se oculta con los paneles (H). */
+	TSharedPtr<SWidget> WardenLineOverlay;
+	Soulbound::Presentation::FWardenLineQueue WardenLineQueue;
+	/** Cuántos eventos del registro se han mirado en busca de frases. */
+	int32 WardenLineScanned = 0;
 
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> BaseMaterial;

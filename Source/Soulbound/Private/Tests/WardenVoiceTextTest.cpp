@@ -13,7 +13,7 @@ namespace
 {
 	constexpr EAutomationTestFlags VoiceTestFlags = EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter;
 
-	FMatchEvent MakeEvent(EMatchEventType Type, int32 Seat, int32 Value, int32 Detail = INDEX_NONE)
+	FMatchEvent MakeVoiceEvent(EMatchEventType Type, int32 Seat, int32 Value, int32 Detail = INDEX_NONE)
 	{
 		FMatchEvent Event;
 		Event.Type = Type;
@@ -60,19 +60,19 @@ bool FVoiceSpokenTextTest::RunTest(const FString& Parameters)
 	// provisionales de hoy desaparecen.
 	const FMatchState State = StateWithLines();
 	const FBoardState Board;
-	const FMatchEvent Provisional = MakeEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 0, 0);
-	const FMatchEvent WithCues = MakeEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 0, 1);
+	const FMatchEvent Provisional = MakeVoiceEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 0, 0);
+	const FMatchEvent WithCues = MakeVoiceEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 0, 1);
 	TestEqual(TEXT("La frase provisional, tal cual"), Soulbound::Presentation::DescribeEvent(Provisional, Board, &State.WardenEvents, &State.WardenLines),
 		FString(TEXT("(pendiente) evento:prisa")));
 	TestEqual(TEXT("Sin corchetes ni los espacios que dejan"), Soulbound::Presentation::DescribeEvent(WithCues, Board, &State.WardenEvents, &State.WardenLines),
 		FString(TEXT("Prisa, prisa.")));
 	TestEqual(TEXT("SpokenText es lo mismo"), Soulbound::Presentation::SpokenText(State.WardenLines, WithCues), FString(TEXT("Prisa, prisa.")));
-	TestTrue(TEXT("Una entrada que no existe no tiene texto"), Soulbound::Presentation::SpokenText(State.WardenLines, MakeEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 7, 0)).IsEmpty());
-	TestTrue(TEXT("Ni una variante que no existe"), Soulbound::Presentation::SpokenText(State.WardenLines, MakeEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 0, 5)).IsEmpty());
+	TestTrue(TEXT("Una entrada que no existe no tiene texto"), Soulbound::Presentation::SpokenText(State.WardenLines, MakeVoiceEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 7, 0)).IsEmpty());
+	TestTrue(TEXT("Ni una variante que no existe"), Soulbound::Presentation::SpokenText(State.WardenLines, MakeVoiceEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 0, 5)).IsEmpty());
 
-	const FString Remark = Soulbound::Presentation::DescribeEvent(MakeEvent(EMatchEventType::WardenRemark, INDEX_NONE, INDEX_NONE), Board, &State.WardenEvents, &State.WardenLines);
+	const FString Remark = Soulbound::Presentation::DescribeEvent(MakeVoiceEvent(EMatchEventType::WardenRemark, INDEX_NONE, INDEX_NONE), Board, &State.WardenEvents, &State.WardenLines);
 	TestFalse(TEXT("El comentario ya no dice que la frase llega con otra story"), Remark.Contains(TEXT("story")) || Remark.Contains(TEXT("llega")));
-	TestEqual(TEXT("El aviso del final, en la crónica"), Soulbound::Presentation::DescribeEvent(MakeEvent(EMatchEventType::MatchEndWarning, INDEX_NONE, 10), Board),
+	TestEqual(TEXT("El aviso del final, en la crónica"), Soulbound::Presentation::DescribeEvent(MakeVoiceEvent(EMatchEventType::MatchEndWarning, INDEX_NONE, 10), Board),
 		FString(TEXT("el Warden avisa: quedan 10 s para el final de la partida")));
 	TestEqual(TEXT("La frase y el aviso son del Warden (su color)"), static_cast<int32>(Soulbound::Presentation::EventSource(EMatchEventType::WardenSpoke)),
 		static_cast<int32>(Soulbound::Presentation::EEventSource::Warden));
@@ -102,10 +102,10 @@ bool FVoiceOracleOneLineTest::RunTest(const FString& Parameters)
 	// frase y el evento lanzado). Un golpe por Warden directo conserva su línea del evento, y la frase aparte.
 	FMatchState Oracle = StateWithLines();
 	Oracle.EventLog = {
-		MakeEvent(EMatchEventType::OracleSentence, 2, 0, 0),
-		MakeEvent(EMatchEventType::WardenTriggered, 2, 0),
-		MakeEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 0, 1),
-		MakeEvent(EMatchEventType::WardenEventStarted, 2, 0, 1),
+		MakeVoiceEvent(EMatchEventType::OracleSentence, 2, 0, 0),
+		MakeVoiceEvent(EMatchEventType::WardenTriggered, 2, 0),
+		MakeVoiceEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 0, 1),
+		MakeVoiceEvent(EMatchEventType::WardenEventStarted, 2, 0, 1),
 	};
 	const TArray<FString> OracleTexts = ChronicleTexts(Oracle);
 	if (TestEqual(TEXT("Una sola línea para la sentencia"), OracleTexts.Num(), 1))
@@ -114,7 +114,7 @@ bool FVoiceOracleOneLineTest::RunTest(const FString& Parameters)
 	}
 
 	FMatchState Direct = StateWithLines();
-	Direct.EventLog = {MakeEvent(EMatchEventType::WardenEventStarted, 2, 0, 1), MakeEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 0, 1)};
+	Direct.EventLog = {MakeVoiceEvent(EMatchEventType::WardenEventStarted, 2, 0, 1), MakeVoiceEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 0, 1)};
 	const TArray<FString> DirectTexts = ChronicleTexts(Direct);
 	if (TestEqual(TEXT("Directo: la línea del evento y la frase"), DirectTexts.Num(), 2))
 	{
@@ -125,7 +125,7 @@ bool FVoiceOracleOneLineTest::RunTest(const FString& Parameters)
 	// Sin frases en la partida (la tabla vacía), la sentencia conserva sus dos líneas de siempre.
 	FMatchState Silent = StateWithLines();
 	Silent.WardenLines = FWardenLineTable();
-	Silent.EventLog = {MakeEvent(EMatchEventType::OracleSentence, 2, 0, 0), MakeEvent(EMatchEventType::WardenEventStarted, 2, 0, 1)};
+	Silent.EventLog = {MakeVoiceEvent(EMatchEventType::OracleSentence, 2, 0, 0), MakeVoiceEvent(EMatchEventType::WardenEventStarted, 2, 0, 1)};
 	TestEqual(TEXT("Sin frases, las dos líneas de siempre"), ChronicleTexts(Silent).Num(), 2);
 	return true;
 }

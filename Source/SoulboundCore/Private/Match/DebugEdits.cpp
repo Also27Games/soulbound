@@ -7,6 +7,7 @@
 #include "Match/TurnRules.h"
 #include "Board/SealRules.h"
 #include "Math/RandomStream.h"
+#include "Warden/WardenVoice.h"
 
 namespace
 {
@@ -222,8 +223,13 @@ namespace Soulbound::Debug
 
 	EDebugEditResult SayLine(FMatchState& State, const FString& Key, double NowSeconds)
 	{
-		// Esqueleto del test en rojo (S-021, SbSay): no dice nada.
-		return EDebugEditResult::UnknownLine;
+		if (State.WardenLines.IndexOf(Key) == INDEX_NONE)
+		{
+			return EDebugEditResult::UnknownLine;
+		}
+		LogEdit(State, EDebugEditKind::Say, NowSeconds, INDEX_NONE);
+		Soulbound::Rules::SpeakWardenLine(State, Key, NowSeconds);
+		return EDebugEditResult::Applied;
 	}
 
 	EDebugEditResult FixDuel(FMatchState& State, int32 Seat, double NowSeconds)

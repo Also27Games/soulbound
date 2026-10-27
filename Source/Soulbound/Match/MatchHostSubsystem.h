@@ -211,6 +211,12 @@ public:
 	 * el siguiente paso, como si el tiempo hubiera pasado. Hacia atrás se rechaza.
 	 */
 	FDebugEditOutcome DebugSetClock(double Seconds);
+
+	/**
+	 * Dice la frase Key de la tabla del Warden ahora (S-021, SbSay, Soulbound::Debug::SayLine), para probar los textos sin esperar al
+	 * suceso. Una clave que no está en la tabla se rechaza.
+	 */
+	FDebugEditOutcome DebugSay(const FString& Key);
 #endif
 
 	/** Se lanza tras cada cambio del estado. */
@@ -235,6 +241,10 @@ public:
 	/** Ruta de los parámetros del Warden, relativa a Content/ (S-016). */
 	UPROPERTY(Config)
 	FString WardenParamsRelativePath = TEXT("Data/Warden/warden.json");
+
+	/** Ruta de las frases del Warden, relativa a Content/ (S-021). */
+	UPROPERTY(Config)
+	FString WardenLinesRelativePath = TEXT("Data/Warden/frases.json");
 
 	/** Semilla de la partida. Valor inicial -1: aleatoria. Un valor de 0 en adelante la fija para repetir una partida. */
 	UPROPERTY(Config)

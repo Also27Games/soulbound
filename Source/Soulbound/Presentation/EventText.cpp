@@ -1,6 +1,7 @@
 #include "EventText.h"
 
 #include "Warden/WardenBrain.h"
+#include "Warden/WardenLines.h"
 
 namespace Soulbound::Presentation
 {
@@ -14,12 +15,83 @@ namespace Soulbound::Presentation
 		return Tile.Type == ETileType::Altar ? FString(TEXT("ALTAR")) : FString::Printf(TEXT("D%d·%d"), Tile.DomainId, Tile.TileId);
 	}
 
-	// Esqueletos del test en rojo (S-021).
-	FString SpokenText(const FWardenLineTable& Lines, const FMatchEvent& Spoke) { return FString(); }
-	FString WardenLinePrefix(int32 Seat, int32 HumanSeat) { return FString(); }
+	FString SpokenText(const FWardenLineTable& Lines, const FMatchEvent& Spoke)
+	{
+		if (Spoke.Type != EMatchEventType::WardenSpoke || !Lines.Entries.IsValidIndex(Spoke.Value) || !Lines.Entries[Spoke.Value].Lines.IsValidIndex(Spoke.Detail))
+		{
+			return FString();
+		}
+		return Soulbound::Rules::StripLineCues(Lines.Entries[Spoke.Value].Lines[Spoke.Detail]);
+	}
+
+	FString WardenLinePrefix(int32 Seat, int32 HumanSeat)
+	{
+		if (Seat == INDEX_NONE)
+		{
+			return TEXT("Warden:");
+		}
+		return Seat == HumanSeat ? FString(TEXT("Warden, a ti:")) : FString::Printf(TEXT("Warden, al asiento %d:"), Seat);
+	}
+
+	namespace
+	{
+		/** La posición del evento anterior a Index que no es un disparador ni, si bSkipSpoken, una frase; INDEX_NONE si no hay. */
+		int32 PreviousMeaningful(const FMatchState& State, int32 Index, bool bSkipSpoken)
+		{
+			for (int32 Previous = Index - 1; Previous >= 0; --Previous)
+			{
+				const EMatchEventType Type = State.EventLog[Previous].Type;
+				if (Type != EMatchEventType::WardenTriggered && !(bSkipSpoken && Type == EMatchEventType::WardenSpoke))
+				{
+					return Previous;
+				}
+			}
+			return INDEX_NONE;
+		}
+	}
+
 	FString DescribeChronicleEvent(const FMatchState& State, int32 Index)
 	{
-		return State.EventLog.IsValidIndex(Index) ? DescribeEvent(State.EventLog[Index], State.Board, &State.WardenEvents, &State.WardenLines) : FString();
+		if (!State.EventLog.IsValidIndex(Index))
+		{
+			return FString();
+		}
+		const FMatchEvent& Event = State.EventLog[Index];
+		// La sentencia del Oráculo, en una sola línea (S-021): la sentencia, la frase y el evento que se lanza son lo mismo para quien lee. Sin
+		// frases en la partida, las líneas de siempre.
+		if (!State.WardenLines.IsEmpty())
+		{
+			if (Event.Type == EMatchEventType::OracleSentence)
+			{
+				// La línea la lleva la frase que sigue (tras los disparadores).
+				int32 Next = Index + 1;
+				while (State.EventLog.IsValidIndex(Next) && State.EventLog[Next].Type == EMatchEventType::WardenTriggered)
+				{
+					++Next;
+				}
+				if (State.EventLog.IsValidIndex(Next) && State.EventLog[Next].Type == EMatchEventType::WardenSpoke)
+				{
+					return FString();
+				}
+			}
+			else if (Event.Type == EMatchEventType::WardenSpoke)
+			{
+				const int32 Previous = PreviousMeaningful(State, Index, false);
+				if (State.EventLog.IsValidIndex(Previous) && State.EventLog[Previous].Type == EMatchEventType::OracleSentence)
+				{
+					return TEXT("sentencia del Oráculo: ") + SpokenText(State.WardenLines, Event);
+				}
+			}
+			else if (Event.Type == EMatchEventType::WardenEventStarted)
+			{
+				const int32 Previous = PreviousMeaningful(State, Index, true);
+				if (State.EventLog.IsValidIndex(Previous) && State.EventLog[Previous].Type == EMatchEventType::OracleSentence)
+				{
+					return FString();
+				}
+			}
+		}
+		return DescribeEvent(Event, State.Board, &State.WardenEvents, &State.WardenLines);
 	}
 
 	FString DescribeEvent(const FMatchEvent& Event, const FBoardState& Board, const FWardenEventTable* WardenEvents, const FWardenLineTable* WardenLines)
@@ -124,7 +196,15 @@ namespace Soulbound::Presentation
 				? FString::Printf(TEXT("FIN DE LA CARRERA: CORTA el turno del asiento %d %s: %s"), Event.Seat, *TurnPhaseText(Event.Value), *TurnCutLossText(Event.Value))
 				: FString::Printf(TEXT("GOLPE: el Warden CORTA el turno del asiento %d %s: %s"), Event.Seat, *TurnPhaseText(Event.Value), *TurnCutLossText(Event.Value));
 		case EMatchEventType::WardenRemark:
-			return FString(TEXT("el Warden comenta (la frase llega con la story \"La voz del Warden\")"));
+			return FString(TEXT("el Warden comenta"));
+		// S-021: lo que dice (la frase de la tabla, sin acotaciones; con la tabla fuera, la posición) y el aviso del final.
+		case EMatchEventType::WardenSpoke:
+		{
+			const FString Spoken = WardenLines ? SpokenText(*WardenLines, Event) : FString();
+			return Spoken.IsEmpty() ? FString::Printf(TEXT("el Warden dice la frase %d, variante %d"), Event.Value, Event.Detail + 1) : Spoken;
+		}
+		case EMatchEventType::MatchEndWarning:
+			return FString::Printf(TEXT("el Warden avisa: quedan %d s para el final de la partida"), Event.Value);
 		// S-017: el Oráculo del Caos y los disparadores contextuales.
 		case EMatchEventType::OracleOpened:
 			return FString::Printf(TEXT("ORÁCULO: el asiento %d tiene que consultarlo (%s)"), Event.Seat, *OracleOriginText(Event.Value));
@@ -257,6 +337,7 @@ namespace Soulbound::Presentation
 		case EDebugEditKind::SetInsolence: return TEXT("fijar la insolencia");
 		case EDebugEditKind::StrikeEvent: return TEXT("golpe del Warden ahora");
 		case EDebugEditKind::SetClock: return TEXT("adelantar el reloj de partida");
+		case EDebugEditKind::Say: return TEXT("decir una frase del Warden");
 		}
 		return TEXT("edición desconocida");
 	}
@@ -479,6 +560,7 @@ namespace Soulbound::Presentation
 		case EDebugEditResult::NicheNotFree: return TEXT("el Nicho de ese Dominio no está Libre");
 		case EDebugEditResult::NotSealed: return TEXT("esa casilla no está sellada");
 		case EDebugEditResult::InvalidRoll: return FString::Printf(TEXT("la tirada debe estar entre 1 y %d"), Soulbound::Debug::MaxFixedRoll());
+		case EDebugEditResult::UnknownLine: return TEXT("esa clave no está en las frases del Warden (frases.json)");
 		}
 		return TEXT("rechazada");
 	}
@@ -534,6 +616,9 @@ namespace Soulbound::Presentation
 		// S-016: el corte de un golpe y el comentario.
 		case EMatchEventType::TurnInterrupted:
 		case EMatchEventType::WardenRemark:
+		// S-021: lo que dice el Warden y el aviso del final.
+		case EMatchEventType::WardenSpoke:
+		case EMatchEventType::MatchEndWarning:
 		// S-016 (B): los castigos de insolencia, la Furia y sus negativas.
 		case EMatchEventType::InsolencePunished:
 		case EMatchEventType::FuryUnleashed:
