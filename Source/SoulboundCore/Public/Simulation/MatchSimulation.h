@@ -15,7 +15,10 @@ struct SOULBOUNDCORE_API FSimulationParams
 	 * dados ocupe quien ocupe cada asiento.
 	 */
 	int32 Seed = 1;
-	/** Duración de la partida en segundos virtuales (40 minutos). */
+	/**
+	 * Duración de la partida en segundos virtuales (40 minutos). Con Warden, desde S-018 la partida termina antes por sí sola, en
+	 * matchEndSeconds (R-VIC-4) o con la victoria de un jugador; sin Warden, solo con esa victoria o al llegar aquí.
+	 */
 	double DurationSeconds = 40.0 * 60.0;
 	/**
 	 * Si el Warden juega (S-016): el cerebro evalúa en el instante que él mismo devuelve, con los eventos y los parámetros de
@@ -96,7 +99,10 @@ struct SOULBOUNDCORE_API FSimulationResult
  * los decisores y avanza el reloj, pero no contiene reglas de turno. Desde S-016, el Warden real: el cerebro evalúa en el
  * instante que él mismo devuelve (EvaluateWarden, el mismo contrato que el anfitrión del Warden) y sus decisiones se aplican
  * con las reglas del motor; con bWardenEnabled apagado, la partida no tiene Warden.
- * La partida acaba al llegar a DurationSeconds o, antes, al terminar con victoria del Warden (R-CAR-8, S-006).
+ * La partida acaba al llegar a DurationSeconds o, antes, al terminar con victoria del Warden (R-CAR-8, S-006). Desde S-018, también con
+ * la victoria de un jugador (R-VIC-2) y, con Warden, en matchEndSeconds (R-VIC-4): la simulación despierta en ese instante, antes que
+ * cualquier otro suceso a su hora, y llama a la máquina de turnos, que corta lo que haya en marcha. El desafío final lo resuelve el decisor
+ * del aspirante al instante, como el resto de minijuegos.
  * Los duelos (S-012) se resuelven al instante: los dos participantes rinden con su decisor y el botín es un trilero.
  * Tres sorteos separados, en simulación y en juego (decisión del autor del 05/10/2026, S-010): partida (inicio, dados y
  * sorteos de reglas) con Seed, decisores con Seed + 1 y Warden con Seed + 2, igual que UWardenHostSubsystem. Antes el
