@@ -220,6 +220,12 @@ namespace Soulbound::Debug
 		return EDebugEditResult::Applied;
 	}
 
+	EDebugEditResult SayLine(FMatchState& State, const FString& Key, double NowSeconds)
+	{
+		// Esqueleto del test en rojo (S-021, SbSay): no dice nada.
+		return EDebugEditResult::UnknownLine;
+	}
+
 	EDebugEditResult FixDuel(FMatchState& State, int32 Seat, double NowSeconds)
 	{
 		if (!State.Seats.IsValidIndex(Seat))

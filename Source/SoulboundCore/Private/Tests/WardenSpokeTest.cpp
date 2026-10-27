@@ -3,6 +3,7 @@
 // Filtro: "Soulbound.Core.Voice". Montaje: VoiceFixture.h (la partida del Warden de WardenFixture.h con las frases de frases.json).
 
 #include "Match/BondRaceRules.h"
+#include "Match/DebugEdits.h"
 #include "Match/InsolenceRules.h"
 #include "Match/MatchStart.h"
 #include "Match/OracleRules.h"
@@ -317,6 +318,35 @@ bool FVoiceEndingTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Justo después de la victoria del jugador, programado:victoria"), Won != INDEX_NONE && IsFollowedBySpoke(F.State, Won, Soulbound::Warden::LineVictory));
 		TestEqual(TEXT("Y la frase es lo último de la partida"), F.State.EventLog.Last().Type, EMatchEventType::WardenSpoke);
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceSayTest, "Soulbound.Core.Voice.EdicionSbSay",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FVoiceSayTest::RunTest(const FString& Parameters)
+{
+	// R-VOZ-5 (S-021, criterio manual de SbSay): SayLine dice una frase de la tabla sin esperar al suceso: deja el evento de la edición y,
+	// justo después, el WardenSpoke de esa clave a la mesa. Una clave que no está en la tabla se rechaza sin cambiar nada, como la tabla vacía.
+	FVoiceFixture F;
+	if (!F.StartWithVoice(*this))
+	{
+		return false;
+	}
+	const int32 From = F.State.EventLog.Num();
+	TestEqual(TEXT("Se dice"), AsInt(Soulbound::Debug::SayLine(F.State, TEXT("evento:tropiezo"), F.Now)), AsInt(EDebugEditResult::Applied));
+	if (TestEqual(TEXT("Dos eventos: la edición y la frase"), F.State.EventLog.Num() - From, 2))
+	{
+		TestEqual(TEXT("Primero, la edición"), AsInt(F.State.EventLog[From].Type), AsInt(EMatchEventType::DebugEdit));
+		TestEqual(TEXT("De este tipo"), F.State.EventLog[From].Value, AsInt(EDebugEditKind::Say));
+		TestEqual(TEXT("Justo después, la frase pedida"), SpokenKey(F.State, F.State.EventLog[From + 1]), FString(TEXT("evento:tropiezo")));
+		TestEqual(TEXT("A la mesa"), F.State.EventLog[From + 1].Seat, INDEX_NONE);
+	}
+	const FMatchState Before = F.State;
+	TestEqual(TEXT("Una clave que no existe"), AsInt(Soulbound::Debug::SayLine(F.State, TEXT("evento:no-existe"), F.Now)), AsInt(EDebugEditResult::UnknownLine));
+	TestTrue(TEXT("Sin cambiar nada"), Soulbound::Tests::SameState(Before, F.State));
+	F.State.WardenLines = FWardenLineTable();
+	TestEqual(TEXT("Sin tabla"), AsInt(Soulbound::Debug::SayLine(F.State, TEXT("evento:tropiezo"), F.Now)), AsInt(EDebugEditResult::UnknownLine));
 	return true;
 }
 

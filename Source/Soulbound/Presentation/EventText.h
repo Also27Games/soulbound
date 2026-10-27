@@ -30,7 +30,26 @@ namespace Soulbound::Presentation
 	 * Frase del evento, en español, con el número de asiento y los datos del evento. Board da los nombres de casilla;
 	 * WardenEvents, el texto de los eventos del Warden (S-014), si se tiene.
 	 */
-	FString DescribeEvent(const FMatchEvent& Event, const FBoardState& Board, const FWardenEventTable* WardenEvents = nullptr);
+	FString DescribeEvent(const FMatchEvent& Event, const FBoardState& Board, const FWardenEventTable* WardenEvents = nullptr, const FWardenLineTable* WardenLines = nullptr);
+
+	/**
+	 * La frase de un WardenSpoke tal como se enseña (S-021, R-VOZ-5): la variante de la tabla sin las acotaciones de audio entre corchetes.
+	 * Vacía si el evento no apunta a una entrada o a una variante que existan.
+	 */
+	FString SpokenText(const FWardenLineTable& Lines, const FMatchEvent& Spoke);
+
+	/**
+	 * El prefijo de la línea del Warden (S-021, R-VOZ-3b): a quién habla, porque el Warden no pronuncia nombres. "Warden:" a la mesa (Seat
+	 * INDEX_NONE), "Warden, a ti:" al asiento humano de esta máquina y "Warden, al asiento 2:" a cualquier otro. HumanSeat: el asiento humano.
+	 */
+	FString WardenLinePrefix(int32 Seat, int32 HumanSeat);
+
+	/**
+	 * La línea de la crónica del juego para el evento Index del registro de State, con su contexto (S-021): la sentencia del Oráculo es una
+	 * sola línea, "sentencia del Oráculo: <frase>", en vez de tres; con la tabla de frases vacía conserva las líneas de siempre. El resto
+	 * es DescribeEvent. Vacía si el evento no tiene línea.
+	 */
+	FString DescribeChronicleEvent(const FMatchState& State, int32 Index);
 
 	/** Nombre en español de un efecto (EEffect en un Value), para la crónica y la vista (S-014). */
 	FString EffectName(int32 Effect);

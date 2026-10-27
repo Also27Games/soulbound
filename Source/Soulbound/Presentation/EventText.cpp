@@ -14,7 +14,15 @@ namespace Soulbound::Presentation
 		return Tile.Type == ETileType::Altar ? FString(TEXT("ALTAR")) : FString::Printf(TEXT("D%d·%d"), Tile.DomainId, Tile.TileId);
 	}
 
-	FString DescribeEvent(const FMatchEvent& Event, const FBoardState& Board, const FWardenEventTable* WardenEvents)
+	// Esqueletos del test en rojo (S-021).
+	FString SpokenText(const FWardenLineTable& Lines, const FMatchEvent& Spoke) { return FString(); }
+	FString WardenLinePrefix(int32 Seat, int32 HumanSeat) { return FString(); }
+	FString DescribeChronicleEvent(const FMatchState& State, int32 Index)
+	{
+		return State.EventLog.IsValidIndex(Index) ? DescribeEvent(State.EventLog[Index], State.Board, &State.WardenEvents, &State.WardenLines) : FString();
+	}
+
+	FString DescribeEvent(const FMatchEvent& Event, const FBoardState& Board, const FWardenEventTable* WardenEvents, const FWardenLineTable* WardenLines)
 	{
 		switch (Event.Type)
 		{
