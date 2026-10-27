@@ -27,7 +27,7 @@ namespace
 	}
 
 	/** Ángulo de un vector del plano, en grados. */
-	float AngleOf(const FVector2D& Vector)
+	float DirectionAngleOf(const FVector2D& Vector)
 	{
 		return FMath::RadiansToDegrees(FMath::Atan2(Vector.Y, Vector.X));
 	}
@@ -49,7 +49,7 @@ namespace
 				Sum += FVector2D(Layout.Tiles[Tile.TileId].Location).GetSafeNormal();
 			}
 		}
-		return AngleOf(Sum);
+		return DirectionAngleOf(Sum);
 	}
 
 	/** Mitad del tamaño de la pieza en la dirección de una conexión: la apotema en el Altar, media losa en las demás. */
@@ -110,7 +110,7 @@ bool FBoardLayoutTableTest::RunTest(const FString& Parameters)
 		Farthest = FMath::Max(Farthest, Edge);
 		TestTrue(FString::Printf(TEXT("La losa de la casilla %d cae dentro del radio de mesa (%.2f de %.2f)"), Tile.TileId, Edge, Params.TableRadius), Edge <= Params.TableRadius + 0.01f);
 		TestTrue(FString::Printf(TEXT("La losa de la casilla %d no pisa el Altar"), Tile.TileId), FVector2D(Placed.Location).Size() - Params.SlabHalfSize >= Params.AltarApothem - 0.01f);
-		const float Offset = AngleBetween(AngleOf(FVector2D(Placed.Location)), Layout.Wedges[Tile.DomainId].Yaw);
+		const float Offset = AngleBetween(DirectionAngleOf(FVector2D(Placed.Location)), Layout.Wedges[Tile.DomainId].Yaw);
 		TestTrue(FString::Printf(TEXT("La casilla %d está en el sector de su Dominio %d (a %.1f° del centro)"), Tile.TileId, Tile.DomainId, Offset), FMath::Abs(Offset) <= 30.f);
 	}
 	TestTrue(TEXT("La losa más lejana toca el borde de la mesa: la escala aprovecha el radio"), FMath::IsNearlyEqual(Farthest, Params.TableRadius, 0.01f));
@@ -396,12 +396,12 @@ bool FBoardLayoutStructureSideTest::RunTest(const FString& Parameters)
 			FVector2D(Placed.StructureLocation - Placed.Location).GetSafeNormal().Equals(Out, 0.001f));
 		if (Tile.Type == ETileType::Niche)
 		{
-			TestTrue(FString::Printf(TEXT("La cabecera del Nicho %d (+x) mira a su estructura"), Tile.TileId), FMath::Abs(AngleBetween(Placed.Yaw, AngleOf(Out))) < 0.01f);
+			TestTrue(FString::Printf(TEXT("La cabecera del Nicho %d (+x) mira a su estructura"), Tile.TileId), FMath::Abs(AngleBetween(Placed.Yaw, DirectionAngleOf(Out))) < 0.01f);
 		}
 		if (Tile.Type == ETileType::PowerNode)
 		{
 			TestTrue(FString::Printf(TEXT("Las puntas del Nodo %d (±x) siguen el camino, en perpendicular al lado de la estructura"), Tile.TileId),
-				FMath::Abs(FMath::Cos(FMath::DegreesToRadians(AngleBetween(Placed.Yaw, AngleOf(Out))))) < 0.001f);
+				FMath::Abs(FMath::Cos(FMath::DegreesToRadians(AngleBetween(Placed.Yaw, DirectionAngleOf(Out))))) < 0.001f);
 		}
 	}
 	TestTrue(TEXT("Se han comprobado las casillas especiales con una y dos conexiones (al menos los seis Nichos)"), Checked >= 6);
@@ -485,7 +485,7 @@ bool FBoardLayoutPathTest::RunTest(const FString& Parameters)
 				Projections.Add(Offset | Along);
 				TestTrue(FString::Printf(TEXT("El tramo de %d-%d está sobre la conexión"), Tile.TileId, Other), FMath::Abs(Offset ^ Along) < 0.001f);
 				TestTrue(FString::Printf(TEXT("El tramo de %d-%d está orientado con la conexión"), Tile.TileId, Other),
-					FMath::Abs(FMath::Sin(FMath::DegreesToRadians(AngleBetween(Segment.Yaw, AngleOf(Along))))) < 0.001f);
+					FMath::Abs(FMath::Sin(FMath::DegreesToRadians(AngleBetween(Segment.Yaw, DirectionAngleOf(Along))))) < 0.001f);
 			}
 			if (!TestEqual(FString::Printf(TEXT("La conexión %d-%d tiene los tramos que caben"), Tile.TileId, Other), Projections.Num(), Fits) || Fits == 0)
 			{
