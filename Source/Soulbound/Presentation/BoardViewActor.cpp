@@ -36,8 +36,6 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogSoulboundView, Log, All);
-
 namespace
 {
 	// Medidas de las formas de respaldo que no son parámetros (de S-005 a S-007), por 6,3/175 desde S-019: la mesa mide lo
@@ -590,7 +588,7 @@ void ABoardViewActor::Initialize(UMatchHostSubsystem* InHost)
 	}
 
 	// S-019: la colocación es una función pura del tablero; la vista solo la lee.
-	LoadKit();
+	Kit.Load(*this, TEXT("se usa la forma básica"));
 	Layout = Soulbound::Presentation::ComputeBoardLayout(InHost->GetState().Board, LayoutParams);
 	if (!Layout.bRadial)
 	{
@@ -635,250 +633,43 @@ void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
-const TSoftObjectPtr<UStaticMesh>& ABoardViewActor::KitReference(EBoardKitPiece Piece, const TCHAR*& OutName) const
+const TSoftObjectPtr<UStaticMesh>& ABoardViewActor::KitReference(EBoardKitPiece Piece) const
 {
 	switch (Piece)
 	{
-	case EBoardKitPiece::Slab: OutName = TEXT("losa"); return SlabMesh;
-	case EBoardKitPiece::CrackedSlab: OutName = TEXT("losa partida"); return CrackedSlabMesh;
-	case EBoardKitPiece::NicheSlab: OutName = TEXT("losa del Nicho"); return NicheSlabMesh;
-	case EBoardKitPiece::SourceSlab: OutName = TEXT("losa de la Fuente"); return SourceSlabMesh;
-	case EBoardKitPiece::NodeSlab: OutName = TEXT("losa del Nodo"); return NodeSlabMesh;
-	case EBoardKitPiece::PathSegment: OutName = TEXT("sendero"); return PathSegmentMesh;
-	case EBoardKitPiece::Pedestal: OutName = TEXT("peana"); return PedestalMesh;
-	case EBoardKitPiece::PlainFloor: OutName = TEXT("suelo liso"); return PlainFloorMesh;
-	case EBoardKitPiece::Altar: OutName = TEXT("Altar"); return AltarMesh;
-	case EBoardKitPiece::NicheThrone: OutName = TEXT("trono"); return NicheThroneMesh;
-	case EBoardKitPiece::Pylon: OutName = TEXT("pilón"); return PylonMesh;
-	case EBoardKitPiece::FloatingRune: OutName = TEXT("runa flotante"); return FloatingRuneMesh;
-	case EBoardKitPiece::PlanarArch: OutName = TEXT("arco Planar"); return PlanarArchMesh;
-	case EBoardKitPiece::DuelSwords: OutName = TEXT("espadas de Duelo"); return DuelSwordsMesh;
-	case EBoardKitPiece::OracleOrb: OutName = TEXT("orbe del Oráculo"); return OracleOrbMesh;
-	case EBoardKitPiece::SealChains: OutName = TEXT("cadenas del Sello"); return SealChainsMesh;
+	case EBoardKitPiece::Slab: return SlabMesh;
+	case EBoardKitPiece::CrackedSlab: return CrackedSlabMesh;
+	case EBoardKitPiece::NicheSlab: return NicheSlabMesh;
+	case EBoardKitPiece::SourceSlab: return SourceSlabMesh;
+	case EBoardKitPiece::NodeSlab: return NodeSlabMesh;
+	case EBoardKitPiece::PathSegment: return PathSegmentMesh;
+	case EBoardKitPiece::Pedestal: return PedestalMesh;
+	case EBoardKitPiece::PlainFloor: return PlainFloorMesh;
+	case EBoardKitPiece::Altar: return AltarMesh;
+	case EBoardKitPiece::NicheThrone: return NicheThroneMesh;
+	case EBoardKitPiece::Pylon: return PylonMesh;
+	case EBoardKitPiece::FloatingRune: return FloatingRuneMesh;
+	case EBoardKitPiece::PlanarArch: return PlanarArchMesh;
+	case EBoardKitPiece::DuelSwords: return DuelSwordsMesh;
+	case EBoardKitPiece::OracleOrb: return OracleOrbMesh;
+	case EBoardKitPiece::SealChains: return SealChainsMesh;
 	case EBoardKitPiece::TokenCard:
-	default: OutName = TEXT("carta de la ficha"); return TokenCardMesh;
+	default: return TokenCardMesh;
 	}
-}
-
-UStaticMesh* ABoardViewActor::KitMesh(EBoardKitPiece Piece) const
-{
-	const int32 Index = static_cast<int32>(Piece);
-	return KitMeshes.IsValidIndex(Index) ? KitMeshes[Index].Get() : nullptr;
-}
-
-EBoardKitPiece ABoardViewActor::SlabPiece(EBoardSlab Slab)
-{
-	switch (Slab)
-	{
-	case EBoardSlab::Cracked: return EBoardKitPiece::CrackedSlab;
-	case EBoardSlab::Niche: return EBoardKitPiece::NicheSlab;
-	case EBoardSlab::PowerSource: return EBoardKitPiece::SourceSlab;
-	case EBoardSlab::PowerNode: return EBoardKitPiece::NodeSlab;
-	case EBoardSlab::Altar: return EBoardKitPiece::Altar;
-	case EBoardSlab::Normal:
-	default: return EBoardKitPiece::Slab;
-	}
-}
-
-EBoardKitPiece ABoardViewActor::StructurePiece(EBoardStructure Structure)
-{
-	switch (Structure)
-	{
-	case EBoardStructure::NicheThrone: return EBoardKitPiece::NicheThrone;
-	case EBoardStructure::Pylon: return EBoardKitPiece::Pylon;
-	case EBoardStructure::PlanarArch: return EBoardKitPiece::PlanarArch;
-	case EBoardStructure::DuelSwords: return EBoardKitPiece::DuelSwords;
-	case EBoardStructure::OracleOrb: return EBoardKitPiece::OracleOrb;
-	case EBoardStructure::None:
-	default: return EBoardKitPiece::Count;
-	}
-}
-
-void ABoardViewActor::LoadKit()
-{
-	// R-VIS-8: cada pieza que falte se avisa una vez, aquí, al iniciar; la vista usa la forma básica de hoy para ese elemento.
-	KitMeshes.Init(nullptr, static_cast<int32>(EBoardKitPiece::Count));
-	int32 Missing = 0;
-	for (int32 Index = 0; Index < KitMeshes.Num(); ++Index)
-	{
-		const EBoardKitPiece Piece = static_cast<EBoardKitPiece>(Index);
-		const TCHAR* Name = TEXT("");
-		const TSoftObjectPtr<UStaticMesh>& Reference = KitReference(Piece, Name);
-		if (Reference.IsNull())
-		{
-			// Vacía: no hay pieza. Con el trono es una variante de diseño ("el Nicho es el trono"), no un fallo.
-			if (Piece != EBoardKitPiece::NicheThrone)
-			{
-				UE_LOG(LogSoulboundView, Warning, TEXT("Vista del tablero: la pieza %s no está configurada; se usa la forma básica."), Name);
-				++Missing;
-			}
-			continue;
-		}
-		KitMeshes[Index] = Reference.LoadSynchronous();
-		if (!KitMeshes[Index])
-		{
-			UE_LOG(LogSoulboundView, Warning, TEXT("Vista del tablero: la pieza %s (%s) no existe; se usa la forma básica."), Name, *Reference.ToString());
-			++Missing;
-		}
-	}
-	bNicheThroneConfigured = !NicheThroneMesh.IsNull();
-	if (!bNicheThroneConfigured)
-	{
-		UE_LOG(LogSoulboundView, Log, TEXT("Vista del tablero: sin trono configurado; el Nicho no lleva estructura."));
-	}
-
-	auto LoadMaterial = [&Missing](const TSoftObjectPtr<UMaterialInterface>& Reference, const TCHAR* Name) -> UMaterialInterface*
-	{
-		UMaterialInterface* Material = Reference.IsNull() ? nullptr : Reference.LoadSynchronous();
-		if (!Material)
-		{
-			UE_LOG(LogSoulboundView, Warning, TEXT("Vista del tablero: falta el material %s (%s); las piezas llevan el suyo."), Name, *Reference.ToString());
-			++Missing;
-		}
-		return Material;
-	};
-	KitVertexColorMaterial = LoadMaterial(VertexColorMaterial, TEXT("de color por vértice"));
-	KitEmissiveMaterial = LoadMaterial(EmissiveMaterial, TEXT("emisivo"));
-	KitDimMaterial = LoadMaterial(DimMaterial, TEXT("tenue"));
-	if (Missing > 0)
-	{
-		UE_LOG(LogSoulboundView, Warning, TEXT("Vista del tablero: faltan %d piezas o materiales del kit; el tablero usa formas básicas donde faltan."), Missing);
-	}
-}
-
-void ABoardViewActor::ApplyKitMaterials(UStaticMeshComponent& Component) const
-{
-	const UStaticMesh* Mesh = Component.GetStaticMesh();
-	if (!Mesh)
-	{
-		return;
-	}
-	const TArray<FStaticMaterial>& Slots = Mesh->GetStaticMaterials();
-	for (int32 Index = 0; Index < FMath::Max(1, Slots.Num()); ++Index)
-	{
-		const FString Slot = Slots.IsValidIndex(Index) ? Slots[Index].MaterialSlotName.ToString() : FString();
-		UMaterialInterface* Material = !EmissiveSlotTag.IsEmpty() && Slot.Contains(EmissiveSlotTag) ? KitEmissiveMaterial.Get()
-			: !DimSlotTag.IsEmpty() && Slot.Contains(DimSlotTag) ? KitDimMaterial.Get()
-			: KitVertexColorMaterial.Get();
-		if (Material)
-		{
-			Component.SetMaterial(Index, Material);
-		}
-	}
-}
-
-UStaticMeshComponent* ABoardViewActor::AddKitPiece(UStaticMesh* Mesh, const FVector& Location, float Yaw, bool bVisible)
-{
-	UStaticMeshComponent* Component = NewObject<UStaticMeshComponent>(this);
-	Component->SetStaticMesh(Mesh);
-	Component->SetupAttachment(GetRootComponent());
-	Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	// Las piezas del kit no se escalan (R-VIS-1), salvo el suelo de la cuña (BuildKit): un metro del kit son 100 cm.
-	Component->SetRelativeLocationAndRotation(Location, FRotator(0.f, Yaw, 0.f));
-	Component->SetVisibility(bVisible);
-	ApplyKitMaterials(*Component);
-	Component->RegisterComponent();
-	return Component;
 }
 
 void ABoardViewActor::BuildKit()
 {
+	// R-VIS-2 a 5: la colocación es del kit, la misma de la vista previa; aquí las estructuras salen ocultas hasta que el estado de vista las pide (RefreshKit).
 	const FBoardState& Board = Host->GetState().Board;
-
-	// R-VIS-2: la peana y el suelo liso de cada Dominio, girados a su sector, con el centro en el Altar y a la escala del suelo.
-	for (const FDomainWedgeLayout& Wedge : Layout.Wedges)
-	{
-		for (const EBoardKitPiece Piece : {EBoardKitPiece::Pedestal, EBoardKitPiece::PlainFloor})
-		{
-			if (UStaticMesh* Mesh = KitMesh(Piece))
-			{
-				UStaticMeshComponent* Floor = AddKitPiece(Mesh, FVector::ZeroVector, Wedge.Yaw, true);
-				// R-VIS-1: el suelo de la cuña se escala en X e Y al radio de la mesa; el resto del kit, no.
-				Floor->SetRelativeScale3D(FVector(Layout.KitScale, Layout.KitScale, 1.f));
-				KitFixedPieces.Add(Floor);
-				WedgeFloors.Add(Floor);
-				WedgeFloorDomains.Add(Wedge.DomainId);
-			}
-		}
-	}
-
-	// R-VIS-3: una losa por casilla, una malla instanciada por pieza; el Altar es su pieza propia.
-	TMap<EBoardKitPiece, UInstancedStaticMeshComponent*> Instances;
-	auto InstancesOf = [this, &Instances](EBoardKitPiece Piece) -> UInstancedStaticMeshComponent*
-	{
-		if (UInstancedStaticMeshComponent** Found = Instances.Find(Piece))
-		{
-			return *Found;
-		}
-		UInstancedStaticMeshComponent* Component = NewObject<UInstancedStaticMeshComponent>(this);
-		Component->SetStaticMesh(KitMesh(Piece));
-		Component->SetupAttachment(GetRootComponent());
-		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		ApplyKitMaterials(*Component);
-		Component->RegisterComponent();
-		KitInstances.Add(Component);
-		Instances.Add(Piece, Component);
-		return Component;
-	};
-	for (const FTileState& Tile : Board.Tiles)
-	{
-		const FTileLayout& Placed = Layout.Tiles[Tile.TileId];
-		const EBoardKitPiece Piece = SlabPiece(Placed.Slab);
-		if (!TileHasKitSlab.IsValidIndex(Tile.TileId) || !TileHasKitSlab[Tile.TileId])
-		{
-			continue; // la forma básica de BuildTiles hace de respaldo
-		}
-		if (Placed.Slab == EBoardSlab::Altar)
-		{
-			// R-VIS-1: el Altar crece con el kit, en X, Y y Z.
-			UStaticMeshComponent* Altar = AddKitPiece(KitMesh(Piece), Placed.Location, Placed.Yaw, true);
-			Altar->SetRelativeScale3D(FVector(Layout.KitScale));
-			KitFixedPieces.Add(Altar);
-		}
-		else
-		{
-			InstancesOf(Piece)->AddInstance(FTransform(FRotator(0.f, Placed.Yaw, 0.f), Placed.Location), false);
-		}
-	}
-
-	// R-VIS-4: los tramos de sendero de cada conexión, en una sola malla instanciada.
-	if (KitMesh(EBoardKitPiece::PathSegment))
-	{
-		UInstancedStaticMeshComponent* Paths = InstancesOf(EBoardKitPiece::PathSegment);
-		for (const FPathSegmentLayout& Segment : Layout.PathSegments)
-		{
-			Paths->AddInstance(FTransform(FRotator(0.f, Segment.Yaw, 0.f), Segment.Location), false);
-		}
-	}
-
-	// R-VIS-5: estructuras, runas flotantes y cadenas, ocultas hasta que el estado de vista las pide (RefreshKit).
-	Structures.Init(nullptr, Board.Tiles.Num());
-	FloatingRunes.Init(nullptr, Board.Tiles.Num());
-	SealChains.Init(nullptr, Board.Tiles.Num());
-	for (const FTileState& Tile : Board.Tiles)
-	{
-		const FTileLayout& Placed = Layout.Tiles[Tile.TileId];
-		if (UStaticMesh* Mesh = KitMesh(StructurePiece(Placed.Structure)))
-		{
-			Structures[Tile.TileId] = AddKitPiece(Mesh, Placed.StructureLocation, Placed.StructureYaw, false);
-		}
-		if (Placed.Structure == EBoardStructure::Pylon && KitMesh(EBoardKitPiece::FloatingRune))
-		{
-			FloatingRunes[Tile.TileId] = AddKitPiece(KitMesh(EBoardKitPiece::FloatingRune), Placed.StructureLocation + FVector(0.f, 0.f, LayoutParams.FloatingRuneHeight),
-				Placed.StructureYaw, false);
-		}
-		// El Altar no se sella (glosario "Sello"); las cadenas, sobre la cara superior de la losa.
-		if (Tile.Type != ETileType::Altar && KitMesh(EBoardKitPiece::SealChains))
-		{
-			SealChains[Tile.TileId] = AddKitPiece(KitMesh(EBoardKitPiece::SealChains), Placed.Location + FVector(0.f, 0.f, LayoutParams.SlabTop), Placed.Yaw, false);
-		}
-	}
+	Kit.PlaceFixed(*this, Board, Layout, KitFixed);
+	Kit.PlaceStructures(*this, Board, Layout, LayoutParams, FBoardKitStructureOptions(), KitStructures);
 }
 
 void ABoardViewActor::BuildEdges()
 {
 	// S-019: con la pieza del sendero, los tramos del kit (BuildKit); la tira básica es el respaldo.
-	if (KitMesh(EBoardKitPiece::PathSegment))
+	if (Kit.Mesh(EBoardKitPiece::PathSegment))
 	{
 		return;
 	}
@@ -951,7 +742,7 @@ void ABoardViewActor::BuildTiles()
 		const FVector Position = TilePositions[Tile.TileId];
 		const bool bAltar = Tile.Type == ETileType::Altar;
 		// S-019: si está la pieza de la losa (o del Altar), la forma básica queda oculta y solo recibe el clic.
-		UStaticMesh* KitSlab = Layout.Tiles.IsValidIndex(Tile.TileId) ? KitMesh(SlabPiece(Layout.Tiles[Tile.TileId].Slab)) : nullptr;
+		UStaticMesh* KitSlab = Layout.Tiles.IsValidIndex(Tile.TileId) ? Kit.Mesh(FBoardKit::SlabPiece(Layout.Tiles[Tile.TileId].Slab)) : nullptr;
 		TileHasKitSlab[Tile.TileId] = KitSlab != nullptr;
 		// La cara superior es la cota de la ficha (R-VIS-3): la de la losa del kit, o el alto de la pieza del Altar.
 		float Thickness = bAltar ? AltarThickness : LayoutParams.SlabTop;
@@ -1120,7 +911,7 @@ void ABoardViewActor::BuildTokens()
 {
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	UStaticMesh* Card = KitMesh(EBoardKitPiece::TokenCard);
+	UStaticMesh* Card = Kit.Mesh(EBoardKitPiece::TokenCard);
 	for (int32 Seat = 0; Seat < Host->GetState().Seats.Num(); ++Seat)
 	{
 		ASeatTokenActor* Token = GetWorld()->SpawnActor<ASeatTokenActor>(ASeatTokenActor::StaticClass(), FTransform::Identity, Params);
@@ -1129,9 +920,9 @@ void ABoardViewActor::BuildTokens()
 			Token->SetSeat(Seat);
 			Token->Configure(TokenLabelSize, ActiveLift, ActiveSpinDegreesPerSecond, RingDiameter, RingWidth, ActiveScale, TokenDiameter);
 			// R-VIS-6: la carta de prueba del kit, con el color del asiento en el aro de su base (sin carta, la esfera o el cono).
-			if (UStaticMeshComponent* CardMesh = Token->UseCard(Card, KitEmissiveMaterial, TokenRingScale, TokenRingWidth, EchoRingBrightness))
+			if (UStaticMeshComponent* CardMesh = Token->UseCard(Card, Kit.EmissiveMaterial(), TokenRingScale, TokenRingWidth, EchoRingBrightness))
 			{
-				ApplyKitMaterials(*CardMesh);
+				Kit.ApplyMaterials(*CardMesh);
 			}
 			Token->SetColor(SeatColor(Seat));
 			Token->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
@@ -1385,7 +1176,7 @@ void ABoardViewActor::BuildOverlay()
 	// Una fila por asiento, con su rol al día: Eco (esfera) o Elegido (cono), y el Dominio que lleva.
 	FLegendRow Seats;
 	// S-019: con la carta del kit, el rol va en el aro de su base (decisión del autor del 20/10/2026).
-	Seats.Title = KitMesh(EBoardKitPiece::TokenCard)
+	Seats.Title = Kit.Mesh(EBoardKitPiece::TokenCard)
 		? TEXT("Asientos (el número va sobre la carta): aro tenue = Eco, aro vivo = Elegido. El activo crece, sube, gira y lleva aro")
 		: TEXT("Asientos (el número va en la ficha): esfera = Eco, cono = Elegido. El activo crece, sube, gira y lleva aro");
 	for (int32 Seat = 0; Seat < Host->GetState().Seats.Num(); ++Seat)
@@ -1541,16 +1332,7 @@ void ABoardViewActor::Refresh()
 	}
 
 	// El suelo de cada cuña lleva el color de su Dominio, apagado si está Olvidado (S-019, R-VIS-2, R-VIS-5).
-	for (int32 Index = 0; Index < WedgeFloors.Num(); ++Index)
-	{
-		const int32 DomainId = WedgeFloorDomains[Index];
-		UStaticMeshComponent* Floor = WedgeFloors[Index];
-		if (Floor && State.Board.Domains.IsValidIndex(DomainId))
-		{
-			const bool bForgotten = State.Board.Domains[DomainId].State == EDomainState::Forgotten;
-			Soulbound::Presentation::SetComponentColor(*Floor, KitVertexColorMaterial.Get(), Soulbound::Presentation::WedgeFloorTint(DomainColor(DomainId), bForgotten, FloorTintStrength, ForgottenDim));
-		}
-	}
+	Kit.TintWedgeFloors(KitFixed, State.Board, *this);
 
 	for (const FTileState& Tile : State.Board.Tiles)
 	{
@@ -1645,7 +1427,7 @@ void ABoardViewActor::Refresh()
 	}
 
 	// S-019: estructuras, runas flotantes, cadenas y fichas fuera en el Vacío, según el estado de vista.
-	const FBoardViewState View = Soulbound::Presentation::ComputeBoardViewState(State, bNicheThroneConfigured);
+	const FBoardViewState View = Soulbound::Presentation::ComputeBoardViewState(State, Kit.IsNicheThroneConfigured());
 	RefreshKit(View);
 
 	RefreshTokens(State);
@@ -1715,7 +1497,7 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 	const bool bSomeoneActive = !State.IsMatchOver() && State.TurnPhase != ETurnPhase::BetweenTurns;
 	// S-013, S-019: qué fichas están en el tablero (fuera, en el Vacío). Se mira aquí porque las fichas también se recolocan al
 	// acabar un recorrido, sin pasar por Refresh.
-	const FBoardViewState View = Soulbound::Presentation::ComputeBoardViewState(State, bNicheThroneConfigured);
+	const FBoardViewState View = Soulbound::Presentation::ComputeBoardViewState(State, Kit.IsNicheThroneConfigured());
 
 	// S-020: el asiento que se mueve, humano o dummy (decisión del autor del 21/10/2026).
 	const int32 MovingSeat = State.TurnPhase == ETurnPhase::Moving ? State.ActiveSeat : INDEX_NONE;
@@ -1846,15 +1628,15 @@ void ABoardViewActor::RefreshKit(const FBoardViewState& View)
 	for (int32 TileId = 0; TileId < View.Tiles.Num(); ++TileId)
 	{
 		const FTileViewState& Shown = View.Tiles[TileId];
-		if (UStaticMeshComponent* Structure = Structures.IsValidIndex(TileId) ? Structures[TileId].Get() : nullptr)
+		if (UStaticMeshComponent* Structure = KitStructures.Structures.IsValidIndex(TileId) ? KitStructures.Structures[TileId].Get() : nullptr)
 		{
 			Structure->SetVisibility(Shown.Structure != EBoardStructure::None);
 		}
-		if (UStaticMeshComponent* Rune = FloatingRunes.IsValidIndex(TileId) ? FloatingRunes[TileId].Get() : nullptr)
+		if (UStaticMeshComponent* Rune = KitStructures.FloatingRunes.IsValidIndex(TileId) ? KitStructures.FloatingRunes[TileId].Get() : nullptr)
 		{
 			Rune->SetVisibility(Shown.bFloatingRune);
 		}
-		if (UStaticMeshComponent* Chains = SealChains.IsValidIndex(TileId) ? SealChains[TileId].Get() : nullptr)
+		if (UStaticMeshComponent* Chains = KitStructures.SealChains.IsValidIndex(TileId) ? KitStructures.SealChains[TileId].Get() : nullptr)
 		{
 			Chains->SetVisibility(Shown.bSealChains);
 		}
