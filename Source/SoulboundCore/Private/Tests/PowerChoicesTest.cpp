@@ -601,6 +601,8 @@ bool FPowersExpelHomeTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Expulsa al Elegido: aceptado"), AsInt(F.Act(0, EPlayerAction::Expel, 1)), AsInt(EIntentResult::Accepted));
 	TestEqual(TEXT("El Elegido está en su Nicho"), F.State.Seats[1].TileId, F.State.Board.FindNiche(Other));
 	TestEqual(TEXT("Quien expulsa sigue en su casilla"), F.State.Seats[0].TileId, Normal[0]);
+	// S-018 (corte B): Expelled lleva en Detail la casilla de la que sale el expulsado, para medir el ping-pong del Altar.
+	TestEqual(TEXT("Expelled: la casilla de origen en Detail"), F.State.EventLog.Last().Detail, Normal[0]);
 	TestEqual(TEXT("El turno termina"), AsInt(F.State.TurnPhase), AsInt(ETurnPhase::End));
 	F.FinishTurn();
 
@@ -610,6 +612,8 @@ bool FPowersExpelHomeTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Se le ofrece expulsar al asiento 2"), F.State.PendingChoice.ActionOptions == ExpelOptions({2}));
 	TestEqual(TEXT("Expulsa al Eco en carrera"), AsInt(F.Act(0, EPlayerAction::Expel, 2)), AsInt(EIntentResult::Accepted));
 	TestEqual(TEXT("El Eco en carrera está en el Altar"), F.State.Seats[2].TileId, Altar);
+	const TArray<FMatchEvent> Expelled = Soulbound::Tests::EventsOfType(F.State, EMatchEventType::Expelled);
+	TestTrue(TEXT("Expelled del Eco: su casilla de origen en Detail"), !Expelled.IsEmpty() && Expelled.Last().Detail == Normal[1]);
 	F.FinishTurn();
 
 	// Quien ya está en su hogar no es objetivo: en el Altar, el Eco en carrera (su hogar) y el Elegido 1 (no lo es).

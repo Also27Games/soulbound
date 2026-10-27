@@ -8,6 +8,25 @@
 #include "Match/WardenEventRules.h"
 #include "Warden/WardenRules.h"
 
+FSimulationPace FSimulationPace::Fast()
+{
+	return FSimulationPace();
+}
+
+FSimulationPace FSimulationPace::Human()
+{
+	FSimulationPace Pace;
+	Pace.DestinationSeconds = 12.0;
+	Pace.DestinationJitterSeconds = 4.0;
+	Pace.ChoiceSeconds = 6.0;
+	Pace.ChoiceJitterSeconds = 2.0;
+	Pace.TrialSeconds = 8.0;
+	Pace.DuelSeconds = 8.0;
+	Pace.OracleSeconds = 3.0;
+	Pace.VoteSeconds = 4.0;
+	return Pace;
+}
+
 namespace
 {
 	/** Respuesta de un decisor que todavía no ha llegado: qué destino confirmará y cuándo. */
@@ -249,7 +268,7 @@ FSimulationResult FMatchSimulation::Run()
 	// El registro se lee como una crónica: una línea por turno, por destino y por intervención del Warden.
 	Result.Log.Add(FString::Printf(TEXT("Partida | semilla %d | orden de turno %s | %d casillas | reloj de turno %.0f s | respuesta del decisor %.0f s"),
 		Params.Seed, *FString::JoinBy(State.TurnOrder, TEXT(", "), [](int32 Seat) { return FString::FromInt(Seat); }),
-		State.Board.Tiles.Num(), State.Params.TurnClockSeconds, Params.DummyResponseSeconds));
+		State.Board.Tiles.Num(), State.Params.TurnClockSeconds, Params.Pace.DestinationSeconds));
 
 	double NextTurnEvent = 0.0;
 	FPendingAnswer Pending;
@@ -614,7 +633,7 @@ FSimulationResult FMatchSimulation::Run()
 						return TNumericLimits<double>::Max();
 					}
 					Pending.bPending = true;
-					Pending.AtSeconds = Now + Params.DummyResponseSeconds;
+					Pending.AtSeconds = Now + Params.Pace.DestinationSeconds;
 					Pending.TileId = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid()
 						? Deciders[Seat]->ChooseDestination(State, Seat, State.ReachableOptions, DeciderRng)
 						: INDEX_NONE;

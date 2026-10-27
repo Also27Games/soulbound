@@ -7,6 +7,42 @@
 
 class IDecider;
 
+/**
+ * Ritmo de la simulación (S-018, decisión 1 del autor; nombre propuesto): cuántos segundos virtuales tarda un decisor en cada cosa. Es un
+ * parámetro del doble de prueba, no un dato de juego: va en código, con dos presets con nombre (decisión del autor del 27/10/2026). Cada
+ * respuesta llega a su hora o a la mitad de lo que queda de su plazo, lo que ocurra antes (decisión del autor del 27/10/2026): así un
+ * dummy nunca agota un plazo ni es insolente, sea cual sea el ritmo. Un tiempo de 0 es "en el acto", como hasta S-018.
+ */
+struct SOULBOUNDCORE_API FSimulationPace
+{
+	/** Confirmar destino desde que tiene la tirada, y su variación (uniforme, ± segundos). */
+	double DestinationSeconds = 5.0;
+	double DestinationJitterSeconds = 0.0;
+	/** Contestar una elección pendiente (dados, repetir, salto, acción, trilero, Desvío, las de un evento), y su variación. */
+	double ChoiceSeconds = 0.0;
+	double ChoiceJitterSeconds = 0.0;
+	/** Entregar el resultado de una prueba de habilidad (Fuente, Vacío, Prueba del Warden, desafío final). */
+	double TrialSeconds = 0.0;
+	/** Entregar los dos rendimientos de un duelo. */
+	double DuelSeconds = 0.0;
+	/** Consultar el Oráculo (o rechazar, Tifón). */
+	double OracleSeconds = 0.0;
+	/** Votar, todos a la vez, en orden de asiento. */
+	double VoteSeconds = 0.0;
+
+	/** Ritmo rápido, el de siempre: destino a los 5 s (S-003) y todo lo demás en el acto. El de los tests automáticos. */
+	static FSimulationPace Fast();
+
+	/**
+	 * Ritmo humano: destino 12 s ± 4, elección 6 s ± 2, prueba y duelo 8 s, consulta 3 s, voto 4 s. Valores iniciales de la story, para
+	 * ajustar cuando el test de usabilidad diga cuánto tarda una persona.
+	 */
+	static FSimulationPace Human();
+
+	/** Si alguna espera tiene variación: solo entonces se saca algo del generador del ritmo. */
+	bool HasJitter() const { return DestinationJitterSeconds > 0.0 || ChoiceJitterSeconds > 0.0; }
+};
+
 struct SOULBOUNDCORE_API FSimulationParams
 {
 	/**
@@ -31,10 +67,11 @@ struct SOULBOUNDCORE_API FSimulationParams
 	/** Parámetros del Warden ya cargados (LoadWardenParamsFromFile), los de Content/Data/Warden/warden.json. S-016. */
 	FWardenParams WardenParams;
 	/**
-	 * Segundos virtuales que tarda un decisor en confirmar destino desde que tiene la tirada. Un dummy responde al
-	 * instante; este retardo da a la partida turnos de duración creíble. Valor inicial 5 s (S-003).
+	 * Ritmo de los decisores (S-018): cuánto tardan en cada cosa. Por defecto el rápido (destino a los 5 s, S-003, y lo demás en el acto),
+	 * que usan los tests automáticos. Sustituye a DummyResponseSeconds. La variación del humano sale de un generador propio con semilla
+	 * Seed + 4 (Seed + 3 es la del reparto de hogares); el rápido no saca nada de él.
 	 */
-	double DummyResponseSeconds = 5.0;
+	FSimulationPace Pace = FSimulationPace::Fast();
 	/** Tablero ya cargado y validado (LoadBoardFromFile). La simulación no carga archivos. */
 	FBoardState Board;
 	/** Parámetros de partida ya cargados (LoadMatchParamsFromFile). */

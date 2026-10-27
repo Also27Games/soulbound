@@ -165,6 +165,105 @@ namespace
 	{
 		return Soulbound::Tests::EventsOfType(State, Type).Num();
 	}
+
+	/** Los dos ritmos del informe (S-018), con el nombre de su bloque. */
+	const TArray<TPair<const TCHAR*, FSimulationPace>>& ReportPaces()
+	{
+		static const TArray<TPair<const TCHAR*, FSimulationPace>> Paces = {{TEXT("rápido"), FSimulationPace::Fast()}, {TEXT("humano"), FSimulationPace::Human()}};
+		return Paces;
+	}
+
+	/** Cabecera del bloque del informe de un tablero con un ritmo (S-018): así lo encuentran CA-SIM-2 y quien lee. */
+	FString ReportHeader(const FString& BoardFile, const TCHAR* PaceName)
+	{
+		return FString::Printf(TEXT("Informe | %s | ritmo %s"), *BoardFile, PaceName);
+	}
+
+	/** Comienzos de las líneas nuevas de cada bloque del informe (S-018, CA-SIM-2). */
+	const TArray<const TCHAR*>& NewReportLines()
+	{
+		static const TArray<const TCHAR*> Lines = {
+			TEXT("    resultado: "),
+			TEXT("    victoria de un jugador, minuto medio: "),
+			TEXT("    desafíos finales por partida: "),
+			TEXT("    aspirantes que no llegan a desafiar, por partida: "),
+			TEXT("    Expulsiones desde el Altar: "),
+		};
+		return Lines;
+	}
+
+	/**
+	 * CA-SIM-2: el informe tiene un bloque por tablero y por ritmo, y cada bloque, las líneas nuevas. Un bloque va de su cabecera a la
+	 * siguiente línea sin sangría.
+	 */
+	void CheckReportBlocks(FAutomationTestBase& Test, const TArray<FString>& Lines, const TArray<FString>& Boards)
+	{
+		for (const FString& Board : Boards)
+		{
+			for (const TPair<const TCHAR*, FSimulationPace>& Pace : ReportPaces())
+			{
+				const FString Header = ReportHeader(Board, Pace.Key);
+				const int32 Start = Lines.IndexOfByPredicate([&Header](const FString& Line) { return Line.StartsWith(Header); });
+				if (!Test.TestTrue(FString::Printf(TEXT("Hay bloque de %s con ritmo %s"), *Board, Pace.Key), Start != INDEX_NONE))
+				{
+					continue;
+				}
+				int32 End = Start + 1;
+				while (End < Lines.Num() && Lines[End].StartsWith(TEXT("    ")))
+				{
+					++End;
+				}
+				for (const TCHAR* Prefix : NewReportLines())
+				{
+					bool bFound = false;
+					for (int32 Index = Start + 1; Index < End && !bFound; ++Index)
+					{
+						bFound = Lines[Index].StartsWith(Prefix);
+					}
+					Test.TestTrue(FString::Printf(TEXT("%s: línea \"%s\""), *Header, *FString(Prefix).TrimStart()), bFound);
+				}
+			}
+		}
+	}
+
+	/** Segundos entre cada evento From y el siguiente To del registro: cuánto tardó lo que el primero abre. */
+	TArray<double> GapsBetween(const FMatchState& State, EMatchEventType From, EMatchEventType To)
+	{
+		TArray<double> Gaps;
+		double Opened = -1.0;
+		for (const FMatchEvent& Event : State.EventLog)
+		{
+			if (Event.Type == From)
+			{
+				Opened = Event.ClockSeconds;
+			}
+			else if (Event.Type == To && Opened >= 0.0)
+			{
+				Gaps.Add(Event.ClockSeconds - Opened);
+				Opened = -1.0;
+			}
+		}
+		return Gaps;
+	}
+
+	/** Duración media de los turnos jugados de una partida: de cada TurnStarted a su TurnEnded. */
+	void AddTurnDurations(const FMatchState& State, double& Sum, int32& Count)
+	{
+		double Started = -1.0;
+		for (const FMatchEvent& Event : State.EventLog)
+		{
+			if (Event.Type == EMatchEventType::TurnStarted)
+			{
+				Started = Event.ClockSeconds;
+			}
+			else if (Event.Type == EMatchEventType::TurnEnded && Started >= 0.0)
+			{
+				Sum += Event.ClockSeconds - Started;
+				++Count;
+				Started = -1.0;
+			}
+		}
+	}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationDeterminismTest,
@@ -233,7 +332,7 @@ bool FMatchSimulationDeterminismTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Hay tiradas con los mismos dados que comparar"), Compared > 0);
 	TestFalse(TEXT("Y la partida es otra: el decisor distinto sí cambia los destinos"), Soulbound::Tests::SameState(A.FinalState, Other.FinalState));
 
-	// Los turnos no son una constante: salen de los parámetros. El dummy confirma a los DummyResponseSeconds de
+	// Los turnos no son una constante: salen de los parámetros. El dummy confirma a los Pace.DestinationSeconds (S-018) de
 	// empezar su turno, antes del reloj de turno, así que caben duración entre respuesta (margen de uno por redondeo).
 	// Hasta S-003 aquí se exigían 80 turnos: el turno de mentira del spike duraba TurnPeriodSeconds (30 s). Desde S-010 se
 	// descuenta el tiempo de los trileros: cada uno alarga su turno la muestra y la mezcla (la esfera, el dummy la elige al
@@ -243,7 +342,7 @@ bool FMatchSimulationDeterminismTest::RunTest(const FString& Parameters)
 		* (Params.MatchParams.ShellRevealSeconds + Params.MatchParams.ShellShuffleSeconds);
 	const double PlayedSeconds = A.FinalState.IsMatchOver() ? A.FinalState.ClockSeconds : Params.DurationSeconds;
 	const int32 FailedChallenges = Soulbound::Tests::EventsOfType(A.FinalState, EMatchEventType::FinalChallengeFailed).Num();
-	const double ExpectedTurns = (PlayedSeconds - ShellSeconds) / Params.DummyResponseSeconds + FailedChallenges;
+	const double ExpectedTurns = (PlayedSeconds - ShellSeconds) / Params.Pace.DestinationSeconds + FailedChallenges;
 	TestTrue(TEXT("Se juegan turnos"), A.Turns > 0);
 	TestTrue(FString::Printf(TEXT("Turnos derivados de los parametros: %d frente a %.1f"), A.Turns, ExpectedTurns), FMath::Abs(A.Turns - ExpectedTurns) <= 1.0);
 	// Hasta S-015 aquí se exigía una evaluación del cerebro del spike cada 15 s y alguna intervención; apagado, ninguna.
@@ -776,6 +875,9 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 		Lines.Add(FString::Printf(TEXT("    tiempo real: %.3f s en total"), WallSum));
 	}
 
+	// CA-SIM-2 (S-018): un bloque por tablero y por ritmo, cada uno con las líneas nuevas.
+	CheckReportBlocks(*this, Lines, Boards);
+
 	if (FPlatformMisc::GetEnvironmentVariable(TEXT("SOULBOUND_INFORME")) == TEXT("1"))
 	{
 		for (const FString& Line : Lines)
@@ -1093,6 +1195,90 @@ bool FMatchSimulationEndingTest::RunTest(const FString& Parameters)
 			State.Outcome == EMatchOutcome::PlayerVictory ? *FString::Printf(TEXT("gana el asiento %d"), State.WinnerSeat) : TEXT("gana el Warden"),
 			State.ClockSeconds / 60.0, CountEvents(State, EMatchEventType::FinalChallengeStarted)));
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationHumanPaceTest,
+	"Soulbound.Core.Simulation.RitmoHumano",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationHumanPaceTest::RunTest(const FString& Parameters)
+{
+	// CA-SIM-1 (S-018, decisión 1 del autor): con el ritmo humano, 50 partidas: todos los decisores responden dentro de sus relojes
+	// (insolencia 0 en todos los asientos y ningún plazo agotado), la partida es reproducible por semilla (dos veces, el mismo registro), y
+	// los turnos duran más que con el ritmo rápido. Además, cada espera dura lo de su perfil: el duelo 8 s, la votación 4 s y la consulta
+	// 3 s (las tres caben en la mitad de su plazo, o no tienen plazo), y el desafío final 8 s. Cuatro dummies de carrera sobre el tablero de
+	// 35 casillas, con el Warden; semillas fijas 1 a 50.
+	constexpr int32 Games = 50;
+	const FSimulationPace Human = FSimulationPace::Human();
+	double HumanTurns = 0.0;
+	double FastTurns = 0.0;
+	int32 HumanCount = 0;
+	int32 FastCount = 0;
+	TMap<FString, int32> Samples;
+	for (int32 Seed = 1; Seed <= Games; ++Seed)
+	{
+		FSimulationParams Params;
+		if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), Seed, Params))
+		{
+			return false;
+		}
+		const FSimulationResult Fast = FMatchSimulation(Params, FourRaceDummies()).Run();
+		AddTurnDurations(Fast.FinalState, FastTurns, FastCount);
+
+		Params.Pace = Human;
+		const FSimulationResult A = FMatchSimulation(Params, FourRaceDummies()).Run();
+		const FSimulationResult B = FMatchSimulation(Params, FourRaceDummies()).Run();
+		const FMatchState& State = A.FinalState;
+		AddTurnDurations(State, HumanTurns, HumanCount);
+		TestTrue(FString::Printf(TEXT("Semilla %d: dos veces, el mismo registro"), Seed), A.Log == B.Log && Soulbound::Tests::SameState(A.FinalState, B.FinalState));
+		for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
+		{
+			TestEqual(FString::Printf(TEXT("Semilla %d: insolencia 0 en el asiento %d"), Seed, Seat), State.Seats[Seat].Insolence, 0);
+		}
+		for (const EMatchEventType Type : {EMatchEventType::TurnClockExpired, EMatchEventType::ChoiceExpired, EMatchEventType::ShellGameExpired,
+			EMatchEventType::WardenIgnored, EMatchEventType::OracleIgnored})
+		{
+			TestEqual(FString::Printf(TEXT("Semilla %d: ningún plazo agotado (evento %d)"), Seed, static_cast<int32>(Type)), CountEvents(State, Type), 0);
+		}
+		TestEqual(FString::Printf(TEXT("Semilla %d: ningún voto al azar"), Seed),
+			Soulbound::Tests::EventsOfType(State, EMatchEventType::VoteCast).FilterByPredicate([](const FMatchEvent& Event) { return Event.Detail == 1; }).Num(), 0);
+
+		// Cada espera, lo de su perfil.
+		struct FWait
+		{
+			const TCHAR* Name;
+			EMatchEventType From;
+			EMatchEventType To;
+			double Seconds;
+		};
+		const FWait Waits[] = {
+			{TEXT("duelo"), EMatchEventType::DuelChallenged, EMatchEventType::DuelWon, Human.DuelSeconds},
+			{TEXT("votación"), EMatchEventType::VoteStarted, EMatchEventType::VoteResolved, Human.VoteSeconds},
+			{TEXT("consulta"), EMatchEventType::OracleOpened, EMatchEventType::OracleSentence, Human.OracleSeconds},
+			{TEXT("desafío superado"), EMatchEventType::FinalChallengeStarted, EMatchEventType::MatchWon, Human.TrialSeconds},
+			{TEXT("desafío fallado"), EMatchEventType::FinalChallengeStarted, EMatchEventType::FinalChallengeFailed, Human.TrialSeconds},
+		};
+		for (const FWait& Wait : Waits)
+		{
+			for (const double Gap : GapsBetween(State, Wait.From, Wait.To))
+			{
+				Samples.FindOrAdd(Wait.Name) += 1;
+				if (!FMath::IsNearlyEqual(Gap, Wait.Seconds, 1e-6))
+				{
+					AddError(FString::Printf(TEXT("Semilla %d: %s de %.3f s, no de %.1f s"), Seed, Wait.Name, Gap, Wait.Seconds));
+				}
+			}
+		}
+	}
+	for (const TCHAR* Name : {TEXT("duelo"), TEXT("votación"), TEXT("consulta")})
+	{
+		TestTrue(FString::Printf(TEXT("Hay esperas de %s que medir"), Name), Samples.FindRef(Name) > 0);
+	}
+	const double HumanMean = HumanCount > 0 ? HumanTurns / HumanCount : 0.0;
+	const double FastMean = FastCount > 0 ? FastTurns / FastCount : 0.0;
+	AddInfo(FString::Printf(TEXT("Turno medio: %.1f s con el ritmo humano, %.1f s con el rápido"), HumanMean, FastMean));
+	TestTrue(TEXT("Con el ritmo humano los turnos duran más"), HumanMean > FastMean);
 	return true;
 }
 
