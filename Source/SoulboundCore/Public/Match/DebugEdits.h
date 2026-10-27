@@ -35,6 +35,8 @@ enum class EDebugEditKind : uint8
 	SetInsolence,
 	/** Lanzar un evento del Warden como golpe, cortando el turno en curso (S-020, SbStrike). */
 	StrikeEvent,
+	/** Adelantar el reloj de partida (S-018, SbClock). */
+	SetClock,
 };
 
 /** Resultado de una edición de depuración (S-011, nombre propuesto). Solo Applied cambia el estado. */
@@ -180,4 +182,12 @@ namespace Soulbound::Debug
 	 * InvalidAmount (nivel fuera de rango) sin tocar nada, o Applied.
 	 */
 	SOULBOUNDCORE_API EDebugEditResult SetInsolence(FMatchState& State, int32 Seat, int32 Level, double NowSeconds);
+
+	/**
+	 * Adelanta el reloj de partida a Seconds (S-018, SbClock): deja el evento de la edición en NowSeconds y pone FMatchState::ClockSeconds en
+	 * Seconds; lo que venza por ello (fin de carrera, evaluaciones del Warden, fin de partida) lo aplica la máquina de turnos y el anfitrión
+	 * en su siguiente paso, como si el tiempo hubiera pasado. Solo hacia delante (decisión del autor del 27/10/2026): un Seconds menor que
+	 * NowSeconds desordenaría el registro y se rechaza con InvalidAmount, sin cambiar nada. El reloj del anfitrión lo mueve el anfitrión.
+	 */
+	SOULBOUNDCORE_API EDebugEditResult SetClock(FMatchState& State, double Seconds, double NowSeconds);
 }

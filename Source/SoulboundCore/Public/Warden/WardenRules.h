@@ -25,7 +25,8 @@ namespace Soulbound::Rules
 	/**
 	 * Evalúa y aplica (R-WAR-1, R-WAR-10): saca un sorteo del Warden (WardenDraw), pide la decisión al cerebro, registra
 	 * WardenEvaluated y WardenDecided, guarda el instante siguiente o el aplazamiento y aplica (ApplyWardenDecision).
-	 * MatchRandom: el sorteo de la partida, solo para el consumo fijo de un turno cortado. Devuelve la decisión.
+	 * MatchRandom: el sorteo de la partida, solo para el consumo fijo de un turno cortado. Devuelve la decisión. Desde S-018, con la
+	 * partida terminada no evalúa: no saca sorteo, no registra nada y devuelve una decisión vacía.
 	 */
 	SOULBOUNDCORE_API FWardenDecision EvaluateWarden(FMatchState& State, double NowSeconds, FRandomStream& MatchRandom);
 

@@ -56,3 +56,16 @@ void FStepClock::Disable(double WorldNow)
 {
 	Resume(WorldNow);
 }
+
+void FStepClock::Skip(double DeltaSeconds)
+{
+	if (DeltaSeconds <= 0.0)
+	{
+		return;
+	}
+	OriginWorldSeconds -= DeltaSeconds;
+	if (bHeld)
+	{
+		FrozenMatchSeconds += DeltaSeconds;
+	}
+}

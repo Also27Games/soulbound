@@ -9,6 +9,7 @@
 #include "Match/MatchEvents.h"
 #include "Match/OracleRules.h"
 #include "Match/ShellGameRules.h"
+#include "Match/VictoryRules.h"
 #include "Match/VoidRules.h"
 #include "Match/WardenEventRules.h"
 #include "Math/RandomStream.h"
@@ -284,6 +285,19 @@ namespace
 			return;
 		}
 		EnterPreRoll(State);
+	}
+
+	/**
+	 * Start → desafío final (R-VIC-1, R-MIN-12, S-018): el aspirante juega la prueba final en vez del turno, en la fase SkillTrial de siempre
+	 * y con la dificultad de los datos, sin tirada y sin tocar el sorteo de los dados. Va antes de la Prueba del Warden, que sigue pendiente
+	 * para su siguiente turno jugado (decisión del autor del 27/10/2026). Sin plazo, como el resto de minijuegos (TODO(R-MIN)).
+	 */
+	void EnterFinalChallenge(FMatchState& State, double NowSeconds)
+	{
+		State.PendingTrial = ESkillTrial::FinalChallenge;
+		State.PendingDifficulty = State.Params.FinalChallengeDifficulty;
+		State.TurnPhase = ETurnPhase::SkillTrial;
+		LogEvent(State, EMatchEventType::FinalChallengeStarted, NowSeconds, State.ActiveSeat, static_cast<int32>(State.PendingDifficulty));
 	}
 
 	/**
@@ -570,6 +584,56 @@ namespace
 		LeaveEnd(State, NowSeconds, Random);
 	}
 
+	/**
+	 * Si hay un turno en curso (S-018): empezado y sin terminar. Un duelo o un trilero de un evento del Warden entre turnos no es de ningún
+	 * turno; el de una sentencia del Oráculo de un Nodo, sí (FinishAction).
+	 */
+	bool IsTurnInProgress(const FMatchState& State)
+	{
+		switch (State.TurnPhase)
+		{
+		case ETurnPhase::BetweenTurns:
+		case ETurnPhase::End:
+			return false;
+		case ETurnPhase::Duel:
+		case ETurnPhase::ShellGame:
+			return !(State.CurrentEvent.IsActive() && State.CurrentEvent.bWaitsForAction) || IsApplyingSentenceInTurn(State);
+		default:
+			return true;
+		}
+	}
+
+	/**
+	 * El fin de la partida por tiempo (R-VIC-4, R-WAR-4b, decisión 4 de la story): corta todo en ese instante, esté como esté, también un
+	 * duelo, un trilero, una consulta, una votación o un desafío final a medias, sin resolver nada y sin que cambie de manos ninguna runa.
+	 * El turno en curso queda TurnInterrupted (Detail MatchEndCut) y termina (TurnEnded), sin pasar por LeaveEnd: ni castigos pendientes, ni
+	 * siguiente asiento, ni dados (decisión del autor del 27/10/2026). Entre turnos, solo se descarta lo que hubiera en curso. Después, la
+	 * victoria del Warden por tiempo. No hay insolencia por nada de lo descartado.
+	 */
+	void EndMatchOnTime(FMatchState& State, double NowSeconds)
+	{
+		if (IsTurnInProgress(State))
+		{
+			LogEvent(State, EMatchEventType::TurnInterrupted, NowSeconds, State.ActiveSeat, static_cast<int32>(State.TurnPhase), INDEX_NONE, Soulbound::Match::MatchEndCut);
+			EnterEnd(State, NowSeconds);
+		}
+		CloseChoice(State);
+		State.Movement = FMovementState();
+		State.PendingTrial = ESkillTrial::None;
+		State.Duel = FDuelState();
+		State.ShellGame = FShellGameState();
+		State.Oracle = FOracleState();
+		State.Vote = FVoteState();
+		State.CurrentEvent = FCurrentWardenEvent();
+		State.Warden.PendingScene = INDEX_NONE;
+		State.TurnPhase = ETurnPhase::BetweenTurns;
+		State.DiceCount = 0;
+		State.Roll = 0;
+		State.ReachableOptions.Reset();
+		State.bRerollValuesPending = false;
+		Soulbound::Rules::DeclareWardenVictory(State, EMatchEndReason::TimeOut, NowSeconds);
+	}
+
 	/** La consulta, sin sentencia ni consultante; las forzadas que esperan, se quedan. */
 	void ClearOracle(FMatchState& State)
 	{
@@ -718,18 +782,14 @@ namespace Soulbound::Rules
 		return Sum;
 	}
 
-	bool AdvanceTurn(FMatchState& State, double NowSeconds, FRandomStream& Random)
+	/** Una fase del turno: lo que hace AdvanceTurn después del fin por tiempo y entre los dos anuncios de aspirantes (S-018). */
+	static bool AdvanceTurnPhase(FMatchState& State, double NowSeconds, FRandomStream& Random)
 	{
-		// R-CAR-8: con la partida terminada, la máquina de turnos no avanza más.
-		if (!HasTurnOrder(State) || State.IsMatchOver())
-		{
-			return false;
-		}
 		// R-PRO-0, R-PRO-3, R-WAR-4b (S-017): el fin de la carrera corta el turno en curso en ese instante, y después termina la
 		// carrera (LeaveEnd). En un duelo, un trilero, un minijuego o una consulta no se corta: el fin espera a que acaben (R-WAR-4d).
 		if (IsBondRaceDue(State, NowSeconds) && CanInterruptTurn(State))
 		{
-			CutTurn(State, NowSeconds, Random, 1);
+			CutTurn(State, NowSeconds, Random, Soulbound::Match::RaceEndCut);
 			return true;
 		}
 		switch (State.TurnPhase)
@@ -794,6 +854,12 @@ namespace Soulbound::Rules
 			if (State.Seats[State.ActiveSeat].IsInVoid())
 			{
 				EnterVoidTurn(State, NowSeconds);
+				return true;
+			}
+			// R-VIC-1 (S-018): el aspirante juega el desafío final en vez del turno. Quien está en el Vacío no está en el Altar.
+			if (IsAspirant(State, State.ActiveSeat))
+			{
+				EnterFinalChallenge(State, NowSeconds);
 				return true;
 			}
 			// R-EFE-10: la Prueba del Warden pendiente, antes de tirar y después de la salida del Vacío.
@@ -883,7 +949,7 @@ namespace Soulbound::Rules
 			// R-PRO-0 (S-017): con el último Nicho reclamado, la carrera termina cortando el turno en ese instante, sin salto ni acción.
 			if (IsBondRaceDue(State, NowSeconds))
 			{
-				CutTurn(State, NowSeconds, Random, 1);
+				CutTurn(State, NowSeconds, Random, Soulbound::Match::RaceEndCut);
 				return true;
 			}
 			// R-RUN-2: la Fuente se resuelve junto al Nicho, solo si el asiento se ha movido (R-RUN-3). Si un Elegido debe
@@ -929,9 +995,36 @@ namespace Soulbound::Rules
 		return false;
 	}
 
+	bool AdvanceTurn(FMatchState& State, double NowSeconds, FRandomStream& Random)
+	{
+		// R-CAR-8: con la partida terminada, la máquina de turnos no avanza más. Desde S-018, tampoco tras la victoria de un jugador.
+		if (!HasTurnOrder(State) || State.IsMatchOver())
+		{
+			return false;
+		}
+		// R-VIC-4, R-WAR-4b (S-018): el fin por tiempo, antes de cualquier otra cosa, también del fin de la carrera. Solo aquí se mira el
+		// reloj de partida (decisión del autor del 27/10/2026): una intención que llega en el instante del fin, antes de esta llamada, vale.
+		if (IsMatchEndDue(State, NowSeconds))
+		{
+			EndMatchOnTime(State, NowSeconds);
+			return true;
+		}
+		// R-PRO-4 (S-018): los aspirantes se anuncian al principio y al final de cada llamada (decisión del autor del 27/10/2026): así el
+		// anuncio va antes de su desafío, venga la condición de una runa, un movimiento, un evento o una edición de depuración.
+		const bool bAnnouncedBefore = SyncAspirants(State, NowSeconds);
+		const bool bChanged = AdvanceTurnPhase(State, NowSeconds, Random);
+		const bool bAnnouncedAfter = SyncAspirants(State, NowSeconds);
+		return bChanged || bAnnouncedBefore || bAnnouncedAfter;
+	}
+
 	EIntentResult SubmitDestinationIntent(FMatchState& State, int32 Seat, int32 TileId, double NowSeconds)
 	{
-		// Glosario "Intención": asiento correcto, fase correcta, casilla alcanzable; si no, se descarta sin castigo.
+		// Glosario "Intención": asiento correcto, fase correcta, casilla alcanzable; si no, se descarta sin castigo. Con la partida
+		// terminada (S-018), ninguna intención se acepta.
+		if (State.IsMatchOver())
+		{
+			return EIntentResult::WrongPhase;
+		}
 		if (!HasTurnOrder(State) || Seat != State.ActiveSeat)
 		{
 			return EIntentResult::WrongSeat;
@@ -973,6 +1066,10 @@ namespace Soulbound::Rules
 	EIntentResult SubmitMoveProgress(FMatchState& State, int32 Seat, int32 TileId, double NowSeconds)
 	{
 		// Glosario "Intención": asiento, fase y la siguiente casilla del camino; si no, se descarta sin castigo.
+		if (State.IsMatchOver())
+		{
+			return EIntentResult::WrongPhase;
+		}
 		if (!HasTurnOrder(State) || Seat != State.ActiveSeat)
 		{
 			return EIntentResult::WrongSeat;
@@ -991,6 +1088,10 @@ namespace Soulbound::Rules
 
 	EIntentResult SubmitSkillTrialResult(FMatchState& State, int32 Seat, bool bPassed, double NowSeconds)
 	{
+		if (State.IsMatchOver())
+		{
+			return EIntentResult::WrongPhase;
+		}
 		if (!HasTurnOrder(State) || Seat != State.ActiveSeat)
 		{
 			return EIntentResult::WrongSeat;
@@ -1009,6 +1110,15 @@ namespace Soulbound::Rules
 				EnterPreRoll(State);
 			}
 			else
+			{
+				EnterEnd(State, NowSeconds);
+			}
+			return EIntentResult::Accepted;
+		}
+		if (State.PendingTrial == ESkillTrial::FinalChallenge)
+		{
+			// R-VIC-2: superado, gana y la partida termina; R-VIC-3: fallado, el turno termina sin tirada y sin consumir el sorteo.
+			if (!Soulbound::Rules::ApplyFinalChallengeResult(State, Seat, bPassed, NowSeconds))
 			{
 				EnterEnd(State, NowSeconds);
 			}
@@ -1033,6 +1143,10 @@ namespace Soulbound::Rules
 		// Glosario "Intención": asiento, tipo de elección, plazo y opción; si no vale, se descarta sin castigo. El asiento es
 		// el de la elección abierta, que puede no tener el turno (S-010: Koschei víctima); sin elección, el activo.
 		const FPendingChoice& Choice = State.PendingChoice;
+		if (State.IsMatchOver())
+		{
+			return EIntentResult::WrongPhase;
+		}
 		if (!HasTurnOrder(State) || Seat != (Choice.IsOpen() ? Choice.Seat : State.ActiveSeat))
 		{
 			return EIntentResult::WrongSeat;
@@ -1140,7 +1254,7 @@ namespace Soulbound::Rules
 	{
 		// Glosario "Intención": fase, asiento y valor; si no vale, se descarta sin castigo y sin tocar el estado.
 		const FDuelState& Duel = State.Duel;
-		if (!HasTurnOrder(State) || State.TurnPhase != ETurnPhase::Duel || !Duel.IsActive())
+		if (!HasTurnOrder(State) || State.IsMatchOver() || State.TurnPhase != ETurnPhase::Duel || !Duel.IsActive())
 		{
 			return EIntentResult::WrongPhase;
 		}
@@ -1306,7 +1420,7 @@ namespace Soulbound::Rules
 	{
 		// Glosario "Intención": consulta abierta, su consultante y su plazo; si no, se descarta sin castigo y sin tocar nada.
 		const FOracleState& Oracle = State.Oracle;
-		if (!HasTurnOrder(State) || !Oracle.IsWaiting())
+		if (!HasTurnOrder(State) || State.IsMatchOver() || !Oracle.IsWaiting())
 		{
 			return EIntentResult::WrongPhase;
 		}
@@ -1326,7 +1440,7 @@ namespace Soulbound::Rules
 	EIntentResult SubmitOracleRefuse(FMatchState& State, int32 Seat, double NowSeconds)
 	{
 		FOracleState& Oracle = State.Oracle;
-		if (!HasTurnOrder(State) || !Oracle.IsWaiting())
+		if (!HasTurnOrder(State) || State.IsMatchOver() || !Oracle.IsWaiting())
 		{
 			return EIntentResult::WrongPhase;
 		}
@@ -1364,7 +1478,7 @@ namespace Soulbound::Rules
 	{
 		// Glosario "Intención": votación abierta, asiento, un voto por asiento, plazo y votado; si no, se descarta sin castigo.
 		FVoteState& Vote = State.Vote;
-		if (!Vote.IsOpen())
+		if (State.IsMatchOver() || !Vote.IsOpen())
 		{
 			return EIntentResult::WrongPhase;
 		}

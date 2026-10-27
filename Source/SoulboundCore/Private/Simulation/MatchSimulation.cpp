@@ -55,6 +55,11 @@ namespace
 		case ETurnPhase::RollAndChoose: return TEXT("RollAndChoose, eligiendo destino");
 		case ETurnPhase::Moving: return TEXT("Moving, a medio camino");
 		case ETurnPhase::MoveAndResolve: return TEXT("MoveAndResolve, tras mover");
+		// S-018: el fin de la partida corta también lo que el Warden no corta.
+		case ETurnPhase::SkillTrial: return TEXT("SkillTrial, en un minijuego");
+		case ETurnPhase::Duel: return TEXT("Duel, en un duelo");
+		case ETurnPhase::ShellGame: return TEXT("ShellGame, en un trilero");
+		case ETurnPhase::OracleConsult: return TEXT("OracleConsult, ante el Oráculo");
 		default: return TEXT("?");
 		}
 	}
@@ -128,7 +133,8 @@ namespace
 				TurnAct = ActAt(Event.ClockSeconds);
 				++Acts[TurnAct].TurnsStarted;
 			}
-			else if (Event.Type == EMatchEventType::TurnInterrupted)
+			// S-018: el corte del fin de partida no es una decisión del Warden ni cambia el ritmo de nadie: no cuenta.
+			else if (Event.Type == EMatchEventType::TurnInterrupted && Event.Detail != Soulbound::Match::MatchEndCut)
 			{
 				++Acts[TurnAct].TurnsCut;
 			}
@@ -300,7 +306,27 @@ FSimulationResult FMatchSimulation::Run()
 			}
 			else if (Event.Type == EMatchEventType::WardenVictory)
 			{
-				Result.Log.Add(FString::Printf(TEXT("%s Victoria del Warden: nadie se ha vinculado"), *Stamp(Event.ClockSeconds)));
+				// S-018: con el motivo, nadie vinculado o el tiempo.
+				Result.Log.Add(FString::Printf(TEXT("%s Victoria del Warden: %s"), *Stamp(Event.ClockSeconds),
+					Event.Value == static_cast<int32>(EMatchEndReason::TimeOut) ? TEXT("se acaba el tiempo") : TEXT("nadie se ha vinculado")));
+			}
+			// S-018: el aspirante, el desafío final y la victoria de un jugador.
+			else if (Event.Type == EMatchEventType::AspirantAnnounced)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d, ASPIRANTE: en el Altar con los seis tipos de runa"), *Stamp(Event.ClockSeconds), Event.Seat));
+			}
+			else if (Event.Type == EMatchEventType::FinalChallengeStarted)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s DESAFÍO FINAL | asiento %d, en vez de su turno"), *Stamp(Event.ClockSeconds), Event.Seat));
+			}
+			else if (Event.Type == EMatchEventType::FinalChallengeFailed)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d falla el desafío final (al azar): el Warden le arranca la runa del Dominio %d y lo manda a casa"),
+					*Stamp(Event.ClockSeconds), Event.Seat, Event.Value));
+			}
+			else if (Event.Type == EMatchEventType::MatchWon)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s VICTORIA del asiento %d: supera el desafío final (al azar)"), *Stamp(Event.ClockSeconds), Event.Seat));
 			}
 			else if (Event.Type == EMatchEventType::BondRaceEnded)
 			{
@@ -394,9 +420,10 @@ FSimulationResult FMatchSimulation::Run()
 			}
 			else if (Event.Type == EMatchEventType::TurnInterrupted)
 			{
-				// S-017: también lo corta el fin de la carrera (Detail 1).
+				// S-017: también lo corta el fin de la carrera (Detail 1); S-018, el fin de la partida (Detail 2).
 				Result.Log.Add(FString::Printf(TEXT("%s    %s corta el turno del asiento %d en %s"), *Stamp(Event.ClockSeconds),
-					Event.Detail == 1 ? TEXT("el fin de la carrera") : TEXT("el Warden"), Event.Seat, PhaseName(Event.Value)));
+					Event.Detail == Soulbound::Match::RaceEndCut ? TEXT("el fin de la carrera") : Event.Detail == Soulbound::Match::MatchEndCut ? TEXT("el fin de la partida") : TEXT("el Warden"),
+					Event.Seat, PhaseName(Event.Value)));
 				// A medio camino (S-020) no hay línea de camino: el movimiento no llegó.
 				EnteredTiles.Reset();
 			}
@@ -675,7 +702,9 @@ FSimulationResult FMatchSimulation::Run()
 	};
 
 	// Bucle por sucesos: el reloj virtual salta al siguiente suceso, nunca avanza por fotogramas. Con la partida
-	// terminada (victoria del Warden, R-CAR-8) no queda nada que simular: ni turnos ni Warden.
+	// terminada (victoria del Warden, R-CAR-8; desde S-018 también la de un jugador y el fin por tiempo) no queda nada que simular:
+	// ni turnos ni Warden. Con Warden, la partida termina en matchEndSeconds (R-VIC-4): la máquina de turnos lo aplica al llamarla.
+	const double MatchEndAt = State.WardenParams.HasWarden() ? State.WardenParams.MatchEndSeconds : TNumericLimits<double>::Max();
 	while (!State.IsMatchOver())
 	{
 		// S-016 (R-WAR-1): el Warden evalúa en el instante que devolvió en la evaluación anterior, con el mismo contrato que el
@@ -688,6 +717,15 @@ FSimulationResult FMatchSimulation::Run()
 		}
 		const bool bEvaluationFirst = WardenAt <= NextTurnEvent;
 		const double Next = bEvaluationFirst ? WardenAt : NextTurnEvent;
+		// S-018 (R-VIC-4): el fin por tiempo llega antes que cualquier suceso a su hora o después, también una evaluación; corta lo que
+		// haya en marcha y la partida termina. Solo AdvanceTurn mira el reloj.
+		if (Next >= MatchEndAt && MatchEndAt <= Params.DurationSeconds)
+		{
+			State.ClockSeconds = FMath::Max(State.ClockSeconds, MatchEndAt);
+			Soulbound::Rules::AdvanceTurn(State, State.ClockSeconds, Rng);
+			LogNewEvents();
+			break;
+		}
 		if (Next > Params.DurationSeconds)
 		{
 			break;
@@ -726,7 +764,11 @@ FSimulationResult FMatchSimulation::Run()
 	}
 	Result.Furies = State.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::FuryUnleashed; }).Num();
 	Result.RaceEndCuts = State.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::TurnInterrupted && Event.Detail == 1; }).Num();
-	Result.Log.Add(FString::Printf(TEXT("Fin | %d turnos | %d evaluaciones del Warden | %d intervenciones"), Result.Turns, Result.Evaluations, Result.Interventions));
+	// S-018: el resultado, uno de los tres finales o ninguno (sin Warden, la partida no termina por tiempo).
+	const FString Outcome = State.Outcome == EMatchOutcome::PlayerVictory ? FString::Printf(TEXT("gana el asiento %d"), State.WinnerSeat)
+		: State.Outcome == EMatchOutcome::WardenVictory ? FString(State.EndReason == EMatchEndReason::TimeOut ? TEXT("gana el Warden por tiempo") : TEXT("gana el Warden: nadie vinculado"))
+		: FString(TEXT("sin resultado"));
+	Result.Log.Add(FString::Printf(TEXT("Fin | %s | %d turnos | %d evaluaciones del Warden | %d intervenciones"), *Outcome, Result.Turns, Result.Evaluations, Result.Interventions));
 	for (const int32 Seat : State.TurnOrder)
 	{
 		const FSeatState& SeatState = State.Seats[Seat];

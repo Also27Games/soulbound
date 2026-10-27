@@ -48,4 +48,10 @@ struct FStepClock
 
 	/** Sale del modo: si esperaba, reanuda el reloj; el paso concedido se retira (Resume). */
 	void Disable(double WorldNow);
+
+	/**
+	 * Adelanta el reloj de partida DeltaSeconds (S-018, SbClock): desplaza el origen y, si espera, también el segundo congelado. Con
+	 * un DeltaSeconds negativo no hace nada: el reloj de partida nunca va hacia atrás.
+	 */
+	void Skip(double DeltaSeconds);
 };

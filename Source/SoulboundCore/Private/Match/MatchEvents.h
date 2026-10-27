@@ -5,7 +5,7 @@
 
 // Cabecera privada del motor: la comparten las reglas que escriben en el registro de eventos (Match/TurnRules.cpp,
 // Match/BondRaceRules.cpp, Match/RuneRules.cpp, Match/ShellGameRules.cpp, Match/DuelRules.cpp y, desde S-013,
-// Match/VoidRules.cpp y Match/EffectRules.cpp; desde S-014, Match/WardenEventRules.cpp; desde S-016, Warden/WardenRules.cpp). No es API del módulo.
+// Match/VoidRules.cpp y Match/EffectRules.cpp; desde S-014, Match/WardenEventRules.cpp; desde S-016, Warden/WardenRules.cpp; desde S-018, Match/VictoryRules.cpp). No es API del módulo.
 namespace Soulbound::Rules
 {
 	/**

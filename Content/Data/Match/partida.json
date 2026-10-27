@@ -20,5 +20,6 @@
   "dilemmaClockPerOptionSeconds": 3,
   "shortChoiceClockSeconds": 6,
   "wardenTrialDifficulty": "normal",
-  "wardenDuelPerformance": 0.75
+  "wardenDuelPerformance": 0.75,
+  "finalChallengeDifficulty": "normal"
 }

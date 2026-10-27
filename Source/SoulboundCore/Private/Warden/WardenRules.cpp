@@ -32,6 +32,11 @@ namespace Soulbound::Rules
 
 	FWardenDecision EvaluateWarden(FMatchState& State, double NowSeconds, FRandomStream& MatchRandom)
 	{
+		// S-018: con la partida terminada (cualquiera de los tres finales), el cerebro no evalúa: ni sorteo ni registro.
+		if (State.IsMatchOver())
+		{
+			return FWardenDecision();
+		}
 		FRandomStream Draw = WardenDraw(State);
 		const FWardenDecision Decision = FWardenBrain().Evaluate(State, NowSeconds, Draw);
 		// R-WAR-10: cada evaluación y cada decisión dejan evento.

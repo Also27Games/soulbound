@@ -2,6 +2,7 @@
 
 #include "Match/EffectCatalog.h"
 #include "Match/MatchState.h"
+#include "Match/VictoryRules.h"
 
 namespace
 {
@@ -118,6 +119,11 @@ int32 FRaceDummyDecider::ChooseDestination(const FMatchState& State, int32 Seat,
 	{
 		Targets = FreeNiches(State.Board);
 	}
+	else if (State.MatchPhase == EMatchPhase::RuneHunt && Soulbound::Rules::RuneTypeCount(State.Seats[Seat]) == Soulbound::Board::DomainCount)
+	{
+		// S-018: con los seis tipos, al Altar, para que en la simulación haya aspirantes y victorias.
+		Targets = {State.Board.FindAltar()};
+	}
 	else if (State.MatchPhase == EMatchPhase::RuneHunt && State.Board.Phase == EBoardPhase::Awakened)
 	{
 		Targets = SourcesWhereSeatCanObtain(State, Seat);
@@ -128,7 +134,9 @@ int32 FRaceDummyDecider::ChooseDestination(const FMatchState& State, int32 Seat,
 
 bool FDummyDecider::PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng)
 {
-	return Rng.FRand() < Soulbound::Decider::DummySkillSuccessChance;
+	// S-018: el desafío final con su propia probabilidad; un solo valor del generador en los dos casos.
+	const double Chance = Trial == ESkillTrial::FinalChallenge ? Soulbound::Decider::DummyFinalChallengeSuccessChance : Soulbound::Decider::DummySkillSuccessChance;
+	return Rng.FRand() < Chance;
 }
 
 bool FRaceDummyDecider::PassSkillMinigame(const FMatchState& State, int32 Seat, ESkillTrial Trial, ESkillDifficulty Difficulty, FRandomStream& Rng)

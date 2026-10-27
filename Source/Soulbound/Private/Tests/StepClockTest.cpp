@@ -119,4 +119,26 @@ bool FStepClockWardenEventTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// S-018, criterio manual de SbClock: adelantar el reloj de partida lo desplaza, corra o espere, y nunca hacia atrás.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStepClockSkipTest, "Soulbound.Game.Match.PasoAPaso.AdelantarElReloj",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+bool FStepClockSkipTest::RunTest(const FString& Parameters)
+{
+	FStepClock Running;
+	Running.OriginWorldSeconds = 10.0;
+	Running.Skip(2370.0);
+	TestEqual(TEXT("En marcha: el segundo 30 del mundo es el 2390 de partida"), Running.MatchSeconds(30.0), 2390.0);
+	TestEqual(TEXT("Y corre"), Running.MatchSeconds(40.0), 2400.0);
+	Running.Skip(-100.0);
+	TestEqual(TEXT("Hacia atrás no hace nada"), Running.MatchSeconds(40.0), 2400.0);
+
+	FStepClock Held;
+	Held.Hold(20.0);
+	Held.Skip(100.0);
+	TestEqual(TEXT("Detenido: el segundo congelado también avanza"), Held.MatchSeconds(50.0), 120.0);
+	Held.Resume(60.0);
+	TestEqual(TEXT("Y al reanudar sigue desde ahí"), Held.MatchSeconds(65.0), 125.0);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

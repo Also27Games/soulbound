@@ -208,6 +208,18 @@ namespace Soulbound::Debug
 		return EDebugEditResult::Applied;
 	}
 
+	EDebugEditResult SetClock(FMatchState& State, double Seconds, double NowSeconds)
+	{
+		// Solo hacia delante (decisión del autor del 27/10/2026): atrás, el registro dejaría de estar en orden de reloj.
+		if (!(Seconds >= NowSeconds) || Seconds < 0.0)
+		{
+			return EDebugEditResult::InvalidAmount;
+		}
+		LogEdit(State, EDebugEditKind::SetClock, NowSeconds, INDEX_NONE);
+		State.ClockSeconds = Seconds;
+		return EDebugEditResult::Applied;
+	}
+
 	EDebugEditResult FixDuel(FMatchState& State, int32 Seat, double NowSeconds)
 	{
 		if (!State.Seats.IsValidIndex(Seat))

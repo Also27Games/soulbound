@@ -110,6 +110,12 @@ enum class ESkillTrial : uint8
 	 * (FMatchParams::WardenTrialDifficulty). Superada, el turno sigue; fallada, termina sin tirada y sin consumir el sorteo.
 	 */
 	WardenTrial,
+	/**
+	 * Desafío final (glosario `FinalChallenge`, R-VIC-1, R-MIN-12, S-018): la prueba del aspirante (IsAspirant) al empezar su turno, en vez
+	 * del turno, con la dificultad de datos (FMatchParams::FinalChallengeDifficulty). Superada, gana la partida; fallada, el Warden le arranca
+	 * una runa, lo manda a su hogar y su turno termina sin tirada (Match/VictoryRules.h). No se interrumpe (R-WAR-7).
+	 */
+	FinalChallenge,
 };
 
 /**
@@ -467,8 +473,23 @@ enum class EMatchOutcome : uint8
 {
 	/** La partida sigue. */
 	Undecided,
-	/** Victoria del Warden (glosario `WardenVictory`): derrota colectiva; en S-006, nadie se vinculó en la carrera (R-CAR-8). */
+	/**
+	 * Victoria del Warden (glosario `WardenVictory`): derrota colectiva; en S-006, nadie se vinculó en la carrera (R-CAR-8); desde S-018,
+	 * también el fin por tiempo (R-VIC-4). El motivo, en FMatchState::EndReason.
+	 */
 	WardenVictory,
+	/** Victoria de un jugador (R-VIC-2, S-018): superó el desafío final. El asiento, en FMatchState::WinnerSeat. Nombre propuesto en S-018. */
+	PlayerVictory,
+};
+
+/** Por qué gana el Warden (R-CAR-8, R-VIC-4, S-018, nombre propuesto): es el Value del evento WardenVictory y FMatchState::EndReason. */
+UENUM()
+enum class EMatchEndReason : uint8
+{
+	/** Nadie se vinculó en la carrera (R-CAR-8, S-006). Vale 0: los registros de antes de S-018 se leen igual. */
+	NobodyBonded,
+	/** El reloj de partida llegó a FWardenParams::MatchEndSeconds (R-VIC-4, R-WAR-4b). */
+	TimeOut,
 };
 
 /** Por qué sale un asiento del Vacío (R-VAC-3, S-013, nombre propuesto): es el Value del evento LeftVoid. */
@@ -519,7 +540,10 @@ enum class EMatchEventType : uint8
 	 * para que el confinamiento de R-TAB-20 no lo deje encerrado); Value es la casilla. Nombre propuesto en S-006.
 	 */
 	ReturnedHome,
-	/** Victoria del Warden (R-CAR-8): nadie se vinculó; sin asiento, afecta a todos. Nombre propuesto en S-006. */
+	/**
+	 * Victoria del Warden (R-CAR-8): nadie se vinculó; sin asiento, afecta a todos. Nombre propuesto en S-006. Desde S-018 Value es el motivo
+	 * (EMatchEndReason: NobodyBonded o TimeOut, R-VIC-4).
+	 */
 	WardenVictory,
 	/** Fin de la carrera (R-CAR-1, R-CAR-8); Value es el número de Elegidos; sin asiento. Nombre propuesto en S-006. */
 	BondRaceEnded,
@@ -675,7 +699,8 @@ enum class EMatchEventType : uint8
 	/**
 	 * Un golpe corta el turno en curso (R-TUR-11, S-016): Seat el asiento cortado, Value la fase en que estaba (ETurnPhase). Va
 	 * antes del TurnEnded de ese turno y del evento que lo cortó. Nombre propuesto en S-016. Desde S-017 también lo corta el fin
-	 * de la carrera (R-PRO-0, R-PRO-3): entonces Detail es 1 y va antes de BondRaceEnded; cortado por el Warden, INDEX_NONE.
+	 * de la carrera (R-PRO-0, R-PRO-3): entonces Detail es 1 y va antes de BondRaceEnded; cortado por el Warden, INDEX_NONE. Desde S-018
+	 * también el fin de la partida por tiempo (R-VIC-4): Detail 2 (Soulbound::Match::MatchEndCut), seguido de TurnEnded y WardenVictory.
 	 */
 	TurnInterrupted,
 	/**
@@ -741,7 +766,29 @@ enum class EMatchEventType : uint8
 	VoteCast,
 	/** S-017 (R-VOT-3): la votación se resuelve. Seat: el más votado; Value: sus votos; Detail: 1 si el Warden desempató. */
 	VoteResolved,
+	/**
+	 * S-018 (R-VIC-1, R-PRO-4): el asiento pasa a aspirante (IsAspirant), para la mesa. Una vez por cada vez que lo pasa: si deja de serlo y
+	 * vuelve, otra. Nombre propuesto en S-018.
+	 */
+	AspirantAnnounced,
+	/** S-018 (R-VIC-1): el aspirante empieza el desafío final en vez de su turno; Value: la dificultad (ESkillDifficulty). Nombre propuesto en S-018. */
+	FinalChallengeStarted,
+	/**
+	 * S-018 (R-VIC-3): el aspirante falla el desafío final; Value: el tipo de la runa que le arranca el Warden. Van después, en este orden,
+	 * su RuneReturned, su SentHome y el TurnEnded. Nombre propuesto en S-018.
+	 */
+	FinalChallengeFailed,
+	/** S-018 (R-VIC-2): el aspirante supera el desafío final y gana la partida. Es el último evento de la partida. Nombre propuesto en S-018. */
+	MatchWon,
 };
+
+namespace Soulbound::Match
+{
+	/** Detail de TurnInterrupted cuando lo corta el fin de la carrera (R-PRO-0, S-017). */
+	inline constexpr int32 RaceEndCut = 1;
+	/** Detail de TurnInterrupted cuando lo corta el fin de la partida por tiempo (R-VIC-4, S-018). */
+	inline constexpr int32 MatchEndCut = 2;
+}
 
 /** Gravedad de un castigo de insolencia (R-INS-2, S-016, nombre propuesto): la de la tabla, o la Furia. Es el Detail de InsolencePunished. */
 UENUM()
@@ -934,6 +981,14 @@ struct SOULBOUNDCORE_API FSeatState
 	 */
 	UPROPERTY()
 	double LastTargetedSeconds = 0.0;
+
+	/**
+	 * Si su anuncio de aspirante ya está en el registro (R-PRO-4, S-018): lo pone SyncAspirants al registrar AspirantAnnounced y lo quita
+	 * cuando deja de serlo, así vuelve a anunciarse si vuelve a serlo. Solo lo escriben las reglas de Match/VictoryRules.h. Nombre
+	 * propuesto en S-018.
+	 */
+	UPROPERTY()
+	bool bAspirantAnnounced = false;
 };
 
 /**
@@ -1409,13 +1464,21 @@ struct SOULBOUNDCORE_API FMatchState
 	UPROPERTY()
 	int32 ForcedNextSeat = INDEX_NONE;
 
-	/** Fase de la partida (S-006). Solo la escriben las reglas de Match/BondRaceRules.h. */
+	/** Fase de la partida (S-006). Solo la escriben las reglas de Match/BondRaceRules.h y, desde S-018, Match/VictoryRules.h. */
 	UPROPERTY()
 	EMatchPhase MatchPhase = EMatchPhase::BondRace;
 
-	/** Resultado de la partida; Undecided mientras sigue. Solo lo escriben las reglas de Match/BondRaceRules.h. */
+	/** Resultado de la partida; Undecided mientras sigue. Solo lo escriben las reglas de Match/BondRaceRules.h y Match/VictoryRules.h. */
 	UPROPERTY()
 	EMatchOutcome Outcome = EMatchOutcome::Undecided;
+
+	/** Ganador con PlayerVictory (R-VIC-2, S-018); INDEX_NONE en otro caso. Solo lo escriben las reglas de Match/VictoryRules.h. */
+	UPROPERTY()
+	int32 WinnerSeat = INDEX_NONE;
+
+	/** Motivo de la victoria del Warden (S-018); solo vale con Outcome WardenVictory. Solo lo escriben las reglas de Match/VictoryRules.h. */
+	UPROPERTY()
+	EMatchEndReason EndReason = EMatchEndReason::NobodyBonded;
 
 	bool IsMatchOver() const { return MatchPhase == EMatchPhase::MatchOver; }
 

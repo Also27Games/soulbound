@@ -2,13 +2,14 @@
 
 #include "Match/EffectCatalog.h"
 #include "Match/MatchState.h"
+#include "Match/VictoryRules.h"
 
 namespace
 {
-	/** Tipos de runa distintos en el Brazal de Seat. */
+	/** Tipos de runa distintos en el Brazal de Seat (desde S-018, la regla de Match/VictoryRules.h). */
 	int32 RuneTypes(const FSeatState& Seat)
 	{
-		return Seat.Runes.FilterByPredicate([](int32 Count) { return Count > 0; }).Num();
+		return Soulbound::Rules::RuneTypeCount(Seat);
 	}
 
 	/** Si Seat causa algún disparador Trigger de Triggers. */
@@ -94,13 +95,10 @@ namespace Soulbound::Rules
 			Active.Add({EWardenTrigger::ClearLeader, Best});
 		}
 
-		// Victoria inminente: ImminentVictoryTypes tipos, o en el Altar con los seis.
+		// Victoria inminente: ImminentVictoryTypes tipos, o en el Altar con los seis (el aspirante, S-018).
 		for (int32 Seat = 0; Seat < SeatCount; ++Seat)
 		{
-			const FSeatState& SeatState = State.Seats[Seat];
-			const int32 Types = RuneTypes(SeatState);
-			const bool bOnAltarWithAll = Types == Soulbound::Board::DomainCount && State.Board.IsAltar(SeatState.TileId);
-			if (Types >= Params.ImminentVictoryTypes || bOnAltarWithAll)
+			if (RuneTypes(State.Seats[Seat]) >= Params.ImminentVictoryTypes || Soulbound::Rules::IsAspirant(State, Seat))
 			{
 				Active.Add({EWardenTrigger::ImminentVictory, Seat});
 			}

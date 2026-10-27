@@ -1,6 +1,7 @@
 #include "Match/BondRaceRules.h"
 
 #include "Match/RuneRules.h"
+#include "Match/VictoryRules.h"
 #include "Match/MatchEvents.h"
 #include "Math/RandomStream.h"
 
@@ -105,9 +106,8 @@ namespace Soulbound::Rules
 		// Olvidados nuevos ni hogares, porque la partida ya no sigue.
 		if (Elects == 0)
 		{
-			State.MatchPhase = EMatchPhase::MatchOver;
-			State.Outcome = EMatchOutcome::WardenVictory;
-			LogEvent(State, EMatchEventType::WardenVictory, NowSeconds, INDEX_NONE);
+			// S-018: con el motivo, como el fin por tiempo.
+			DeclareWardenVictory(State, EMatchEndReason::NobodyBonded, NowSeconds);
 			LogEvent(State, EMatchEventType::BondRaceEnded, NowSeconds, INDEX_NONE, Elects);
 			return true;
 		}

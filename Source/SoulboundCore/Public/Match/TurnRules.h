@@ -56,7 +56,11 @@ namespace Soulbound::Rules
 
 	/**
 	 * Avanza el turno una fase si no hay una decisión pendiente (R-TUR-2):
-	 *  - Antes de nada (S-017, R-PRO-0, R-PRO-3): si la carrera debe terminar (IsBondRaceDue) y el turno en curso se puede cortar,
+	 *  - Antes de nada (S-018, R-VIC-4, R-WAR-4b): con Warden en la partida y el reloj en matchEndSeconds (IsMatchEndDue), la partida
+	 *    termina con victoria del Warden por tiempo y se corta todo lo que haya en marcha, sin resolverlo: el turno en curso queda
+	 *    TurnInterrupted con Detail 2 y TurnEnded; duelo, trilero, consulta, votación, evento o desafío final se descartan. Es el único
+	 *    sitio donde se mira el reloj del fin. Después, y al final de cada llamada, se anuncian los aspirantes nuevos (SyncAspirants, R-PRO-4).
+	 *  - Después (S-017, R-PRO-0, R-PRO-3): si la carrera debe terminar (IsBondRaceDue) y el turno en curso se puede cortar,
 	 *    lo corta en ese instante (TurnInterrupted con Detail 1) y la carrera termina al dejarlo entre turnos. En un duelo, un
 	 *    trilero, un minijuego o una consulta, el fin espera a que acabe.
 	 *  - BetweenTurns con un evento del Warden en curso (S-014): lo lleva (AdvanceWardenEvent) y no empieza turno; con una
@@ -94,6 +98,9 @@ namespace Soulbound::Rules
 	 *    contra un jugador (PlayerAction: retar a duelo, expulsar o robar; S-010, S-012), cada uno con el reloj de
 	 *    elección; sin nada que ofrecer, pasa a End y registra TurnEnded. Con una elección abierta, la espera; agotado su
 	 *    plazo, registra ChoiceExpired y la resuelve como "no".
+	 *  - Start de un aspirante (S-018, R-VIC-1, IsAspirant), después de la salida del Vacío y antes de la Prueba del Warden: el desafío
+	 *    final en vez del turno, en la fase SkillTrial con PendingTrial FinalChallenge, sin tirada y sin tocar el sorteo; registra
+	 *    FinalChallengeStarted. La Prueba del Warden, si la tenía, sigue pendiente (decisión del autor del 27/10/2026).
 	 *  - Start → PreRoll de un asiento con la Prueba del Warden pendiente (S-015, R-EFE-10): después de la salida del Vacío
 	 *    (que la anula al entrar) y antes de tirar, abre la fase SkillTrial con PendingTrial WardenTrial y la dificultad de
 	 *    datos; superada, sigue a PreRoll; fallada, End sin pasar por PreRoll: no consume sorteo, como un turno en el Vacío.
@@ -114,8 +121,9 @@ namespace Soulbound::Rules
 	 * del GDD 02), así un turno extra concedido durante el turno también se compensa.
 	 * NowSeconds: instante actual del reloj de partida; es la marca de tiempo de los eventos.
 	 * Random: el sorteo de la partida (solo lo usa la tirada).
-	 * Devuelve true si cambió el estado; false si espera una intención (destino, elección o minijuego), si la partida no
-	 * tiene orden de turno o si la partida terminó (R-CAR-8): entonces no cambia nada.
+	 * Devuelve true si cambió el estado (también si solo anunció un aspirante); false si espera una intención (destino, elección o
+	 * minijuego), si la partida no tiene orden de turno o si la partida terminó (R-CAR-8; desde S-018, cualquiera de los tres finales):
+	 * entonces no cambia nada.
 	 */
 	SOULBOUNDCORE_API bool AdvanceTurn(FMatchState& State, double NowSeconds, FRandomStream& Random);
 
@@ -150,6 +158,9 @@ namespace Soulbound::Rules
 	 * sigue dentro. En los dos casos el turno pasa a End sin tirar (ApplyVoidEscapeResult).
 	 * Prueba del Warden (S-015, PendingTrial WardenTrial, R-EFE-10): superada, el turno sigue en PreRoll con normalidad;
 	 * fallada, pasa a End sin tirar y sin consumir el sorteo (ApplyWardenTrialResult).
+	 * Desafío final (S-018, PendingTrial FinalChallenge, R-VIC-2, R-VIC-3): superado, la partida termina con su victoria; fallado, una runa
+	 * al azar vuelve a su Fuente, va a su hogar y el turno pasa a End sin tirar ni consumir el sorteo (ApplyFinalChallengeResult).
+	 * Desde S-018, con la partida terminada, esta y todas las intenciones devuelven WrongPhase antes de mirar el asiento.
 	 * bPassed: si superó la prueba. NowSeconds: marca de tiempo de los eventos.
 	 * Devuelve Accepted, o WrongSeat o WrongPhase (también sin prueba pendiente, PendingTrial None, o con un escape que una
 	 * Liberación dejó sin objeto) sin tocar el estado. Nombre propuesto en S-008.

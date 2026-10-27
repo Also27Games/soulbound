@@ -9,6 +9,7 @@
 #include "LegendPanel.h"
 #include "Match/BondRaceRules.h"
 #include "Match/RuneRules.h"
+#include "Match/VictoryRules.h"
 #include "Match/WardenEventRules.h"
 #include "PresentationShapes.h"
 #include "Warden/WardenBrain.h"
@@ -62,8 +63,11 @@ namespace
 
 	/** Clave base de los mensajes de pantalla de esta vista: una línea por clave, se sustituyen al refrescar. */
 	constexpr uint64 TextKeyBase = 0x53420500;
-	/** Líneas de texto de pantalla de esta vista (claves TextKeyBase + 0 a + 12), para quitarlas todas a la vez. */
-	constexpr int32 DebugTextLineCount = 13;
+	/**
+	 * Líneas de texto de pantalla de esta vista (claves TextKeyBase + 0 a + 19), para quitarlas todas a la vez. Desde S-018, 20: las del
+	 * Oráculo y la votación (13 y 14, de S-017), las de los aspirantes (15 a 18) y la del resultado (19).
+	 */
+	constexpr int32 DebugTextLineCount = 20;
 
 	/** Atenuado de una casilla de un Dominio Olvidado: mismo tono, más oscuro. */
 	FLinearColor Dimmed(const FLinearColor& Color, float Factor)
@@ -1148,6 +1152,21 @@ void ABoardViewActor::BuildTokens()
 	OracleOrb->RegisterComponent();
 	OracleOrb->SetWorldScale3D(FVector(OracleOrbDiameter / 100.f));
 	OracleOrb->SetVisibility(false);
+
+	// S-018: los halos del aspirante, discos de formas básicas sin colisión bajo el Altar (la marca de la vista de depuración; el latido
+	// del Altar y su zoom son de la interfaz). Uno por asiento, de su color; los coloca RefreshAspirantHalos.
+	for (int32 Seat = 0; Seat < Host->GetState().Seats.Num(); ++Seat)
+	{
+		UStaticMeshComponent* Halo = NewObject<UStaticMeshComponent>(this);
+		Halo->SetStaticMesh(CylinderMesh);
+		Halo->SetupAttachment(GetRootComponent());
+		Halo->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Halo->SetCastShadow(false);
+		Halo->RegisterComponent();
+		Soulbound::Presentation::SetComponentColor(*Halo, BaseMaterial, SeatColor(Seat));
+		Halo->SetVisibility(false);
+		AspirantHalos.Add(Halo);
+	}
 }
 
 bool ABoardViewActor::IsOracleOrb(const UPrimitiveComponent* Component) const
@@ -1631,7 +1650,33 @@ void ABoardViewActor::Refresh()
 
 	RefreshTokens(State);
 	RefreshOracleOrb(State);
+	RefreshAspirantHalos(State);
 	RefreshChronicle(State);
+}
+
+void ABoardViewActor::RefreshAspirantHalos(const FMatchState& State)
+{
+	// Sobre el halo de alcanzable del Altar: mismo sitio, un poco más abajo para no pisarlo, y más ancho.
+	const int32 Altar = State.Board.FindAltar();
+	const UStaticMeshComponent* Base = Halos.IsValidIndex(Altar) ? Halos[Altar].Get() : nullptr;
+	int32 Shown = 0;
+	for (int32 Seat = 0; Seat < AspirantHalos.Num(); ++Seat)
+	{
+		UStaticMeshComponent* Halo = AspirantHalos[Seat].Get();
+		if (!Halo)
+		{
+			continue;
+		}
+		const bool bShow = Base && !State.IsMatchOver() && Soulbound::Rules::IsAspirant(State, Seat);
+		if (bShow)
+		{
+			const FVector Scale = Base->GetComponentScale();
+			const float Factor = AspirantHaloScale + AspirantHaloStep * Shown++;
+			Halo->SetWorldLocation(Base->GetComponentLocation() - FVector(0.f, 0.f, 0.5f));
+			Halo->SetWorldScale3D(FVector(Scale.X * Factor, Scale.Y * Factor, Scale.Z));
+		}
+		Halo->SetVisibility(bShow);
+	}
 }
 
 FVector ABoardViewActor::TokenBase(int32 TileId) const
@@ -1905,13 +1950,14 @@ void ABoardViewActor::ApplyViewTarget()
 	}
 }
 
-void ABoardViewActor::ShowText(int32 Line, const FColor& Color, const FString& Text) const
+void ABoardViewActor::ShowText(int32 Line, const FColor& Color, const FString& Text, float Scale) const
 {
 	// S-019: la tecla del texto de depuración lo oculta todo, la línea de petición incluida.
 	if (GEngine && !bDebugTextHidden)
 	{
-		// Se sustituye por clave en cada refresco; si la vista deja de refrescar, el mensaje caduca a los dos intervalos.
-		GEngine->AddOnScreenDebugMessage(TextKeyBase + Line, HudIntervalSeconds * 2.f + 0.1f, Color, Text);
+		// Se sustituye por clave en cada refresco; si la vista deja de refrescar, el mensaje caduca a los dos intervalos. S-018: Scale
+		// agranda una línea (el resultado de la partida).
+		GEngine->AddOnScreenDebugMessage(TextKeyBase + Line, HudIntervalSeconds * 2.f + 0.1f, Color, Text, true, FVector2D(Scale, Scale));
 	}
 }
 
@@ -1959,7 +2005,13 @@ void ABoardViewActor::TickHud()
 			PhaseName(State.TurnPhase), State.ActiveSeat));
 	}
 
-	if (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::VoidEscape)
+	if (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::FinalChallenge)
+	{
+		// Desafío final (S-018): el minijuego aún no existe; el humano lo resuelve al azar, o como fije SbTrial.
+		ShowText(1, SeatColor(State.ActiveSeat).ToFColor(true), FString::Printf(TEXT("DESAFÍO FINAL: el asiento %d juega en %s en vez de su turno, sin tirada, y espera el resultado (resuelto al azar, o con SbTrial)"),
+			State.ActiveSeat, *Soulbound::Presentation::DifficultyText(static_cast<int32>(State.PendingDifficulty))));
+	}
+	else if (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::VoidEscape)
 	{
 		// Escape del Vacío (S-013): el minijuego aún no existe; el humano lo resuelve al azar, o como fije SbTrial.
 		ShowText(1, FColor::Yellow, FString::Printf(TEXT("Escape del Vacío: el asiento %d juega en %s (%s) y espera el resultado (resuelto al azar, o con SbTrial)"),
@@ -2068,12 +2120,19 @@ void ABoardViewActor::TickHud()
 	ShowText(5, FColor::Silver, FString::Printf(TEXT("Semilla: %d (fijala con FixedSeed para repetir la partida) | t=%.0f s | ronda %d"), HostPtr->GetSeed(), State.ClockSeconds,
 		State.Round));
 
-	// Carrera por el vínculo (S-006): tiempo que queda, fin, o victoria del Warden; y el rol y el hogar de cada asiento.
+	// Carrera por el vínculo (S-006): tiempo que queda, fin, o victoria del Warden; y el rol y el hogar de cada asiento. Desde S-018, los
+	// tres finales, y tras la carrera el tiempo que queda de partida: el reloj se ve y es igual para todos.
 	FString Race;
 	FColor RaceColor = FColor::Cyan;
-	if (State.Outcome == EMatchOutcome::WardenVictory)
+	if (State.Outcome == EMatchOutcome::PlayerVictory)
 	{
-		Race = TEXT("VICTORIA DEL WARDEN: nadie se ha vinculado. La partida ha terminado.");
+		Race = FString::Printf(TEXT("VICTORIA DEL ASIENTO %d: supera el desafío final. La partida ha terminado."), State.WinnerSeat);
+		RaceColor = SeatColor(State.WinnerSeat).ToFColor(true);
+	}
+	else if (State.Outcome == EMatchOutcome::WardenVictory)
+	{
+		Race = State.EndReason == EMatchEndReason::TimeOut ? TEXT("VICTORIA DEL WARDEN: se acaba el tiempo. La partida ha terminado.")
+			: TEXT("VICTORIA DEL WARDEN: nadie se ha vinculado. La partida ha terminado.");
 		RaceColor = FColor::Red;
 	}
 	else if (State.MatchPhase == EMatchPhase::BondRace)
@@ -2087,8 +2146,27 @@ void ABoardViewActor::TickHud()
 	{
 		const int32 Elects = State.Seats.FilterByPredicate([](const FSeatState& Seat) { return Seat.Role == ESeatRole::Elect; }).Num();
 		Race = FString::Printf(TEXT("FIN DE LA CARRERA: %d Elegidos. Los Ecos quedan confinados a los Dominios Olvidados."), Elects);
+		if (State.WardenParams.HasWarden())
+		{
+			const int32 Left = FMath::Max(0, FMath::CeilToInt32(State.WardenParams.MatchEndSeconds - State.ClockSeconds));
+			Race += FString::Printf(TEXT(" | fin de la partida en %02d:%02d"), Left / 60, Left % 60);
+		}
 	}
 	ShowText(6, RaceColor, Race);
+
+	// S-018 (R-PRO-4): los aspirantes, para la mesa; y al terminar la partida, el resultado en grande.
+	for (int32 Seat = 0; Seat < State.Seats.Num() && !State.IsMatchOver(); ++Seat)
+	{
+		if (Soulbound::Rules::IsAspirant(State, Seat))
+		{
+			ShowText(15 + Seat, SeatColor(Seat).ToFColor(true), FString::Printf(TEXT("ASPIRANTE: el asiento %d está en el Altar con las seis runas; en su próximo turno, el desafío final"), Seat));
+		}
+	}
+	if (State.IsMatchOver())
+	{
+		ShowText(19, RaceColor, State.Outcome == EMatchOutcome::PlayerVictory ? FString::Printf(TEXT("GANA EL ASIENTO %d"), State.WinnerSeat)
+			: State.EndReason == EMatchEndReason::TimeOut ? FString(TEXT("GANA EL WARDEN: SE ACABÓ EL TIEMPO")) : FString(TEXT("GANA EL WARDEN: NADIE SE VINCULÓ")), 2.5f);
+	}
 
 	TArray<FString> Roles;
 	for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
