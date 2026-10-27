@@ -767,4 +767,35 @@ bool FDebugInsolenceTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDebugClockTest,
+	"Soulbound.Core.Debug.FijarReloj",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FDebugClockTest::RunTest(const FString& Parameters)
+{
+	// S-018 (SbClock, patrón de S-011): adelanta el reloj de partida y deja su DebugEdit, sin asiento, en el instante de la edición;
+	// hacia atrás (decisión del autor del 27/10/2026), se rechaza con InvalidAmount sin tocar nada.
+	FDebugFixture F;
+	if (!F.Start(*this))
+	{
+		return false;
+	}
+	F.State.ClockSeconds = F.Now;
+	const int32 Before = F.State.EventLog.Num();
+	TestEqual(TEXT("Adelantar a 2390 s se aplica"), Soulbound::Debug::SetClock(F.State, 2390.0, F.Now), EDebugEditResult::Applied);
+	TestEqual(TEXT("El reloj marca 2390 s"), F.State.ClockSeconds, 2390.0);
+	if (TestEqual(TEXT("Un solo evento"), F.State.EventLog.Num(), Before + 1))
+	{
+		const FMatchEvent& Edit = F.State.EventLog.Last();
+		TestTrue(TEXT("El de la edición, sin asiento, en el instante de la edición"), Edit.Type == EMatchEventType::DebugEdit && Edit.Seat == INDEX_NONE
+			&& Edit.Value == static_cast<int32>(EDebugEditKind::SetClock) && Edit.ClockSeconds == F.Now);
+	}
+	const FMatchState Moved = F.State;
+	TestEqual(TEXT("Hacia atrás, se rechaza"), Soulbound::Debug::SetClock(F.State, 100.0, 2390.0), EDebugEditResult::InvalidAmount);
+	TestEqual(TEXT("Negativo, se rechaza"), Soulbound::Debug::SetClock(F.State, -1.0, 2390.0), EDebugEditResult::InvalidAmount);
+	TestTrue(TEXT("Un rechazo no cambia el estado"), SameState(Moved, F.State));
+	TestEqual(TEXT("Al mismo instante, se aplica (no retrocede)"), Soulbound::Debug::SetClock(F.State, 2390.0, 2390.0), EDebugEditResult::Applied);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

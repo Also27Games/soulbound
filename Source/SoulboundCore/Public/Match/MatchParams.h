@@ -168,6 +168,14 @@ struct SOULBOUNDCORE_API FMatchParams
 	 */
 	UPROPERTY()
 	double WardenDuelPerformance = 0.0;
+
+	/**
+	 * Desafío final (R-VIC-1, R-MIN-12, S-018): dificultad del minijuego que juega el aspirante al empezar su turno. Una de las tres; el
+	 * resto de sus particularidades (seis pulsos, sin fallos, trampas) es del minijuego. En datos (finalChallengeDifficulty); valor
+	 * inicial normal.
+	 */
+	UPROPERTY()
+	ESkillDifficulty FinalChallengeDifficulty = ESkillDifficulty::Normal;
 };
 
 /** Por qué se rechazaron unos parámetros de partida. */

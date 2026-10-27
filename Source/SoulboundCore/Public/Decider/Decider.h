@@ -11,6 +11,12 @@ namespace Soulbound::Decider
 	 * 0,5; es el comportamiento de un doble de prueba hasta que exista el minijuego real, no una regla de juego.
 	 */
 	inline constexpr double DummySkillSuccessChance = 0.5;
+
+	/**
+	 * Probabilidad con la que un dummy supera el desafío final (S-018, decisión del autor del 27/10/2026). Valor inicial 0,35; como
+	 * DummySkillSuccessChance, es el comportamiento del doble de prueba, no una regla de juego.
+	 */
+	inline constexpr double DummyFinalChallengeSuccessChance = 0.35;
 }
 
 /**

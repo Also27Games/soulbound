@@ -8,6 +8,7 @@
 // duelos de los dummies y sus cifras en el informe. Los tests del motor no leen la configuración del juego.
 // Se lanzan con Scripts/test.ps1.
 
+#include "Board/MovementRules.h"
 #include "Decider/Decider.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/AutomationTest.h"
@@ -933,6 +934,154 @@ bool FRaceDummySeeksSourcesTest::RunTest(const FString& Parameters)
 			TestTrue(FString::Printf(TEXT("Asiento %d, semilla %d: elige una de las opciones"), Seat, Seed), Options.Contains(Choice));
 			TestEqual(FString::Printf(TEXT("Asiento %d, semilla %d: la que más acerca a la Fuente válida más cercana"), Seat, Seed), Steps.IsValidIndex(Choice) ? Steps[Choice] : MAX_int32, Best);
 		}
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRaceDummySeeksAltarTest,
+	"Soulbound.Core.Simulation.DummyDeCarreraVaAlAltar",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FRaceDummySeeksAltarTest::RunTest(const FString& Parameters)
+{
+	// Notas de S-018 ("Dummies y el desafío"): en la caza de runas y con los seis tipos, el dummy de carrera elige la opción que lo deja
+	// más cerca del Altar, en pasos del grafo, para que en la simulación haya aspirantes y victorias. Con cinco tipos sigue buscando
+	// Fuentes (S-008). Desde un Nicho, con las alcanzables de una tirada de 3 como opciones. Semillas fijas 1 a 10.
+	FRandomStream Start(1);
+	FMatchState State;
+	{
+		FBoardState Board;
+		FMatchParams MatchParams;
+		FElectsTable Elects;
+		if (!Soulbound::Tests::LoadBoardFile(*this, Soulbound::Tests::RaceBoardFileName(), Board) || !Soulbound::Tests::LoadTestMatchParams(*this, MatchParams)
+			|| !Soulbound::Tests::LoadTestElects(*this, Elects))
+		{
+			return false;
+		}
+		FMatchStartResult Result = Soulbound::Rules::StartMatch(Board, MatchParams, Elects, Soulbound::Match::MaxPlayers, Start);
+		if (!TestTrue(TEXT("La partida empieza"), Result.IsSuccess()))
+		{
+			return false;
+		}
+		State = MoveTemp(Result.State);
+	}
+	State.MatchPhase = EMatchPhase::RuneHunt;
+	State.Board.Phase = EBoardPhase::Awakened;
+	for (FTileState& Tile : State.Board.Tiles)
+	{
+		Tile.RuneReserve = Tile.Type == ETileType::PowerSource ? State.Board.Params.RuneReservePerSource : 0;
+	}
+	State.Seats[0].Role = ESeatRole::Elect;
+	State.Seats[0].DomainId = 0;
+	State.Seats[0].Runes.Init(1, Soulbound::Board::DomainCount);
+	State.Seats[0].TileId = State.Board.FindNiche(0);
+
+	// Pasos desde cada casilla hasta el Altar, por búsqueda en anchura (oráculo del test).
+	const int32 Altar = State.Board.FindAltar();
+	TArray<int32> Steps;
+	Steps.Init(MAX_int32, State.Board.Tiles.Num());
+	Steps[Altar] = 0;
+	TArray<int32> Queue = {Altar};
+	for (int32 i = 0; i < Queue.Num(); ++i)
+	{
+		for (const int32 Next : State.Board.Tiles[Queue[i]].Neighbours)
+		{
+			if (Steps[Next] == MAX_int32)
+			{
+				Steps[Next] = Steps[Queue[i]] + 1;
+				Queue.Add(Next);
+			}
+		}
+	}
+	const TArray<int32> Options = Soulbound::Rules::ReachableTiles(State.Board, State.Seats[0].TileId, 3, Soulbound::Rules::MakeMoverTraits(State, 0));
+	int32 Best = MAX_int32;
+	int32 Worst = 0;
+	for (const int32 Option : Options)
+	{
+		Best = FMath::Min(Best, Steps[Option]);
+		Worst = FMath::Max(Worst, Steps[Option]);
+	}
+	if (!TestTrue(TEXT("Las opciones no están todas a la misma distancia del Altar"), Options.Num() > 1 && Best < Worst))
+	{
+		return false;
+	}
+	for (int32 Seed = 1; Seed <= 10; ++Seed)
+	{
+		FRandomStream Rng(Seed);
+		const int32 Choice = FRaceDummyDecider().ChooseDestination(State, 0, Options, Rng);
+		TestTrue(FString::Printf(TEXT("Semilla %d: elige una de las opciones"), Seed), Options.Contains(Choice));
+		TestEqual(FString::Printf(TEXT("Semilla %d: la que más acerca al Altar"), Seed), Steps.IsValidIndex(Choice) ? Steps[Choice] : MAX_int32, Best);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDummyFinalChallengeTest,
+	"Soulbound.Core.Simulation.DummySuperaElDesafioFinal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FDummyFinalChallengeTest::RunTest(const FString& Parameters)
+{
+	// Notas de S-018 (decisión 3 del autor): el dummy supera el desafío final con probabilidad 0,35 (DummyFinalChallengeSuccessChance) y el
+	// resto de pruebas con 0,5, como hasta ahora; el dummy de carrera, igual. 4000 pruebas con la semilla 1: dentro de ±0,03.
+	constexpr int32 Trials = 4000;
+	const FMatchState State;
+	for (const ESkillTrial Trial : {ESkillTrial::FinalChallenge, ESkillTrial::ForgottenSource})
+	{
+		const double Expected = Trial == ESkillTrial::FinalChallenge ? Soulbound::Decider::DummyFinalChallengeSuccessChance : Soulbound::Decider::DummySkillSuccessChance;
+		FRandomStream Rng(1);
+		FRandomStream RaceRng(1);
+		int32 Passed = 0;
+		int32 Same = 0;
+		for (int32 Index = 0; Index < Trials; ++Index)
+		{
+			const bool bPassed = FDummyDecider().PassSkillMinigame(State, 0, Trial, ESkillDifficulty::Normal, Rng);
+			Passed += bPassed ? 1 : 0;
+			Same += FRaceDummyDecider().PassSkillMinigame(State, 0, Trial, ESkillDifficulty::Normal, RaceRng) == bPassed ? 1 : 0;
+		}
+		const double Rate = static_cast<double>(Passed) / Trials;
+		TestTrue(FString::Printf(TEXT("Prueba %d: tasa %.3f cerca de %.2f"), static_cast<int32>(Trial), Rate, Expected), FMath::Abs(Rate - Expected) < 0.03);
+		TestEqual(FString::Printf(TEXT("Prueba %d: el dummy de carrera responde igual"), static_cast<int32>(Trial)), Same, Trials);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationEndingTest,
+	"Soulbound.Core.Simulation.TerminaConUnFinal",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationEndingTest::RunTest(const FString& Parameters)
+{
+	// R-VIC-2, R-VIC-4 (S-018): con el Warden, una partida simulada termina siempre con uno de los tres finales: la victoria de un
+	// jugador (el último evento es su MatchWon, antes del minuto 40), la del Warden por tiempo (su WardenVictory, justo en
+	// matchEndSeconds, es el último) o por nadie vinculado. La simulación se detiene con la partida terminada. Cuatro dummies de carrera
+	// sobre el tablero de 35 casillas, semillas fijas 1 a 5.
+	for (int32 Seed = 1; Seed <= 5; ++Seed)
+	{
+		FSimulationParams Params;
+		if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), Seed, Params))
+		{
+			return false;
+		}
+		const FSimulationResult Result = FMatchSimulation(Params, FourRaceDummies()).Run();
+		const FMatchState& State = Result.FinalState;
+		const double End = Params.WardenParams.MatchEndSeconds;
+		if (!TestTrue(FString::Printf(TEXT("Semilla %d: la partida termina"), Seed), State.IsMatchOver()) || !TestFalse(TEXT("Con registro"), State.EventLog.IsEmpty()))
+		{
+			continue;
+		}
+		const FMatchEvent& Last = State.EventLog.Last();
+		if (State.Outcome == EMatchOutcome::PlayerVictory)
+		{
+			TestTrue(FString::Printf(TEXT("Semilla %d: gana un asiento"), Seed), State.Seats.IsValidIndex(State.WinnerSeat));
+			TestTrue(FString::Printf(TEXT("Semilla %d: su MatchWon es el último, antes del fin"), Seed), Last.Type == EMatchEventType::MatchWon && Last.Seat == State.WinnerSeat
+				&& Last.ClockSeconds < End);
+		}
+		else if (TestEqual(FString::Printf(TEXT("Semilla %d: si no gana un jugador, gana el Warden"), Seed), static_cast<int32>(State.Outcome), static_cast<int32>(EMatchOutcome::WardenVictory)))
+		{
+			TestTrue(FString::Printf(TEXT("Semilla %d: su WardenVictory es el último, con el motivo"), Seed), Last.Type == EMatchEventType::WardenVictory
+				&& Last.Value == static_cast<int32>(State.EndReason) && (State.EndReason == EMatchEndReason::NobodyBonded || Last.ClockSeconds == End));
+		}
+		TestTrue(FString::Printf(TEXT("Semilla %d: el reloj no pasa del fin"), Seed), State.ClockSeconds <= End);
 	}
 	return true;
 }

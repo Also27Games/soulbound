@@ -208,6 +208,11 @@ namespace Soulbound::Debug
 		return EDebugEditResult::Applied;
 	}
 
+	EDebugEditResult SetClock(FMatchState& State, double Seconds, double NowSeconds)
+	{
+		return EDebugEditResult::InvalidAmount;
+	}
+
 	EDebugEditResult FixDuel(FMatchState& State, int32 Seat, double NowSeconds)
 	{
 		if (!State.Seats.IsValidIndex(Seat))

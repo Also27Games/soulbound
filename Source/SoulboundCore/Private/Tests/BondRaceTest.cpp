@@ -825,6 +825,9 @@ bool FBondRaceEventLogTest::RunTest(const FString& Parameters)
 			TestEqual(TEXT("Primero, la victoria del Warden"), static_cast<int32>(Victory.Type), static_cast<int32>(EMatchEventType::WardenVictory));
 			TestEqual(TEXT("Victoria del Warden: marca de tiempo"), Victory.ClockSeconds, RaceEnd);
 			TestEqual(TEXT("Victoria del Warden: sin asiento"), Victory.Seat, static_cast<int32>(INDEX_NONE));
+			// S-018 (R-VIC-4): el motivo, en Value y en el estado.
+			TestEqual(TEXT("Victoria del Warden: por nadie vinculado"), Victory.Value, static_cast<int32>(EMatchEndReason::NobodyBonded));
+			TestEqual(TEXT("Victoria del Warden: el motivo en el estado"), static_cast<int32>(State.EndReason), static_cast<int32>(EMatchEndReason::NobodyBonded));
 			const FMatchEvent& Ended = State.EventLog[Before + 1];
 			TestEqual(TEXT("Después, el fin de carrera"), static_cast<int32>(Ended.Type), static_cast<int32>(EMatchEventType::BondRaceEnded));
 			TestEqual(TEXT("Fin de carrera: cero Elegidos"), Ended.Value, 0);
