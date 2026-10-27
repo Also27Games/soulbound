@@ -602,7 +602,8 @@ bool FPowersExpelHomeTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("El Elegido está en su Nicho"), F.State.Seats[1].TileId, F.State.Board.FindNiche(Other));
 	TestEqual(TEXT("Quien expulsa sigue en su casilla"), F.State.Seats[0].TileId, Normal[0]);
 	// S-018 (corte B): Expelled lleva en Detail la casilla de la que sale el expulsado, para medir el ping-pong del Altar.
-	TestEqual(TEXT("Expelled: la casilla de origen en Detail"), F.State.EventLog.Last().Detail, Normal[0]);
+	const TArray<FMatchEvent> FirstExpelled = Soulbound::Tests::EventsOfType(F.State, EMatchEventType::Expelled);
+	TestTrue(TEXT("Expelled: la casilla de origen en Detail"), !FirstExpelled.IsEmpty() && FirstExpelled.Last().Detail == Normal[0]);
 	TestEqual(TEXT("El turno termina"), AsInt(F.State.TurnPhase), AsInt(ETurnPhase::End));
 	F.FinishTurn();
 

@@ -37,6 +37,35 @@ namespace
 		int32 TileId = INDEX_NONE;
 	};
 
+	/** Qué espera una respuesta con ritmo (S-018, corte B) que no es el destino. */
+	enum class EPacedWait : uint8
+	{
+		Choice,
+		Vote,
+		Oracle,
+		Trial,
+		Duel,
+	};
+
+	/**
+	 * Respuesta con ritmo que todavía no ha llegado (S-018, corte B): a qué espera (tipo y dos datos que la distinguen, y su plazo) y cuándo
+	 * llega. Si lo que se espera cambia (un golpe corta el turno, se abre otra elección), la respuesta deja de valer y se pide otra.
+	 */
+	struct FPacedAnswer
+	{
+		bool bActive = false;
+		EPacedWait Wait = EPacedWait::Choice;
+		int32 A = 0;
+		int32 B = 0;
+		double DeadlineSeconds = 0.0;
+		double AtSeconds = 0.0;
+
+		bool IsFor(EPacedWait InWait, int32 InA, int32 InB, double InDeadline) const
+		{
+			return bActive && Wait == InWait && A == InA && B == InB && DeadlineSeconds == InDeadline;
+		}
+	};
+
 	/** Marca de tiempo del registro: minutos y segundos del reloj de partida, "[mm:ss]". */
 	FString Stamp(double ClockSeconds)
 	{
@@ -272,6 +301,12 @@ FSimulationResult FMatchSimulation::Run()
 
 	double NextTurnEvent = 0.0;
 	FPendingAnswer Pending;
+	// S-018 (corte B): el ritmo. La variación sale de un generador propio con semilla Seed + 4 (Seed + 3 es la del reparto de hogares), y
+	// solo si el ritmo la tiene: el rápido no saca nada y sus partidas son las de antes.
+	FPacedAnswer Paced;
+	FRandomStream PaceRng(Params.Seed + 4);
+	// Turno cuya línea de crónica ya se escribió: con la repetición de Apep con ritmo, la línea va antes de esperar su respuesta.
+	int32 TurnLineFor = INDEX_NONE;
 	int32 LoggedEvents = 0;
 	// Casillas en las que ha entrado la ficha en el movimiento en curso (S-020), para la línea del camino.
 	TArray<int32> EnteredTiles;
@@ -390,7 +425,9 @@ FSimulationResult FMatchSimulation::Run()
 			}
 			else if (Event.Type == EMatchEventType::Expelled)
 			{
-				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d manda al asiento %d a su hogar de una expulsión"), *Stamp(Event.ClockSeconds), Event.Seat, Event.OtherSeat));
+				// S-018 (corte B): el ping-pong del Altar se lee aquí.
+				Result.Log.Add(FString::Printf(TEXT("%s    asiento %d manda al asiento %d a su hogar de una expulsión%s"), *Stamp(Event.ClockSeconds), Event.Seat, Event.OtherSeat,
+					State.Board.IsAltar(Event.Detail) ? TEXT(", desde el Altar") : TEXT("")));
 			}
 			else if (Event.Type == EMatchEventType::ChoiceExpired)
 			{
@@ -561,6 +598,46 @@ FSimulationResult FMatchSimulation::Run()
 		return bAccepted;
 	};
 
+	// S-018 (corte B): segundos que tarda una respuesta: los del ritmo, con su variación uniforme, y como mucho la mitad de lo que queda de
+	// su plazo (decisión del autor del 27/10/2026): así ningún decisor agota un plazo ni es insolente. Sin plazo, Deadline es el máximo.
+	auto PacedDelay = [&PaceRng](double Now, double Seconds, double Jitter, double Deadline) -> double
+	{
+		double Delay = Jitter > 0.0 ? FMath::Max(0.0, Seconds + PaceRng.FRandRange(-Jitter, Jitter)) : Seconds;
+		if (Deadline < TNumericLimits<double>::Max())
+		{
+			Delay = FMath::Min(Delay, (Deadline - Now) * 0.5);
+		}
+		return Delay;
+	};
+
+	// Instante en que llega la respuesta a lo que se espera (Wait, A, B, Deadline), con el ritmo Seconds ± Jitter; Now si es en el acto. La
+	// primera vez que se pregunta por una espera se sortea su hora; las siguientes, la misma, hasta que se usa (Paced.bActive = false).
+	auto AnswerAt = [&](double Now, EPacedWait Wait, int32 A, int32 B, double Deadline, double Seconds, double Jitter) -> double
+	{
+		if (Seconds <= 0.0 && Jitter <= 0.0)
+		{
+			return Now;
+		}
+		if (!Paced.IsFor(Wait, A, B, Deadline))
+		{
+			Paced.bActive = true;
+			Paced.Wait = Wait;
+			Paced.A = A;
+			Paced.B = B;
+			Paced.DeadlineSeconds = Deadline;
+			Paced.AtSeconds = Now + PacedDelay(Now, Seconds, Jitter, Deadline);
+		}
+		return Paced.AtSeconds;
+	};
+
+	// La hora de la respuesta a la elección pendiente: la distinguen su tipo, su asiento y el turno, y la acota su plazo.
+	auto ChoiceAnswerAt = [&](double Now) -> double
+	{
+		const FPendingChoice& Choice = State.PendingChoice;
+		return AnswerAt(Now, EPacedWait::Choice, static_cast<int32>(Choice.Kind) * 16 + Choice.Seat, State.TurnCount, Choice.DeadlineSeconds,
+			Params.Pace.ChoiceSeconds, Params.Pace.ChoiceJitterSeconds);
+	};
+
 	// Juega el turno en el instante actual hasta que haya que esperar a alguien. Devuelve cuándo volver.
 	// Las reglas son del motor: aquí solo se pregunta al decisor, se entrega su intención y se avanza el reloj.
 	auto StepTurn = [&]() -> double
@@ -571,8 +648,15 @@ FSimulationResult FMatchSimulation::Run()
 			// Elecciones de dados, salto, acción y trilero (S-009, S-010): al instante. La repetición, en la tirada, tras la línea
 			// del turno. Contestada una, se vuelve a mirar: puede abrir otra en el acto (salto rechazado y acción en el Nodo,
 			// robo y runa de Koschei). Hasta S-010 se seguía hacia AdvanceTurn con la nueva abierta y la simulación se paraba.
+			// S-018 (corte B): con ritmo, cada respuesta llega a su hora (AnswerAt); con el rápido, en el acto, como siempre.
 			if (State.PendingChoice.IsOpen() && State.PendingChoice.Kind != EChoiceKind::Reroll)
 			{
+				const double At = ChoiceAnswerAt(Now);
+				if (Now < At)
+				{
+					return At;
+				}
+				Paced.bActive = false;
 				if (!AnswerChoice(Now))
 				{
 					return TNumericLimits<double>::Max();
@@ -583,6 +667,21 @@ FSimulationResult FMatchSimulation::Run()
 			// asiento; el último voto la resuelve.
 			if (State.Vote.IsOpen())
 			{
+				// Con ritmo, todos votan a la vez, a su hora, si alguno tiene a quién votar.
+				bool bCanVote = false;
+				for (int32 Seat = 0; Seat < State.Seats.Num() && !bCanVote; ++Seat)
+				{
+					bCanVote = State.Vote.Votes[Seat] == INDEX_NONE && !Soulbound::Rules::VoteOptions(State, Seat).IsEmpty() && Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid();
+				}
+				if (bCanVote)
+				{
+					const double At = AnswerAt(Now, EPacedWait::Vote, 0, 0, State.Vote.DeadlineSeconds, Params.Pace.VoteSeconds, 0.0);
+					if (Now < At)
+					{
+						return At;
+					}
+					Paced.bActive = false;
+				}
 				LogNewEvents();
 				bool bVoted = false;
 				for (int32 Seat = 0; Seat < State.Seats.Num() && State.Vote.IsOpen(); ++Seat)
@@ -609,6 +708,12 @@ FSimulationResult FMatchSimulation::Run()
 			if (State.Oracle.IsWaiting())
 			{
 				const int32 Seat = State.Oracle.Consultant;
+				const double At = AnswerAt(Now, EPacedWait::Oracle, Seat, static_cast<int32>(State.Oracle.Origin), State.Oracle.DeadlineSeconds, Params.Pace.OracleSeconds, 0.0);
+				if (Now < At)
+				{
+					return At;
+				}
+				Paced.bActive = false;
 				LogNewEvents();
 				const bool bRefuse = State.Oracle.bRefusable && Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid()
 					&& Deciders[Seat]->RefusesOracleSentence(State, Seat, DeciderRng);
@@ -625,15 +730,29 @@ FSimulationResult FMatchSimulation::Run()
 				if (!Pending.bPending)
 				{
 					const int32 Seat = State.ActiveSeat;
-					LogNewEvents();
-					Result.Log.Add(FString::Printf(TEXT("%s Turno %d | asiento %d | tira %d%s | %d opciones"),
-						*Stamp(Now), State.TurnCount + 1, Seat, State.Roll, State.DiceCount > 1 ? TEXT(" con dos dados") : TEXT(""), State.ReachableOptions.Num()));
-					if (State.PendingChoice.Kind == EChoiceKind::Reroll && !AnswerChoice(Now))
+					if (TurnLineFor != State.TurnCount)
 					{
-						return TNumericLimits<double>::Max();
+						LogNewEvents();
+						Result.Log.Add(FString::Printf(TEXT("%s Turno %d | asiento %d | tira %d%s | %d opciones"),
+							*Stamp(Now), State.TurnCount + 1, Seat, State.Roll, State.DiceCount > 1 ? TEXT(" con dos dados") : TEXT(""), State.ReachableOptions.Num()));
+						TurnLineFor = State.TurnCount;
 					}
+					if (State.PendingChoice.Kind == EChoiceKind::Reroll)
+					{
+						const double At = ChoiceAnswerAt(Now);
+						if (Now < At)
+						{
+							return At;
+						}
+						Paced.bActive = false;
+						if (!AnswerChoice(Now))
+						{
+							return TNumericLimits<double>::Max();
+						}
+					}
+					// S-018 (corte B): el destino, con su variación y como mucho a la mitad de lo que queda del reloj de turno.
 					Pending.bPending = true;
-					Pending.AtSeconds = Now + Params.Pace.DestinationSeconds;
+					Pending.AtSeconds = Now + PacedDelay(Now, Params.Pace.DestinationSeconds, Params.Pace.DestinationJitterSeconds, State.TurnDeadlineSeconds);
 					Pending.TileId = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid()
 						? Deciders[Seat]->ChooseDestination(State, Seat, State.ReachableOptions, DeciderRng)
 						: INDEX_NONE;
@@ -676,6 +795,13 @@ FSimulationResult FMatchSimulation::Run()
 				// retardo del destino: así la duración de un turno no depende de dónde caiga la ficha, y los dados de una
 				// semilla no cambian según quién ocupe cada asiento (S-003, revisión del autor).
 				const int32 Seat = State.ActiveSeat;
+				const double At = AnswerAt(Now, EPacedWait::Trial, static_cast<int32>(State.PendingTrial) * 16 + Seat, State.TurnCount, TNumericLimits<double>::Max(),
+					Params.Pace.TrialSeconds, 0.0);
+				if (Now < At)
+				{
+					return At;
+				}
+				Paced.bActive = false;
 				LogNewEvents();
 				const bool bPassed = Deciders.IsValidIndex(Seat) && Deciders[Seat].IsValid()
 					&& Deciders[Seat]->PassSkillMinigame(State, Seat, State.PendingTrial, State.PendingDifficulty, DeciderRng);
@@ -690,7 +816,14 @@ FSimulationResult FMatchSimulation::Run()
 			if (State.TurnPhase == ETurnPhase::Duel)
 			{
 				// Duelo (S-012): como el minijuego, cada participante rinde al instante con su decisor, primero el retador y
-				// después el retado; con los dos, el motor lo resuelve y puede abrir el trilero del botín.
+				// después el retado; con los dos, el motor lo resuelve y puede abrir el trilero del botín. Con ritmo, los dos a la vez, a su hora.
+				const double At = AnswerAt(Now, EPacedWait::Duel, State.Duel.Challenger * 16 + State.Duel.Challenged, State.TurnCount, TNumericLimits<double>::Max(),
+					Params.Pace.DuelSeconds, 0.0);
+				if (Now < At)
+				{
+					return At;
+				}
+				Paced.bActive = false;
 				LogNewEvents();
 				for (const int32 Seat : {State.Duel.Challenger, State.Duel.Challenged})
 				{

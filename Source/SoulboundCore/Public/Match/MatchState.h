@@ -571,7 +571,8 @@ enum class EMatchEventType : uint8
 	PlanarJumped,
 	/**
 	 * Un asiento expulsa a otro a su hogar (R-POD-4); Seat es quien expulsa y OtherSeat el expulsado (desde S-010; antes,
-	 * Value), sin Value. La casilla de llegada es el hogar del expulsado (HomeTile). Nombre propuesto en S-009.
+	 * Value), sin Value. La casilla de llegada es el hogar del expulsado (HomeTile). Nombre propuesto en S-009. Desde S-018 (corte B),
+	 * Detail es la casilla de la que sale el expulsado (para medir el ping-pong de Expulsiones en el Altar).
 	 */
 	Expelled,
 	/**
