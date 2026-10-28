@@ -4,6 +4,35 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo de la story; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera.
 
+## S-021 (A3). La voz del Warden: instrucciones y perfil (28/10/2026, rama `story/S-021-la-voz-del-warden`, base `main`, story S-021)
+
+- **Qué se pidió**: el tercer y último corte de S-021 (CA-INS-1, CA-INS-2): que el Warden enseñe a jugar con diez instrucciones, una vez por partida, que el jugador tenga un perfil en disco con lo que ya ha visto y un ajuste de ayudas (automático, siempre, nunca), y los comandos `SbHints` y `SbForgetInstructions`. Con dos ajustes de A1 y A2 que entran aquí: tras `nadie-vinculado` no se dice además `fin-carrera`, y `programado:aspirante` se dice a la mesa.
+- **Qué se decidió**:
+  - el seguimiento (`FInstructionTracker`) y la política (`TeachAndRecord`, `ShowsRequestHints`) son funciones puras en `Soulbound/Presentation`; el perfil (`UPlayerProfile`, `USaveGame`) y su dueño (`UPlayerProfileSubsystem`) viven en `Soulbound/Profile`; nada de esto entra en `FMatchState` ni en `SoulboundCore`;
+  - detectar un momento lo consume, se enseñe o no, así cambiar el ajuste a mitad de partida no hace que las instrucciones salgan tarde;
+  - en siempre la instrucción también se anota en el perfil (se ha visto);
+  - el perfil guarda las claves como texto (`instruccion:tirar`), no el valor del enum, para que reordenarlo no corrompa perfiles viejos;
+  - **"nunca" oculta el texto que explica, no la información** (decisión del autor del 28/10/2026): las flechas "<- tu turno: clic en una casilla blanca" y equivalentes siguen el ajuste; las opciones numeradas y el tiempo se muestran siempre. Corrige la frase de la story, que decía que toda la línea de petición seguía el ajuste;
+  - los comandos van en el controlador y no en `DebugEdits.h` (desviación de la letra de la story): el perfil no es estado de partida y `DebugEdits` es del motor.
+- **Cómo funciona**:
+  - cada vez que la vista se refresca, `Observe` mira los eventos nuevos y el estado y devuelve los momentos que acaban de darse; el subsistema decide con el perfil si se enseñan y, si sí, la frase `instruccion:<momento>` (primera variante, sin sorteo y sin acotaciones) sale en la línea del Warden con el prefijo "Warden, a ti:" y en la crónica, mezclada por posición del registro con el color del Warden;
+  - disparos: `tirar` (`TurnStarted` propio), `elegir-casilla` (`Rolled` propio), `nicho` (Nicho libre entre las casillas alcanzables del humano que tira), `fuente` (`Moved` propio a una Fuente), `dilema` (elección de evento pedida al humano), `duelo` (`DuelChallenged` con un humano), `orbe` (`OracleOpened` propio), `voto` (`VoteStarted`, al primer humano), `seis-runas` (cualquiera con seis tipos, al primer humano) e `insolencia` (`InsolencePunished` propio);
+  - `SbHints auto|siempre|nunca` y `SbForgetInstructions` cambian el perfil y lo guardan; cuerpo vacío en Shipping.
+- **Dudas y resolución**: las seis del plan; cinco aprobadas con mi recomendación y la tercera (qué oculta "nunca") al revés, como se dice arriba.
+- **Tests**:
+  - nuevos: `Instrucciones.Tirar`, `TableroYFuente`, `MesaYWarden` (CA-INS-1; esta última cubre los cinco momentos restantes de la tabla de la story), `Ayudas`, `Texto` y `ComandoSbHints` (CA-INS-2 y el parseo), `Perfil.ValoresIniciales` y `Perfil.GuardarYCargar` (CA-INS-2, en memoria y por disco con una ranura de prueba que se borra);
+  - cambiados: `Voice.RegistroDeLaCarrera` (sin `fin-carrera` tras `nadie-vinculado`) y `Voice.RegistroDelFinal` (`aspirante` a la mesa);
+  - vistos en rojo con la API como esqueleto, en un commit aparte; total: 360 en verde. CA-VOZ-4 sigue en verde: las cifras de S-018 no se mueven.
+- **Pendiente**:
+  - los criterios manuales en PIE de A1, A2 y A3 (`tirar` en grande una sola vez, parar y volver a dar a PIE, `SbHints siempre` y `nunca`, `SbForgetInstructions`), que siguen sin ejecutarse por no tener el editor abierto;
+  - el ajuste de ayudas en el menú de opciones de UGT y la página "cómo se juega" (story del arranque mínimo);
+  - las frases reales de `instruccion:<momento>` (commit del autor).
+- **Proceso**:
+  - tiempo: una sesión;
+  - preguntas que pararon al agente: una parada (el plan, con seis dudas);
+  - correcciones tras fusionar: por anotar;
+  - build y tests: los tests en rojo compilaron a la primera con los esqueletos. Tras implementar, todo en verde a la primera.
+
 ## S-021 (A2). La voz del Warden: los tipos de comentario (28/10/2026, rama `story/S-021-la-voz-del-warden`, base `main`, story S-021)
 
 - **Qué se pidió**: el segundo corte de S-021 (CA-COM-1, R-COM-1, R-COM-2): que el Warden comente con un tipo y un destinatario, cinco tipos que elige la evaluación y cinco que dispara el suceso. Con tres ajustes del autor sobre la story: `programado:nadie-vinculado` para la victoria del Warden sin vínculos (`victoria` queda solo para la de un jugador); fuera `comentario:presentacion`; y `evento:<id>` solo se exige a los eventos con saco.

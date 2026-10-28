@@ -1523,8 +1523,8 @@ void ABoardViewActor::RefreshWardenLine(const FMatchState& State)
 	for (const Soulbound::Presentation::FInstructionCue& Cue : InstructionTracker.Observe(State, HumanSeats))
 	{
 		const FString Text = Soulbound::Presentation::InstructionText(State.WardenLines, Cue.Moment);
-		// El momento ya está consumido: el perfil decide si se enseña (y lo anota), la tabla si hay frase.
-		if (!Profile->TeachInstruction(Cue.Moment) || Text.IsEmpty())
+		// El momento ya está consumido. Sin frase en la tabla no se enseña ni se anota en el perfil; con ella, el perfil decide (y lo anota).
+		if (Text.IsEmpty() || !Profile->TeachInstruction(Cue.Moment))
 		{
 			continue;
 		}
