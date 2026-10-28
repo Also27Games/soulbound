@@ -66,6 +66,8 @@ struct SOULBOUNDCORE_API FSimulationParams
 	FWardenEventTable WardenEvents;
 	/** Parámetros del Warden ya cargados (LoadWardenParamsFromFile), los de Content/Data/Warden/warden.json. S-016. */
 	FWardenParams WardenParams;
+	/** Frases del Warden ya cargadas (LoadWardenLinesFromFile), las de Content/Data/Warden/frases.json. Vacías, el Warden no habla (S-021). */
+	FWardenLineTable WardenLines;
 	/**
 	 * Ritmo de los decisores (S-018): cuánto tardan en cada cosa. Por defecto el rápido (destino a los 5 s, S-003, y lo demás en el acto),
 	 * que usan los tests automáticos. Sustituye a DummyResponseSeconds. La variación del humano sale de un generador propio con semilla

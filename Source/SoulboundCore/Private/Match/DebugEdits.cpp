@@ -7,6 +7,7 @@
 #include "Match/TurnRules.h"
 #include "Board/SealRules.h"
 #include "Math/RandomStream.h"
+#include "Warden/WardenVoice.h"
 
 namespace
 {
@@ -217,6 +218,17 @@ namespace Soulbound::Debug
 		}
 		LogEdit(State, EDebugEditKind::SetClock, NowSeconds, INDEX_NONE);
 		State.ClockSeconds = Seconds;
+		return EDebugEditResult::Applied;
+	}
+
+	EDebugEditResult SayLine(FMatchState& State, const FString& Key, double NowSeconds)
+	{
+		if (State.WardenLines.IndexOf(Key) == INDEX_NONE)
+		{
+			return EDebugEditResult::UnknownLine;
+		}
+		LogEdit(State, EDebugEditKind::Say, NowSeconds, INDEX_NONE);
+		Soulbound::Rules::SpeakWardenLine(State, Key, NowSeconds);
 		return EDebugEditResult::Applied;
 	}
 

@@ -4,6 +4,7 @@
 #include "Match/VictoryRules.h"
 #include "Match/MatchEvents.h"
 #include "Math/RandomStream.h"
+#include "Warden/WardenVoice.h"
 
 using Soulbound::Rules::LogEvent;
 
@@ -47,6 +48,8 @@ namespace Soulbound::Rules
 		SeatState.Role = ESeatRole::Elect;
 		SeatState.DomainId = Domain.DomainId;
 		LogEvent(State, EMatchEventType::Bonded, NowSeconds, Seat, Domain.DomainId);
+		// S-021 (R-PRO-2, R-VOZ-3b): el Warden presenta a su Elegido al vinculado, con el nombre propio de esa frase.
+		SpeakWardenLine(State, IntroductionKey(Domain.DomainId), NowSeconds, Seat);
 
 		// R-TAB-9: el primer vínculo despierta el tablero y revela los Nodos, sin vuelta atrás.
 		if (State.Board.Phase == EBoardPhase::Primordial)
@@ -109,6 +112,7 @@ namespace Soulbound::Rules
 			// S-018: con el motivo, como el fin por tiempo.
 			DeclareWardenVictory(State, EMatchEndReason::NobodyBonded, NowSeconds);
 			LogEvent(State, EMatchEventType::BondRaceEnded, NowSeconds, INDEX_NONE, Elects);
+			SpeakWardenLine(State, Soulbound::Warden::LineRaceEnd, NowSeconds);
 			return true;
 		}
 
@@ -160,6 +164,8 @@ namespace Soulbound::Rules
 
 		State.MatchPhase = EMatchPhase::RuneHunt;
 		LogEvent(State, EMatchEventType::BondRaceEnded, NowSeconds, INDEX_NONE, Elects);
+		// S-021 (R-PRO-3): el Warden anuncia el fin de la carrera a la mesa.
+		SpeakWardenLine(State, Soulbound::Warden::LineRaceEnd, NowSeconds);
 		return true;
 	}
 

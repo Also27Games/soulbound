@@ -6,6 +6,7 @@
 #include "Math/RandomStream.h"
 #include "Warden/WardenBrain.h"
 #include "Warden/WardenRules.h"
+#include "Warden/WardenVoice.h"
 
 using Soulbound::Rules::LogEvent;
 
@@ -76,6 +77,11 @@ namespace Soulbound::Rules
 			return;
 		}
 		LogEvent(State, EMatchEventType::InsolencePunished, NowSeconds, Seat, Punishment.Level, INDEX_NONE, static_cast<int32>(Punishment.Kind));
+		// S-021 (R-WAR-10): lo que dice al castigar, con la gravedad; la Furia dice la suya al desatarse (UnleashFury).
+		if (Punishment.Kind != EInsolencePunishment::Fury)
+		{
+			SpeakWardenLine(State, InsolenceLineKey(Punishment.Kind), NowSeconds, Seat);
+		}
 		if (Punishment.Kind == EInsolencePunishment::Fury)
 		{
 			UnleashFury(State, Seat, NowSeconds);
@@ -116,6 +122,7 @@ namespace Soulbound::Rules
 			return;
 		}
 		LogEvent(State, EMatchEventType::FuryUnleashed, NowSeconds, Seat);
+		SpeakWardenLine(State, Soulbound::Warden::LineFury, NowSeconds, Seat);
 		FSeatState& SeatState = State.Seats[Seat];
 		SeatState.Insolence = 0;
 		// R-INS-3: sobre quien ya está en el Vacío, su Vacío pasa a ser de la Furia y su cuenta de turnos dentro vuelve a 0.

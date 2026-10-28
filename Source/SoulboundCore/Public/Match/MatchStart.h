@@ -60,9 +60,14 @@ namespace Soulbound::Rules
 	 * los huecos y siempre es 4. Random: sorteo; misma semilla, mismo resultado. WardenEvents: los eventos del Warden, válidos
 	 * (ValidateWardenEvents); opcional (S-014): sin ellos la partida no tiene eventos que lanzar. WardenParams: los parámetros
 	 * del Warden, válidos (ValidateWardenParams); opcional (S-016): sin actos, la partida no tiene Warden.
+	 *  - S-021 (R-VOZ-5, R-WAR-9, R-WAR-10): las frases del Warden viajan en el estado (FMatchState::WardenLines), la semilla de la voz es la de la
+	 *    partida más 5 (sin sacar ningún valor) y, con frases y con Warden, la partida abre con `programado:inicio`, una `programado:corrupcion`
+	 *    por Dominio Olvidado y una `programado:orden-n` por posición del orden de turno, como WardenSpoke en el instante 0.
+	 * WardenLines: las frases ya validadas (LoadWardenLinesFromFile); opcional (S-021): vacías, el Warden no habla.
 	 * Devuelve el estado inicial, o InvalidPlayerCount, InvalidBoard, InvalidMatchParams, InvalidElects, InvalidWardenEvents o
 	 * InvalidWardenParams sin tocar Random.
 	 */
 	SOULBOUNDCORE_API FMatchStartResult StartMatch(const FBoardState& Board, const FMatchParams& Params, const FElectsTable& Elects, int32 PlayerCount, FRandomStream& Random,
-		const FWardenEventTable& WardenEvents = FWardenEventTable(), const FWardenParams& WardenParams = FWardenParams());
+		const FWardenEventTable& WardenEvents = FWardenEventTable(), const FWardenParams& WardenParams = FWardenParams(),
+		const FWardenLineTable& WardenLines = FWardenLineTable());
 }

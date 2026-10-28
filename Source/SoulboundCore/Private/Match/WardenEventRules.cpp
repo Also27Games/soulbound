@@ -9,6 +9,7 @@
 #include "Math/RandomStream.h"
 #include "Templates/TypeHash.h"
 #include "Warden/WardenTriggers.h"
+#include "Warden/WardenVoice.h"
 
 using Soulbound::Rules::LogEvent;
 
@@ -711,6 +712,12 @@ namespace Soulbound::Rules
 		Event.Seed = Random.RandRange(0, MAX_int32 - 1);
 		const int32 OptionCount = State.WardenEvents.Events[Event.EventIndex].Options.Num();
 		LogEvent(State, EMatchEventType::WardenEventStarted, NowSeconds, Event.Director, Event.EventIndex, INDEX_NONE, OptionCount);
+		// S-021 (R-WAR-10, R-SAC-3): la frase del evento va justo después de anunciarlo, a la mesa. Por el Oráculo ya la dijo RevealSentence,
+		// tras la sentencia, y no se repite.
+		if (State.Oracle.Stage != EOracleStage::Applying)
+		{
+			SpeakWardenLine(State, WardenEventKey(State.WardenEvents.Events[Event.EventIndex].Id), NowSeconds);
+		}
 		if (OptionCount == 1)
 		{
 			// R-COM-2: una opción es un decreto, que se aplica sin elegir.

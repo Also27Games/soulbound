@@ -285,7 +285,7 @@ FSimulationResult FMatchSimulation::Run()
 	// los eventos y, si juega, el Warden.
 	const FWardenParams WardenParams = Params.bWardenEnabled ? Params.WardenParams : FWardenParams();
 	FMatchStartResult Start = Soulbound::Rules::StartMatch(Params.Board, Params.MatchParams, Params.Elects, Soulbound::Match::MaxPlayers, Rng,
-		Params.WardenEvents, WardenParams);
+		Params.WardenEvents, WardenParams, Params.WardenLines);
 	if (!Start.IsSuccess())
 	{
 		Result.Log.Add(FString::Printf(TEXT("error semilla=%d \"%s\""), Params.Seed, *Start.Message));
@@ -470,9 +470,20 @@ FSimulationResult FMatchSimulation::Run()
 			{
 				Result.Log.Add(FString::Printf(TEXT("%s Warden lanza %s | dirige el asiento %d"), *Stamp(Event.ClockSeconds), *DescribeWardenEvent(State, Event.Value), Event.Seat));
 			}
+			else if (Event.Type == EMatchEventType::WardenSpoke)
+			{
+				// S-021: la crónica de la simulación escribe la clave y la variante (1 a n), nunca el texto: SoulboundCore no tiene frases fuera de la tabla.
+				const FString Key = State.WardenLines.Entries.IsValidIndex(Event.Value) ? State.WardenLines.Entries[Event.Value].Id : FString::Printf(TEXT("entrada %d"), Event.Value);
+				Result.Log.Add(FString::Printf(TEXT("%s Warden dice %s (%d)%s"), *Stamp(Event.ClockSeconds), *Key, Event.Detail + 1,
+					Event.Seat != INDEX_NONE ? *FString::Printf(TEXT(" al asiento %d"), Event.Seat) : TEXT("")));
+			}
+			else if (Event.Type == EMatchEventType::MatchEndWarning)
+			{
+				Result.Log.Add(FString::Printf(TEXT("%s Warden avisa: quedan %d s"), *Stamp(Event.ClockSeconds), Event.Value));
+			}
 			else if (Event.Type == EMatchEventType::WardenRemark)
 			{
-				Result.Log.Add(FString::Printf(TEXT("%s Warden comenta (sin frase hasta la story \"La voz del Warden\")"), *Stamp(Event.ClockSeconds)));
+				Result.Log.Add(FString::Printf(TEXT("%s Warden comenta"), *Stamp(Event.ClockSeconds)));
 			}
 			else if (Event.Type == EMatchEventType::TurnInterrupted)
 			{

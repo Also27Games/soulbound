@@ -141,6 +141,13 @@ public:
 	UFUNCTION(Exec)
 	void SbClock(FString Seconds);
 
+	/**
+	 * SbSay <clave>: el Warden dice ahora una frase de la tabla (S-021), para probar los textos sin esperar al suceso (SbSay evento:tropiezo).
+	 * La clave es la de frases.json. Cuerpo vacío en Shipping.
+	 */
+	UFUNCTION(Exec)
+	void SbSay(FString Key);
+
 	/** SbEvents: lista los identificadores de los eventos del Warden cargados, con su texto (S-014). */
 	UFUNCTION(Exec)
 	void SbEvents();

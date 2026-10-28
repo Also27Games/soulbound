@@ -4,6 +4,7 @@
 #include "Elects/ElectsLoader.h"
 #include "Match/WardenEvents.h"
 #include "Math/RandomStream.h"
+#include "Warden/WardenVoice.h"
 
 namespace
 {
@@ -29,7 +30,7 @@ namespace
 namespace Soulbound::Rules
 {
 	FMatchStartResult StartMatch(const FBoardState& Board, const FMatchParams& Params, const FElectsTable& Elects, int32 PlayerCount, FRandomStream& Random,
-		const FWardenEventTable& WardenEvents, const FWardenParams& WardenParams)
+		const FWardenEventTable& WardenEvents, const FWardenParams& WardenParams, const FWardenLineTable& WardenLines)
 	{
 		using Soulbound::Board::DomainCount;
 
@@ -87,6 +88,9 @@ namespace Soulbound::Rules
 			}
 		}
 		State.Warden.Seed = Random.GetInitialSeed() + 2;
+		// S-021 (R-WAR-9): la voz tiene su propio sorteo, la semilla de la partida más 5, y no gasta ningún valor de los demás.
+		State.WardenLines = WardenLines;
+		State.Warden.VoiceSeed = Random.GetInitialSeed() + 5;
 		// S-016 (R-TAB-12): el reparto de hogares al acabar la carrera, con su propia semilla, más 3, tampoco toca los dados.
 		State.HomeAssignmentSeed = Random.GetInitialSeed() + 3;
 		for (const FWardenEventDef& Event : WardenEvents.Events)
@@ -164,6 +168,21 @@ namespace Soulbound::Rules
 		// tocar el sorteo de la partida.
 		State.ShellSeedBase = Random.RandRange(0, MAX_int32 - 1);
 		State.ShellGameCount = 0;
+
+		// S-021 (R-PRO-1, R-WAR-10): el Warden abre la partida, sin sacar nada del sorteo: el inicio, una frase por Dominio corrompido y una por
+		// posición del orden de turno, dicha al asiento que la ocupa. Sin frases, no dice nada.
+		SpeakWardenLine(State, Soulbound::Warden::LineStart, 0.0);
+		for (const FDomainState& Domain : State.Board.Domains)
+		{
+			if (Domain.State == EDomainState::Forgotten)
+			{
+				SpeakWardenLine(State, Soulbound::Warden::LineCorruption, 0.0);
+			}
+		}
+		for (int32 Position = 0; Position < State.TurnOrder.Num() && Position < Soulbound::Warden::OrderLineCount; ++Position)
+		{
+			SpeakWardenLine(State, ScheduledOrderKey(Position + 1), 0.0, State.TurnOrder[Position]);
+		}
 		return Result;
 	}
 }

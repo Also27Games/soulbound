@@ -5,6 +5,7 @@
 #include "Match/MatchEvents.h"
 #include "Match/RuneRules.h"
 #include "Warden/WardenRules.h"
+#include "Warden/WardenVoice.h"
 
 namespace Soulbound::Rules
 {
@@ -39,6 +40,7 @@ namespace Soulbound::Rules
 			if (bAspirant && !SeatState.bAspirantAnnounced)
 			{
 				LogEvent(State, EMatchEventType::AspirantAnnounced, NowSeconds, Seat);
+				SpeakWardenLine(State, Soulbound::Warden::LineAspirant, NowSeconds, Seat);
 				bAnnounced = true;
 			}
 			SeatState.bAspirantAnnounced = bAspirant;
@@ -62,6 +64,8 @@ namespace Soulbound::Rules
 		State.Outcome = EMatchOutcome::WardenVictory;
 		State.EndReason = Reason;
 		LogEvent(State, EMatchEventType::WardenVictory, NowSeconds, INDEX_NONE, static_cast<int32>(Reason));
+		// S-021 (R-PRO-5): el fin por tiempo tiene su frase; la victoria por no haber vínculos, la de la victoria.
+		SpeakWardenLine(State, Reason == EMatchEndReason::TimeOut ? Soulbound::Warden::LineTimeOut : Soulbound::Warden::LineVictory, NowSeconds);
 		return true;
 	}
 
@@ -76,6 +80,7 @@ namespace Soulbound::Rules
 			State.WinnerSeat = Seat;
 			State.TurnPhase = ETurnPhase::BetweenTurns;
 			LogEvent(State, EMatchEventType::MatchWon, NowSeconds, Seat);
+			SpeakWardenLine(State, Soulbound::Warden::LineVictory, NowSeconds, Seat);
 			return true;
 		}
 		// R-VIC-3, R-RUN-6: el Warden le arranca una runa al azar entre todas las que tiene (los duplicados cuentan), que vuelve a su

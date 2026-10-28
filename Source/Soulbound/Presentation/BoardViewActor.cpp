@@ -33,7 +33,10 @@
 #include "Materials/MaterialInterface.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Styling/CoreStyle.h"
+#include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Text/STextBlock.h"
 #include "Widgets/SBoxPanel.h"
 
 namespace
@@ -629,6 +632,17 @@ void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 			}
 		}
 		Overlay.Reset();
+	}
+	if (WardenLineOverlay.IsValid())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UGameViewportClient* Viewport = World->GetGameViewport())
+			{
+				Viewport->RemoveViewportWidgetContent(WardenLineOverlay.ToSharedRef());
+			}
+		}
+		WardenLineOverlay.Reset();
 	}
 	Super::EndPlay(EndPlayReason);
 }
@@ -1250,6 +1264,33 @@ void ABoardViewActor::BuildOverlay()
 			]
 		];
 	Viewport->AddViewportWidgetContent(Overlay.ToSharedRef(), 10);
+
+	// S-021: la línea del Warden, grande y abajo, a la izquierda de la columna de paneles. Solo texto: ni assets ni widgets del juego.
+	WardenLineOverlay = SNew(SBox)
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Bottom)
+		.Padding(FMargin(16.f, 0.f, PanelWidthPixels + 16.f, 36.f))
+		.Visibility(EVisibility::HitTestInvisible)
+		[
+			SNew(SBox)
+			.MaxDesiredWidth(1000.f)
+			[
+				SNew(SBorder)
+				.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+				.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.65f))
+				.Padding(FMargin(20.f, 10.f))
+				.Visibility_Lambda([this]() { return WardenLineNow().IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+				[
+					SNew(STextBlock)
+					.Text_Lambda([this]() { return FText::FromString(WardenLineNow()); })
+					.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(WardenLineFontSize, 8)))
+					.ColorAndOpacity(WardenLineColor)
+					.Justification(ETextJustify::Center)
+					.AutoWrapText(true)
+				]
+			]
+		];
+	Viewport->AddViewportWidgetContent(WardenLineOverlay.ToSharedRef(), 11);
 }
 
 void ABoardViewActor::RefreshChronicle(const FMatchState& State)
@@ -1300,7 +1341,7 @@ void ABoardViewActor::RefreshChronicle(const FMatchState& State)
 		}
 		else
 		{
-			Text = Soulbound::Presentation::DescribeEvent(Event, State.Board, &State.WardenEvents);
+			Text = Soulbound::Presentation::DescribeChronicleEvent(State, Index);
 		}
 		if (!Text.IsEmpty())
 		{
@@ -1433,7 +1474,32 @@ void ABoardViewActor::Refresh()
 	RefreshTokens(State);
 	RefreshOracleOrb(State);
 	RefreshAspirantHalos(State);
+	RefreshWardenLine(State);
 	RefreshChronicle(State);
+}
+
+void ABoardViewActor::RefreshWardenLine(const FMatchState& State)
+{
+	if (WardenLineScanned > State.EventLog.Num())
+	{
+		WardenLineScanned = 0;
+		WardenLineQueue = Soulbound::Presentation::FWardenLineQueue();
+	}
+	const int32 HumanSeat = Host.IsValid() ? Host->GetHumanSeat() : INDEX_NONE;
+	for (; WardenLineScanned < State.EventLog.Num(); ++WardenLineScanned)
+	{
+		const FMatchEvent& Event = State.EventLog[WardenLineScanned];
+		const FString Spoken = Event.Type == EMatchEventType::WardenSpoke ? Soulbound::Presentation::SpokenText(State.WardenLines, Event) : FString();
+		if (!Spoken.IsEmpty())
+		{
+			WardenLineQueue.Push(Soulbound::Presentation::WardenLinePrefix(Event.Seat, HumanSeat) + TEXT(" ") + Spoken, Event.ClockSeconds);
+		}
+	}
+}
+
+FString ABoardViewActor::WardenLineNow()
+{
+	return WardenLineQueue.Current(FPlatformTime::Seconds(), WardenLineSeconds);
 }
 
 void ABoardViewActor::RefreshAspirantHalos(const FMatchState& State)

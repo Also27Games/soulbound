@@ -10,6 +10,7 @@
 #include "Match/OracleRules.h"
 #include "Match/ShellGameRules.h"
 #include "Match/VictoryRules.h"
+#include "Warden/WardenVoice.h"
 #include "Match/VoidRules.h"
 #include "Match/WardenEventRules.h"
 #include "Math/RandomStream.h"
@@ -634,6 +635,38 @@ namespace
 		Soulbound::Rules::DeclareWardenVictory(State, EMatchEndReason::TimeOut, NowSeconds);
 	}
 
+	/**
+	 * Los avisos del final (R-PRO-5, S-021): a falta de 60 s y de 10 s para matchEndSeconds, MatchEndWarning con los segundos que quedan y su
+	 * frase, sin efecto y sin cortar nada. Una sola vez cada uno: lo recuerda el estado (FWardenState::bLastMinuteWarned y bTenSecondsWarned),
+	 * así no dependen de que AdvanceTurn pase justo en ese segundo: si llega tarde, avisa de lo que falta, en orden. Nunca tras el fin (AdvanceTurn
+	 * lo acaba antes de llamar aquí). Devuelve si avisó.
+	 */
+	bool EmitMatchEndWarnings(FMatchState& State, double NowSeconds)
+	{
+		if (!State.WardenParams.HasWarden() || State.IsMatchOver())
+		{
+			return false;
+		}
+		FWardenState& Warden = State.Warden;
+		const double EndSeconds = State.WardenParams.MatchEndSeconds;
+		bool bWarned = false;
+		if (!Warden.bLastMinuteWarned && NowSeconds >= EndSeconds - Soulbound::Warden::LastMinuteWarningSeconds)
+		{
+			Warden.bLastMinuteWarned = true;
+			LogEvent(State, EMatchEventType::MatchEndWarning, NowSeconds, INDEX_NONE, Soulbound::Warden::LastMinuteWarningSeconds);
+			Soulbound::Rules::SpeakWardenLine(State, Soulbound::Warden::LineLastMinute, NowSeconds);
+			bWarned = true;
+		}
+		if (!Warden.bTenSecondsWarned && NowSeconds >= EndSeconds - Soulbound::Warden::TenSecondsWarningSeconds)
+		{
+			Warden.bTenSecondsWarned = true;
+			LogEvent(State, EMatchEventType::MatchEndWarning, NowSeconds, INDEX_NONE, Soulbound::Warden::TenSecondsWarningSeconds);
+			Soulbound::Rules::SpeakWardenLine(State, Soulbound::Warden::LineTenSeconds, NowSeconds);
+			bWarned = true;
+		}
+		return bWarned;
+	}
+
 	/** La consulta, sin sentencia ni consultante; las forzadas que esperan, se quedan. */
 	void ClearOracle(FMatchState& State)
 	{
@@ -694,6 +727,11 @@ namespace
 		FOracleState& Oracle = State.Oracle;
 		LogEvent(State, EMatchEventType::OracleSentence, NowSeconds, Oracle.Consultant, Sentence, INDEX_NONE, bSecond ? 1 : 0);
 		LogSentenceTriggers(State, NowSeconds);
+		// S-021 (R-WAR-10): por el Oráculo, la frase del evento va tras la sentencia (y sus disparadores); ApplyEvent no la repite.
+		if (State.WardenEvents.Events.IsValidIndex(Sentence))
+		{
+			Soulbound::Rules::SpeakWardenLine(State, Soulbound::Rules::WardenEventKey(State.WardenEvents.Events[Sentence].Id), NowSeconds);
+		}
 		if (State.Warden.UsesLeft.IsValidIndex(Sentence) && State.Warden.UsesLeft[Sentence] > 0)
 		{
 			--State.Warden.UsesLeft[Sentence];
@@ -1011,10 +1049,12 @@ namespace Soulbound::Rules
 		}
 		// R-PRO-4 (S-018): los aspirantes se anuncian al principio y al final de cada llamada (decisión del autor del 27/10/2026): así el
 		// anuncio va antes de su desafío, venga la condición de una runa, un movimiento, un evento o una edición de depuración.
+		// R-PRO-5 (S-021): los avisos del final, tras el fin por tiempo (que los anula) y antes de todo lo demás.
+		const bool bWarned = EmitMatchEndWarnings(State, NowSeconds);
 		const bool bAnnouncedBefore = SyncAspirants(State, NowSeconds);
 		const bool bChanged = AdvanceTurnPhase(State, NowSeconds, Random);
 		const bool bAnnouncedAfter = SyncAspirants(State, NowSeconds);
-		return bChanged || bAnnouncedBefore || bAnnouncedAfter;
+		return bChanged || bWarned || bAnnouncedBefore || bAnnouncedAfter;
 	}
 
 	EIntentResult SubmitDestinationIntent(FMatchState& State, int32 Seat, int32 TileId, double NowSeconds)

@@ -16,6 +16,7 @@
 #include "Misc/DateTime.h"
 #include "Misc/Paths.h"
 #include "TimerManager.h"
+#include "Warden/WardenLines.h"
 #include "Warden/WardenRules.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogSoulboundMatch, Log, All);
@@ -83,10 +84,14 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 	const FElectsLoadResult Elects = Soulbound::Rules::LoadElectsFromFile(FPaths::Combine(FPaths::ProjectContentDir(), ElectsRelativePath));
 	const FWardenEventsLoadResult Events = Soulbound::Rules::LoadWardenEventsFromFile(FPaths::Combine(FPaths::ProjectContentDir(), WardenEventsRelativePath));
 	const FWardenParamsLoadResult Warden = Soulbound::Rules::LoadWardenParamsFromFile(FPaths::Combine(FPaths::ProjectContentDir(), WardenParamsRelativePath));
-	if (!Board.IsSuccess() || !Params.IsSuccess() || !Elects.IsSuccess() || !Events.IsSuccess() || !Warden.IsSuccess())
+	// S-021 (R-VOZ-5): las frases se cargan contra los eventos y los Elegidos de los archivos; falta una clave y la partida no empieza.
+	const FWardenLinesLoadResult Lines = Events.IsSuccess() && Elects.IsSuccess()
+		? Soulbound::Rules::LoadWardenLinesFromFile(FPaths::Combine(FPaths::ProjectContentDir(), WardenLinesRelativePath), Soulbound::Rules::RequiredWardenLineKeys(Events.Table, Elects.Table))
+		: FWardenLinesLoadResult();
+	if (!Board.IsSuccess() || !Params.IsSuccess() || !Elects.IsSuccess() || !Events.IsSuccess() || !Warden.IsSuccess() || !Lines.IsSuccess())
 	{
 		const FString Error = !Board.IsSuccess() ? Board.Message : !Params.IsSuccess() ? Params.Message : !Elects.IsSuccess() ? Elects.Message
-			: !Events.IsSuccess() ? Events.Message : Warden.Message;
+			: !Events.IsSuccess() ? Events.Message : !Warden.IsSuccess() ? Warden.Message : Lines.Message;
 		UE_LOG(LogSoulboundMatch, Error, TEXT("No se pudo iniciar la partida: %s"), *Error);
 		if (GEngine)
 		{
@@ -101,7 +106,7 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 	DeciderRng.Initialize(UsedSeed + 1);
 
 	// S-016: el Warden viaja en el estado, con su sorteo propio (semilla + 2), igual que en la simulación.
-	FMatchStartResult Start = Soulbound::Rules::StartMatch(Board.Board, Params.Params, Elects.Table, Soulbound::Match::MaxPlayers, MatchRng, Events.Table, Warden.Params);
+	FMatchStartResult Start = Soulbound::Rules::StartMatch(Board.Board, Params.Params, Elects.Table, Soulbound::Match::MaxPlayers, MatchRng, Events.Table, Warden.Params, Lines.Table);
 	if (!Start.IsSuccess())
 	{
 		UE_LOG(LogSoulboundMatch, Error, TEXT("StartMatch rechaza la partida: %s"), *Start.Message);
@@ -701,6 +706,18 @@ FDebugEditOutcome UMatchHostSubsystem::DebugSetClock(double Seconds)
 	}
 	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("reloj de partida en %02d:%02d"), FMath::FloorToInt32(Seconds) / 60, FMath::FloorToInt32(Seconds) % 60)
 		: FString::Printf(TEXT("el reloj solo se adelanta: ahora marca %.0f s"), Now));
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugSay(const FString& Key)
+{
+	if (!bHasMatch)
+	{
+		return FinishDebugEdit(false, TEXT("sin partida"));
+	}
+	State.ClockSeconds = MatchSeconds();
+	const EDebugEditResult Result = Soulbound::Debug::SayLine(State, Key, State.ClockSeconds);
+	const bool bApplied = Result == EDebugEditResult::Applied;
+	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("el Warden dice \"%s\""), *Key) : Soulbound::Presentation::DescribeDebugResult(Result));
 }
 
 FDebugEditOutcome UMatchHostSubsystem::DebugSetInsolence(int32 Seat, int32 Level)

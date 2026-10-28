@@ -37,6 +37,8 @@ enum class EDebugEditKind : uint8
 	StrikeEvent,
 	/** Adelantar el reloj de partida (S-018, SbClock). */
 	SetClock,
+	/** Decir una frase de la tabla del Warden sin esperar al suceso (S-021, SbSay). */
+	Say,
 };
 
 /** Resultado de una edición de depuración (S-011, nombre propuesto). Solo Applied cambia el estado. */
@@ -70,6 +72,8 @@ enum class EDebugEditResult : uint8
 	NotSealed,
 	/** La tirada fijada no está entre 1 y el máximo de dos dados. */
 	InvalidRoll,
+	/** La clave no está en la tabla de frases del Warden (S-021, SbSay). */
+	UnknownLine,
 };
 
 /**
@@ -190,4 +194,11 @@ namespace Soulbound::Debug
 	 * NowSeconds desordenaría el registro y se rechaza con InvalidAmount, sin cambiar nada. El reloj del anfitrión lo mueve el anfitrión.
 	 */
 	SOULBOUNDCORE_API EDebugEditResult SetClock(FMatchState& State, double Seconds, double NowSeconds);
+
+	/**
+	 * Dice la frase Key de la tabla del Warden ahora (S-021, SbSay), para probar los textos sin esperar al suceso: deja el evento de la
+	 * edición (sin asiento) y justo después el WardenSpoke de la frase, a la mesa, con el sorteo de la voz. No toca nada más. Rechaza con
+	 * UnknownLine una clave que no está en la tabla de la partida (también si la tabla está vacía), sin cambiar nada.
+	 */
+	SOULBOUNDCORE_API EDebugEditResult SayLine(FMatchState& State, const FString& Key, double NowSeconds);
 }
