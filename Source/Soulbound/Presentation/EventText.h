@@ -32,6 +32,9 @@ namespace Soulbound::Presentation
 	 */
 	FString DescribeEvent(const FMatchEvent& Event, const FBoardState& Board, const FWardenEventTable* WardenEvents = nullptr, const FWardenLineTable* WardenLines = nullptr);
 
+	/** Nombre en español del tipo de un comentario del Warden (EWardenRemarkKind en un Value), para la crónica (S-021). */
+	FString RemarkKindText(int32 Kind);
+
 	/**
 	 * La frase de un WardenSpoke tal como se enseña (S-021, R-VOZ-5): la variante de la tabla sin las acotaciones de audio entre corchetes.
 	 * Vacía si el evento no apunta a una entrada o a una variante que existan.

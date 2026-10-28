@@ -4,6 +4,7 @@
 #include "Match/EffectRules.h"
 #include "Match/MatchEvents.h"
 #include "Match/RuneRules.h"
+#include "Warden/WardenRemarks.h"
 
 using Soulbound::Rules::LogEvent;
 
@@ -77,6 +78,8 @@ namespace Soulbound::Rules
 		if (!State.Seats.IsValidIndex(Challenged) || !HasRunes(State.Seats[Challenged]))
 		{
 			LogEvent(State, EMatchEventType::DuelNoRunes, NowSeconds, Challenger, INDEX_NONE, Challenged);
+			// R-COM-2 (S-021): retar a quien no tiene runas es de mendigo, y el Warden lo dice.
+			SpeakRemark(State, EWardenRemarkKind::Beggar, Challenger, NowSeconds);
 			return EDuelStart::NoRunes;
 		}
 		// R-DUE-3: el retado no elige nada; el duelo empieza y se esperan los dos rendimientos.
@@ -95,6 +98,7 @@ namespace Soulbound::Rules
 		if (!State.Seats.IsValidIndex(Challenged) || !HasRunes(State.Seats[Challenged]))
 		{
 			LogEvent(State, EMatchEventType::DuelNoRunes, NowSeconds, Challenger, INDEX_NONE, Challenged);
+			SpeakRemark(State, EWardenRemarkKind::Beggar, Challenger, NowSeconds);
 			return EDuelStart::NoRunes;
 		}
 		// R-EFE-13: nace de un evento, no de un Nodo (bActiveSeatMoved puede ser de un turno anterior): Value 2 en el registro.
@@ -159,6 +163,11 @@ namespace Soulbound::Rules
 			State.Seats[Result.Loser].TileId = Home;
 			Result.bLoserSentHome = true;
 			LogEvent(State, EMatchEventType::DuelLoserSentHome, NowSeconds, Result.Winner, Home, Result.Loser);
+			// R-COM-2 (S-021): el retador sin runas que pierde es un pardillo.
+			if (Result.Loser == Duel.Challenger)
+			{
+				SpeakRemark(State, EWardenRemarkKind::Fool, Result.Loser, NowSeconds);
+			}
 		}
 		return Result;
 	}

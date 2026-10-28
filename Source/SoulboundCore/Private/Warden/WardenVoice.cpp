@@ -20,6 +20,12 @@ namespace Soulbound::Rules
 		return FString();
 	}
 
+	FRandomStream VoiceDraw(FMatchState& State)
+	{
+		FWardenState& Warden = State.Warden;
+		return FRandomStream(static_cast<int32>(HashCombineFast(GetTypeHash(Warden.VoiceSeed), GetTypeHash(Warden.VoiceDraws++))));
+	}
+
 	FWardenLineChoice DrawWardenLine(FMatchState& State, const FString& Key)
 	{
 		FWardenLineChoice Choice;
@@ -38,7 +44,7 @@ namespace Soulbound::Rules
 		}
 		// Como WardenDraw, con la semilla de la voz y su propia cuenta: ni el sorteo del Warden ni el de los dados (R-WAR-9).
 		FWardenState& Warden = State.Warden;
-		FRandomStream Draw(static_cast<int32>(HashCombineFast(GetTypeHash(Warden.VoiceSeed), GetTypeHash(Warden.VoiceDraws++))));
+		FRandomStream Draw = VoiceDraw(State);
 		const int32* Last = Warden.LastLineVariant.Find(Key);
 		if (Last && *Last >= 0 && *Last < Count)
 		{

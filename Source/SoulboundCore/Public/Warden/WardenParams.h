@@ -284,6 +284,20 @@ struct SOULBOUNDCORE_API FWardenParams
 	UPROPERTY()
 	double MarginSeconds = 0.0;
 
+	/**
+	 * Prisa (R-COM-1, `hurryFraction`, S-021): fracción del reloj de turno, de 0 (excluido) a 1, que el activo puede llevar sin entregar
+	 * intención antes de que el comentario Hurry sea elegible. En datos; valor inicial 0,5.
+	 */
+	UPROPERTY()
+	double HurryFraction = 0.0;
+
+	/**
+	 * Risa al cortar (R-COM-1, `cutLaughWindowSeconds`, S-021): el comentario CutLaugh es elegible si hubo un TurnInterrupted en los
+	 * últimos segundos así. Mayor que cero. En datos; valor inicial 20.
+	 */
+	UPROPERTY()
+	double CutLaughWindowSeconds = 0.0;
+
 	/** Tabla de insolencia (R-INS-2): cada nivel de 0 a MaxInsolence - 1 en una sola fila. La usa la insolencia con castigo. */
 	UPROPERTY()
 	TArray<FInsolenceRow> InsolenceTable;

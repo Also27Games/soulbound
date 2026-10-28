@@ -14,6 +14,7 @@
 #include "Misc/AutomationTest.h"
 #include "MatchTestSetup.h"
 #include "Simulation/MatchSimulation.h"
+#include "Warden/WardenLines.h"
 #include "WardenFixture.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -188,6 +189,7 @@ namespace
 			TEXT("    desafíos finales por partida: "),
 			TEXT("    aspirantes que no llegan a desafiar, por partida: "),
 			TEXT("    Expulsiones desde el Altar: "),
+			TEXT("    comentarios del Warden por tipo, por partida: "),
 		};
 		return Lines;
 	}
@@ -737,6 +739,9 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 				Act.SentencesByOrigin.Init(0, OracleOriginCount);
 			}
 			int32 Furies = 0;
+			// S-021 (A2): los comentarios del Warden por tipo.
+			TArray<int32> Remarks;
+			Remarks.Init(0, static_cast<int32>(EWardenRemarkKind::NotThisTime) + 1);
 			// S-017: cortes del fin de carrera.
 			int32 RaceEndCuts = 0;
 			for (int32 Seed = 1; Seed <= Games; ++Seed)
@@ -807,6 +812,16 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 				// S-016 (B): las Furias, contadas del registro.
 				TestEqual(TEXT("Las Furias del resultado son las del registro"), Result.Furies, CountEvents(Result.FinalState, EMatchEventType::FuryUnleashed));
 				Furies += Result.Furies;
+				if (TestEqual(TEXT("Un contador de comentarios por tipo"), Result.RemarksByKind.Num(), Remarks.Num()))
+				{
+					int32 Counted = 0;
+					for (int32 Kind = 0; Kind < Remarks.Num(); ++Kind)
+					{
+						Remarks[Kind] += Result.RemarksByKind[Kind];
+						Counted += Result.RemarksByKind[Kind];
+					}
+					TestEqual(TEXT("Los comentarios por tipo suman los del registro"), Counted, CountEvents(Result.FinalState, EMatchEventType::WardenRemark));
+				}
 				const FMatchState& State = Result.FinalState;
 				// CA-SIM-2 (S-018): toda partida termina con uno de los tres finales.
 				TestTrue(FString::Printf(TEXT("%s, ritmo %s, semilla %d: termina con uno de los tres finales"), *BoardFile, Pace.Key, Seed),
@@ -950,6 +965,14 @@ bool FMatchSimulationBondRaceReportTest::RunTest(const FString& Parameters)
 			}
 			Lines.Add(FString::Printf(TEXT("    turnos cortados por el fin de la carrera: %d en %d partidas"), RaceEndCuts, Games));
 			Lines.Add(FString::Printf(TEXT("    Furias del Warden por partida, de media: %.2f"), static_cast<double>(Furies) / Games));
+			// S-021 (A2): comentarios por tipo y por partida, con su clave (sin el prefijo): los de la evaluación y los del suceso.
+			FString RemarkLine;
+			for (int32 Kind = 0; Kind < Remarks.Num(); ++Kind)
+			{
+				RemarkLine += FString::Printf(TEXT("%s%s %.2f"), Kind > 0 ? TEXT(", ") : TEXT(""),
+					*Soulbound::Rules::WardenRemarkKey(static_cast<EWardenRemarkKind>(Kind)).RightChop(FCString::Strlen(TEXT("comentario:"))), static_cast<double>(Remarks[Kind]) / Games);
+			}
+			Lines.Add(FString::Printf(TEXT("    comentarios del Warden por tipo, por partida: %s"), *RemarkLine));
 			Lines.Add(FString::Printf(TEXT("    tiempo real: %.3f s en total"), WallSum));
 		}
 	}

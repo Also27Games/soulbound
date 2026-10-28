@@ -20,7 +20,7 @@ namespace
 	/** Nombre en la clave de cada tipo de comentario, en el orden de EWardenRemarkKind. */
 	const TCHAR* const RemarkNames[] = {
 		TEXT("burla-al-ultimo"), TEXT("cinco-runas"), TEXT("prisa"), TEXT("acaparador"), TEXT("mendigo"), TEXT("pardillo"),
-		TEXT("lento"), TEXT("desagradecido"), TEXT("apuesta-fallida"), TEXT("presentacion"), TEXT("risa-al-cortar"), TEXT("esta-vez-no"),
+		TEXT("lento"), TEXT("desagradecido"), TEXT("apuesta-fallida"), TEXT("risa-al-cortar"), TEXT("esta-vez-no"),
 	};
 
 	/** Nombre en la clave de cada momento de instrucción, en el orden de EInstructionMoment. */
@@ -67,9 +67,13 @@ namespace Soulbound::Rules
 	TArray<FString> RequiredWardenLineKeys(const FWardenEventTable& Events, const FElectsTable& Elects)
 	{
 		TArray<FString> Keys;
+		// Solo los eventos que están en algún saco: los de fuera (los de S-014) pueden tener frase y no se exige (decisión del autor del 28/10/2026).
 		for (const FWardenEventDef& Event : Events.Events)
 		{
-			Keys.Add(WardenEventKey(Event.Id));
+			if (Event.bInBag)
+			{
+				Keys.Add(WardenEventKey(Event.Id));
+			}
 		}
 		for (int32 Kind = 0; Kind < RemarkCount; ++Kind)
 		{
@@ -95,6 +99,7 @@ namespace Soulbound::Rules
 		Keys.Add(Soulbound::Warden::LineTenSeconds);
 		Keys.Add(Soulbound::Warden::LineTimeOut);
 		Keys.Add(Soulbound::Warden::LineVictory);
+		Keys.Add(Soulbound::Warden::LineNobodyBonded);
 		for (int32 Domain = 0; Domain < Elects.Elects.Num(); ++Domain)
 		{
 			Keys.Add(IntroductionKey(Domain));

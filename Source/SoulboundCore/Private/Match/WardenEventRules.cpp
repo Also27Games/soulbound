@@ -8,6 +8,7 @@
 #include "Match/TurnRules.h"
 #include "Math/RandomStream.h"
 #include "Templates/TypeHash.h"
+#include "Warden/WardenRemarks.h"
 #include "Warden/WardenTriggers.h"
 #include "Warden/WardenVoice.h"
 
@@ -833,8 +834,9 @@ namespace Soulbound::Rules
 				}
 				break;
 			case EChoiceKind::GiftRune:
-				// R-DIR-4: el regalo se pierde, con burla.
+				// R-DIR-4: el regalo se pierde, con burla. R-COM-2 (S-021): y quien lo ignora es un desagradecido.
 				Taunt(State, Application, Expired.Seat, NowSeconds);
+				SpeakRemark(State, EWardenRemarkKind::Ungrateful, Expired.Seat, NowSeconds);
 				State.CurrentEvent.PendingTargets.RemoveAt(0);
 				break;
 			case EChoiceKind::LoseRune:

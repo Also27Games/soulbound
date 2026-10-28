@@ -124,6 +124,8 @@ struct SOULBOUNDCORE_API FSimulationResult
 	TArray<FWardenActReport> WardenActs;
 	/** Furias del Warden en la partida (FuryUnleashed, R-INS-3, S-016). */
 	int32 Furies = 0;
+	/** Comentarios del Warden por tipo (WardenRemark, indexados por EWardenRemarkKind; R-COM-1, S-021), los de la evaluación y los del suceso. */
+	TArray<int32> RemarksByKind;
 	/** Turnos que cortó el fin de la carrera (TurnInterrupted con Detail 1, R-PRO-0, S-017): 0 o 1 por partida. */
 	int32 RaceEndCuts = 0;
 	/** Tiempo real que tardó la simulación. */

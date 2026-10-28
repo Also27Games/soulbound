@@ -21,6 +21,12 @@
   por tablero y por ritmo de la simulación (rápido y humano), que empieza con el resultado de las partidas, el minuto medio de
   la victoria, los desafíos finales, los aspirantes que no llegan a desafiar y las Expulsiones desde el Altar. Son cifras
   para el autor; el test no las juzga, salvo que cada bloque las imprime y que toda partida termina (CA-SIM-2).
+  Desde S-021 (A2), cada bloque lleva también una línea con los comentarios del Warden por tipo y por partida, de media: los que
+  elige la evaluación (MockLast, FiveRunes, Hurry, Hoarder, CutLaugh) y los que dispara el suceso (Beggar, Fool, Slow, Ungrateful,
+  NotThisTime; LostBet es de la Fase 2 y sale a 0). Dos parámetros de Content/Data/Warden/warden.json los ajustan: hurryFraction
+  (fracción del reloj de turno que el activo puede llevar sin entregar intención antes de que Hurry sea elegible; valor inicial 0,5)
+  y cutLaughWindowSeconds (ventana tras un corte en que CutLaugh es elegible; valor inicial 20). Ningún otro número del informe
+  cuenta los comentarios.
   Arranca el editor en modo comandlet (-nullrhi, sin ventana), ejecuta los tests y resume el resultado.
   Devuelve código 1 si algún test falla o si no se ejecutó ninguno. Compila antes con Scripts\build.ps1 -Que editor.
   Motor: variable de entorno UE_ROOT o, si no existe, C:\UE_Engines\UE_5.8.

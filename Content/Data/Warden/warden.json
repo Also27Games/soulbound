@@ -9,6 +9,8 @@
   "evaluationVariationSeconds": 5,
   "guaranteeSeconds": 120,
   "marginSeconds": 12,
+  "hurryFraction": 0.5,
+  "cutLaughWindowSeconds": 20,
   "insolence": [
     {"levels": [0, 1], "light": 70, "medium": 25, "severe": 5},
     {"levels": [2, 3], "light": 30, "medium": 50, "severe": 20},

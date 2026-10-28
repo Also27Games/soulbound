@@ -3,6 +3,7 @@
 #include "Match/EffectRules.h"
 #include "Match/MatchEvents.h"
 #include "Match/RuneRules.h"
+#include "Warden/WardenRemarks.h"
 #include "Math/RandomStream.h"
 
 using Soulbound::Rules::LogEvent;
@@ -199,6 +200,8 @@ namespace Soulbound::Rules
 	{
 		// R-ROB-3: sin elegir a tiempo no roba nada; el registro lo deja. Sin castigo.
 		LogEvent(State, EMatchEventType::ShellGameExpired, NowSeconds, State.ShellGame.Thief, INDEX_NONE, State.ShellGame.Victim);
+		// R-COM-2 (S-021): no elegir a tiempo es de lento, y el Warden lo dice a quien elegía.
+		SpeakRemark(State, EWardenRemarkKind::Slow, State.ShellGame.Thief, NowSeconds);
 		EndShellGame(State);
 	}
 }

@@ -93,6 +93,8 @@ namespace
 		int32 EchoSeats = 0;
 		int32 Seats = 0;
 		int32 Spoken = 0;
+		/** Comentarios del Warden (WardenRemark), de la evaluación y del suceso: ninguna cifra del informe de S-018 los cuenta. */
+		int32 Remarks = 0;
 		TArray<int32> TurnsStarted;
 		TArray<int32> TurnsCut;
 	};
@@ -143,6 +145,7 @@ bool FVoiceDoesNotChangeTheMatchTest::RunTest(const FString& Parameters)
 
 			const FMatchState& State = With.FinalState;
 			Report.Spoken += State.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::WardenSpoke; }).Num();
+			Report.Remarks += State.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::WardenRemark; }).Num();
 			Report.PlayerWins += State.Outcome == EMatchOutcome::PlayerVictory ? 1 : 0;
 			Report.TimeOuts += State.Outcome == EMatchOutcome::WardenVictory && State.EndReason == EMatchEndReason::TimeOut ? 1 : 0;
 			Report.WinMinuteSum += State.Outcome == EMatchOutcome::PlayerVictory ? State.ClockSeconds / 60.0 : 0.0;
@@ -163,6 +166,8 @@ bool FVoiceDoesNotChangeTheMatchTest::RunTest(const FString& Parameters)
 		}
 		// La voz habla de verdad en estas partidas: al menos las siete del inicio por partida.
 		TestTrue(FString::Printf(TEXT("Ritmo %s: con frases, la voz habla (%d frases)"), Pace.Key, Report.Spoken), Report.Spoken >= 7 * Games);
+		// S-021 (A2): y el Warden comenta de verdad en estas partidas (R-COM-1), así que las cifras de abajo se dan con los comentarios activos.
+		TestTrue(FString::Printf(TEXT("Ritmo %s: hay comentarios del Warden (%d)"), Pace.Key, Report.Remarks), Report.Remarks > 0);
 	}
 	if (Figures.Num() != 2)
 	{

@@ -15,6 +15,25 @@ namespace Soulbound::Presentation
 		return Tile.Type == ETileType::Altar ? FString(TEXT("ALTAR")) : FString::Printf(TEXT("D%d·%d"), Tile.DomainId, Tile.TileId);
 	}
 
+	FString RemarkKindText(int32 Kind)
+	{
+		switch (static_cast<EWardenRemarkKind>(Kind))
+		{
+		case EWardenRemarkKind::MockLast: return TEXT("burla al último");
+		case EWardenRemarkKind::FiveRunes: return TEXT("aviso: cinco tipos de runa");
+		case EWardenRemarkKind::Hurry: return TEXT("prisa");
+		case EWardenRemarkKind::Hoarder: return TEXT("acaparador");
+		case EWardenRemarkKind::Beggar: return TEXT("mendigo");
+		case EWardenRemarkKind::Fool: return TEXT("pardillo");
+		case EWardenRemarkKind::Slow: return TEXT("lento");
+		case EWardenRemarkKind::Ungrateful: return TEXT("desagradecido");
+		case EWardenRemarkKind::LostBet: return TEXT("apuesta fallida");
+		case EWardenRemarkKind::CutLaugh: return TEXT("risa al cortar");
+		case EWardenRemarkKind::NotThisTime: return TEXT("esta vez no");
+		}
+		return TEXT("comentario desconocido");
+	}
+
 	FString SpokenText(const FWardenLineTable& Lines, const FMatchEvent& Spoke)
 	{
 		if (Spoke.Type != EMatchEventType::WardenSpoke || !Lines.Entries.IsValidIndex(Spoke.Value) || !Lines.Entries[Spoke.Value].Lines.IsValidIndex(Spoke.Detail))
@@ -196,7 +215,9 @@ namespace Soulbound::Presentation
 				? FString::Printf(TEXT("FIN DE LA CARRERA: CORTA el turno del asiento %d %s: %s"), Event.Seat, *TurnPhaseText(Event.Value), *TurnCutLossText(Event.Value))
 				: FString::Printf(TEXT("GOLPE: el Warden CORTA el turno del asiento %d %s: %s"), Event.Seat, *TurnPhaseText(Event.Value), *TurnCutLossText(Event.Value));
 		case EMatchEventType::WardenRemark:
-			return FString(TEXT("el Warden comenta"));
+			// S-021 (A2): el tipo y el asiento del que habla (el Warden no dice nombres: lo dice la línea); su frase va en la línea siguiente.
+			return Event.Seat == INDEX_NONE ? FString::Printf(TEXT("el Warden comenta (%s)"), *RemarkKindText(Event.Value))
+				: FString::Printf(TEXT("el Warden comenta (%s) sobre el asiento %d"), *RemarkKindText(Event.Value), Event.Seat);
 		// S-021: lo que dice (la frase de la tabla, sin acotaciones; con la tabla fuera, la posición) y el aviso del final.
 		case EMatchEventType::WardenSpoke:
 		{

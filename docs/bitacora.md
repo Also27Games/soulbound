@@ -4,6 +4,35 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo de la story; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera.
 
+## S-021 (A2). La voz del Warden: los tipos de comentario (28/10/2026, rama `story/S-021-la-voz-del-warden`, base `main`, story S-021)
+
+- **Qué se pidió**: el segundo corte de S-021 (CA-COM-1, R-COM-1, R-COM-2): que el Warden comente con un tipo y un destinatario, cinco tipos que elige la evaluación y cinco que dispara el suceso. Con tres ajustes del autor sobre la story: `programado:nadie-vinculado` para la victoria del Warden sin vínculos (`victoria` queda solo para la de un jugador); fuera `comentario:presentacion`; y `evento:<id>` solo se exige a los eventos con saco.
+- **Diferencia con el GDD 06**: el enum de comentarios pasa de **12 a 11 tipos**. El duodécimo, la presentación de un Elegido, no es un comentario: lo dice `ClaimNiche` al vincularse, con su propia frase `presentacion:<dominio>` (una por Elegido, a quien se vincula). Quien lea el GDD 06 y cuente doce tipos, que busque la presentación entre las frases programadas, no entre los comentarios.
+- **Qué se decidió**:
+  - la evaluación elige entre los tipos aplicables con la misma probabilidad cada uno y el sorteo de la voz (`VoiceDraw`), así que ni el sorteo del Warden ni el de los dados se mueven;
+  - el destinatario es el asiento del que se habla; dentro de un tipo con varios asientos, el primero del orden de turno; `MockLast` es el de menos runas del Brazal (los duplicados cuentan) y, en empate, el último del orden de los empatados;
+  - `CutLaugh` es elegible si hubo un `TurnInterrupted` en los últimos `cutLaughWindowSeconds` (20) y `Hurry` pasada `hurryFraction` (0,5) del reloj de turno de los datos: **dos parámetros nuevos de `warden.json`**, documentados con su valor inicial en `FWardenParams`, en el glosario y en la ayuda del informe (`test.ps1`);
+  - los comentarios por suceso se registran siempre, con o sin frases: `WardenRemark` es parte del registro, la frase es lo opcional;
+  - `Ungrateful` solo en el regalo perdido (`GiftRune`, R-DIR-4); `LostBet` queda como clave sin disparo (Fase 2).
+- **Cómo funciona**:
+  - `ApplicableRemarks` (`Warden/WardenRemarks`) calcula los tipos y asientos aplicables; `SpeakRemark` deja `WardenRemark` (Seat, tipo en Value) y su `WardenSpoke`; `SpeakEvaluatedRemark` elige y dice. `ApplyWardenDecision` lo llama cuando el cerebro decide comentar.
+  - Por suceso: `Beggar` tras `DuelNoRunes` (reto normal y forzado), `Fool` tras `DuelLoserSentHome`, `Slow` tras `ShellGameExpired`, `Ungrateful` tras la burla del regalo, `NotThisTime` tras cada `FuryRefusal`.
+  - `frases.json` pasa a 82 claves (38 eventos con saco, 11 tipos, 10 instrucciones, 4 de insolencia y Furia, 13 programadas y 6 presentaciones); las 11 de eventos sin saco y `comentario:presentacion` salen del archivo provisional.
+  - La simulación cuenta los comentarios por tipo (`FSimulationResult::RemarksByKind`) y el informe imprime una línea por bloque.
+- **Dudas y resolución**: las siete del plan, aprobadas con mi recomendación. Al implementar, un fallo del propio test (un puntero a un array temporal en el ayudante de `ComentariosPorEvaluacion`, dato de basura que se veía como tres aserciones rotas de `MockLast`).
+- **Tests**:
+  - nuevos: `Voice.ComentariosPorEvaluacion` y `ComentarioDeLaDecision` (CA-COM-1, por evaluación; 90 semillas, los tres tipos salen, determinista), `Voice.ComentariosPorSuceso` (CA-COM-1, por suceso, con y sin frases), `Voice.ParametrosDeLosComentarios`;
+  - ampliados: `Voice.CargadorDeFrases` (CA-VOZ-2: 38 con saco, 11 tipos, 13 programadas, las frases de los eventos sin saco son opcionales), `Voice.RegistroDeLaCarrera` (`nadie-vinculado`), `Voice.LaVozNoCambiaLaPartida` (CA-VOZ-4: ahora comprueba además que hay comentarios en esas partidas) y `Voz.TextoDeLaFrase`;
+  - vistos en rojo con la API como esqueleto, en un commit aparte; total: 352 en verde.
+- **Informe**: con comentarios activos, el tablero de 86 da **las mismas cifras de S-018 (B)**, exactas, a los dos ritmos (CA-VOZ-4 sigue en verde): ninguna cifra del informe cuenta `WardenRemark` ni `WardenSpoke`; solo la línea nueva de comentarios por tipo.
+  Comentarios por tipo y por partida en ese tablero, rápido / humano: burla al último 6,50 / 9,98; cinco runas 4,08 / 3,96; prisa 0,00 / 1,00; acaparador 4,20 / 4,46; mendigo 0,24 / 0,14; pardillo 0,14 / 0,14; risa al cortar 1,00 / 1,16; lento, desagradecido y esta vez no, 0 en los dos (los dummies nunca agotan un plazo ni son insolentes, así que esos tres solo se ven con personas). `MockLast` domina porque es siempre elegible y la evaluación reparte por tipo, no por asiento: si en el test de usabilidad se nota repetitivo, la palanca es un peso por tipo en datos.
+- **Pendiente**: A3 (instrucciones y perfil); los criterios manuales en PIE de A1 y A2 (la línea del Warden con los comentarios, `SbSay comentario:prisa`), que siguen sin ejecutarse por no tener el editor abierto; las frases reales (commit del autor).
+- **Proceso**:
+  - tiempo: una sesión;
+  - preguntas que pararon al agente: una parada (el plan, con siete dudas);
+  - correcciones tras fusionar: por anotar;
+  - build y tests: los tests en rojo compilaron a la primera. Tras implementar falló un test por un puntero a un temporal en el propio test; corregido, todo en verde.
+
 ## S-021 (A1). La voz del Warden: frases en datos, sorteo, línea y avisos (27/10/2026, rama `story/S-021-la-voz-del-warden`, base `main`, story S-021)
 
 - **Qué se pidió**: el primer corte de S-021 (el autor aprobó el corte A1/A2/A3 en el plan, tres PR en la misma rama): la tabla de frases en `frases.json` con todas sus claves, el sorteo propio de la voz, el registro `WardenSpoke`, los avisos del final, la línea del Warden en pantalla con la crónica y `SbSay`. Quedan para A2 los tipos de comentario (CA-COM-1) y para A3 las instrucciones y el perfil (CA-INS-1 y 2).

@@ -279,6 +279,15 @@ namespace Soulbound::Rules
 			return Reject(EWardenParamsError::NonPositiveDuration, FString::Printf(TEXT("R-WAR-3, R-WAR-4d, R-WAR-5: intervalo (%.1f), garantía (%.1f) y margen (%.1f) mayores que cero, y variación (%.1f) de cero a menos que el intervalo."),
 				Params.EvaluationIntervalSeconds, Params.GuaranteeSeconds, Params.MarginSeconds, Params.EvaluationVariationSeconds));
 		}
+		// R-COM-1 (S-021): la fracción del reloj de la prisa, de 0 (excluido) a 1, y la ventana de la risa al cortar, positiva.
+		if (Params.HurryFraction <= 0.0 || Params.HurryFraction > 1.0)
+		{
+			return Reject(EWardenParamsError::ProbabilityOutOfRange, FString::Printf(TEXT("R-COM-1: hurryFraction (%.2f) debe estar entre 0 (excluido) y 1."), Params.HurryFraction));
+		}
+		if (Params.CutLaughWindowSeconds <= 0.0)
+		{
+			return Reject(EWardenParamsError::NonPositiveDuration, FString::Printf(TEXT("R-COM-1: cutLaughWindowSeconds (%.1f) debe ser mayor que cero."), Params.CutLaughWindowSeconds));
+		}
 		// R-INS-2: cada nivel anterior a una subida (0 a MaxInsolence - 1), en una sola fila; cada fila sin Furia suma 100.
 		TArray<int32> Covered;
 		Covered.Init(0, Soulbound::Match::MaxInsolence);
@@ -371,6 +380,9 @@ namespace Soulbound::Rules
 			{TEXT("oracleBias"), &Params.OracleBias},
 			// S-017 (PR B): las votaciones.
 			{TEXT("voteSeconds"), &Params.VoteSeconds},
+			// S-021 (A2): los comentarios de la evaluación.
+			{TEXT("hurryFraction"), &Params.HurryFraction},
+			{TEXT("cutLaughWindowSeconds"), &Params.CutLaughWindowSeconds},
 		};
 		for (const TPair<const TCHAR*, double*>& Number : Numbers)
 		{

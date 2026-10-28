@@ -64,8 +64,8 @@ namespace Soulbound::Rules
 		State.Outcome = EMatchOutcome::WardenVictory;
 		State.EndReason = Reason;
 		LogEvent(State, EMatchEventType::WardenVictory, NowSeconds, INDEX_NONE, static_cast<int32>(Reason));
-		// S-021 (R-PRO-5): el fin por tiempo tiene su frase; la victoria por no haber vínculos, la de la victoria.
-		SpeakWardenLine(State, Reason == EMatchEndReason::TimeOut ? Soulbound::Warden::LineTimeOut : Soulbound::Warden::LineVictory, NowSeconds);
+		// S-021 (R-PRO-5): el fin por tiempo tiene su frase y la victoria por no haber vínculos, la suya; `victoria` es solo la de un jugador.
+		SpeakWardenLine(State, Reason == EMatchEndReason::TimeOut ? Soulbound::Warden::LineTimeOut : Soulbound::Warden::LineNobodyBonded, NowSeconds);
 		return true;
 	}
 
