@@ -55,6 +55,12 @@ namespace Soulbound::Presentation
 	 */
 	bool ShowsRequestHints(EHintsMode Mode, const TArray<FString>& Seen);
 
+	/**
+	 * La frase de una instrucción tal como se enseña (S-021): la primera variante de `instruccion:<momento>` de la tabla, sin sorteo y sin las
+	 * acotaciones de audio entre corchetes. Vacía si la tabla no tiene la entrada.
+	 */
+	FString InstructionText(const FWardenLineTable& Lines, EInstructionMoment Moment);
+
 	/** El ajuste a partir de lo que se escribe en la consola ("auto", "siempre", "nunca"; sin distinguir mayúsculas). Falso si no es ninguno. */
 	bool ParseHintsMode(const FString& Text, EHintsMode& OutMode);
 

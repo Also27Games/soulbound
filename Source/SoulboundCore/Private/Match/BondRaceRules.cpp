@@ -112,7 +112,8 @@ namespace Soulbound::Rules
 			// S-018: con el motivo, como el fin por tiempo.
 			DeclareWardenVictory(State, EMatchEndReason::NobodyBonded, NowSeconds);
 			LogEvent(State, EMatchEventType::BondRaceEnded, NowSeconds, INDEX_NONE, Elects);
-			SpeakWardenLine(State, Soulbound::Warden::LineRaceEnd, NowSeconds);
+			// S-021 (A3, decisión del autor del 28/10/2026): la partida ya ha terminado, así que no se anuncia además el fin de la carrera;
+			// ya habló `programado:nadie-vinculado` con la victoria.
 			return true;
 		}
 

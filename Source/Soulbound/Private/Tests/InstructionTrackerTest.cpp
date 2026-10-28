@@ -302,6 +302,22 @@ bool FInstructionHintsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInstructionTextTest, "Soulbound.Game.Presentation.Instrucciones.Texto", InstructionTestFlags)
+
+bool FInstructionTextTest::RunTest(const FString& Parameters)
+{
+	// R-VOZ-5 y la story: la instrucción se enseña como línea del Warden, `instruccion:<momento>` de la tabla, sin sorteo y sin acotaciones.
+	FWardenLineTable Lines;
+	FWardenLineEntry& Entry = Lines.Entries.AddDefaulted_GetRef();
+	Entry.Id = Soulbound::Rules::InstructionKey(EInstructionMoment::Roll);
+	Entry.Lines = {TEXT("[susurro] Tira el dado, pequeño. [pausa]"), TEXT("Otra variante")};
+	TestEqual(TEXT("La primera variante, sin corchetes"), Soulbound::Presentation::InstructionText(Lines, EInstructionMoment::Roll),
+		FString(TEXT("Tira el dado, pequeño.")));
+	TestTrue(TEXT("Sin la entrada, vacía"), Soulbound::Presentation::InstructionText(Lines, EInstructionMoment::Duel).IsEmpty());
+	TestTrue(TEXT("Con la tabla vacía, vacía"), Soulbound::Presentation::InstructionText(FWardenLineTable(), EInstructionMoment::Roll).IsEmpty());
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInstructionHintsParseTest, "Soulbound.Game.Presentation.Instrucciones.ComandoSbHints", InstructionTestFlags)
 
 bool FInstructionHintsParseTest::RunTest(const FString& Parameters)

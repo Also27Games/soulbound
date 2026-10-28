@@ -40,7 +40,8 @@ namespace Soulbound::Rules
 			if (bAspirant && !SeatState.bAspirantAnnounced)
 			{
 				LogEvent(State, EMatchEventType::AspirantAnnounced, NowSeconds, Seat);
-				SpeakWardenLine(State, Soulbound::Warden::LineAspirant, NowSeconds, Seat);
+				// S-021 (A3, decisión del autor del 28/10/2026): a la mesa, no al aspirante; la frase azuza a los demás contra él.
+				SpeakWardenLine(State, Soulbound::Warden::LineAspirant, NowSeconds);
 				bAnnounced = true;
 			}
 			SeatState.bAspirantAnnounced = bAspirant;
