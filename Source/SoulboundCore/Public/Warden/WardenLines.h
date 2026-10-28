@@ -7,9 +7,11 @@ struct FElectsTable;
 struct FWardenEventTable;
 
 /**
- * Tipo de comentario del Warden (R-COM-1, glosario `Remark`, S-021, nombre propuesto): los doce del GDD 06. La clave de su frase en
- * frases.json es `comentario:<tipo>` (WardenRemarkKey). En el corte A1 solo existe el enum y las claves; quien elige y dispara cada
- * tipo llega en el corte A2.
+ * Tipo de comentario del Warden (R-COM-1, glosario `Remark`, S-021, nombre propuesto): once, no los doce del GDD 06. La presentación
+ * de un Elegido (el duodécimo del GDD) no es un comentario: va por su propia frase, `presentacion:<dominio>` (IntroductionKey), que
+ * dice `StartMatch`/`ClaimNiche` al vincularse (decisión del autor del 28/10/2026). La clave de la frase de cada tipo en frases.json
+ * es `comentario:<tipo>` (WardenRemarkKey). Los elige la evaluación (MockLast, FiveRunes, Hurry, Hoarder, CutLaugh) o los dispara el
+ * suceso (Beggar, Fool, Slow, Ungrateful, NotThisTime); LostBet es de la Fase 2 y no se dispara (corte A2).
  */
 UENUM()
 enum class EWardenRemarkKind : uint8
@@ -32,8 +34,6 @@ enum class EWardenRemarkKind : uint8
 	Ungrateful,
 	/** Apuesta fallida: Fase 2, la clave existe y no se dispara. */
 	LostBet,
-	/** Presentación de un Elegido al vincularse. */
-	Introduction,
 	/** Risa al cortar un turno. */
 	CutLaugh,
 	/** "Esta vez no" de la Furia (`FuryRefusal`). */
@@ -147,7 +147,9 @@ namespace Soulbound::Warden
 	inline const FString LineLastMinute = TEXT("programado:ultimo-minuto");
 	inline const FString LineTenSeconds = TEXT("programado:diez-segundos");
 	inline const FString LineTimeOut = TEXT("programado:fin-tiempo");
+	/** La victoria de un jugador (`MatchWon`). La del Warden por no haber vínculos es `LineNobodyBonded` (decisión del autor del 28/10/2026). */
 	inline const FString LineVictory = TEXT("programado:victoria");
+	inline const FString LineNobodyBonded = TEXT("programado:nadie-vinculado");
 	inline const FString LineFury = TEXT("furia");
 
 	/** Segundos que faltan para matchEndSeconds en cada aviso del final (R-PRO-5, decisión del autor del 27/10/2026). */
@@ -177,7 +179,7 @@ namespace Soulbound::Rules
 
 	/**
 	 * Las claves que frases.json debe traer (R-VOZ-5), construidas de los enums y de las tablas, sin una lista escrita a mano:
-	 * una por evento de Events, por tipo de comentario, por momento de instrucción, por gravedad de insolencia y la Furia, por frase
+	 * una por evento de Events que esté en algún saco (FWardenEventDef::bInBag; los de fuera pueden tener frase y no se exige), por tipo de comentario, por momento de instrucción, por gravedad de insolencia y la Furia, por frase
 	 * programada y una presentación por Elegido de Elects. Events: la tabla de eventos del Warden; Elects: los Elegidos.
 	 */
 	SOULBOUNDCORE_API TArray<FString> RequiredWardenLineKeys(const FWardenEventTable& Events, const FElectsTable& Elects);

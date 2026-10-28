@@ -54,17 +54,22 @@ bool FVoiceLinesLoaderTest::RunTest(const FString& Parameters)
 	}
 	const TArray<FString> Required = Soulbound::Rules::RequiredWardenLineKeys(Events, Elects);
 
-	// La lista se construye de las tablas y los enums: un evento, un tipo de comentario, un momento de instrucción, tres gravedades y la
-	// Furia, doce programadas (inicio, corrupción, cuatro posiciones del orden, fin de carrera, aspirante, dos avisos, fin de tiempo y
-	// victoria) y una presentación por Elegido.
+	// La lista se construye de las tablas y los enums: un evento de algún saco, un tipo de comentario (once: la presentación de los Elegidos
+	// no es un comentario), un momento de instrucción, tres gravedades y la Furia, trece programadas (inicio, corrupción, cuatro
+	// posiciones del orden, fin de carrera, aspirante, dos avisos, fin de tiempo, victoria y nadie vinculado) y una presentación por Elegido.
+	// Los eventos que no están en ningún saco pueden tener frase, pero no se exige (decisión del autor del 28/10/2026).
 	const int32 RemarkCount = static_cast<int32>(EWardenRemarkKind::NotThisTime) + 1;
 	const int32 InstructionCount = static_cast<int32>(EInstructionMoment::Insolence) + 1;
-	TestEqual(TEXT("Una clave por evento, tipo de comentario, momento, gravedad con la Furia, programada y Elegido"), Required.Num(),
-		Events.Events.Num() + RemarkCount + InstructionCount + 4 + 12 + Elects.Elects.Num());
+	const int32 InBag = Events.Events.FilterByPredicate([](const FWardenEventDef& Event) { return Event.bInBag; }).Num();
+	TestEqual(TEXT("Once tipos de comentario"), RemarkCount, 11);
+	TestTrue(TEXT("Hay eventos fuera de los sacos (los de S-014) y dentro"), InBag > 0 && InBag < Events.Events.Num());
+	TestEqual(TEXT("Una clave por evento de saco, tipo de comentario, momento, gravedad con la Furia, programada y Elegido"), Required.Num(),
+		InBag + RemarkCount + InstructionCount + 4 + 13 + Elects.Elects.Num());
+	TestFalse(TEXT("La presentación no es un comentario"), Required.Contains(TEXT("comentario:presentacion")));
 	TestEqual(TEXT("Sin claves repetidas"), TSet<FString>(Required).Num(), Required.Num());
 	for (const FWardenEventDef& Event : Events.Events)
 	{
-		TestTrue(FString::Printf(TEXT("Se exige la frase del evento %s"), *Event.Id), Required.Contains(Soulbound::Rules::WardenEventKey(Event.Id)));
+		TestEqual(FString::Printf(TEXT("Se exige la frase del evento %s solo si está en un saco"), *Event.Id), Required.Contains(Soulbound::Rules::WardenEventKey(Event.Id)), Event.bInBag);
 	}
 	for (int32 Kind = 0; Kind < RemarkCount; ++Kind)
 	{
@@ -79,7 +84,7 @@ bool FVoiceLinesLoaderTest::RunTest(const FString& Parameters)
 		TestTrue(FString::Printf(TEXT("Se exige la posición %d del orden"), Position), Required.Contains(Soulbound::Rules::ScheduledOrderKey(Position)));
 	}
 	for (const FString& Key : {Soulbound::Warden::LineStart, Soulbound::Warden::LineCorruption, Soulbound::Warden::LineRaceEnd, Soulbound::Warden::LineAspirant,
-		Soulbound::Warden::LineLastMinute, Soulbound::Warden::LineTenSeconds, Soulbound::Warden::LineTimeOut, Soulbound::Warden::LineVictory, Soulbound::Warden::LineFury})
+		Soulbound::Warden::LineLastMinute, Soulbound::Warden::LineTenSeconds, Soulbound::Warden::LineTimeOut, Soulbound::Warden::LineVictory, Soulbound::Warden::LineNobodyBonded, Soulbound::Warden::LineFury})
 	{
 		TestTrue(FString::Printf(TEXT("Se exige %s"), *Key), Required.Contains(Key));
 	}
@@ -95,6 +100,22 @@ bool FVoiceLinesLoaderTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	TestEqual(TEXT("Entran todas las entradas del archivo"), Loaded.Table.Entries.Num(), Required.Num());
+
+	// Las frases de los eventos fuera de los sacos son opcionales: sin ellas carga, y con ellas también.
+	FWardenLineTable WithoutOptional = Loaded.Table;
+	for (const FWardenEventDef& Event : Events.Events)
+	{
+		if (!Event.bInBag)
+		{
+			WithoutOptional.Entries.RemoveAll([&Event](const FWardenLineEntry& Entry) { return Entry.Id == Soulbound::Rules::WardenEventKey(Event.Id); });
+		}
+	}
+	TestTrue(TEXT("Sin las frases de los eventos sin saco, carga"), Soulbound::Rules::ValidateWardenLines(WithoutOptional, Required).IsSuccess());
+	FWardenLineTable WithOptional = Loaded.Table;
+	FWardenLineEntry& Extra = WithOptional.Entries.AddDefaulted_GetRef();
+	Extra.Id = Soulbound::Rules::WardenEventKey(Events.Events.FindByPredicate([](const FWardenEventDef& Event) { return !Event.bInBag; })->Id);
+	Extra.Lines = {TEXT("una frase opcional")};
+	TestTrue(TEXT("Con ellas (o con cualquier clave de más), también"), Soulbound::Rules::ValidateWardenLines(WithOptional, Required).IsSuccess());
 
 	// Si falta cualquiera de las claves, falla nombrándola.
 	for (const FString& Key : Required)

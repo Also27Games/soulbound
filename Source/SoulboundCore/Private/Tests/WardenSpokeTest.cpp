@@ -220,7 +220,7 @@ bool FVoiceRaceTest::RunTest(const FString& Parameters)
 {
 	// CA-VOZ-3 (R-PRO-2, R-PRO-3, R-WAR-10): un vínculo deja la presentación de ese Elegido justo después de Bonded, para el vinculado;
 	// el fin de la carrera deja programado:fin-carrera justo después de BondRaceEnded, a la mesa; si nadie se vinculó, la victoria del
-	// Warden deja programado:victoria justo después de WardenVictory.
+	// Warden deja programado:nadie-vinculado justo después de WardenVictory (programado:victoria es solo la de un jugador).
 	{
 		FVoiceFixture F;
 		if (!F.StartInRace(*this) || !Soulbound::Tests::LoadTestWardenLines(*this, F.Lines))
@@ -261,7 +261,7 @@ bool FVoiceRaceTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("La carrera termina sin vínculos"), Soulbound::Rules::EndBondRace(F.State, F.Now));
 		TestEqual(TEXT("Gana el Warden"), AsInt(F.State.Outcome), AsInt(EMatchOutcome::WardenVictory));
 		const int32 Victory = IndexOfEvent(F.State, EMatchEventType::WardenVictory, From);
-		TestTrue(TEXT("Justo después de la victoria, programado:victoria"), Victory != INDEX_NONE && IsFollowedBySpoke(F.State, Victory, Soulbound::Warden::LineVictory));
+		TestTrue(TEXT("Justo después de la victoria, programado:nadie-vinculado"), Victory != INDEX_NONE && IsFollowedBySpoke(F.State, Victory, Soulbound::Warden::LineNobodyBonded));
 		const int32 Ended = IndexOfEvent(F.State, EMatchEventType::BondRaceEnded, From);
 		TestTrue(TEXT("Y tras el fin de la carrera, programado:fin-carrera"), Ended != INDEX_NONE && IsFollowedBySpoke(F.State, Ended, Soulbound::Warden::LineRaceEnd));
 		TestEqual(TEXT("Dos frases"), SpokenSince(F.State, From), 2);

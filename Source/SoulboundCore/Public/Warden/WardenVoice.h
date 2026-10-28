@@ -20,6 +20,12 @@ struct SOULBOUNDCORE_API FWardenLineChoice
 
 namespace Soulbound::Rules
 {
+	/**
+	 * Un sorteo de la voz que no es de una frase (S-021, R-COM-1): el que elige el tipo de un comentario. Como WardenDraw, la semilla de la
+	 * voz combinada con su cuenta (FWardenState::VoiceSeed y VoiceDraws): no gasta el sorteo del Warden ni el de los dados.
+	 */
+	SOULBOUNDCORE_API FRandomStream VoiceDraw(FMatchState& State);
+
 	/** `insolencia:<gravedad>` (leve, media, grave) para una gravedad de la tabla; `furia` para la Furia (R-INS-2, R-INS-3). */
 	SOULBOUNDCORE_API FString InsolenceLineKey(EInsolencePunishment Punishment);
 

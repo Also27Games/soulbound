@@ -20,7 +20,7 @@ namespace
 	/** Nombre en la clave de cada tipo de comentario, en el orden de EWardenRemarkKind. */
 	const TCHAR* const RemarkNames[] = {
 		TEXT("burla-al-ultimo"), TEXT("cinco-runas"), TEXT("prisa"), TEXT("acaparador"), TEXT("mendigo"), TEXT("pardillo"),
-		TEXT("lento"), TEXT("desagradecido"), TEXT("apuesta-fallida"), TEXT("presentacion"), TEXT("risa-al-cortar"), TEXT("esta-vez-no"),
+		TEXT("lento"), TEXT("desagradecido"), TEXT("apuesta-fallida"), TEXT("risa-al-cortar"), TEXT("esta-vez-no"),
 	};
 
 	/** Nombre en la clave de cada momento de instrucción, en el orden de EInstructionMoment. */
