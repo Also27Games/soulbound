@@ -3,7 +3,9 @@
 #include "../Match/MatchHostSubsystem.h"
 #include "../Presentation/BoardTileActor.h"
 #include "../Presentation/BoardViewActor.h"
+#include "../Presentation/InstructionTracker.h"
 #include "../Presentation/SeatTokenActor.h"
+#include "../Profile/PlayerProfileSubsystem.h"
 #include "../Warden/WardenHostSubsystem.h"
 #include "Components/InputComponent.h"
 #include "Engine/Engine.h"
@@ -578,6 +580,42 @@ void ASpikeOnlinePlayerController::SbSay(FString Key)
 #endif
 }
 
+void ASpikeOnlinePlayerController::SbHints(FString Mode)
+{
+#if !UE_BUILD_SHIPPING
+	// S-021 (A3): el perfil del jugador no es estado de partida, así que el comando vive aquí y no en las ediciones de depuración del motor.
+	UPlayerProfileSubsystem* Profile = GetGameInstance() ? GetGameInstance()->GetSubsystem<UPlayerProfileSubsystem>() : nullptr;
+	if (!Profile)
+	{
+		Say(TEXT("[Depuración] No hay perfil del jugador."));
+		return;
+	}
+	EHintsMode Parsed = EHintsMode::Automatic;
+	if (!Soulbound::Presentation::ParseHintsMode(Mode, Parsed))
+	{
+		Say(FString::Printf(TEXT("[Depuración] Uso: SbHints auto|siempre|nunca (ahora: %s)"), *Soulbound::Presentation::HintsModeText(Profile->GetHints())));
+		return;
+	}
+	Profile->SetHints(Parsed);
+	Say(FString::Printf(TEXT("[Depuración] Ayudas: %s (guardado en el perfil)."), *Soulbound::Presentation::HintsModeText(Parsed)));
+#endif
+}
+
+void ASpikeOnlinePlayerController::SbForgetInstructions()
+{
+#if !UE_BUILD_SHIPPING
+	UPlayerProfileSubsystem* Profile = GetGameInstance() ? GetGameInstance()->GetSubsystem<UPlayerProfileSubsystem>() : nullptr;
+	if (!Profile)
+	{
+		Say(TEXT("[Depuración] No hay perfil del jugador."));
+		return;
+	}
+	const int32 Forgotten = Profile->GetInstructionsSeen().Num();
+	Profile->ForgetInstructions();
+	Say(FString::Printf(TEXT("[Depuración] Instrucciones olvidadas: %d (guardado en el perfil)."), Forgotten));
+#endif
+}
+
 void ASpikeOnlinePlayerController::SbRelease()
 {
 #if !UE_BUILD_SHIPPING
@@ -733,7 +771,7 @@ void ASpikeOnlinePlayerController::SbHelp()
 #if !UE_BUILD_SHIPPING
 	Say(TEXT("[Depuración] Comandos: SbGiveRune <asiento> <tipo> [n] | SbTakeRune <asiento> <tipo> [n] | SbMove <asiento> <casilla> | "
 		"SbBond <asiento> <dominio> | SbSeal <casilla> | SbUnseal <casilla> | SbEndRace | SbRoll <n> | SbTrial pass|fail | "
-		"SbDuel win|lose | SbTurn <asiento> | SbBanish <asiento> | SbRelease | SbSendHome <asiento> | SbInsolence <asiento> <n> | SbEvent <id> | SbStrike <id> | SbEvents | SbWardenMode off|auto | SbClock <segundos> | SbSay <clave> | "
+		"SbDuel win|lose | SbTurn <asiento> | SbBanish <asiento> | SbRelease | SbSendHome <asiento> | SbInsolence <asiento> <n> | SbEvent <id> | SbStrike <id> | SbEvents | SbWardenMode off|auto | SbClock <segundos> | SbSay <clave> | SbHints auto|siempre|nunca | SbForgetInstructions | "
 		"SbSeatedView [<altura_cm> <distancia_cm> <inclinación_grados> [<ángulo_grados>]] | SbHelp. "
 		"Los asientos van de 0 a 3 y el tipo de runa es el Dominio de 0 a 5. SbBanish y SbSendHome no valen con quien está jugando su turno, "
 		"y SbEvent solo entre turnos: con SbStepMode 1. SbStrike corta el turno en curso, también a medio camino."));

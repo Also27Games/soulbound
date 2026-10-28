@@ -148,6 +148,18 @@ public:
 	UFUNCTION(Exec)
 	void SbSay(FString Key);
 
+	/**
+	 * SbHints auto|siempre|nunca: cambia el ajuste de ayudas del perfil del jugador y lo guarda (S-021, A3). Siempre y automático enseñan las
+	 * instrucciones del Warden (siempre sin mirar el perfil); nunca, ninguna; el texto de petición ("<- tu turno: ...") sigue el ajuste, las
+	 * opciones numeradas y el tiempo se muestran siempre. Cuerpo vacío en Shipping. Vive aquí y no en DebugEdits: el perfil no es estado de partida.
+	 */
+	UFUNCTION(Exec)
+	void SbHints(FString Mode);
+
+	/** SbForgetInstructions: vacía la lista de instrucciones vistas del perfil y lo guarda (S-021, A3). Cuerpo vacío en Shipping. */
+	UFUNCTION(Exec)
+	void SbForgetInstructions();
+
 	/** SbEvents: lista los identificadores de los eventos del Warden cargados, con su texto (S-014). */
 	UFUNCTION(Exec)
 	void SbEvents();
