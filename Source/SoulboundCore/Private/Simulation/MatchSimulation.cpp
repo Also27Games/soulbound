@@ -483,7 +483,10 @@ FSimulationResult FMatchSimulation::Run()
 			}
 			else if (Event.Type == EMatchEventType::WardenRemark)
 			{
-				Result.Log.Add(FString::Printf(TEXT("%s Warden comenta"), *Stamp(Event.ClockSeconds)));
+				// S-021 (A2): el tipo (la clave sin prefijo) y el asiento del que habla; nunca el texto.
+				Result.Log.Add(FString::Printf(TEXT("%s Warden comenta (%s)%s"), *Stamp(Event.ClockSeconds),
+					*Soulbound::Rules::WardenRemarkKey(static_cast<EWardenRemarkKind>(Event.Value)).RightChop(FCString::Strlen(TEXT("comentario:"))),
+					Event.Seat != INDEX_NONE ? *FString::Printf(TEXT(" sobre el asiento %d"), Event.Seat) : TEXT("")));
 			}
 			else if (Event.Type == EMatchEventType::TurnInterrupted)
 			{
@@ -926,6 +929,15 @@ FSimulationResult FMatchSimulation::Run()
 		Result.Interventions += Act.EffectInterventions;
 	}
 	Result.Furies = State.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::FuryUnleashed; }).Num();
+	// S-021 (A2): los comentarios por tipo, del registro.
+	Result.RemarksByKind.Init(0, static_cast<int32>(EWardenRemarkKind::NotThisTime) + 1);
+	for (const FMatchEvent& Event : State.EventLog)
+	{
+		if (Event.Type == EMatchEventType::WardenRemark && Result.RemarksByKind.IsValidIndex(Event.Value))
+		{
+			++Result.RemarksByKind[Event.Value];
+		}
+	}
 	Result.RaceEndCuts = State.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::TurnInterrupted && Event.Detail == 1; }).Num();
 	// S-018: el resultado, uno de los tres finales o ninguno (sin Warden, la partida no termina por tiempo).
 	const FString Outcome = State.Outcome == EMatchOutcome::PlayerVictory ? FString::Printf(TEXT("gana el asiento %d"), State.WinnerSeat)

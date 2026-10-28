@@ -8,6 +8,7 @@
 #include "Match/TurnRules.h"
 #include "Match/VoidRules.h"
 #include "Math/RandomStream.h"
+#include "Warden/WardenRemarks.h"
 
 using Soulbound::Rules::LogEvent;
 
@@ -94,6 +95,7 @@ namespace Soulbound::Rules
 			if (State.Seats[Seat].IsInVoid() && State.Seats[Seat].bFuryVoid)
 			{
 				LogEvent(State, EMatchEventType::FuryRefusal, NowSeconds, Seat, 1);
+				Soulbound::Rules::SpeakRemark(State, EWardenRemarkKind::NotThisTime, Seat, NowSeconds);
 				continue;
 			}
 			LeaveVoid(State, Seat, EVoidExit::Released, NowSeconds);

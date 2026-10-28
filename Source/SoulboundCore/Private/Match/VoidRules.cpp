@@ -4,6 +4,7 @@
 #include "Match/InsolenceRules.h"
 #include "Match/MatchEvents.h"
 #include "Match/RuneRules.h"
+#include "Warden/WardenRemarks.h"
 
 using Soulbound::Rules::LogEvent;
 
@@ -67,6 +68,8 @@ namespace Soulbound::Rules
 		if (State.Seats[Seat].bFuryVoid)
 		{
 			LogEvent(State, EMatchEventType::FuryRefusal, NowSeconds, Seat, 0);
+			// R-COM-2 (S-021): "esta vez no", y el Warden lo dice al de la Furia.
+			Soulbound::Rules::SpeakRemark(State, EWardenRemarkKind::NotThisTime, Seat, NowSeconds);
 			return false;
 		}
 		// R-POD-6, R-RUN-6: la runa sacrificada vuelve a la reserva de su Fuente; si era la última, Desvío se pierde en el

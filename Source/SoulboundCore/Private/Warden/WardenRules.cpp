@@ -4,6 +4,7 @@
 #include "Match/MatchState.h"
 #include "Match/TurnRules.h"
 #include "Templates/TypeHash.h"
+#include "Warden/WardenRemarks.h"
 
 using Soulbound::Rules::LogEvent;
 
@@ -63,9 +64,9 @@ namespace Soulbound::Rules
 		switch (Decision.Kind)
 		{
 		case EWardenDecisionKind::Remark:
-			// TODO(R-COM-1): el comentario aún no lleva tipo ni asiento (EWardenRemarkKind) ni su frase (WardenSpoke): llegan con el corte
-			// A2 de la story "La voz del Warden" (S-021), que cambia Value (tipo) y Seat (destinatario). Aquí solo queda registrado.
-			LogEvent(State, EMatchEventType::WardenRemark, NowSeconds, INDEX_NONE);
+			// R-COM-1 (S-021, corte A2): el comentario elige un tipo aplicable al estado con el sorteo de la voz y lo dice. No corta nada, no gasta la
+			// garantía ni toca el sorteo del Warden.
+			SpeakEvaluatedRemark(State, NowSeconds);
 			break;
 		case EWardenDecisionKind::Strike:
 		{

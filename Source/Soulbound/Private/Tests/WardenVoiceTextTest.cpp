@@ -72,6 +72,11 @@ bool FVoiceSpokenTextTest::RunTest(const FString& Parameters)
 
 	const FString Remark = Soulbound::Presentation::DescribeEvent(MakeVoiceEvent(EMatchEventType::WardenRemark, INDEX_NONE, INDEX_NONE), Board, &State.WardenEvents, &State.WardenLines);
 	TestFalse(TEXT("El comentario ya no dice que la frase llega con otra story"), Remark.Contains(TEXT("story")) || Remark.Contains(TEXT("llega")));
+	// A2: el comentario dice su tipo y de qué asiento habla (el Warden no dice nombres: lo dice la interfaz).
+	const FString HurryRemark = Soulbound::Presentation::DescribeEvent(MakeVoiceEvent(EMatchEventType::WardenRemark, 2, static_cast<int32>(EWardenRemarkKind::Hurry)), Board, &State.WardenEvents, &State.WardenLines);
+	TestEqual(TEXT("El comentario dice su tipo y el asiento"), HurryRemark, FString(TEXT("el Warden comenta (prisa) sobre el asiento 2")));
+	TestEqual(TEXT("Un comentario sin asiento"), Soulbound::Presentation::DescribeEvent(MakeVoiceEvent(EMatchEventType::WardenRemark, INDEX_NONE, static_cast<int32>(EWardenRemarkKind::LostBet)), Board),
+		FString(TEXT("el Warden comenta (apuesta fallida)")));
 	TestEqual(TEXT("El aviso del final, en la crónica"), Soulbound::Presentation::DescribeEvent(MakeVoiceEvent(EMatchEventType::MatchEndWarning, INDEX_NONE, 10), Board),
 		FString(TEXT("el Warden avisa: quedan 10 s para el final de la partida")));
 	TestEqual(TEXT("La frase y el aviso son del Warden (su color)"), static_cast<int32>(Soulbound::Presentation::EventSource(EMatchEventType::WardenSpoke)),

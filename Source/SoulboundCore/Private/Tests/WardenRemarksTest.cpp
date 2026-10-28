@@ -40,7 +40,8 @@ namespace
 	/** Si Kind es elegible para Seat. */
 	bool Eligible(const FMatchState& State, double Now, EWardenRemarkKind Kind, int32 Seat)
 	{
-		const FRemarkCandidate* Candidate = Find(Soulbound::Rules::ApplicableRemarks(State, Now), Kind);
+		const TArray<FRemarkCandidate> Candidates = Soulbound::Rules::ApplicableRemarks(State, Now);
+		const FRemarkCandidate* Candidate = Find(Candidates, Kind);
 		return Candidate && Candidate->Seat == Seat;
 	}
 
