@@ -5,6 +5,7 @@
 #include "InputCoreTypes.h"
 #include "BoardKit.h"
 #include "BoardLayout.h"
+#include "InstructionTracker.h"
 #include "WardenLineQueue.h"
 #include "BoardViewActor.generated.h"
 
@@ -593,6 +594,21 @@ private:
 	Soulbound::Presentation::FWardenLineQueue WardenLineQueue;
 	/** Cuántos eventos del registro se han mirado en busca de frases. */
 	int32 WardenLineScanned = 0;
+
+	/** Qué instrucciones se han dado en esta partida (S-021, A3); el perfil decide si se enseñan. */
+	Soulbound::Presentation::FInstructionTracker InstructionTracker;
+
+	/**
+	 * Una instrucción enseñada (S-021, A3): no es un evento del motor, así que la vista la guarda aparte y la mezcla en la crónica. After es el
+	 * índice del último evento del registro cuando se enseñó; la nota va justo después de él.
+	 */
+	struct FInstructionNote
+	{
+		int32 After = INDEX_NONE;
+		double ClockSeconds = 0.0;
+		FString Text;
+	};
+	TArray<FInstructionNote> InstructionNotes;
 
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> BaseMaterial;

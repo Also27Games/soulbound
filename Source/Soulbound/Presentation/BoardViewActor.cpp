@@ -1,11 +1,13 @@
 #include "BoardViewActor.h"
 
 #include "../Match/MatchHostSubsystem.h"
+#include "../Profile/PlayerProfileSubsystem.h"
 #include "../Warden/WardenHostSubsystem.h"
 #include "BoardTileActor.h"
 #include "BoardViewState.h"
 #include "ChroniclePanel.h"
 #include "EventText.h"
+#include "InstructionTracker.h"
 #include "LegendPanel.h"
 #include "Match/BondRaceRules.h"
 #include "Match/RuneRules.h"
@@ -24,6 +26,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Engine/Engine.h"
+#include "Engine/GameInstance.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/PostProcessVolume.h"
 #include "Engine/StaticMesh.h"
@@ -292,7 +295,7 @@ namespace
 	 * resolverse, decisión del autor) y el tiempo que queda. Al humano, si aún no ha votado y tiene a quién, le dice cómo votar.
 	 * Vacía sin votación. Solo lee el estado.
 	 */
-	FString VoteLine(const FMatchState& State, int32 HumanSeat)
+	FString VoteLine(const FMatchState& State, int32 HumanSeat, bool bHints)
 	{
 		const FVoteState& Vote = State.Vote;
 		if (!Vote.IsOpen())
@@ -311,7 +314,7 @@ namespace
 			&& !Soulbound::Rules::VoteOptions(State, HumanSeat).IsEmpty();
 		return FString::Printf(TEXT("VOTACIÓN: %d se pueden votar | han votado: %s | quedan %.0f s%s"), Vote.Votables.Num(),
 			Voted.IsEmpty() ? TEXT("nadie") : *FString::Join(Voted, TEXT(", ")), FMath::Max(0.0, Vote.DeadlineSeconds - State.ClockSeconds),
-			bHumanPending ? TEXT("  <- clic en la ficha del asiento al que votas") : TEXT(""));
+			bHumanPending && bHints ? TEXT("  <- clic en la ficha del asiento al que votas") : TEXT(""));
 	}
 
 	/**
@@ -337,13 +340,14 @@ namespace
 	 * sus teclas; para un dummy, qué está decidiendo. Desde S-010 la elección puede ser de un asiento sin turno (Koschei
 	 * víctima): bHuman es si se le pide al humano, tenga o no el turno. Solo lee el estado.
 	 */
-	FString ChoicePrompt(const FMatchState& State, bool bHuman)
+	FString ChoicePrompt(const FMatchState& State, bool bHuman, bool bHints)
 	{
 		const FPendingChoice& Choice = State.PendingChoice;
 		const FString Left = FString::Printf(TEXT("quedan %.0f s"), FMath::Max(0.0, Choice.DeadlineSeconds - State.ClockSeconds));
 		if (Choice.Kind == EChoiceKind::Reroll)
 		{
-			return bHuman ? FString::Printf(TEXT("REPETIR: [R] repite la tirada (una vez por turno), o clic en una casilla blanca | %s"), *Left)
+			// S-021 (A3): lo que ofrece (la tecla R) y el tiempo se muestran siempre; "o clic en una casilla blanca" es explicación y sigue el ajuste.
+			return bHuman ? FString::Printf(TEXT("REPETIR: [R] repite la tirada (una vez por turno)%s | %s"), bHints ? TEXT(", o clic en una casilla blanca") : TEXT(""), *Left)
 				: FString::Printf(TEXT("el asiento %d decide si repite la tirada | %s"), Choice.Seat, *Left);
 		}
 		const FString RivalWhat = Choice.Kind == EChoiceKind::ChosenRival ? ChosenRivalText(State) : FString();
@@ -367,7 +371,7 @@ namespace
 		{
 			Parts.Add(FString::Printf(TEXT("[0] %s"), No));
 		}
-		const FString Hint = bHuman && Choice.Kind == EChoiceKind::PlanarJump ? TEXT(" (o clic en un Nodo con halo)") : TEXT("");
+		const FString Hint = bHints && bHuman && Choice.Kind == EChoiceKind::PlanarJump ? TEXT(" (o clic en un Nodo con halo)") : TEXT("");
 		return bHuman ? FString::Printf(TEXT("ELIGE %s: %s%s | %s"), What, *FString::Join(Parts, TEXT(" ")), *Hint, *Left)
 			: FString::Printf(TEXT("el asiento %d elige %s: %s | %s"), Choice.Seat, What, *FString::Join(Parts, TEXT(" ")), *Left);
 	}
@@ -1306,6 +1310,14 @@ void ABoardViewActor::RefreshChronicle(const FMatchState& State)
 	const int32 First = FMath::Max(0, State.EventLog.Num() - FMath::Max(ChronicleMaxLines, 1));
 	for (int32 Index = State.EventLog.Num() - 1; Index >= First; --Index)
 	{
+		// S-021 (A3): las instrucciones enseñadas justo después de este evento van encima de él (la crónica es de la más reciente a la más vieja).
+		for (int32 Note = InstructionNotes.Num() - 1; Note >= 0; --Note)
+		{
+			if (InstructionNotes[Note].After == Index)
+			{
+				Lines.Add({FString::Printf(TEXT("[%s] %s"), *Stamp(InstructionNotes[Note].ClockSeconds), *InstructionNotes[Note].Text), WardenLineColor});
+			}
+		}
 		const FMatchEvent& Event = State.EventLog[Index];
 		FLinearColor Color = SeatColor(Event.Seat);
 		switch (Soulbound::Presentation::EventSource(Event.Type))
@@ -1484,6 +1496,7 @@ void ABoardViewActor::RefreshWardenLine(const FMatchState& State)
 	{
 		WardenLineScanned = 0;
 		WardenLineQueue = Soulbound::Presentation::FWardenLineQueue();
+		InstructionNotes.Empty();
 	}
 	const int32 HumanSeat = Host.IsValid() ? Host->GetHumanSeat() : INDEX_NONE;
 	for (; WardenLineScanned < State.EventLog.Num(); ++WardenLineScanned)
@@ -1494,6 +1507,33 @@ void ABoardViewActor::RefreshWardenLine(const FMatchState& State)
 		{
 			WardenLineQueue.Push(Soulbound::Presentation::WardenLinePrefix(Event.Seat, HumanSeat) + TEXT(" ") + Spoken, Event.ClockSeconds);
 		}
+	}
+
+	// S-021 (A3): las instrucciones, después de las frases del registro. El seguimiento dice qué momento acaba de darse; el perfil, si se enseña.
+	UPlayerProfileSubsystem* Profile = GetWorld() && GetWorld()->GetGameInstance() ? GetWorld()->GetGameInstance()->GetSubsystem<UPlayerProfileSubsystem>() : nullptr;
+	if (!Profile)
+	{
+		return;
+	}
+	TArray<int32> HumanSeats;
+	if (HumanSeat != INDEX_NONE)
+	{
+		HumanSeats.Add(HumanSeat);
+	}
+	for (const Soulbound::Presentation::FInstructionCue& Cue : InstructionTracker.Observe(State, HumanSeats))
+	{
+		const FString Text = Soulbound::Presentation::InstructionText(State.WardenLines, Cue.Moment);
+		// El momento ya está consumido. Sin frase en la tabla no se enseña ni se anota en el perfil; con ella, el perfil decide (y lo anota).
+		if (Text.IsEmpty() || !Profile->TeachInstruction(Cue.Moment))
+		{
+			continue;
+		}
+		const double Clock = State.EventLog.IsEmpty() ? 0.0 : State.EventLog.Last().ClockSeconds;
+		const FString Line = Soulbound::Presentation::WardenLinePrefix(Cue.Seat, HumanSeat) + TEXT(" ") + Text;
+		WardenLineQueue.Push(Line, Clock);
+		InstructionNotes.Add({State.EventLog.Num() - 1, Clock, Line});
+		// La crónica se reconstruye solo si crece el registro: la nota no lo hace crecer.
+		ChronicleLineCount = -1;
 	}
 }
 
@@ -1837,6 +1877,9 @@ void ABoardViewActor::TickHud()
 
 	const bool bWaiting = State.TurnPhase == ETurnPhase::RollAndChoose;
 	const bool bHumanTurn = bWaiting && State.ActiveSeat == HostPtr->GetHumanSeat();
+	// S-021 (A3): el texto que explica qué hacer ("<- tu turno: ...") sigue el ajuste de ayudas; las opciones numeradas y el tiempo, nunca.
+	const UPlayerProfileSubsystem* Profile = GetWorld() && GetWorld()->GetGameInstance() ? GetWorld()->GetGameInstance()->GetSubsystem<UPlayerProfileSubsystem>() : nullptr;
+	const bool bHints = !Profile || Profile->ShowsRequestHints();
 	const bool bStepWait = HostPtr->IsWaitingForStep();
 	const int32 TurnNumber = State.TurnPhase == ETurnPhase::BetweenTurns ? State.TurnCount : State.TurnCount + 1;
 
@@ -1880,7 +1923,7 @@ void ABoardViewActor::TickHud()
 	{
 	const FString Clock = bWaiting ? FString::Printf(TEXT("%.0f s"), FMath::Max(0.0, State.TurnDeadlineSeconds - State.ClockSeconds)) : FString(TEXT("-"));
 	ShowText(1, bHumanTurn ? FColor::Green : FColor::White, FString::Printf(TEXT("Tirada: %d%s | reloj de turno: %s%s"),
-		State.Roll, State.DiceCount > 1 ? TEXT(" (dos dados)") : TEXT(""), *Clock, bHumanTurn ? TEXT("  <- tu turno: clic en una casilla blanca") : TEXT("")));
+		State.Roll, State.DiceCount > 1 ? TEXT(" (dos dados)") : TEXT(""), *Clock, bHumanTurn && bHints ? TEXT("  <- tu turno: clic en una casilla blanca") : TEXT("")));
 	}
 
 	// Elección pendiente (S-009): la línea de petición, en verde si es del humano (teclas 1 a 9 y 0; R para repetir). Desde
@@ -1888,7 +1931,7 @@ void ABoardViewActor::TickHud()
 	if (State.PendingChoice.IsOpen() && !State.IsMatchOver())
 	{
 		const bool bHumanChoice = State.PendingChoice.Seat == HostPtr->GetHumanSeat();
-		ShowText(8, bHumanChoice ? FColor::Green : FColor(190, 190, 190), ChoicePrompt(State, bHumanChoice));
+		ShowText(8, bHumanChoice ? FColor::Green : FColor(190, 190, 190), ChoicePrompt(State, bHumanChoice, bHints));
 	}
 
 	// Trilero (S-010): quién roba a quién y qué se ve en cada etapa; las esferas, numeradas y sin animación.
@@ -1909,7 +1952,7 @@ void ABoardViewActor::TickHud()
 	{
 		const int32 Consultant = State.Oracle.Consultant;
 		const bool bHumanOracle = Consultant == HostPtr->GetHumanSeat();
-		const FString Action = bHumanOracle ? FString::Printf(TEXT("  <- clic en el orbe sobre tu ficha para consultar%s"), State.Oracle.bRefusable ? TEXT(", clic derecho para rechazar (Tifón)") : TEXT(""))
+		const FString Action = bHumanOracle ? (!bHints ? FString() : FString::Printf(TEXT("  <- clic en el orbe sobre tu ficha para consultar%s"), State.Oracle.bRefusable ? TEXT(", clic derecho para rechazar (Tifón)") : TEXT("")))
 			: FString(TEXT(" | el orbe sobre su ficha"));
 		ShowText(13, bHumanOracle ? FColor::Green : FColor::Orange, FString::Printf(TEXT("ORÁCULO: consulta el asiento %d (%s) | quedan %.0f s%s"), Consultant,
 			*Soulbound::Presentation::OracleOriginText(static_cast<int32>(State.Oracle.Origin)), FMath::Max(0.0, State.Oracle.DeadlineSeconds - State.ClockSeconds), *Action));
@@ -1919,7 +1962,7 @@ void ABoardViewActor::TickHud()
 	// humano, con lo que tiene que hacer.
 	if (State.Vote.IsOpen() && !State.IsMatchOver())
 	{
-		ShowText(14, FColor::Orange, VoteLine(State, HostPtr->GetHumanSeat()));
+		ShowText(14, FColor::Orange, VoteLine(State, HostPtr->GetHumanSeat(), bHints));
 	}
 
 	// Noche de los Ecos (S-014): mientras dura, bien visible.

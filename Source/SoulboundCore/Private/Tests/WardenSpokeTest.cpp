@@ -263,8 +263,9 @@ bool FVoiceRaceTest::RunTest(const FString& Parameters)
 		const int32 Victory = IndexOfEvent(F.State, EMatchEventType::WardenVictory, From);
 		TestTrue(TEXT("Justo después de la victoria, programado:nadie-vinculado"), Victory != INDEX_NONE && IsFollowedBySpoke(F.State, Victory, Soulbound::Warden::LineNobodyBonded));
 		const int32 Ended = IndexOfEvent(F.State, EMatchEventType::BondRaceEnded, From);
-		TestTrue(TEXT("Y tras el fin de la carrera, programado:fin-carrera"), Ended != INDEX_NONE && IsFollowedBySpoke(F.State, Ended, Soulbound::Warden::LineRaceEnd));
-		TestEqual(TEXT("Dos frases"), SpokenSince(F.State, From), 2);
+		// Decisión del autor del 28/10/2026 (A3): la partida ya ha terminado, así que no se anuncia además el fin de la carrera.
+		TestTrue(TEXT("Tras el fin de la carrera no habla: la partida ha terminado"), Ended != INDEX_NONE && !IsFollowedBySpoke(F.State, Ended, Soulbound::Warden::LineRaceEnd));
+		TestEqual(TEXT("Una sola frase"), SpokenSince(F.State, From), 1);
 	}
 	return true;
 }
@@ -274,7 +275,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceEndingTest, "Soulbound.Core.Voice.Registr
 
 bool FVoiceEndingTest::RunTest(const FString& Parameters)
 {
-	// CA-VOZ-3 (R-PRO-4, R-PRO-5, R-WAR-10): el aspirante deja programado:aspirante justo después de AspirantAnnounced, para él; el fin por
+	// CA-VOZ-3 (R-PRO-4, R-PRO-5, R-WAR-10): el aspirante deja programado:aspirante justo después de AspirantAnnounced, a la mesa; el fin por
 	// tiempo, programado:fin-tiempo justo después de WardenVictory; la victoria de un jugador, programado:victoria justo después de MatchWon.
 	{
 		FVoiceFixture F;
@@ -288,7 +289,9 @@ bool FVoiceEndingTest::RunTest(const FString& Parameters)
 		F.Advance();
 		const int32 Announced = IndexOfEvent(F.State, EMatchEventType::AspirantAnnounced, From);
 		TestTrue(TEXT("Justo después del anuncio, programado:aspirante"), Announced != INDEX_NONE && IsFollowedBySpoke(F.State, Announced, Soulbound::Warden::LineAspirant));
-		TestEqual(TEXT("Para el aspirante"), F.State.EventLog[Announced + 1].Seat, Fenrir);
+		// Decisión del autor del 28/10/2026 (A3): la frase azuza a los demás contra él, así que se dice a la mesa.
+		TestEqual(TEXT("A la mesa, no al aspirante"), F.State.EventLog[Announced + 1].Seat, INDEX_NONE);
+		TestEqual(TEXT("El anuncio sigue siendo del aspirante"), F.State.EventLog[Announced].Seat, Fenrir);
 	}
 	{
 		FVoiceFixture F;
