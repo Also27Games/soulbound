@@ -296,6 +296,20 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey SeatedViewKey = EKeys::C;
 
+	/**
+	 * Si la partida arranca en la vista sentada del asiento humano (S-022, R-CAM-1; nombre aprobado). Valor inicial true; false arranca en la
+	 * cenital, sin compilar. La vista previa del editor (ABoardPreviewActor) no lo mira.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	bool bStartSeated = true;
+
+	/**
+	 * Tecla que, con la partida terminada, vuelve al mapa del menú (GameDefaultMap) tras cerrar la sesión en línea si la hay (S-022; nombre
+	 * aprobado). Valor inicial Escape. Antes del final no hace nada y no se la queda: Escape sigue siendo la pausa de UGT (R-FLU-5).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	FKey ReturnToMenuKey = EKeys::Escape;
+
 	/** Tecla que oculta y muestra etiquetas para las capturas. Valor inicial L. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey OverlayToggleKey = EKeys::L;
@@ -311,7 +325,7 @@ public:
 	/** Color de un Dominio (0 a 5); gris oscuro si no existe. Lo usa también el kit para teñir el suelo de las cuñas. */
 	FLinearColor DomainColor(int32 DomainId) const;
 
-	/** Las teclas de la vista y lo que hace cada una, en una línea (para SbHelp y la línea del paso a paso). */
+	/** Las teclas de la vista y lo que hace cada una, en una línea, con la vista actual (para SbHelp y la línea del paso a paso; ViewKeysText). */
 	FString DescribeViewKeys() const;
 
 	// La vista sentada, en Config (DefaultGame.ini, sección [/Script/Soulbound.BoardViewActor]) para ajustarla sin compilar;
@@ -523,6 +537,13 @@ private:
 	void ToggleDebugText();
 	/** Pone como vista del jugador local la cámara que toca, y le engancha las teclas de la vista la primera vez. */
 	void ApplyViewTarget();
+	/** La tecla de volver al menú (S-022): solo con la partida terminada; cierra la sesión en línea si la hay y viaja al menú. */
+	void OnReturnToMenuKey();
+	/** Cerrada (o no) la sesión en línea, viaja al menú (S-022): un cierre fallido se anota y se viaja igual. */
+	UFUNCTION()
+	void HandleSessionLeftForMenu(bool bWasSuccessful);
+	/** Abre el mapa del menú, el GameDefaultMap de DefaultEngine.ini, leído de UGameMapsSettings (S-022). */
+	void TravelToMenu();
 	/** Lado de la losa de respaldo: el de la pieza. */
 	float SlabSize() const { return LayoutParams.SlabHalfSize * 2.f; }
 
@@ -579,6 +600,8 @@ private:
 	bool bPanelsHidden = false;
 	bool bDebugTextHidden = false;
 	bool bInputBound = false;
+	/** Si ya se pidió volver al menú (S-022): un segundo Escape mientras se cierra la sesión no hace nada. */
+	bool bReturningToMenu = false;
 	/** Altura de la cara superior de cada casilla. */
 	TArray<float> TileTops;
 	FVector2D BoardCenter = FVector2D::ZeroVector;

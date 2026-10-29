@@ -3,6 +3,10 @@
 #include "../Match/MatchHostSubsystem.h"
 #include "../Profile/PlayerProfileSubsystem.h"
 #include "../Warden/WardenHostSubsystem.h"
+#include "GameMapsSettings.h"
+#include "Kismet/GameplayStatics.h"
+#include "Misc/PackageName.h"
+#include "Subsystem/A27OnlineSubsystem.h"
 #include "BoardTileActor.h"
 #include "BoardViewState.h"
 #include "ChroniclePanel.h"
@@ -606,6 +610,8 @@ void ABoardViewActor::Initialize(UMatchHostSubsystem* InHost)
 	{
 		TilePositions.Add(Tile.Location);
 	}
+	// S-022 (R-CAM-1): la partida arranca sentada, o cenital con bStartSeated=false; la tecla de la vista alterna como siempre.
+	bSeatedView = bStartSeated;
 	BuildEdges();
 	BuildTiles();
 	BuildKit();
@@ -1792,8 +1798,50 @@ void ABoardViewActor::ToggleDebugText()
 
 FString ABoardViewActor::DescribeViewKeys() const
 {
-	return FString::Printf(TEXT("%s vista sentada | %s etiquetas | %s paneles | %s texto de depuración"), *SeatedViewKey.GetDisplayName().ToString(),
-		*OverlayToggleKey.GetDisplayName().ToString(), *PanelsToggleKey.GetDisplayName().ToString(), *DebugTextToggleKey.GetDisplayName().ToString());
+	return Soulbound::Presentation::ViewKeysText(bSeatedView, SeatedViewKey.GetDisplayName().ToString(), OverlayToggleKey.GetDisplayName().ToString(),
+		PanelsToggleKey.GetDisplayName().ToString(), DebugTextToggleKey.GetDisplayName().ToString());
+}
+
+void ABoardViewActor::OnReturnToMenuKey()
+{
+	// Antes del final, la tecla es de UGT (la pausa, que no detiene nada: R-FLU-5); la vista no se la queda.
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (bReturningToMenu || !HostPtr || !HostPtr->HasMatch() || !HostPtr->GetState().IsMatchOver())
+	{
+		return;
+	}
+	bReturningToMenu = true;
+	// TODO(R-RED-1): con red, solo el servidor tiene vista; cuando los clientes la tengan, cada uno cerrará su sesión y volverá a su menú.
+	UA27OnlineSubsystem* Online = GetGameInstance() ? GetGameInstance()->GetSubsystem<UA27OnlineSubsystem>() : nullptr;
+	if (Online && !Online->GetOnlineSessioCode().IsEmpty())
+	{
+		UE_LOG(LogSoulboundView, Log, TEXT("Volver al menú: se cierra la sesión en línea %s."), *Online->GetOnlineSessioCode());
+		Online->OnLeaveSessionComplete.AddDynamic(this, &ABoardViewActor::HandleSessionLeftForMenu);
+		Online->LeaveSession();
+		return;
+	}
+	TravelToMenu();
+}
+
+void ABoardViewActor::HandleSessionLeftForMenu(bool bWasSuccessful)
+{
+	if (UA27OnlineSubsystem* Online = GetGameInstance() ? GetGameInstance()->GetSubsystem<UA27OnlineSubsystem>() : nullptr)
+	{
+		Online->OnLeaveSessionComplete.RemoveDynamic(this, &ABoardViewActor::HandleSessionLeftForMenu);
+	}
+	if (!bWasSuccessful)
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Volver al menú: no se pudo cerrar la sesión en línea; se vuelve igual."));
+	}
+	TravelToMenu();
+}
+
+void ABoardViewActor::TravelToMenu()
+{
+	// El mapa del menú es el de arranque del juego (GameDefaultMap, hoy el lanzador de UGT); se lee, no se copia la ruta.
+	const FString Map = FPackageName::ObjectPathToPackageName(UGameMapsSettings::GetGameDefaultMap());
+	UE_LOG(LogSoulboundView, Log, TEXT("Volver al menú: %s."), *Map);
+	UGameplayStatics::OpenLevel(this, FName(*Map));
 }
 
 void ABoardViewActor::ApplyViewTarget()
@@ -1832,6 +1880,8 @@ void ABoardViewActor::ApplyViewTarget()
 				InputComponent->BindKey(OverlayToggleKey, IE_Pressed, this, &ABoardViewActor::ToggleOverlay);
 				InputComponent->BindKey(PanelsToggleKey, IE_Pressed, this, &ABoardViewActor::TogglePanels);
 				InputComponent->BindKey(DebugTextToggleKey, IE_Pressed, this, &ABoardViewActor::ToggleDebugText);
+				// S-022: la tecla de volver al menú no se consume, para que antes del final siga llegando a la pausa de UGT.
+				InputComponent->BindKey(ReturnToMenuKey, IE_Pressed, this, &ABoardViewActor::OnReturnToMenuKey).bConsumeInput = false;
 				bInputBound = true;
 			}
 		}
@@ -1885,9 +1935,17 @@ void ABoardViewActor::TickHud()
 
 	// La línea del turno lleva el color del asiento que juega; entre turnos, blanca (no juega nadie).
 	const bool bSomeoneActive = !State.IsMatchOver() && State.TurnPhase != ETurnPhase::BetweenTurns;
-	ShowText(0, bSomeoneActive ? SeatColor(State.ActiveSeat).ToFColor(true) : FColor::White,
-		FString::Printf(TEXT("Turno %d | juega: asiento %d (%s) | fase: %s"), TurnNumber, State.ActiveSeat,
-			State.ActiveSeat == HostPtr->GetHumanSeat() ? TEXT("humano") : TEXT("dummy"), PhaseName(State.TurnPhase)));
+	if (HostPtr->IsInPrologue())
+	{
+		// S-022 (R-PRO-1): el Warden abre la partida; aún no hay turno.
+		ShowText(0, FColor::Orange, FString::Printf(TEXT("Prólogo: el Warden abre la partida; el primer turno empieza cuando termine | teclas: %s"), *DescribeViewKeys()));
+	}
+	else
+	{
+		ShowText(0, bSomeoneActive ? SeatColor(State.ActiveSeat).ToFColor(true) : FColor::White,
+			FString::Printf(TEXT("Turno %d | juega: asiento %d (%s) | fase: %s"), TurnNumber, State.ActiveSeat,
+				State.ActiveSeat == HostPtr->GetHumanSeat() ? TEXT("humano") : TEXT("dummy"), PhaseName(State.TurnPhase)));
+	}
 
 	// S-015: un duelo o un trilero de un evento se juega entre turnos; el asiento activo es a quien le toca después.
 	if (State.CurrentEvent.IsActive() && State.CurrentEvent.bWaitsForAction && !State.IsMatchOver())
@@ -1979,8 +2037,8 @@ void ABoardViewActor::TickHud()
 		ShowText(10, FColor::Orange, DuelText);
 	}
 
-	// Paso a paso (S-007): lo que espera, bien visible.
-	if (bStepWait)
+	// Paso a paso (S-007): lo que espera, bien visible. En el prólogo (S-022) el reloj también espera, pero no al paso.
+	if (bStepWait && !HostPtr->IsInPrologue())
 	{
 		ShowText(2, FColor::Yellow, FString::Printf(TEXT("PASO A PASO: espacio para el siguiente turno | teclas: %s"), *DescribeViewKeys()));
 	}
@@ -2055,8 +2113,8 @@ void ABoardViewActor::TickHud()
 	}
 	if (State.IsMatchOver())
 	{
-		ShowText(19, RaceColor, State.Outcome == EMatchOutcome::PlayerVictory ? FString::Printf(TEXT("GANA EL ASIENTO %d"), State.WinnerSeat)
-			: State.EndReason == EMatchEndReason::TimeOut ? FString(TEXT("GANA EL WARDEN: SE ACABÓ EL TIEMPO")) : FString(TEXT("GANA EL WARDEN: NADIE SE VINCULÓ")), 2.5f);
+		// S-022: con la tecla que vuelve al menú, en la línea de debajo.
+		ShowText(19, RaceColor, Soulbound::Presentation::MatchResultText(State, ReturnToMenuKey.GetDisplayName().ToString()), 2.5f);
 	}
 
 	TArray<FString> Roles;
