@@ -258,15 +258,15 @@ void FBoardKit::PlaceStructures(AActor& Owner, const FBoardState& Board, const F
 	}
 }
 
-void FBoardKit::TintWedgeFloors(const FBoardKitFixedPieces& Pieces, const FBoardState& Board, const ABoardViewActor& Config) const
+void FBoardKit::TintWedgeFloors(const FBoardKitFixedPieces& Pieces, const TArray<bool>& Forgotten, const ABoardViewActor& Config) const
 {
 	for (int32 Index = 0; Index < Pieces.WedgeFloors.Num(); ++Index)
 	{
 		const int32 DomainId = Pieces.WedgeFloorDomains[Index];
 		UStaticMeshComponent* Floor = Pieces.WedgeFloors[Index];
-		if (Floor && Board.Domains.IsValidIndex(DomainId))
+		if (Floor && Forgotten.IsValidIndex(DomainId))
 		{
-			const bool bForgotten = Board.Domains[DomainId].State == EDomainState::Forgotten;
+			const bool bForgotten = Forgotten[DomainId];
 			Soulbound::Presentation::SetComponentColor(*Floor, VertexColor.Get(),
 				Soulbound::Presentation::WedgeFloorTint(Config.DomainColor(DomainId), bForgotten, Config.FloorTintStrength, Config.ForgottenDim));
 		}

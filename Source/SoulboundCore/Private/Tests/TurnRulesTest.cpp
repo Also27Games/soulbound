@@ -638,29 +638,32 @@ bool FTurnEventLogTest::RunTest(const FString& Parameters)
 {
 	// CA-TUR-15 (R-TUR-15): al terminar cualquier turno, el registro contiene inicio, tirada y fin con el asiento y la
 	// marca de tiempo del reloj de partida; y agotamiento si lo hubo. Interrupción: story del Warden. Desde S-020, un TileEntered
-	// por cada casilla del camino antes del movimiento.
+	// por cada casilla del camino antes del movimiento. Desde S-023, el registro no empieza vacío: StartMatch deja un DomainForgotten por
+	// Dominio Olvidado (R-WAR-10), y los turnos se cuentan desde ahí (Opening).
 	FRandomStream Random(71);
 	FMatchState State;
 	if (!StartTestMatch(*this, Random, State))
 	{
 		return false;
 	}
+	const int32 Opening = State.EventLog.Num();
+	TestEqual(TEXT("Al empezar, solo los DomainForgotten de la apertura (S-023)"), Soulbound::Tests::EventsOfType(State, EMatchEventType::DomainForgotten).Num(), Opening);
 
 	// Turno confirmado: empieza en 12 y confirma en 17.
 	const int32 First = State.ActiveSeat;
 	TestEqual(TEXT("Turno confirmado: se juega"), PlayTurn(State, Random, 12.0, 17.0).Seat, First);
 	const int32 Entered = Soulbound::Tests::EventsOfType(State, EMatchEventType::TileEntered).Num();
 	TestTrue(TEXT("Turno confirmado: entra en las casillas de su camino (S-020)"), Entered > 0);
-	TestEqual(TEXT("Turno confirmado: cuatro eventos (con el movimiento, S-007) y uno por casilla del camino"), State.EventLog.Num(), 4 + Entered);
-	ExpectEvent(*this, TEXT("Confirmado, inicio"), State, 0, EMatchEventType::TurnStarted, 12.0, First);
-	ExpectEvent(*this, TEXT("Confirmado, tirada"), State, 1, EMatchEventType::Rolled, 12.0, First);
+	TestEqual(TEXT("Turno confirmado: cuatro eventos (con el movimiento, S-007) y uno por casilla del camino"), State.EventLog.Num(), Opening + 4 + Entered);
+	ExpectEvent(*this, TEXT("Confirmado, inicio"), State, Opening, EMatchEventType::TurnStarted, 12.0, First);
+	ExpectEvent(*this, TEXT("Confirmado, tirada"), State, Opening + 1, EMatchEventType::Rolled, 12.0, First);
 	for (int32 Step = 0; Step < Entered; ++Step)
 	{
-		ExpectEvent(*this, FString::Printf(TEXT("Confirmado, casilla %d"), Step + 1), State, 2 + Step, EMatchEventType::TileEntered, 17.0, First);
+		ExpectEvent(*this, FString::Printf(TEXT("Confirmado, casilla %d"), Step + 1), State, Opening + 2 + Step, EMatchEventType::TileEntered, 17.0, First);
 	}
-	ExpectEvent(*this, TEXT("Confirmado, movimiento"), State, 2 + Entered, EMatchEventType::Moved, 17.0, First);
-	ExpectEvent(*this, TEXT("Confirmado, fin"), State, 3 + Entered, EMatchEventType::TurnEnded, 17.0, First);
-	TestTrue(TEXT("La tirada queda en el registro"), State.EventLog.IsValidIndex(1) && State.EventLog[1].Value >= 1 && State.EventLog[1].Value <= Soulbound::Dice::Faces);
+	ExpectEvent(*this, TEXT("Confirmado, movimiento"), State, Opening + 2 + Entered, EMatchEventType::Moved, 17.0, First);
+	ExpectEvent(*this, TEXT("Confirmado, fin"), State, Opening + 3 + Entered, EMatchEventType::TurnEnded, 17.0, First);
+	TestTrue(TEXT("La tirada queda en el registro"), State.EventLog.IsValidIndex(Opening + 1) && State.EventLog[Opening + 1].Value >= 1 && State.EventLog[Opening + 1].Value <= Soulbound::Dice::Faces);
 
 	// Turno agotado: empieza en 20 y nadie confirma.
 	const int32 Second = State.ActiveSeat;
@@ -670,11 +673,11 @@ bool FTurnEventLogTest::RunTest(const FString& Parameters)
 	}
 	const double Deadline = State.TurnDeadlineSeconds;
 	TestTrue(TEXT("Turno agotado: termina"), AdvanceToBetweenTurns(State, Random, Deadline));
-	TestEqual(TEXT("Turno agotado: cuatro eventos más, sin movimiento"), State.EventLog.Num(), 8 + Entered);
-	ExpectEvent(*this, TEXT("Agotado, inicio"), State, 4 + Entered, EMatchEventType::TurnStarted, 20.0, Second);
-	ExpectEvent(*this, TEXT("Agotado, tirada"), State, 5 + Entered, EMatchEventType::Rolled, 20.0, Second);
-	ExpectEvent(*this, TEXT("Agotado, agotamiento"), State, 6 + Entered, EMatchEventType::TurnClockExpired, Deadline, Second);
-	ExpectEvent(*this, TEXT("Agotado, fin"), State, 7 + Entered, EMatchEventType::TurnEnded, Deadline, Second);
+	TestEqual(TEXT("Turno agotado: cuatro eventos más, sin movimiento"), State.EventLog.Num(), Opening + 8 + Entered);
+	ExpectEvent(*this, TEXT("Agotado, inicio"), State, Opening + 4 + Entered, EMatchEventType::TurnStarted, 20.0, Second);
+	ExpectEvent(*this, TEXT("Agotado, tirada"), State, Opening + 5 + Entered, EMatchEventType::Rolled, 20.0, Second);
+	ExpectEvent(*this, TEXT("Agotado, agotamiento"), State, Opening + 6 + Entered, EMatchEventType::TurnClockExpired, Deadline, Second);
+	ExpectEvent(*this, TEXT("Agotado, fin"), State, Opening + 7 + Entered, EMatchEventType::TurnEnded, Deadline, Second);
 	return true;
 }
 

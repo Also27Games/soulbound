@@ -1,11 +1,13 @@
 // Tests del texto de la voz del Warden en el juego (S-021, GDD 06 y 07): la frase que enseña la línea del Warden (R-VOZ-1 sin audio,
 // R-VOZ-3b), la crónica con la sentencia del Oráculo en una sola línea y la cola de la línea en pantalla; desde S-022, la duración del
-// prólogo (R-PRO-1). Sin mundo ni actor: las funciones de texto de la vista. Filtros: "Soulbound.Game.Presentation.Voz" y "…Prologo".
+// prólogo (R-PRO-1); desde S-023, la espera del Warden (qué frases detienen la mesa) y las frases de la cola ya enseñadas. Sin mundo ni
+// actor: las funciones de texto de la vista. Filtros: "Soulbound.Game.Presentation.Voz" y "…Prologo".
 
 #include "../../Presentation/EventText.h"
 #include "../../Presentation/WardenLineQueue.h"
 #include "Match/MatchState.h"
 #include "Misc/AutomationTest.h"
+#include "Warden/WardenLines.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -34,6 +36,28 @@ namespace
 		Entry.Id = TEXT("evento:prisa");
 		Entry.Lines = {TEXT("(pendiente) evento:prisa"), TEXT("[risa] Prisa, prisa. [pausa]")};
 		return State;
+	}
+
+	/** Añade a State la entrada Key con una variante y devuelve su posición. */
+	int32 AddLine(FMatchState& State, const FString& Key)
+	{
+		FWardenLineEntry& Entry = State.WardenLines.Entries.AddDefaulted_GetRef();
+		Entry.Id = Key;
+		Entry.Lines = {TEXT("(pendiente) ") + Key};
+		return State.WardenLines.Entries.Num() - 1;
+	}
+
+	/** Añade a State un WardenSpoke de la clave Key (que se crea si no está) en el instante Clock. */
+	void Say(FMatchState& State, const FString& Key, double Clock)
+	{
+		int32 Entry = State.WardenLines.IndexOf(Key);
+		if (Entry == INDEX_NONE)
+		{
+			Entry = AddLine(State, Key);
+		}
+		FMatchEvent Spoke = MakeVoiceEvent(EMatchEventType::WardenSpoke, INDEX_NONE, Entry, 0);
+		Spoke.ClockSeconds = Clock;
+		State.EventLog.Add(Spoke);
 	}
 
 	/** Las líneas de la crónica de la partida con texto, en el orden del registro. */
@@ -207,6 +231,79 @@ bool FVoiceOpeningSilentTest::RunTest(const FString& Parameters)
 	State.EventLog.Add(MakeVoiceEvent(EMatchEventType::HomeAssigned, 0, 0));
 	TestEqual(TEXT("Sin frases, cero"), Soulbound::Presentation::OpeningSeconds(State, 6.0), 0.0);
 	TestEqual(TEXT("Con el registro vacío, cero"), Soulbound::Presentation::OpeningSeconds(FMatchState(), 6.0), 0.0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceQueueShownCountTest, "Soulbound.Game.Presentation.Voz.FrasesEnsenadas", VoiceTestFlags)
+
+bool FVoiceQueueShownCountTest::RunTest(const FString& Parameters)
+{
+	// CA-DOM-1 (S-023, R-PRO-1): la cola cuenta las frases que han empezado a enseñarse, para que la vista sepa por qué frase de la
+	// apertura va. Una frase cuenta la primera vez que se pide; las que se descartan sin enseñarse no cuentan.
+	constexpr double Seconds = 6.0;
+	Soulbound::Presentation::FWardenLineQueue Queue;
+	TestEqual(TEXT("Al principio, ninguna"), Queue.ShownCount(), 0);
+	Queue.Push(TEXT("uno"), 0.0);
+	Queue.Push(TEXT("dos"), 0.0);
+	Queue.Push(TEXT("tres"), 0.0);
+	TestEqual(TEXT("Añadidas, aún ninguna enseñada"), Queue.ShownCount(), 0);
+	Queue.Current(10.0, Seconds);
+	TestEqual(TEXT("Pedida, la primera"), Queue.ShownCount(), 1);
+	Queue.Current(12.0, Seconds);
+	TestEqual(TEXT("Pedir otra vez la misma no suma"), Queue.ShownCount(), 1);
+	Queue.Current(16.0, Seconds);
+	TestEqual(TEXT("A los 6 s, la segunda"), Queue.ShownCount(), 2);
+	Queue.Push(TEXT("más tarde"), 50.0);
+	Queue.Current(17.0, Seconds);
+	TestEqual(TEXT("La que sustituye a la tercera cuenta; la tercera, descartada, no"), Queue.ShownCount(), 3);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWardenWaitTest, "Soulbound.Game.Presentation.Voz.EsperaDelWarden", VoiceTestFlags)
+
+bool FWardenWaitTest::RunTest(const FString& Parameters)
+{
+	// CA-ESP-2 (S-023, espera del Warden): con 6 s de línea, una presentación, un golpe, una escena, un castigo, la Furia, el fin de carrera
+	// y el aspirante dan 6 cada uno; un comentario, un aviso del final, la victoria y el fin por tiempo (y nadie vinculado, y una
+	// instrucción, decisión del autor del 29/10/2026) dan 0; las frases del instante cero dan 0; dos frases que detienen seguidas dan 12;
+	// FromIndex deja fuera las ya contadas. Qué detiene sale de la clave: una clave nueva detiene por defecto.
+	constexpr double Seconds = 6.0;
+	const TArray<FString> Stopping = {Soulbound::Rules::IntroductionKey(2), TEXT("evento:prisa"), TEXT("evento:banquete"), TEXT("insolencia:leve"),
+		Soulbound::Warden::LineFury, Soulbound::Warden::LineRaceEnd, Soulbound::Warden::LineRaceEndAll, Soulbound::Warden::LineAspirant, TEXT("clave:nueva")};
+	for (const FString& Key : Stopping)
+	{
+		FMatchState State;
+		Say(State, Key, 30.0);
+		TestEqual(FString::Printf(TEXT("%s detiene la mesa 6 s"), *Key), Soulbound::Presentation::WardenWaitSeconds(State, 0, Seconds), 6.0);
+	}
+	const TArray<FString> NotStopping = {Soulbound::Rules::WardenRemarkKey(EWardenRemarkKind::Hurry), Soulbound::Rules::WardenRemarkKey(EWardenRemarkKind::MockLast),
+		Soulbound::Warden::LineLastMinute, Soulbound::Warden::LineTenSeconds, Soulbound::Warden::LineVictory, Soulbound::Warden::LineTimeOut,
+		Soulbound::Warden::LineNobodyBonded, Soulbound::Rules::InstructionKey(EInstructionMoment::Roll)};
+	for (const FString& Key : NotStopping)
+	{
+		FMatchState State;
+		Say(State, Key, 30.0);
+		TestEqual(FString::Printf(TEXT("%s no detiene nada"), *Key), Soulbound::Presentation::WardenWaitSeconds(State, 0, Seconds), 0.0);
+	}
+
+	// Las del instante cero son del prólogo, aunque su clave detenga.
+	FMatchState Opening;
+	Say(Opening, Soulbound::Warden::LineStart, 0.0);
+	Say(Opening, Soulbound::Warden::LineCorruption, 0.0);
+	Say(Opening, Soulbound::Warden::LineBegin, 0.0);
+	Say(Opening, TEXT("evento:prisa"), 0.0);
+	TestEqual(TEXT("Las del instante cero, 0"), Soulbound::Presentation::WardenWaitSeconds(Opening, 0, Seconds), 0.0);
+
+	// Dos que detienen seguidas suman; un comentario entre ellas, y los demás eventos, no.
+	FMatchState Two;
+	Two.EventLog.Add(MakeVoiceEvent(EMatchEventType::Bonded, 1, 2));
+	Say(Two, Soulbound::Rules::IntroductionKey(2), 40.0);
+	Say(Two, Soulbound::Rules::WardenRemarkKey(EWardenRemarkKind::Hurry), 40.0);
+	Say(Two, Soulbound::Warden::LineRaceEnd, 40.0);
+	TestEqual(TEXT("Dos que detienen, 12"), Soulbound::Presentation::WardenWaitSeconds(Two, 0, Seconds), 12.0);
+	TestEqual(TEXT("Desde la tercera, solo el fin de carrera"), Soulbound::Presentation::WardenWaitSeconds(Two, 3, Seconds), 6.0);
+	TestEqual(TEXT("Desde el final, nada"), Soulbound::Presentation::WardenWaitSeconds(Two, Two.EventLog.Num(), Seconds), 0.0);
+	TestEqual(TEXT("Sin registro, nada"), Soulbound::Presentation::WardenWaitSeconds(FMatchState(), 0, Seconds), 0.0);
 	return true;
 }
 

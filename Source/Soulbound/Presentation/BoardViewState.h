@@ -43,6 +43,18 @@ namespace Soulbound::Presentation
 	 */
 	SOULBOUND_API FBoardViewState ComputeBoardViewState(const FMatchState& State, bool bNicheThroneConfigured);
 
+	/**
+	 * Qué Dominios pinta Olvidados la vista (S-023, R-PRO-1, R-WAR-10, nombre propuesto): fuera del prólogo, los del estado; en el
+	 * prólogo, solo aquellos cuya frase de corrupción ya se ha enseñado: el DomainForgotten que va justo antes de cada
+	 * programado:corrupcion del instante cero dice el Dominio. Así todos se ven encendidos durante la bienvenida y cada frase apaga el
+	 * suyo. Es un número de frases y no una lista de posiciones porque en el prólogo todas son del instante cero y se enseñan en orden.
+	 * @param State Estado de la partida, en solo lectura.
+	 * @param bInPrologue Si el prólogo está en marcha (UMatchHostSubsystem::IsInPrologue).
+	 * @param OpeningLinesShown Cuántas frases de la apertura han empezado a enseñarse (FWardenLineQueue::ShownCount).
+	 * @return Un valor por Dominio de State.Board.Domains, verdadero si se pinta Olvidado.
+	 */
+	SOULBOUND_API TArray<bool> ForgottenDomainsShown(const FMatchState& State, bool bInPrologue, int32 OpeningLinesShown);
+
 		/**
 		 * Tinte del suelo de una cuña (S-019, R-VIS-2, R-VIS-5): blanco mezclado hacia el color del Dominio por Strength, y
 		 * apagado por ForgottenDim si el Dominio está Olvidado. Es el valor del parámetro `Color` de M_ColorVertice.

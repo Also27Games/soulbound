@@ -142,6 +142,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Partida")
 	bool IsInPrologue() const { return bInPrologue; }
 
+	/**
+	 * Si la mesa espera al Warden (S-023, decisión del autor del 29/10/2026; glosario propuesto "espera del Warden"): una frase que no es
+	 * un comentario, un aviso del final ni una instrucción se está enseñando y ni los dummies, ni el turno, ni las intenciones, ni la
+	 * evaluación del Warden avanzan. El reloj de partida sigue; al acabar, los plazos abiertos se desplazan lo que ha durado. No es el prólogo.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Partida")
+	bool IsWardenSpeaking() const { return bWardenSpeaking; }
+
 #if !UE_BUILD_SHIPPING
 	// Herramientas de depuración (S-011, glosario "DebugEdit"). Son las únicas vías por las que los comandos Sb… cambian
 	// el estado: cada una pide la edición al motor (Soulbound::Debug), avisa a la vista si se aplicó y deja el detalle en
@@ -298,6 +306,21 @@ private:
 	void EndPrologue(const TCHAR* Why);
 
 	/**
+	 * Mira lo que ha dicho el Warden desde la última vez (S-023): si algo detiene la mesa (WardenWaitSeconds), empieza la espera o la
+	 * alarga hasta el más tardío entre su final y ahora más lo nuevo. Devuelve si hubo algo nuevo que la detiene.
+	 */
+	bool NoteWardenLines();
+
+	/**
+	 * Acaba la espera del Warden (S-023): desplaza los plazos abiertos (ShiftOpenDeadlines) y las horas de las respuestas programadas de los
+	 * dummies lo que ha durado en tiempo real. El reloj de partida no se toca: nunca se detuvo.
+	 */
+	void EndWardenWait();
+
+	/** Si la mesa espera al Warden, deja en el log que What se rechaza (S-023) y devuelve true: la intención no se entrega. */
+	bool RejectWhileWardenSpeaks(const TCHAR* What) const;
+
+	/**
 	 * Respuesta ya decidida de un dummy, a la espera de su hora. Va atada al turno que la originó (asiento y
 	 * TurnCount) y a lo que contesta (ChoiceKind, None para el destino y el minijuego): si cambia por cualquier otra vía
 	 * (reloj agotado, turno extra del mismo asiento, otra elección), se descarta.
@@ -358,6 +381,13 @@ private:
 	bool bInPrologue = false;
 	/** Tiempo del mundo en que acaba el prólogo. */
 	double PrologueEndsWorldSeconds = 0.0;
+	/** Si la mesa espera al Warden (S-023). El reloj de partida sigue: no es una espera de FStepClock. */
+	bool bWardenSpeaking = false;
+	/** Tiempo del mundo en que empezó la espera del Warden y en que acaba. */
+	double WardenWaitStartedWorldSeconds = 0.0;
+	double WardenWaitEndsWorldSeconds = 0.0;
+	/** Primera posición del registro que la espera aún no ha mirado. */
+	int32 WardenLinesScanned = 0;
 	int32 UsedSeed = 0;
 	bool bHasMatch = false;
 

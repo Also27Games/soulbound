@@ -26,12 +26,21 @@ namespace Soulbound::Presentation
 		 */
 		FString Current(double NowReal, double LineSeconds);
 
+		/**
+		 * Cuántas frases han empezado a enseñarse desde que se creó la cola (S-023): las que ha devuelto Current alguna vez. Las
+		 * descartadas sin enseñarse no cuentan. En el prólogo todas son del instante cero y van en orden: es la frase de la apertura
+		 * por la que va la línea, lo que necesita ForgottenDomainsShown.
+		 */
+		int32 ShownCount() const { return Shown; }
+
 	private:
 		TArray<FString> Pending;
 		/** El instante de partida de la última frase añadida, para saber si la nueva es del mismo instante. */
 		double LastGameClock = -1.0;
 		/** Desde cuándo (real) se enseña Pending[0]; negativo si aún no ha empezado. */
 		double ShownSince = -1.0;
+		/** Frases que han empezado a enseñarse (ShownCount). */
+		int32 Shown = 0;
 	};
 
 	/**
@@ -43,4 +52,17 @@ namespace Soulbound::Presentation
 	 * @return Los segundos del prólogo; cero si no hay apertura.
 	 */
 	double OpeningSeconds(const FMatchState& State, double LineSeconds);
+
+	/**
+	 * La espera del Warden (S-023, decisión del autor del 29/10/2026, nombre propuesto): cuántos segundos reales detiene la mesa lo que
+	 * ha dicho el Warden desde la posición FromIndex del registro. Cada WardenSpoke cuya clave detiene la mesa suma LineSeconds. Detiene
+	 * toda frase salvo los comentarios (`comentario:*`), los avisos del final, la victoria, el fin por tiempo, nadie vinculado (la partida
+	 * ya ha terminado) y las instrucciones (`instruccion:*`), y salvo las del instante cero, que son del prólogo. Qué detiene sale de la
+	 * clave, no del tipo de evento: una clave nueva detiene por defecto.
+	 * @param State Estado de la partida, en solo lectura.
+	 * @param FromIndex Primera posición del registro que se mira: las anteriores ya se contaron.
+	 * @param LineSeconds Segundos que se enseña cada frase (ABoardViewActor::WardenLineSeconds).
+	 * @return Los segundos de espera; cero si nada de lo nuevo detiene la mesa.
+	 */
+	double WardenWaitSeconds(const FMatchState& State, int32 FromIndex, double LineSeconds);
 }

@@ -587,6 +587,12 @@ private:
 
 	/** La frase que toca enseñar ahora en la línea del Warden (vacía si ninguna): avanza la cola con el reloj real. */
 	FString WardenLineNow();
+
+	/**
+	 * Si la vista pinta Olvidado el Dominio DomainId (S-023): fuera del prólogo, lo que dice el estado; en el prólogo, solo si su frase de
+	 * corrupción ya se ha enseñado (ForgottenDomainsShown). Lo calcula Refresh.
+	 */
+	bool IsDomainShownForgotten(int32 DomainId) const { return DomainsShownForgotten.IsValidIndex(DomainId) && DomainsShownForgotten[DomainId]; }
 	/** Texto de depuración del turno; y pone la cámara como vista del jugador local si aún no lo es. */
 	void TickHud();
 	void ShowText(int32 Line, const FColor& Color, const FString& Text, float Scale = 1.f) const;
@@ -633,6 +639,12 @@ private:
 	Soulbound::Presentation::FWardenLineQueue WardenLineQueue;
 	/** Cuántos eventos del registro se han mirado en busca de frases. */
 	int32 WardenLineScanned = 0;
+
+	/** Qué Dominios se pintan Olvidados (S-023, ForgottenDomainsShown), uno por Dominio; lo calcula Refresh. */
+	TArray<bool> DomainsShownForgotten;
+	/** Con qué datos se calculó DomainsShownForgotten: si el prólogo duraba y cuántas frases de la apertura se habían enseñado. */
+	bool bDomainsShownInPrologue = false;
+	int32 DomainsShownOpeningLines = -1;
 
 	/** Qué instrucciones se han dado en esta partida (S-021, A3); el perfil decide si se enseñan. */
 	Soulbound::Presentation::FInstructionTracker InstructionTracker;

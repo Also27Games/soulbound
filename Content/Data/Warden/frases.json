@@ -148,6 +148,9 @@
     "¡Cierras la ronda! Qué apropiado… alguien tendrá que recoger los restos del desastre.",
     "¡El último… tú! Menuda suerte… tendrás tiempo de sobra para temer tu turno."
   ]},
+  {"id": "programado:comienzo", "lines": [
+    "(pendiente) programado:comienzo"
+  ]},
   {"id": "programado:fin-carrera", "lines": [
     "¡Se acabó el tiempo! ¡Mirad a los Ecos! ¡Habéis fracasado antes de empezar! [risa] ¡Qué maravilla! Ni siquiera he tenido que hacer nada…",
     "¡Enhorabuena, Ecos! ¡Cinco minutos y ya sois el hazmerreír del tablero! ¡Me fascina vuestra facilidad para caer tan bajo!",

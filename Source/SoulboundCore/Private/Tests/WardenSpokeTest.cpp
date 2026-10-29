@@ -66,7 +66,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceStartTest, "Soulbound.Core.Voice.Registro
 bool FVoiceStartTest::RunTest(const FString& Parameters)
 {
 	// CA-VOZ-3 (R-PRO-1, R-WAR-10): StartMatch deja WardenSpoke con programado:inicio, una programado:corrupcion por Dominio corrompido
-	// (6 menos 4 = 2) y una programado:orden-n por asiento, en el orden de turno, cada una para su asiento. Sin frases, no deja ninguna.
+	// (6 menos 4 = 2), una programado:orden-n por asiento, en el orden de turno, cada una para su asiento, y programado:comienzo la última,
+	// a la mesa (S-023). Cada corrupción va justo después de un DomainForgotten con su Dominio, uno por Dominio que empieza Olvidado y en
+	// el orden de los Dominios. Sin frases, no deja ningún WardenSpoke, pero sí los DomainForgotten: el cambio deja rastro aunque no hable.
 	FBoardState Board;
 	FMatchParams Params;
 	FElectsTable Elects;
@@ -88,7 +90,7 @@ bool FVoiceStartTest::RunTest(const FString& Parameters)
 	const FMatchState& State = Start.State;
 	TestEqual(TEXT("La voz tiene la semilla de la partida más 5"), State.Warden.VoiceSeed, 42 + 5);
 	TArray<FMatchEvent> Spoken = State.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::WardenSpoke; });
-	if (!TestEqual(TEXT("Una de inicio, dos de corrupción y cuatro del orden"), Spoken.Num(), 1 + 2 + 4))
+	if (!TestEqual(TEXT("Una de inicio, dos de corrupción, cuatro del orden y una de comienzo"), Spoken.Num(), 1 + 2 + 4 + 1))
 	{
 		return false;
 	}
@@ -102,16 +104,46 @@ bool FVoiceStartTest::RunTest(const FString& Parameters)
 		TestEqual(FString::Printf(TEXT("Posición %d del orden"), Position + 1), SpokenKey(State, Order), Soulbound::Rules::ScheduledOrderKey(Position + 1));
 		TestEqual(FString::Printf(TEXT("La posición %d habla al asiento que la ocupa"), Position + 1), Order.Seat, State.TurnOrder[Position]);
 	}
+	TestEqual(TEXT("La última, el comienzo"), SpokenKey(State, Spoken.Last()), Soulbound::Warden::LineBegin);
+	TestEqual(TEXT("El comienzo, a la mesa"), Spoken.Last().Seat, INDEX_NONE);
 	for (const FMatchEvent& Event : Spoken)
 	{
 		TestTrue(TEXT("Con una variante que existe"), HasValidVariant(State, Event));
 		TestEqual(TEXT("En el instante 0"), Event.ClockSeconds, 0.0);
 	}
 
+	// Un DomainForgotten por Dominio Olvidado, en el orden de los Dominios, cada uno justo antes de su corrupción.
+	TArray<int32> ForgottenDomains;
+	for (const FDomainState& Domain : State.Board.Domains)
+	{
+		if (Domain.State == EDomainState::Forgotten)
+		{
+			ForgottenDomains.Add(Domain.DomainId);
+		}
+	}
+	TestEqual(TEXT("Con cuatro jugadores, dos Dominios Olvidados"), ForgottenDomains.Num(), 2);
+	TArray<int32> Logged;
+	for (int32 Index = 0; Index < State.EventLog.Num(); ++Index)
+	{
+		const FMatchEvent& Event = State.EventLog[Index];
+		if (Event.Type != EMatchEventType::DomainForgotten)
+		{
+			continue;
+		}
+		Logged.Add(Event.Value);
+		TestEqual(TEXT("DomainForgotten, a la mesa"), Event.Seat, INDEX_NONE);
+		TestEqual(TEXT("DomainForgotten, en el instante 0"), Event.ClockSeconds, 0.0);
+		TestTrue(TEXT("Justo después, su corrupción"), State.EventLog.IsValidIndex(Index + 1) && State.EventLog[Index + 1].Type == EMatchEventType::WardenSpoke
+			&& SpokenKey(State, State.EventLog[Index + 1]) == Soulbound::Warden::LineCorruption);
+	}
+	TestEqual(TEXT("Un DomainForgotten por Dominio Olvidado, con su Dominio, en orden"), Logged, ForgottenDomains);
+
 	FRandomStream Same(42);
 	const FMatchStartResult Silent = Soulbound::Rules::StartMatch(Board, Params, Elects, Soulbound::Match::MaxPlayers, Same, Events, WardenParams);
 	TestEqual(TEXT("Sin frases, ningún WardenSpoke"), SpokenSince(Silent.State, 0), 0);
 	TestEqual(TEXT("Y la misma partida: mismo orden de turno"), Silent.State.TurnOrder, State.TurnOrder);
+	TestEqual(TEXT("Sin frases, los mismos DomainForgotten"),
+		Silent.State.EventLog.FilterByPredicate([](const FMatchEvent& Event) { return Event.Type == EMatchEventType::DomainForgotten; }).Num(), 2);
 	return true;
 }
 

@@ -55,8 +55,9 @@ bool FVoiceLinesLoaderTest::RunTest(const FString& Parameters)
 	const TArray<FString> Required = Soulbound::Rules::RequiredWardenLineKeys(Events, Elects);
 
 	// La lista se construye de las tablas y los enums: un evento de algún saco, un tipo de comentario (once: la presentación de los Elegidos
-	// no es un comentario), un momento de instrucción, tres gravedades y la Furia, catorce programadas (inicio, corrupción, cuatro
-	// posiciones del orden, fin de carrera con Ecos y con todos vinculados, aspirante, dos avisos, fin de tiempo, victoria y nadie vinculado) y una presentación por Elegido.
+	// no es un comentario), un momento de instrucción, tres gravedades y la Furia, quince programadas (inicio, corrupción, cuatro
+	// posiciones del orden, comienzo, fin de carrera con Ecos y con todos vinculados, aspirante, dos avisos, fin de tiempo, victoria y nadie
+	// vinculado) y una presentación por Elegido. S-023 (R-PRO-1): programado:comienzo es la decimoquinta.
 	// Los eventos que no están en ningún saco pueden tener frase, pero no se exige (decisión del autor del 28/10/2026).
 	const int32 RemarkCount = static_cast<int32>(EWardenRemarkKind::NotThisTime) + 1;
 	const int32 InstructionCount = static_cast<int32>(EInstructionMoment::Insolence) + 1;
@@ -64,7 +65,7 @@ bool FVoiceLinesLoaderTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Once tipos de comentario"), RemarkCount, 11);
 	TestTrue(TEXT("Hay eventos fuera de los sacos (los de S-014) y dentro"), InBag > 0 && InBag < Events.Events.Num());
 	TestEqual(TEXT("Una clave por evento de saco, tipo de comentario, momento, gravedad con la Furia, programada y Elegido"), Required.Num(),
-		InBag + RemarkCount + InstructionCount + 4 + 14 + Elects.Elects.Num());
+		InBag + RemarkCount + InstructionCount + 4 + 15 + Elects.Elects.Num());
 	TestFalse(TEXT("La presentación no es un comentario"), Required.Contains(TEXT("comentario:presentacion")));
 	TestEqual(TEXT("Sin claves repetidas"), TSet<FString>(Required).Num(), Required.Num());
 	for (const FWardenEventDef& Event : Events.Events)
@@ -83,7 +84,7 @@ bool FVoiceLinesLoaderTest::RunTest(const FString& Parameters)
 	{
 		TestTrue(FString::Printf(TEXT("Se exige la posición %d del orden"), Position), Required.Contains(Soulbound::Rules::ScheduledOrderKey(Position)));
 	}
-	for (const FString& Key : {Soulbound::Warden::LineStart, Soulbound::Warden::LineCorruption, Soulbound::Warden::LineRaceEnd, Soulbound::Warden::LineRaceEndAll, Soulbound::Warden::LineAspirant,
+	for (const FString& Key : {Soulbound::Warden::LineStart, Soulbound::Warden::LineCorruption, Soulbound::Warden::LineBegin, Soulbound::Warden::LineRaceEnd, Soulbound::Warden::LineRaceEndAll, Soulbound::Warden::LineAspirant,
 		Soulbound::Warden::LineLastMinute, Soulbound::Warden::LineTenSeconds, Soulbound::Warden::LineTimeOut, Soulbound::Warden::LineVictory, Soulbound::Warden::LineNobodyBonded, Soulbound::Warden::LineFury})
 	{
 		TestTrue(FString::Printf(TEXT("Se exige %s"), *Key), Required.Contains(Key));

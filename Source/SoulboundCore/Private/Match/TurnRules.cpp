@@ -1583,4 +1583,29 @@ namespace Soulbound::Rules
 		PunishOrDefer(State, Seat, Punishment, NowSeconds);
 		return true;
 	}
+
+	int32 ShiftOpenDeadlines(FMatchState& State, double Seconds)
+	{
+		if (Seconds <= 0.0)
+		{
+			return 0;
+		}
+		// Solo los plazos que esperan a alguien: un campo de un plazo ya cerrado guarda el valor de antes y no se toca.
+		int32 Shifted = 0;
+		auto Shift = [Seconds, &Shifted](bool bOpen, double& Deadline)
+		{
+			if (bOpen)
+			{
+				Deadline += Seconds;
+				++Shifted;
+			}
+		};
+		Shift(State.TurnPhase != ETurnPhase::BetweenTurns, State.TurnDeadlineSeconds);
+		Shift(State.PendingChoice.IsOpen(), State.PendingChoice.DeadlineSeconds);
+		Shift(State.ShellGame.Stage == EShellGameStage::Reveal || State.ShellGame.Stage == EShellGameStage::Shuffle, State.ShellGame.StageDeadlineSeconds);
+		Shift(State.Movement.IsActive(), State.Movement.StepDeadlineSeconds);
+		Shift(State.Vote.IsOpen(), State.Vote.DeadlineSeconds);
+		Shift(State.Oracle.IsWaiting(), State.Oracle.DeadlineSeconds);
+		return Shifted;
+	}
 }

@@ -123,8 +123,11 @@ public:
 	void PlaceStructures(AActor& Owner, const FBoardState& Board, const FBoardLayout& Layout, const FBoardLayoutParams& Params,
 		const FBoardKitStructureOptions& Options, FBoardKitStructures& Out, EObjectFlags Flags = RF_NoFlags) const;
 
-	/** Tiñe el suelo de cada cuña con el color de su Dominio, apagado si está Olvidado (R-VIS-2, R-VIS-5). */
-	void TintWedgeFloors(const FBoardKitFixedPieces& Pieces, const FBoardState& Board, const ABoardViewActor& Config) const;
+	/**
+	 * Tiñe el suelo de cada cuña con el color de su Dominio, apagado si se pinta Olvidado (R-VIS-2, R-VIS-5). Forgotten: uno por Dominio,
+	 * el de ABoardViewActor::IsDomainShownForgotten (S-023: en el prólogo no es el estado).
+	 */
+	void TintWedgeFloors(const FBoardKitFixedPieces& Pieces, const TArray<bool>& Forgotten, const ABoardViewActor& Config) const;
 
 	// FGCObject
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;

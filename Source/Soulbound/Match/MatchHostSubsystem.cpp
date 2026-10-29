@@ -131,6 +131,9 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 	// segundos de línea son los de la vista, que es quien la enseña. Sin frases no hay apertura ni prólogo.
 	const double PrologueSeconds = Soulbound::Presentation::OpeningSeconds(State, GetDefault<ABoardViewActor>()->WardenLineSeconds);
 	bInPrologue = PrologueSeconds > 0.0;
+	// S-023: la apertura es del prólogo; la espera del Warden mira lo que se diga desde aquí.
+	bWardenSpeaking = false;
+	WardenLinesScanned = State.EventLog.Num();
 	if (bInPrologue)
 	{
 		StepClock.Hold(World.GetTimeSeconds());
@@ -160,6 +163,72 @@ void UMatchHostSubsystem::EndPrologue(const TCHAR* Why)
 	OnMatchStateChanged.Broadcast();
 }
 
+bool UMatchHostSubsystem::NoteWardenLines()
+{
+	const double Extra = Soulbound::Presentation::WardenWaitSeconds(State, WardenLinesScanned, GetDefault<ABoardViewActor>()->WardenLineSeconds);
+	WardenLinesScanned = State.EventLog.Num();
+	if (Extra <= 0.0)
+	{
+		return false;
+	}
+	const double WorldNow = GetWorld()->GetTimeSeconds();
+	if (!bWardenSpeaking)
+	{
+		bWardenSpeaking = true;
+		WardenWaitStartedWorldSeconds = WorldNow;
+		WardenWaitEndsWorldSeconds = WorldNow + Extra;
+		UE_LOG(LogSoulboundMatch, Log, TEXT("El Warden habla: la mesa espera %.0f s (t=%.1f s; el reloj de partida sigue)."), Extra, MatchSeconds());
+	}
+	else
+	{
+		// Decisión del autor del 29/10/2026: una frase dicha más tarde sustituye en pantalla a las que quedaban; la espera acaba con ella.
+		WardenWaitEndsWorldSeconds = FMath::Max(WardenWaitEndsWorldSeconds, WorldNow + Extra);
+		UE_LOG(LogSoulboundMatch, Log, TEXT("El Warden sigue hablando: la mesa espera hasta dentro de %.0f s."), WardenWaitEndsWorldSeconds - WorldNow);
+	}
+	return true;
+}
+
+void UMatchHostSubsystem::EndWardenWait()
+{
+	if (!bWardenSpeaking)
+	{
+		return;
+	}
+	bWardenSpeaking = false;
+	const double Waited = GetWorld()->GetTimeSeconds() - WardenWaitStartedWorldSeconds;
+	// La votación de PendingVotes se reconoce por su plazo: si es la abierta, su plazo se mueve con ella.
+	const bool bVotesOfOpenVote = State.Vote.IsOpen() && PendingVotesDeadline == State.Vote.DeadlineSeconds;
+	const int32 Shifted = Soulbound::Rules::ShiftOpenDeadlines(State, Waited);
+	if (bVotesOfOpenVote)
+	{
+		PendingVotesDeadline = State.Vote.DeadlineSeconds;
+	}
+	// Las respuestas programadas de los dummies se retrasan lo mismo: contestan a la misma altura de su plazo que sin la espera.
+	if (Pending.bPending)
+	{
+		Pending.ReadyAtSeconds += Waited;
+	}
+	for (TOptional<TPair<double, int32>>& Vote : PendingVotes)
+	{
+		if (Vote.IsSet())
+		{
+			Vote->Key += Waited;
+		}
+	}
+	UE_LOG(LogSoulboundMatch, Log, TEXT("El Warden ha terminado: la mesa ha esperado %.1f s; %d plazos desplazados (t=%.1f s)."), Waited, Shifted, MatchSeconds());
+	OnMatchStateChanged.Broadcast();
+}
+
+bool UMatchHostSubsystem::RejectWhileWardenSpeaks(const TCHAR* What) const
+{
+	if (!bWardenSpeaking)
+	{
+		return false;
+	}
+	UE_LOG(LogSoulboundMatch, Log, TEXT("Rechazado (%s): la mesa espera a que el Warden termine de hablar."), What);
+	return true;
+}
+
 void UMatchHostSubsystem::Advance()
 {
 	if (bHasMatch && bInPrologue)
@@ -174,6 +243,17 @@ void UMatchHostSubsystem::Advance()
 	{
 		return; // detenida en el paso a paso: ni dummies, ni reloj, ni turno
 	}
+	// S-023: la mesa espera al Warden. Lo dicho fuera de Advance (SbStrike, SbSay, la intención de un humano) también la detiene; el reloj
+	// de partida sigue, y al acabar se desplazan los plazos.
+	NoteWardenLines();
+	if (bWardenSpeaking)
+	{
+		if (GetWorld()->GetTimeSeconds() < WardenWaitEndsWorldSeconds)
+		{
+			return; // el Warden habla: ni dummies, ni turno, ni evaluación; el reloj sigue
+		}
+		EndWardenWait();
+	}
 	const double Now = MatchSeconds();
 	State.ClockSeconds = Now;
 	bool bChanged = false;
@@ -181,6 +261,13 @@ void UMatchHostSubsystem::Advance()
 	// Las reglas son del motor: aquí solo se pregunta al decisor, se entrega su intención y se avanza el turno.
 	while (true)
 	{
+		// S-023: lo que acaba de pasar puede traer una frase que detiene la mesa (un golpe, una presentación): se para aquí, sin seguir.
+		if (NoteWardenLines())
+		{
+			bChanged = true;
+			break;
+		}
+
 		// Paso a paso: al entrar en BetweenTurns la partida se detiene hasta que se concede un paso; con un evento del Warden
 		// en curso, no, hasta que termina (S-014).
 		// S-017: una consulta del Oráculo entre turnos es como un evento: tiene plazo y la partida no se detiene en ella.
@@ -451,7 +538,7 @@ bool UMatchHostSubsystem::StepOnce()
 
 EIntentResult UMatchHostSubsystem::SubmitHumanIntent(int32 TileId)
 {
-	if (!bHasMatch)
+	if (!bHasMatch || RejectWhileWardenSpeaks(TEXT("intención de destino")))
 	{
 		return EIntentResult::WrongPhase;
 	}
@@ -467,7 +554,7 @@ EIntentResult UMatchHostSubsystem::SubmitHumanIntent(int32 TileId)
 
 EIntentResult UMatchHostSubsystem::SubmitMoveProgress(int32 Seat, int32 TileId)
 {
-	if (!bHasMatch)
+	if (!bHasMatch || RejectWhileWardenSpeaks(TEXT("avance de ficha")))
 	{
 		return EIntentResult::WrongPhase;
 	}
@@ -483,7 +570,7 @@ EIntentResult UMatchHostSubsystem::SubmitMoveProgress(int32 Seat, int32 TileId)
 
 EIntentResult UMatchHostSubsystem::SubmitHumanChoice(EChoiceKind Kind, int32 Option)
 {
-	if (!bHasMatch)
+	if (!bHasMatch || RejectWhileWardenSpeaks(TEXT("elección")))
 	{
 		return EIntentResult::WrongPhase;
 	}
@@ -499,7 +586,7 @@ EIntentResult UMatchHostSubsystem::SubmitHumanChoice(EChoiceKind Kind, int32 Opt
 
 EIntentResult UMatchHostSubsystem::SubmitHumanOracleConsult()
 {
-	if (!bHasMatch)
+	if (!bHasMatch || RejectWhileWardenSpeaks(TEXT("consulta del Oráculo")))
 	{
 		return EIntentResult::WrongPhase;
 	}
@@ -517,7 +604,7 @@ EIntentResult UMatchHostSubsystem::SubmitHumanOracleConsult()
 
 EIntentResult UMatchHostSubsystem::SubmitHumanVote(int32 Voted)
 {
-	if (!bHasMatch)
+	if (!bHasMatch || RejectWhileWardenSpeaks(TEXT("voto")))
 	{
 		return EIntentResult::WrongPhase;
 	}
@@ -535,7 +622,7 @@ EIntentResult UMatchHostSubsystem::SubmitHumanVote(int32 Voted)
 
 EIntentResult UMatchHostSubsystem::SubmitHumanOracleRefuse()
 {
-	if (!bHasMatch)
+	if (!bHasMatch || RejectWhileWardenSpeaks(TEXT("rechazo de la sentencia")))
 	{
 		return EIntentResult::WrongPhase;
 	}
