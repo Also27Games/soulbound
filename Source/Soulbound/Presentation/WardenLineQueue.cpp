@@ -54,4 +54,9 @@ namespace Soulbound::Presentation
 		}
 		return Lines * LineSeconds;
 	}
+
+	double WardenWaitSeconds(const FMatchState& State, int32 FromIndex, double LineSeconds)
+	{
+		return 0.0;
+	}
 }

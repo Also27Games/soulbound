@@ -142,6 +142,8 @@ namespace Soulbound::Warden
 	/** Claves de las frases programadas (R-PRO-1 a R-PRO-5, R-INS-3). Las de `programado:orden-n` salen de ScheduledOrderKey. */
 	inline const FString LineStart = TEXT("programado:inicio");
 	inline const FString LineCorruption = TEXT("programado:corrupcion");
+	/** La última frase de la apertura, después del orden: con ella empieza el reloj de partida (R-PRO-1, S-023, nombre propuesto). */
+	inline const FString LineBegin = TEXT("programado:comienzo");
 	inline const FString LineRaceEnd = TEXT("programado:fin-carrera");
 	inline const FString LineRaceEndAll = TEXT("programado:fin-carrera-todos");
 	inline const FString LineAspirant = TEXT("programado:aspirante");

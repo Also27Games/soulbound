@@ -793,6 +793,12 @@ enum class EMatchEventType : uint8
 	 * que quedan. Una sola vez cada uno y nunca después del fin. Nombre propuesto en S-021.
 	 */
 	MatchEndWarning,
+	/**
+	 * S-023 (R-WAR-10): un Dominio empieza Olvidado. Value: el Dominio. Sin asiento. Lo deja StartMatch por cada Dominio corrompido al
+	 * inicio, en el orden de los Dominios, justo antes de su programado:corrupcion (si el Warden habla): la vista sabe así qué Dominio
+	 * apagar con cada frase de la apertura. Se deja con o sin frases. Nombre propuesto en S-023.
+	 */
+	DomainForgotten,
 };
 
 namespace Soulbound::Match

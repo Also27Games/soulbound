@@ -7,6 +7,7 @@
 #include "Match/MatchState.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
+#include "Warden/WardenLines.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -267,6 +268,76 @@ bool FMatchResultTextTest::RunTest(const FString& Parameters)
 	State.EndReason = EMatchEndReason::NobodyBonded;
 	TestEqual(TEXT("Victoria del Warden: nadie se vinculó"), Soulbound::Presentation::MatchResultText(State, TEXT("Intro")),
 		FString(TEXT("GANA EL WARDEN: NADIE SE VINCULÓ\nIntro o el botón: volver al menú")));
+	return true;
+}
+
+// CA-DOM-1 (S-023, R-PRO-1, R-WAR-10): con el prólogo en marcha y ninguna corrupción enseñada, ningún Dominio se pinta Olvidado; enseñada
+// la primera, el Dominio de su DomainForgotten; enseñadas las dos, los dos. Terminado el prólogo, los del estado, pase lo que pase con
+// las líneas. Fuera del prólogo un Dominio se apaga cuando el estado lo dice.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardViewForgottenOpeningTest, "Soulbound.Game.Presentation.Tablero3D.DominiosEnLaApertura", ViewStateTestFlags)
+bool FBoardViewForgottenOpeningTest::RunTest(const FString& Parameters)
+{
+	FMatchState State;
+	if (!MakeState(*this, State))
+	{
+		return false;
+	}
+	// La apertura como la deja StartMatch: inicio, y por cada Dominio Olvidado (el 4 y el 1, en ese orden a propósito) su
+	// DomainForgotten y su corrupción; luego el orden y el comienzo. Las frases son las de la tabla; aquí basta la clave.
+	auto AddEntry = [&State](const FString& Key)
+	{
+		FWardenLineEntry& Entry = State.WardenLines.Entries.AddDefaulted_GetRef();
+		Entry.Id = Key;
+		Entry.Lines = {Key};
+		return State.WardenLines.Entries.Num() - 1;
+	};
+	auto AddEvent = [&State](EMatchEventType Type, int32 Value)
+	{
+		FMatchEvent& Event = State.EventLog.AddDefaulted_GetRef();
+		Event.Type = Type;
+		Event.Value = Value;
+		Event.Detail = 0;
+	};
+	const int32 Start = AddEntry(Soulbound::Warden::LineStart);
+	const int32 Corruption = AddEntry(Soulbound::Warden::LineCorruption);
+	const int32 Begin = AddEntry(Soulbound::Warden::LineBegin);
+	const int32 Forgotten[] = {4, 1};
+	for (const int32 Domain : Forgotten)
+	{
+		State.Board.Domains[Domain].State = EDomainState::Forgotten;
+	}
+	AddEvent(EMatchEventType::WardenSpoke, Start);
+	for (const int32 Domain : Forgotten)
+	{
+		AddEvent(EMatchEventType::DomainForgotten, Domain);
+		AddEvent(EMatchEventType::WardenSpoke, Corruption);
+	}
+	AddEvent(EMatchEventType::WardenSpoke, Begin);
+
+	auto ShownForgotten = [&State](bool bInPrologue, int32 LinesShown)
+	{
+		const TArray<bool> Shown = Soulbound::Presentation::ForgottenDomainsShown(State, bInPrologue, LinesShown);
+		TArray<int32> Domains;
+		for (int32 Domain = 0; Domain < Shown.Num(); ++Domain)
+		{
+			if (Shown[Domain])
+			{
+				Domains.Add(Domain);
+			}
+		}
+		return Domains;
+	};
+	TestEqual(TEXT("Una entrada por Dominio"), Soulbound::Presentation::ForgottenDomainsShown(State, true, 0).Num(), State.Board.Domains.Num());
+	TestEqual(TEXT("Prólogo, nada enseñado: ninguno"), ShownForgotten(true, 0), TArray<int32>());
+	TestEqual(TEXT("Prólogo, enseñado el inicio: ninguno"), ShownForgotten(true, 1), TArray<int32>());
+	TestEqual(TEXT("Prólogo, enseñada la primera corrupción: el de su DomainForgotten"), ShownForgotten(true, 2), TArray<int32>({4}));
+	TestEqual(TEXT("Prólogo, enseñadas las dos: los dos"), ShownForgotten(true, 3), TArray<int32>({1, 4}));
+	TestEqual(TEXT("Prólogo, enseñado el comienzo: los dos"), ShownForgotten(true, 4), TArray<int32>({1, 4}));
+	TestEqual(TEXT("Terminado el prólogo: los del estado, aunque no se haya enseñado nada"), ShownForgotten(false, 0), TArray<int32>({1, 4}));
+
+	// Fuera del prólogo manda el estado: un Dominio que se olvida después se apaga sin frase.
+	State.Board.Domains[0].State = EDomainState::Forgotten;
+	TestEqual(TEXT("Fuera del prólogo, el estado"), ShownForgotten(false, 4), TArray<int32>({0, 1, 4}));
 	return true;
 }
 

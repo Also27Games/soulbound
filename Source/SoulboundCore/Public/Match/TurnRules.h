@@ -128,6 +128,19 @@ namespace Soulbound::Rules
 	SOULBOUNDCORE_API bool AdvanceTurn(FMatchState& State, double NowSeconds, FRandomStream& Random);
 
 	/**
+	 * Desplaza los plazos abiertos (S-023, espera del Warden, nombre propuesto): suma Seconds a los plazos del estado que están en
+	 * segundos del reloj de partida y esperan a alguien: el reloj de turno con un turno en curso, la elección abierta, el trilero en
+	 * una etapa de reloj (muestra o mezcla), la salvaguarda del movimiento con un camino en curso, la votación abierta y la consulta del
+	 * Oráculo que espera. No toca el reloj de partida, el fin de la carrera ni el de la partida, la evaluación del Warden ni su
+	 * garantía, ni LastProgressSeconds ni LastTargetedSeconds: la espera no es progreso ni es ser objetivo. La llama el anfitrión al
+	 * acabar una espera del Warden; la simulación no espera y no la llama.
+	 * @param State Estado de la partida.
+	 * @param Seconds Segundos que ha durado la espera. Con cero o negativo no hace nada.
+	 * @return Cuántos plazos ha movido.
+	 */
+	SOULBOUNDCORE_API int32 ShiftOpenDeadlines(FMatchState& State, double Seconds);
+
+	/**
 	 * Intención de destino del asiento Seat (R-TUR-7): la única forma de empezar a mover una ficha en un turno.
 	 * Se valida asiento, fase, reloj y casilla, que debe estar entre las alcanzables y tener camino (MovementPath; sin él,
 	 * Unreachable, S-020); si no es válida se descarta sin castigo y sin tocar el estado. Aceptada, cierra la oferta de repetir

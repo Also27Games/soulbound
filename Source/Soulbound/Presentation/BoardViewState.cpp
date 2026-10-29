@@ -59,3 +59,10 @@ FString Soulbound::Presentation::MatchResultText(const FMatchState& State, const
 		: State.EndReason == EMatchEndReason::TimeOut ? FString(TEXT("GANA EL WARDEN: SE ACABÓ EL TIEMPO")) : FString(TEXT("GANA EL WARDEN: NADIE SE VINCULÓ"));
 	return FString::Printf(TEXT("%s\n%s o el botón: volver al menú"), *Winner, *ReturnKey);
 }
+
+TArray<bool> Soulbound::Presentation::ForgottenDomainsShown(const FMatchState& State, bool bInPrologue, int32 OpeningLinesShown)
+{
+	TArray<bool> Shown;
+	Shown.Init(false, State.Board.Domains.Num());
+	return Shown;
+}

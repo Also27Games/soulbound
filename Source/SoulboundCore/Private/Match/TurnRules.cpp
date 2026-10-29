@@ -1583,4 +1583,9 @@ namespace Soulbound::Rules
 		PunishOrDefer(State, Seat, Punishment, NowSeconds);
 		return true;
 	}
+
+	int32 ShiftOpenDeadlines(FMatchState& State, double Seconds)
+	{
+		return 0;
+	}
 }
