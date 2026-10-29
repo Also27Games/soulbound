@@ -340,4 +340,30 @@ bool FInstructionHintsParseTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInstructionHintsIndexTest, "Soulbound.Game.Presentation.Instrucciones.IndiceDeAyudas", InstructionTestFlags)
+
+bool FInstructionHintsIndexTest::RunTest(const FString& Parameters)
+{
+	// CA-AYU-1 (S-022): el combo de opciones de UGT trabaja con un índice; automático 0, siempre 1, nunca 2, y las dos funciones son inversas.
+	const EHintsMode Modes[] = {EHintsMode::Automatic, EHintsMode::Always, EHintsMode::Never};
+	for (int32 Index = 0; Index < UE_ARRAY_COUNT(Modes); ++Index)
+	{
+		TestEqual(FString::Printf(TEXT("%s está en %d"), *Soulbound::Presentation::HintsModeText(Modes[Index]), Index),
+			Soulbound::Presentation::HintsModeToIndex(Modes[Index]), Index);
+		TestEqual(FString::Printf(TEXT("%d vuelve a %s"), Index, *Soulbound::Presentation::HintsModeText(Modes[Index])),
+			static_cast<int32>(Soulbound::Presentation::HintsModeFromIndex(Soulbound::Presentation::HintsModeToIndex(Modes[Index]))), static_cast<int32>(Modes[Index]));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInstructionHintsIndexOutOfRangeTest, "Soulbound.Game.Presentation.Instrucciones.IndiceDeAyudasFueraDeRango", InstructionTestFlags)
+
+bool FInstructionHintsIndexOutOfRangeTest::RunTest(const FString& Parameters)
+{
+	// CA-AYU-1 (S-022): un índice fuera de rango (el combo sin selección da -1) es automático, el valor inicial.
+	TestEqual(TEXT("-1 es automático"), static_cast<int32>(Soulbound::Presentation::HintsModeFromIndex(INDEX_NONE)), static_cast<int32>(EHintsMode::Automatic));
+	TestEqual(TEXT("3 es automático"), static_cast<int32>(Soulbound::Presentation::HintsModeFromIndex(3)), static_cast<int32>(EHintsMode::Automatic));
+	return true;
+}
+
 #endif

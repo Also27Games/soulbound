@@ -15,6 +15,9 @@ public class Soulbound : ModuleRules
 
 		// Slate y SlateCore: el panel de crónica y la leyenda de la vista de depuración (S-007).
 		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
+
+		// EngineSettings: UGameMapsSettings, para volver al mapa del menú (GameDefaultMap) al acabar la partida (S-022).
+		PrivateDependencyModuleNames.AddRange(new string[] { "EngineSettings" });
 		
 		// Uncomment if you are using online features
 		// PrivateDependencyModuleNames.Add("OnlineSubsystem");

@@ -37,6 +37,8 @@ DECLARE_MULTICAST_DELEGATE(FOnMatchStateChanged);
  * Es quien lleva el reloj de partida y por eso es quien tiene el modo paso a paso (S-007, glosario "StepMode"): con él
  * activo, la partida se detiene al entrar en BetweenTurns y el reloj se congela hasta que se concede un paso. La regla
  * (cuándo detener, qué marca el reloj) está en FStepClock.
+ * Desde S-022 (R-PRO-1) también lleva el prólogo: al empezar, el reloj de partida queda detenido (FStepClock::Hold) mientras el Warden dice la
+ * apertura, los segundos de OpeningSeconds en tiempo real; al vencer se reanuda (FStepClock::Resume) y empieza el primer turno.
  */
 UCLASS(Config = Game, BlueprintType)
 class SOULBOUND_API UMatchHostSubsystem : public UWorldSubsystem
@@ -126,9 +128,19 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Partida")
 	bool StepOnce();
 
-	/** Si la partida está detenida esperando el paso: el reloj no corre y el Warden no evalúa. */
+	/**
+	 * Si la partida está detenida esperando el paso, o en el prólogo (S-022): el reloj no corre y el Warden no evalúa. Para distinguir el
+	 * prólogo, IsInPrologue.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Partida")
 	bool IsWaitingForStep() const { return StepClock.bHeld; }
+
+	/**
+	 * Si la partida está en el prólogo (S-022, R-PRO-1; nombre aprobado): el Warden dice la apertura y el reloj de partida sigue en cero hasta
+	 * que termina. Ni Espacio ni SbStepMode 0 lo acortan; SbEvent, SbStrike y SbClock lo acaban antes de aplicarse.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Partida")
+	bool IsInPrologue() const { return bInPrologue; }
 
 #if !UE_BUILD_SHIPPING
 	// Herramientas de depuración (S-011, glosario "DebugEdit"). Son las únicas vías por las que los comandos Sb… cambian
@@ -193,7 +205,8 @@ public:
 	 * Lanza el evento del Warden EventId como entrega directa, entre turnos (S-014, Soulbound::Debug::LaunchEvent), con el
 	 * sorteo del Warden, que desde S-016 vive en el estado (WardenDraw). Si la partida estaba detenida en el paso a paso y el
 	 * evento espera una elección, el reloj se reanuda sin conceder turno: las elecciones del evento tienen plazo, y la partida
-	 * vuelve a detenerse al acabar el evento, antes del siguiente turno.
+	 * vuelve a detenerse al acabar el evento, antes del siguiente turno. Con el prólogo en marcha, primero lo acaba (S-022), y lo deja en
+	 * el log, aunque luego el evento se rechace.
 	 */
 	FDebugEditOutcome DebugLaunchEvent(const FString& EventId);
 
@@ -201,14 +214,14 @@ public:
 	 * Lanza el evento del Warden EventId como golpe ahora (S-020, SbStrike, Soulbound::Debug::StrikeEvent): corta el turno en curso,
 	 * con el sorteo de la partida para el consumo fijo, y el evento entra en el hueco con el sorteo del Warden; sin turno en curso,
 	 * como DebugLaunchEvent. En un duelo, un trilero o un minijuego se rechaza. Como DebugLaunchEvent, reanuda el reloj del paso a
-	 * paso si el evento espera una elección.
+	 * paso si el evento espera una elección, y acaba el prólogo antes de golpear (S-022).
 	 */
 	FDebugEditOutcome DebugStrikeEvent(const FString& EventId);
 
 	/**
 	 * Adelanta el reloj de partida a Seconds (S-018, SbClock, Soulbound::Debug::SetClock): el estado y el reloj del anfitrión
 	 * (FStepClock::Skip). Lo que venza por ello (fin de carrera, evaluaciones del Warden, fin de la partida a los 40 minutos) llega en
-	 * el siguiente paso, como si el tiempo hubiera pasado. Hacia atrás se rechaza.
+	 * el siguiente paso, como si el tiempo hubiera pasado. Hacia atrás se rechaza. Con el prólogo en marcha, primero lo acaba (S-022).
 	 */
 	FDebugEditOutcome DebugSetClock(double Seconds);
 
@@ -281,6 +294,9 @@ private:
 	/** Carga los archivos de datos e inicia la partida. Devuelve false, con el motivo en el log, si no puede. */
 	bool StartFromData(UWorld& World);
 
+	/** Acaba el prólogo, si dura: el reloj de partida se reanuda desde cero (FStepClock::Resume). Why dice por qué, para el log. */
+	void EndPrologue(const TCHAR* Why);
+
 	/**
 	 * Respuesta ya decidida de un dummy, a la espera de su hora. Va atada al turno que la originó (asiento y
 	 * TurnCount) y a lo que contesta (ChoiceKind, None para el destino y el minijuego): si cambia por cualquier otra vía
@@ -338,6 +354,10 @@ private:
 #endif
 	FTimerHandle AdvanceTimer;
 	FStepClock StepClock;
+	/** Si dura el prólogo (S-022): el reloj está detenido por él, no por el paso a paso. */
+	bool bInPrologue = false;
+	/** Tiempo del mundo en que acaba el prólogo. */
+	double PrologueEndsWorldSeconds = 0.0;
 	int32 UsedSeed = 0;
 	bool bHasMatch = false;
 

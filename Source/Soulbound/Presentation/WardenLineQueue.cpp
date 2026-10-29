@@ -1,5 +1,7 @@
 #include "WardenLineQueue.h"
 
+#include "Match/MatchState.h"
+
 namespace Soulbound::Presentation
 {
 	void FWardenLineQueue::Push(const FString& Text, double GameClock)
@@ -37,5 +39,19 @@ namespace Soulbound::Presentation
 			ShownSince += LineSeconds;
 		}
 		return Pending[0];
+	}
+
+	double OpeningSeconds(const FMatchState& State, double LineSeconds)
+	{
+		// La apertura es lo que StartMatch dice en el instante cero (inicio, corrupciones y orden); nada más se dice en él.
+		int32 Lines = 0;
+		for (const FMatchEvent& Event : State.EventLog)
+		{
+			if (Event.Type == EMatchEventType::WardenSpoke && Event.ClockSeconds == 0.0)
+			{
+				++Lines;
+			}
+		}
+		return Lines * LineSeconds;
 	}
 }

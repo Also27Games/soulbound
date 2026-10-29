@@ -67,6 +67,49 @@ namespace Soulbound::Presentation
 			}
 			return INDEX_NONE;
 		}
+
+		/**
+		 * La etiqueta corta de un evento que el Warden acompaña con su frase (S-022, R-HUD-4): `golpe "Impuesto"`, `escena "Cosecha"`,
+		 * `evento "<id>"` (los de prueba, fuera de los sacos), la gravedad del castigo, `Furia`, `comentario` y `aviso`. Vacía para el resto.
+		 */
+		FString SpokenEventLabel(const FMatchState& State, const FMatchEvent& Event)
+		{
+			switch (Event.Type)
+			{
+			case EMatchEventType::WardenEventStarted:
+			{
+				const FWardenEventDef* Def = State.WardenEvents.Events.IsValidIndex(Event.Value) ? &State.WardenEvents.Events[Event.Value] : nullptr;
+				return !Def ? FString::Printf(TEXT("evento %d"), Event.Value)
+					: !Def->bInBag ? FString::Printf(TEXT("evento \"%s\""), *Def->Id)
+					: FString::Printf(TEXT("%s \"%s\""), Def->Channel == EWardenChannel::Strike ? TEXT("golpe") : TEXT("escena"), *Def->DisplayName());
+			}
+			case EMatchEventType::InsolencePunished: return InsolencePunishmentText(Event.Detail);
+			case EMatchEventType::FuryUnleashed: return TEXT("Furia");
+			case EMatchEventType::WardenRemark: return TEXT("comentario");
+			case EMatchEventType::MatchEndWarning: return TEXT("aviso");
+			default: return FString();
+			}
+		}
+
+		/**
+		 * Si el evento Index va seguido inmediatamente de su frase y los dos se enseñan en una sola línea, la del evento (S-022): con frases en
+		 * la partida, un evento con etiqueta y un WardenSpoke con texto justo detrás. El evento que lanza la sentencia del Oráculo no: su
+		 * línea ya la lleva la sentencia (S-021).
+		 */
+		bool MergesWithNextSpoke(const FMatchState& State, int32 Index)
+		{
+			if (State.WardenLines.IsEmpty() || !State.EventLog.IsValidIndex(Index) || !State.EventLog.IsValidIndex(Index + 1) || State.EventLog[Index + 1].Type != EMatchEventType::WardenSpoke
+				|| SpokenEventLabel(State, State.EventLog[Index]).IsEmpty() || SpokenText(State.WardenLines, State.EventLog[Index + 1]).IsEmpty())
+			{
+				return false;
+			}
+			if (State.EventLog[Index].Type == EMatchEventType::WardenEventStarted)
+			{
+				const int32 Previous = PreviousMeaningful(State, Index, true);
+				return !(State.EventLog.IsValidIndex(Previous) && State.EventLog[Previous].Type == EMatchEventType::OracleSentence);
+			}
+			return true;
+		}
 	}
 
 	FString DescribeChronicleEvent(const FMatchState& State, int32 Index)
@@ -80,6 +123,17 @@ namespace Soulbound::Presentation
 		// frases en la partida, las líneas de siempre.
 		if (!State.WardenLines.IsEmpty())
 		{
+			// S-022 (R-HUD-4, R-VOZ-3b): un golpe, una escena, un castigo, la Furia, un comentario o el aviso del final con su frase son una
+			// sola línea, la del evento con su etiqueta; la de la frase queda vacía. Lo que la línea descriptiva decía (a quién dirige, qué
+			// corta) está en las de EffectApplied, TurnInterrupted y las elecciones.
+			if (MergesWithNextSpoke(State, Index))
+			{
+				return SpokenEventLabel(State, Event) + TEXT(": ") + SpokenText(State.WardenLines, State.EventLog[Index + 1]);
+			}
+			if (Event.Type == EMatchEventType::WardenSpoke && MergesWithNextSpoke(State, Index - 1))
+			{
+				return FString();
+			}
 			if (Event.Type == EMatchEventType::OracleSentence)
 			{
 				// La línea la lleva la frase que sigue (tras los disparadores).

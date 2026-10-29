@@ -49,8 +49,10 @@ namespace Soulbound::Presentation
 
 	/**
 	 * La línea de la crónica del juego para el evento Index del registro de State, con su contexto (S-021): la sentencia del Oráculo es una
-	 * sola línea, "sentencia del Oráculo: <frase>", en vez de tres; con la tabla de frases vacía conserva las líneas de siempre. El resto
-	 * es DescribeEvent. Vacía si el evento no tiene línea.
+	 * sola línea, "sentencia del Oráculo: <frase>", en vez de tres. Desde S-022 (R-HUD-4), un golpe, una escena, un castigo de insolencia, la
+	 * Furia, un comentario o el aviso del final seguidos de su frase también son una sola línea, en la del evento: `golpe "Impuesto": <frase>`,
+	 * y la de la frase queda vacía. Con la tabla de frases vacía conserva las líneas de siempre. El resto es DescribeEvent. Vacía si el evento
+	 * no tiene línea.
 	 */
 	FString DescribeChronicleEvent(const FMatchState& State, int32 Index);
 

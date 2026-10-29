@@ -2,6 +2,7 @@
 
 #include "../Presentation/BoardViewActor.h"
 #include "../Presentation/EventText.h"
+#include "../Presentation/WardenLineQueue.h"
 #include "../Spike/SpikeOnlineGameMode.h"
 #include "Board/BoardLoader.h"
 #include "Elects/ElectsLoader.h"
@@ -126,6 +127,17 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 	State.ClockSeconds = 0.0;
 	bHasMatch = true;
 
+	// S-022 (R-PRO-1, decisión del autor del 29/10/2026): el prólogo. La partida no empieza hasta que el Warden termina la apertura; los
+	// segundos de línea son los de la vista, que es quien la enseña. Sin frases no hay apertura ni prólogo.
+	const double PrologueSeconds = Soulbound::Presentation::OpeningSeconds(State, GetDefault<ABoardViewActor>()->WardenLineSeconds);
+	bInPrologue = PrologueSeconds > 0.0;
+	if (bInPrologue)
+	{
+		StepClock.Hold(World.GetTimeSeconds());
+		PrologueEndsWorldSeconds = World.GetTimeSeconds() + PrologueSeconds;
+		UE_LOG(LogSoulboundMatch, Log, TEXT("Prólogo: la partida empieza dentro de %.0f s, cuando el Warden termine la apertura."), PrologueSeconds);
+	}
+
 	UE_LOG(LogSoulboundMatch, Log, TEXT("Partida iniciada: %d casillas, semilla %d, humano en el asiento %d."), State.Board.Tiles.Num(), UsedSeed, HumanSeat);
 	return true;
 }
@@ -136,8 +148,28 @@ double UMatchHostSubsystem::MatchSeconds() const
 	return World ? StepClock.MatchSeconds(World->GetTimeSeconds()) : 0.0;
 }
 
+void UMatchHostSubsystem::EndPrologue(const TCHAR* Why)
+{
+	if (!bInPrologue)
+	{
+		return;
+	}
+	bInPrologue = false;
+	StepClock.Resume(GetWorld()->GetTimeSeconds());
+	UE_LOG(LogSoulboundMatch, Log, TEXT("Prólogo terminado (%s): empieza la partida."), Why);
+	OnMatchStateChanged.Broadcast();
+}
+
 void UMatchHostSubsystem::Advance()
 {
+	if (bHasMatch && bInPrologue)
+	{
+		if (GetWorld()->GetTimeSeconds() < PrologueEndsWorldSeconds)
+		{
+			return; // el Warden aún dice la apertura: ni dummies, ni reloj, ni turno
+		}
+		EndPrologue(TEXT("el Warden ha dicho la apertura"));
+	}
 	if (!bHasMatch || StepClock.bHeld)
 	{
 		return; // detenida en el paso a paso: ni dummies, ni reloj, ni turno
@@ -385,6 +417,12 @@ void UMatchHostSubsystem::SetStepMode(bool bEnabled)
 	{
 		return;
 	}
+	if (!bEnabled && bInPrologue)
+	{
+		// S-022: el prólogo no es una espera del paso a paso; salir del modo no lo acorta.
+		UE_LOG(LogSoulboundMatch, Log, TEXT("Paso a paso desactivado: el prólogo sigue hasta que el Warden termine la apertura."));
+		return;
+	}
 	if (!bEnabled)
 	{
 		StepClock.Disable(GetWorld()->GetTimeSeconds());
@@ -400,7 +438,8 @@ void UMatchHostSubsystem::SetStepMode(bool bEnabled)
 
 bool UMatchHostSubsystem::StepOnce()
 {
-	if (!bHasMatch || !StepClock.Step(GetWorld()->GetTimeSeconds()))
+	// S-022: en el prólogo no hay turno que soltar.
+	if (!bHasMatch || bInPrologue || !StepClock.Step(GetWorld()->GetTimeSeconds()))
 	{
 		return false;
 	}
@@ -696,6 +735,8 @@ FDebugEditOutcome UMatchHostSubsystem::DebugSetClock(double Seconds)
 	{
 		return FinishDebugEdit(false, TEXT("sin partida"));
 	}
+	// S-022: adelantar el reloj con el prólogo en marcha lo acaba antes; si no, el reloj seguiría detenido por él.
+	EndPrologue(TEXT("SbClock"));
 	const double Now = MatchSeconds();
 	State.ClockSeconds = Now;
 	const EDebugEditResult Result = Soulbound::Debug::SetClock(State, Seconds, Now);
@@ -765,6 +806,8 @@ FDebugEditOutcome UMatchHostSubsystem::DebugLaunchEvent(const FString& EventId)
 	{
 		return FinishDebugEdit(false, TEXT("sin partida"));
 	}
+	// S-022: un evento con el prólogo en marcha lo acaba antes de lanzarse, para que corran sus plazos.
+	EndPrologue(TEXT("SbEvent"));
 	State.ClockSeconds = MatchSeconds();
 	// S-016: el sorteo del Warden es el del estado; un evento lanzado a mano no gasta usos ni cuenta para la garantía.
 	FRandomStream WardenRandom = Soulbound::Rules::WardenDraw(State);
@@ -792,6 +835,8 @@ FDebugEditOutcome UMatchHostSubsystem::DebugStrikeEvent(const FString& EventId)
 	{
 		return FinishDebugEdit(false, TEXT("sin partida"));
 	}
+	// S-022: como SbEvent, acaba el prólogo antes de golpear.
+	EndPrologue(TEXT("SbStrike"));
 	State.ClockSeconds = MatchSeconds();
 	const bool bTurnInProgress = State.TurnPhase != ETurnPhase::BetweenTurns;
 	FRandomStream WardenRandom = Soulbound::Rules::WardenDraw(State);

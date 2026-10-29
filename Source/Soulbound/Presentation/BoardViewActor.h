@@ -296,6 +296,25 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey SeatedViewKey = EKeys::C;
 
+	/**
+	 * Si la partida arranca en la vista sentada del asiento humano (S-022, R-CAM-1; nombre aprobado). Valor inicial true; false arranca en la
+	 * cenital, sin compilar. La vista previa del editor (ABoardPreviewActor) no lo mira.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	bool bStartSeated = true;
+
+	/**
+	 * Tecla que, con la partida terminada, hace lo mismo que el botón "Volver al menú": cierra la sesión en línea si la hay y vuelve al mapa
+	 * del menú (GameDefaultMap) (S-022; nombre aprobado). Es la alternativa al botón. Valor inicial Intro: no Escape, que es la pausa de UGT
+	 * (R-FLU-5) y en PIE lo captura el editor (decisión del autor del 29/10/2026). Antes del final no hace nada y no se la queda.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	FKey ReturnToMenuKey = EKeys::Enter;
+
+	/** Tamaño de la letra del botón "Volver al menú" (S-022). Valor inicial 28, como la línea del Warden. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	int32 ReturnToMenuFontSize = 28;
+
 	/** Tecla que oculta y muestra etiquetas para las capturas. Valor inicial L. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey OverlayToggleKey = EKeys::L;
@@ -311,7 +330,7 @@ public:
 	/** Color de un Dominio (0 a 5); gris oscuro si no existe. Lo usa también el kit para teñir el suelo de las cuñas. */
 	FLinearColor DomainColor(int32 DomainId) const;
 
-	/** Las teclas de la vista y lo que hace cada una, en una línea (para SbHelp y la línea del paso a paso). */
+	/** Las teclas de la vista y lo que hace cada una, en una línea, con la vista actual (para SbHelp y la línea del paso a paso; ViewKeysText). */
 	FString DescribeViewKeys() const;
 
 	// La vista sentada, en Config (DefaultGame.ini, sección [/Script/Soulbound.BoardViewActor]) para ajustarla sin compilar;
@@ -523,6 +542,18 @@ private:
 	void ToggleDebugText();
 	/** Pone como vista del jugador local la cámara que toca, y le engancha las teclas de la vista la primera vez. */
 	void ApplyViewTarget();
+	/** Si la partida ha terminado: entonces existe el botón "Volver al menú" y vale la tecla (S-022). */
+	bool IsMatchOverShown() const;
+	/**
+	 * Vuelve al menú (S-022), por el botón o por la tecla: solo con la partida terminada y una sola vez; cierra la sesión en línea si la hay
+	 * y viaja al menú.
+	 */
+	void ReturnToMenu();
+	/** Cerrada (o no) la sesión en línea, viaja al menú (S-022): un cierre fallido se anota y se viaja igual. */
+	UFUNCTION()
+	void HandleSessionLeftForMenu(bool bWasSuccessful);
+	/** Abre el mapa del menú, el GameDefaultMap de DefaultEngine.ini, leído de UGameMapsSettings (S-022). */
+	void TravelToMenu();
 	/** Lado de la losa de respaldo: el de la pieza. */
 	float SlabSize() const { return LayoutParams.SlabHalfSize * 2.f; }
 
@@ -579,6 +610,8 @@ private:
 	bool bPanelsHidden = false;
 	bool bDebugTextHidden = false;
 	bool bInputBound = false;
+	/** Si ya se pidió volver al menú (S-022): un segundo clic o Intro mientras se cierra la sesión no hace nada. */
+	bool bReturningToMenu = false;
 	/** Altura de la cara superior de cada casilla. */
 	TArray<float> TileTops;
 	FVector2D BoardCenter = FVector2D::ZeroVector;
@@ -591,6 +624,12 @@ private:
 
 	/** La línea del Warden en pantalla (S-021): una capa aparte, que no se oculta con los paneles (H). */
 	TSharedPtr<SWidget> WardenLineOverlay;
+
+	/**
+	 * El botón "Volver al menú" (S-022): una capa aparte, centrada en el hueco del tablero, que solo existe con la partida terminada y no se
+	 * oculta con los paneles (H) ni con el texto de depuración (T).
+	 */
+	TSharedPtr<SWidget> ReturnToMenuOverlay;
 	Soulbound::Presentation::FWardenLineQueue WardenLineQueue;
 	/** Cuántos eventos del registro se han mirado en busca de frases. */
 	int32 WardenLineScanned = 0;

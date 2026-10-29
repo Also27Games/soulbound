@@ -53,4 +53,25 @@ namespace Soulbound::Presentation
 		 * @return El color con que multiplicar el color por vértice del suelo.
 		 */
 		SOULBOUND_API FLinearColor WedgeFloorTint(const FLinearColor& DomainColor, bool bForgotten, float Strength, float ForgottenDim);
+
+	/**
+	 * Las teclas de la vista para el HUD (S-022, R-CAM-1): qué vista está activa, sentada o cenital, y con qué tecla se cambia a la otra; y las
+	 * teclas de ocultar. Es lo que dice ABoardViewActor::DescribeViewKeys.
+	 * @param bSeated Si la vista activa es la sentada.
+	 * @param ViewKey Nombre de la tecla que alterna la vista (SeatedViewKey).
+	 * @param OverlayKey Nombre de la tecla de las etiquetas.
+	 * @param PanelsKey Nombre de la tecla de los paneles.
+	 * @param DebugTextKey Nombre de la tecla del texto de depuración.
+	 * @return La línea de teclas.
+	 */
+	SOULBOUND_API FString ViewKeysText(bool bSeated, const FString& ViewKey, const FString& OverlayKey, const FString& PanelsKey, const FString& DebugTextKey);
+
+	/**
+	 * La pantalla del resultado (S-018, R-PRO-4; desde S-022, con la vuelta al menú): quién gana y por qué, y en la línea siguiente cómo se
+	 * vuelve al menú ("Intro o el botón: volver al menú"). Vacía si la partida no ha terminado.
+	 * @param State Estado de la partida, en solo lectura.
+	 * @param ReturnKey Nombre de la tecla que vuelve al menú (ReturnToMenuKey).
+	 * @return El texto del resultado, en dos líneas, o vacío.
+	 */
+	SOULBOUND_API FString MatchResultText(const FMatchState& State, const FString& ReturnKey);
 }
