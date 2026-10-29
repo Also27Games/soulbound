@@ -2,6 +2,7 @@
 
 #include "Board/BoardLoader.h"
 #include "Elects/ElectsLoader.h"
+#include "Match/MatchEvents.h"
 #include "Match/WardenEvents.h"
 #include "Math/RandomStream.h"
 #include "Warden/WardenVoice.h"
@@ -171,11 +172,14 @@ namespace Soulbound::Rules
 
 		// S-021 (R-PRO-1, R-WAR-10): el Warden abre la partida, sin sacar nada del sorteo: el inicio, una frase por Dominio corrompido y una por
 		// posición del orden de turno, dicha al asiento que la ocupa. Sin frases, no dice nada.
+		// S-023 (R-WAR-10): cada Dominio corrompido deja su DomainForgotten justo antes de su frase, hable o no el Warden, y la apertura termina
+		// con la frase de comienzo (R-PRO-1), a la mesa, con la que el anfitrión arranca el reloj de partida.
 		SpeakWardenLine(State, Soulbound::Warden::LineStart, 0.0);
 		for (const FDomainState& Domain : State.Board.Domains)
 		{
 			if (Domain.State == EDomainState::Forgotten)
 			{
+				LogEvent(State, EMatchEventType::DomainForgotten, 0.0, INDEX_NONE, Domain.DomainId);
 				SpeakWardenLine(State, Soulbound::Warden::LineCorruption, 0.0);
 			}
 		}
@@ -183,6 +187,7 @@ namespace Soulbound::Rules
 		{
 			SpeakWardenLine(State, ScheduledOrderKey(Position + 1), 0.0, State.TurnOrder[Position]);
 		}
+		SpeakWardenLine(State, Soulbound::Warden::LineBegin, 0.0);
 		return Result;
 	}
 }
