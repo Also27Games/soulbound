@@ -197,13 +197,26 @@ namespace Soulbound::Presentation
 		}
 	}
 
+	namespace
+	{
+		/** El orden del combo de opciones de UGT: la posición de cada ajuste. */
+		constexpr EHintsMode HintsComboOrder[] = {EHintsMode::Automatic, EHintsMode::Always, EHintsMode::Never};
+	}
+
 	int32 HintsModeToIndex(EHintsMode Mode)
 	{
-		return INDEX_NONE;
+		for (int32 Index = 0; Index < UE_ARRAY_COUNT(HintsComboOrder); ++Index)
+		{
+			if (HintsComboOrder[Index] == Mode)
+			{
+				return Index;
+			}
+		}
+		return 0;
 	}
 
 	EHintsMode HintsModeFromIndex(int32 Index)
 	{
-		return EHintsMode::Never;
+		return Index >= 0 && Index < UE_ARRAY_COUNT(HintsComboOrder) ? HintsComboOrder[Index] : EHintsMode::Automatic;
 	}
 }

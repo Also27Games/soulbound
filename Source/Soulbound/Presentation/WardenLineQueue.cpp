@@ -43,6 +43,15 @@ namespace Soulbound::Presentation
 
 	double OpeningSeconds(const FMatchState& State, double LineSeconds)
 	{
-		return -1.0;
+		// La apertura es lo que StartMatch dice en el instante cero (inicio, corrupciones y orden); nada más se dice en él.
+		int32 Lines = 0;
+		for (const FMatchEvent& Event : State.EventLog)
+		{
+			if (Event.Type == EMatchEventType::WardenSpoke && Event.ClockSeconds == 0.0)
+			{
+				++Lines;
+			}
+		}
+		return Lines * LineSeconds;
 	}
 }
