@@ -304,11 +304,16 @@ public:
 	bool bStartSeated = true;
 
 	/**
-	 * Tecla que, con la partida terminada, vuelve al mapa del menú (GameDefaultMap) tras cerrar la sesión en línea si la hay (S-022; nombre
-	 * aprobado). Valor inicial Escape. Antes del final no hace nada y no se la queda: Escape sigue siendo la pausa de UGT (R-FLU-5).
+	 * Tecla que, con la partida terminada, hace lo mismo que el botón "Volver al menú": cierra la sesión en línea si la hay y vuelve al mapa
+	 * del menú (GameDefaultMap) (S-022; nombre aprobado). Es la alternativa al botón. Valor inicial Intro: no Escape, que es la pausa de UGT
+	 * (R-FLU-5) y en PIE lo captura el editor (decisión del autor del 29/10/2026). Antes del final no hace nada y no se la queda.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
-	FKey ReturnToMenuKey = EKeys::Escape;
+	FKey ReturnToMenuKey = EKeys::Enter;
+
+	/** Tamaño de la letra del botón "Volver al menú" (S-022). Valor inicial 28, como la línea del Warden. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	int32 ReturnToMenuFontSize = 28;
 
 	/** Tecla que oculta y muestra etiquetas para las capturas. Valor inicial L. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
@@ -537,8 +542,13 @@ private:
 	void ToggleDebugText();
 	/** Pone como vista del jugador local la cámara que toca, y le engancha las teclas de la vista la primera vez. */
 	void ApplyViewTarget();
-	/** La tecla de volver al menú (S-022): solo con la partida terminada; cierra la sesión en línea si la hay y viaja al menú. */
-	void OnReturnToMenuKey();
+	/** Si la partida ha terminado: entonces existe el botón "Volver al menú" y vale la tecla (S-022). */
+	bool IsMatchOverShown() const;
+	/**
+	 * Vuelve al menú (S-022), por el botón o por la tecla: solo con la partida terminada y una sola vez; cierra la sesión en línea si la hay
+	 * y viaja al menú.
+	 */
+	void ReturnToMenu();
 	/** Cerrada (o no) la sesión en línea, viaja al menú (S-022): un cierre fallido se anota y se viaja igual. */
 	UFUNCTION()
 	void HandleSessionLeftForMenu(bool bWasSuccessful);
@@ -600,7 +610,7 @@ private:
 	bool bPanelsHidden = false;
 	bool bDebugTextHidden = false;
 	bool bInputBound = false;
-	/** Si ya se pidió volver al menú (S-022): un segundo Escape mientras se cierra la sesión no hace nada. */
+	/** Si ya se pidió volver al menú (S-022): un segundo clic o Intro mientras se cierra la sesión no hace nada. */
 	bool bReturningToMenu = false;
 	/** Altura de la cara superior de cada casilla. */
 	TArray<float> TileTops;
@@ -614,6 +624,12 @@ private:
 
 	/** La línea del Warden en pantalla (S-021): una capa aparte, que no se oculta con los paneles (H). */
 	TSharedPtr<SWidget> WardenLineOverlay;
+
+	/**
+	 * El botón "Volver al menú" (S-022): una capa aparte, centrada en el hueco del tablero, que solo existe con la partida terminada y no se
+	 * oculta con los paneles (H) ni con el texto de depuración (T).
+	 */
+	TSharedPtr<SWidget> ReturnToMenuOverlay;
 	Soulbound::Presentation::FWardenLineQueue WardenLineQueue;
 	/** Cuántos eventos del registro se han mirado en busca de frases. */
 	int32 WardenLineScanned = 0;

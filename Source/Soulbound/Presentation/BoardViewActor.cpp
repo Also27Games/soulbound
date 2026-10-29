@@ -41,6 +41,7 @@
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Styling/CoreStyle.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
@@ -653,6 +654,17 @@ void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 			}
 		}
 		WardenLineOverlay.Reset();
+	}
+	if (ReturnToMenuOverlay.IsValid())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UGameViewportClient* Viewport = World->GetGameViewport())
+			{
+				Viewport->RemoveViewportWidgetContent(ReturnToMenuOverlay.ToSharedRef());
+			}
+		}
+		ReturnToMenuOverlay.Reset();
 	}
 	Super::EndPlay(EndPlayReason);
 }
@@ -1301,6 +1313,32 @@ void ABoardViewActor::BuildOverlay()
 			]
 		];
 	Viewport->AddViewportWidgetContent(WardenLineOverlay.ToSharedRef(), 11);
+
+	// S-022 (decisión del autor del 29/10/2026): con la partida terminada, un botón grande para volver al menú, con el ratón (el controlador
+	// deja el cursor visible y la entrada en juego y UI). El resultado es texto de depuración arriba a la izquierda, de altura variable: el botón
+	// va en el centro del hueco del tablero, a la izquierda de la columna de paneles. Antes del final no existe; pedido, se desactiva.
+	ReturnToMenuOverlay = SNew(SBox)
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		.Padding(FMargin(16.f, 0.f, PanelWidthPixels + 16.f, 0.f))
+		.Visibility_Lambda([this]() { return IsMatchOverShown() ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed; })
+		[
+			SNew(SButton)
+			.ContentPadding(FMargin(32.f, 14.f))
+			.IsEnabled_Lambda([this]() { return !bReturningToMenu; })
+			.OnClicked_Lambda([this]()
+			{
+				ReturnToMenu();
+				return FReply::Handled();
+			})
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(TEXT("Volver al menú")))
+				.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(ReturnToMenuFontSize, 8)))
+				.Justification(ETextJustify::Center)
+			]
+		];
+	Viewport->AddViewportWidgetContent(ReturnToMenuOverlay.ToSharedRef(), 12);
 }
 
 void ABoardViewActor::RefreshChronicle(const FMatchState& State)
@@ -1802,11 +1840,16 @@ FString ABoardViewActor::DescribeViewKeys() const
 		PanelsToggleKey.GetDisplayName().ToString(), DebugTextToggleKey.GetDisplayName().ToString());
 }
 
-void ABoardViewActor::OnReturnToMenuKey()
+bool ABoardViewActor::IsMatchOverShown() const
 {
-	// Antes del final, la tecla es de UGT (la pausa, que no detiene nada: R-FLU-5); la vista no se la queda.
 	const UMatchHostSubsystem* HostPtr = Host.Get();
-	if (bReturningToMenu || !HostPtr || !HostPtr->HasMatch() || !HostPtr->GetState().IsMatchOver())
+	return HostPtr && HostPtr->HasMatch() && HostPtr->GetState().IsMatchOver();
+}
+
+void ABoardViewActor::ReturnToMenu()
+{
+	// Antes del final no hay botón y la tecla no hace nada; una vez pedido, ni el segundo clic ni la tecla repiten.
+	if (bReturningToMenu || !IsMatchOverShown())
 	{
 		return;
 	}
@@ -1880,8 +1923,8 @@ void ABoardViewActor::ApplyViewTarget()
 				InputComponent->BindKey(OverlayToggleKey, IE_Pressed, this, &ABoardViewActor::ToggleOverlay);
 				InputComponent->BindKey(PanelsToggleKey, IE_Pressed, this, &ABoardViewActor::TogglePanels);
 				InputComponent->BindKey(DebugTextToggleKey, IE_Pressed, this, &ABoardViewActor::ToggleDebugText);
-				// S-022: la tecla de volver al menú no se consume, para que antes del final siga llegando a la pausa de UGT.
-				InputComponent->BindKey(ReturnToMenuKey, IE_Pressed, this, &ABoardViewActor::OnReturnToMenuKey).bConsumeInput = false;
+				// S-022: la tecla de volver al menú, alternativa al botón, no se consume: antes del final sigue llegando a quien la use.
+				InputComponent->BindKey(ReturnToMenuKey, IE_Pressed, this, &ABoardViewActor::ReturnToMenu).bConsumeInput = false;
 				bInputBound = true;
 			}
 		}
@@ -2113,7 +2156,7 @@ void ABoardViewActor::TickHud()
 	}
 	if (State.IsMatchOver())
 	{
-		// S-022: con la tecla que vuelve al menú, en la línea de debajo.
+		// S-022: con la tecla y el botón que vuelven al menú, en la línea de debajo.
 		ShowText(19, RaceColor, Soulbound::Presentation::MatchResultText(State, ReturnToMenuKey.GetDisplayName().ToString()), 2.5f);
 	}
 

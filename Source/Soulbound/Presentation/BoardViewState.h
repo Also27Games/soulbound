@@ -67,8 +67,8 @@ namespace Soulbound::Presentation
 	SOULBOUND_API FString ViewKeysText(bool bSeated, const FString& ViewKey, const FString& OverlayKey, const FString& PanelsKey, const FString& DebugTextKey);
 
 	/**
-	 * La pantalla del resultado (S-018, R-PRO-4; desde S-022, con la vuelta al menú): quién gana y por qué, y en la línea siguiente la tecla
-	 * que vuelve al menú ("Escape: volver al menú"). Vacía si la partida no ha terminado.
+	 * La pantalla del resultado (S-018, R-PRO-4; desde S-022, con la vuelta al menú): quién gana y por qué, y en la línea siguiente cómo se
+	 * vuelve al menú ("Intro o el botón: volver al menú"). Vacía si la partida no ha terminado.
 	 * @param State Estado de la partida, en solo lectura.
 	 * @param ReturnKey Nombre de la tecla que vuelve al menú (ReturnToMenuKey).
 	 * @return El texto del resultado, en dos líneas, o vacío.

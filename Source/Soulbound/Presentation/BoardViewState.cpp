@@ -57,5 +57,5 @@ FString Soulbound::Presentation::MatchResultText(const FMatchState& State, const
 	}
 	const FString Winner = State.Outcome == EMatchOutcome::PlayerVictory ? FString::Printf(TEXT("GANA EL ASIENTO %d"), State.WinnerSeat)
 		: State.EndReason == EMatchEndReason::TimeOut ? FString(TEXT("GANA EL WARDEN: SE ACABÓ EL TIEMPO")) : FString(TEXT("GANA EL WARDEN: NADIE SE VINCULÓ"));
-	return FString::Printf(TEXT("%s\n%s: volver al menú"), *Winner, *ReturnKey);
+	return FString::Printf(TEXT("%s\n%s o el botón: volver al menú"), *Winner, *ReturnKey);
 }
