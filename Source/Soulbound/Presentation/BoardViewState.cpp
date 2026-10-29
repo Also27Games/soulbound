@@ -42,3 +42,13 @@ FLinearColor Soulbound::Presentation::WedgeFloorTint(const FLinearColor& DomainC
 	}
 	return FLinearColor(Mixed.R * ForgottenDim, Mixed.G * ForgottenDim, Mixed.B * ForgottenDim, Mixed.A);
 }
+
+FString Soulbound::Presentation::ViewKeysText(bool bSeated, const FString& ViewKey, const FString& OverlayKey, const FString& PanelsKey, const FString& DebugTextKey)
+{
+	return FString();
+}
+
+FString Soulbound::Presentation::MatchResultText(const FMatchState& State, const FString& ReturnKey)
+{
+	return FString();
+}

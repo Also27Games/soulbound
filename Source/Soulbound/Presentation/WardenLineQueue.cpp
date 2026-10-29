@@ -1,5 +1,7 @@
 #include "WardenLineQueue.h"
 
+#include "Match/MatchState.h"
+
 namespace Soulbound::Presentation
 {
 	void FWardenLineQueue::Push(const FString& Text, double GameClock)
@@ -37,5 +39,10 @@ namespace Soulbound::Presentation
 			ShownSince += LineSeconds;
 		}
 		return Pending[0];
+	}
+
+	double OpeningSeconds(const FMatchState& State, double LineSeconds)
+	{
+		return -1.0;
 	}
 }

@@ -66,4 +66,13 @@ namespace Soulbound::Presentation
 
 	/** El nombre del ajuste en español, para la consola: "automático", "siempre" o "nunca". */
 	FString HintsModeText(EHintsMode Mode);
+
+	/**
+	 * La posición del ajuste en el combo de opciones de UGT (S-022): automático 0, siempre 1, nunca 2. Es la única correspondencia entre
+	 * ajuste e índice; la usan UPlayerProfileSubsystem::GetHintsIndex y SetHintsIndex.
+	 */
+	int32 HintsModeToIndex(EHintsMode Mode);
+
+	/** El ajuste de la posición Index del combo de opciones de UGT (S-022), la inversa de HintsModeToIndex. Fuera de rango, automático. */
+	EHintsMode HintsModeFromIndex(int32 Index);
 }

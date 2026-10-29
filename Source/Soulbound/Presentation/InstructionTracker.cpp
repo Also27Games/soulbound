@@ -196,4 +196,14 @@ namespace Soulbound::Presentation
 		default: return TEXT("automático");
 		}
 	}
+
+	int32 HintsModeToIndex(EHintsMode Mode)
+	{
+		return INDEX_NONE;
+	}
+
+	EHintsMode HintsModeFromIndex(int32 Index)
+	{
+		return EHintsMode::Never;
+	}
 }
