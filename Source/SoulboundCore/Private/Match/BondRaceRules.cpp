@@ -165,8 +165,9 @@ namespace Soulbound::Rules
 
 		State.MatchPhase = EMatchPhase::RuneHunt;
 		LogEvent(State, EMatchEventType::BondRaceEnded, NowSeconds, INDEX_NONE, Elects);
-		// S-021 (R-PRO-3): el Warden anuncia el fin de la carrera a la mesa.
-		SpeakWardenLine(State, Soulbound::Warden::LineRaceEnd, NowSeconds);
+		// S-021 (R-PRO-3): el Warden anuncia el fin de la carrera a la mesa. Decisión del autor del 28/10/2026: con todos los asientos
+		// vinculados no queda ningún Eco y la frase es otra.
+		SpeakWardenLine(State, Elects == State.Seats.Num() ? Soulbound::Warden::LineRaceEndAll : Soulbound::Warden::LineRaceEnd, NowSeconds);
 		return true;
 	}
 

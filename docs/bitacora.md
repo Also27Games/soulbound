@@ -4,6 +4,16 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo de la story; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera.
 
+## S-021 (corrección). Fin de carrera con todos vinculados (29/10/2026, rama `correccion/fin-carrera-todos`, base `main`)
+
+- **Qué se pidió**: partir la frase del fin de la carrera en dos claves según queden Ecos o no (decisión del autor del 28/10/2026).
+- **Qué se decidió**: `programado:fin-carrera-todos` (`LineRaceEndAll`, nombre propuesto) si `Elects == State.Seats.Num()`; `programado:fin-carrera` si queda algún Eco; sin vínculos no cambia (solo `nadie-vinculado`). El cargador la exige y `frases.json` pasa a 83 claves con su `(pendiente)`.
+- **Cómo funciona**: un solo punto, el final de `EndBondRace`; ninguna regla de partida cambia (`LaVozNoCambiaLaPartida` sigue en verde).
+- **Tests**: `Voice.CargadorDeFrases` (CA-VOZ-2: la clave exigida y el recuento sube a 14 programadas) y `Voice.RegistroDeLaCarrera` (CA-VOZ-3: con Ecos dice `fin-carrera` y no la de "todos"; con los cuatro vinculados dice la de "todos", a la mesa, y no la de los Ecos). 360 superados.
+- **Dudas y resolución**: "todos" es el número de asientos de la partida (confirmado por el autor). No hubo decisiones no solicitadas.
+- **Pendiente**: la frase real, del autor, en `frases.json`.
+- **Proceso**: dos fallos propios que el proceso cazó. (1) Tras un fallo de compilación del editor (`Fab.uplugin` del motor, ajeno al proyecto) lancé `test.ps1` sin recompilar y dio "360 superados": era el binario viejo, sin los tests nuevos. Lo detecté porque no podía haber 360 verdes con tests en rojo recién escritos, lo descarté como evidencia y paré hasta que el motor compilara; ya con compilación, los dos tests fallaron. Lección: `test.ps1` no compila; un verde solo cuenta tras un `build.ps1` con éxito. (2) El caso de "todos" nació en rojo por un error mío del test (llamaba a `EndBondRace` con la carrera ya terminada por el último vínculo, R-CAR-1); lo corregí y comprobé que, sin la regla, falla por el motivo correcto. Tiempo: unos 40 min con la parada del motor. Preguntas que pararon al agente: 1 (plan) más la avería del motor. Correcciones tras fusionar: (a rellenar por el autor). Build y tests a la primera: no (los dos fallos de arriba).
+
 ## S-021 (A3). La voz del Warden: instrucciones y perfil (28/10/2026, rama `story/S-021-la-voz-del-warden`, base `main`, story S-021)
 
 - **Qué se pidió**: el tercer y último corte de S-021 (CA-INS-1, CA-INS-2): que el Warden enseñe a jugar con diez instrucciones, una vez por partida, que el jugador tenga un perfil en disco con lo que ya ha visto y un ajuste de ayudas (automático, siempre, nunca), y los comandos `SbHints` y `SbForgetInstructions`. Con dos ajustes de A1 y A2 que entran aquí: tras `nadie-vinculado` no se dice además `fin-carrera`, y `programado:aspirante` se dice a la mesa.

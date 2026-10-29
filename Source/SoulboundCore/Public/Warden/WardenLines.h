@@ -143,6 +143,7 @@ namespace Soulbound::Warden
 	inline const FString LineStart = TEXT("programado:inicio");
 	inline const FString LineCorruption = TEXT("programado:corrupcion");
 	inline const FString LineRaceEnd = TEXT("programado:fin-carrera");
+	inline const FString LineRaceEndAll = TEXT("programado:fin-carrera-todos");
 	inline const FString LineAspirant = TEXT("programado:aspirante");
 	inline const FString LineLastMinute = TEXT("programado:ultimo-minuto");
 	inline const FString LineTenSeconds = TEXT("programado:diez-segundos");

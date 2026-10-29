@@ -1,84 +1,210 @@
 [
-  {"id": "evento:tropiezo", "lines": ["(pendiente) evento:tropiezo"]},
-  {"id": "evento:pausa", "lines": ["(pendiente) evento:pausa"]},
-  {"id": "evento:al-altar", "lines": ["(pendiente) evento:al-altar"]},
-  {"id": "evento:la-prueba", "lines": ["(pendiente) evento:la-prueba"]},
-  {"id": "evento:prisa", "lines": ["(pendiente) evento:prisa"]},
-  {"id": "evento:primer-muro", "lines": ["(pendiente) evento:primer-muro"]},
-  {"id": "evento:elige-tu-veneno", "lines": ["(pendiente) evento:elige-tu-veneno"]},
-  {"id": "evento:generosidad-envenenada", "lines": ["(pendiente) evento:generosidad-envenenada"]},
-  {"id": "evento:ensename", "lines": ["(pendiente) evento:ensename"]},
-  {"id": "evento:ojos-en-ti", "lines": ["(pendiente) evento:ojos-en-ti"]},
-  {"id": "evento:el-orbe-llama", "lines": ["(pendiente) evento:el-orbe-llama"]},
-  {"id": "evento:voluntad-ajena", "lines": ["(pendiente) evento:voluntad-ajena"]},
-  {"id": "evento:arquitecto", "lines": ["(pendiente) evento:arquitecto"]},
-  {"id": "evento:hazlo-tu", "lines": ["(pendiente) evento:hazlo-tu"]},
-  {"id": "evento:duelo-por-orden", "lines": ["(pendiente) evento:duelo-por-orden"]},
-  {"id": "evento:el-precio", "lines": ["(pendiente) evento:el-precio"]},
-  {"id": "evento:tres-caminos", "lines": ["(pendiente) evento:tres-caminos"]},
-  {"id": "evento:ojo-por-ojo", "lines": ["(pendiente) evento:ojo-por-ojo"]},
-  {"id": "evento:impuesto", "lines": ["(pendiente) evento:impuesto"]},
-  {"id": "evento:cadena", "lines": ["(pendiente) evento:cadena"]},
-  {"id": "evento:destierro", "lines": ["(pendiente) evento:destierro"]},
-  {"id": "evento:la-ley-de-sombras", "lines": ["(pendiente) evento:la-ley-de-sombras"]},
-  {"id": "evento:noche-de-los-ecos", "lines": ["(pendiente) evento:noche-de-los-ecos"]},
-  {"id": "evento:piedad", "lines": ["(pendiente) evento:piedad"]},
-  {"id": "evento:amanecer", "lines": ["(pendiente) evento:amanecer"]},
-  {"id": "evento:marcha-atras", "lines": ["(pendiente) evento:marcha-atras"]},
-  {"id": "evento:hermanos-de-sangre", "lines": ["(pendiente) evento:hermanos-de-sangre"]},
-  {"id": "evento:juicio", "lines": ["(pendiente) evento:juicio"]},
-  {"id": "evento:favor", "lines": ["(pendiente) evento:favor"]},
-  {"id": "evento:el-perseguido", "lines": ["(pendiente) evento:el-perseguido"]},
-  {"id": "evento:marca-ciega", "lines": ["(pendiente) evento:marca-ciega"]},
-  {"id": "evento:todo-o-nada", "lines": ["(pendiente) evento:todo-o-nada"]},
-  {"id": "evento:cosecha", "lines": ["(pendiente) evento:cosecha"]},
-  {"id": "evento:cosecha-del-lider", "lines": ["(pendiente) evento:cosecha-del-lider"]},
-  {"id": "evento:milagro", "lines": ["(pendiente) evento:milagro"]},
-  {"id": "evento:destierro-del-lider", "lines": ["(pendiente) evento:destierro-del-lider"]},
-  {"id": "evento:trueque", "lines": ["(pendiente) evento:trueque"]},
-  {"id": "evento:el-chivo", "lines": ["(pendiente) evento:el-chivo"]},
-  {"id": "comentario:burla-al-ultimo", "lines": ["(pendiente) comentario:burla-al-ultimo"]},
-  {"id": "comentario:cinco-runas", "lines": ["(pendiente) comentario:cinco-runas"]},
-  {"id": "comentario:prisa", "lines": ["(pendiente) comentario:prisa"]},
-  {"id": "comentario:acaparador", "lines": ["(pendiente) comentario:acaparador"]},
-  {"id": "comentario:mendigo", "lines": ["(pendiente) comentario:mendigo"]},
-  {"id": "comentario:pardillo", "lines": ["(pendiente) comentario:pardillo"]},
-  {"id": "comentario:lento", "lines": ["(pendiente) comentario:lento"]},
-  {"id": "comentario:desagradecido", "lines": ["(pendiente) comentario:desagradecido"]},
-  {"id": "comentario:apuesta-fallida", "lines": ["(pendiente) comentario:apuesta-fallida"]},
-  {"id": "comentario:risa-al-cortar", "lines": ["(pendiente) comentario:risa-al-cortar"]},
-  {"id": "comentario:esta-vez-no", "lines": ["(pendiente) comentario:esta-vez-no"]},
-  {"id": "instruccion:tirar", "lines": ["(pendiente) instruccion:tirar"]},
-  {"id": "instruccion:elegir-casilla", "lines": ["(pendiente) instruccion:elegir-casilla"]},
-  {"id": "instruccion:nicho", "lines": ["(pendiente) instruccion:nicho"]},
-  {"id": "instruccion:fuente", "lines": ["(pendiente) instruccion:fuente"]},
-  {"id": "instruccion:dilema", "lines": ["(pendiente) instruccion:dilema"]},
-  {"id": "instruccion:duelo", "lines": ["(pendiente) instruccion:duelo"]},
-  {"id": "instruccion:orbe", "lines": ["(pendiente) instruccion:orbe"]},
-  {"id": "instruccion:voto", "lines": ["(pendiente) instruccion:voto"]},
-  {"id": "instruccion:seis-runas", "lines": ["(pendiente) instruccion:seis-runas"]},
-  {"id": "instruccion:insolencia", "lines": ["(pendiente) instruccion:insolencia"]},
-  {"id": "insolencia:leve", "lines": ["(pendiente) insolencia:leve"]},
-  {"id": "insolencia:media", "lines": ["(pendiente) insolencia:media"]},
-  {"id": "insolencia:grave", "lines": ["(pendiente) insolencia:grave"]},
-  {"id": "furia", "lines": ["(pendiente) furia"]},
-  {"id": "programado:inicio", "lines": ["(pendiente) programado:inicio"]},
-  {"id": "programado:corrupcion", "lines": ["(pendiente) programado:corrupcion"]},
-  {"id": "programado:orden-1", "lines": ["(pendiente) programado:orden-1"]},
-  {"id": "programado:orden-2", "lines": ["(pendiente) programado:orden-2"]},
-  {"id": "programado:orden-3", "lines": ["(pendiente) programado:orden-3"]},
-  {"id": "programado:orden-4", "lines": ["(pendiente) programado:orden-4"]},
-  {"id": "programado:fin-carrera", "lines": ["(pendiente) programado:fin-carrera"]},
-  {"id": "programado:aspirante", "lines": ["(pendiente) programado:aspirante"]},
-  {"id": "programado:ultimo-minuto", "lines": ["(pendiente) programado:ultimo-minuto"]},
-  {"id": "programado:diez-segundos", "lines": ["(pendiente) programado:diez-segundos"]},
-  {"id": "programado:fin-tiempo", "lines": ["(pendiente) programado:fin-tiempo"]},
-  {"id": "programado:victoria", "lines": ["(pendiente) programado:victoria"]},
-  {"id": "programado:nadie-vinculado", "lines": ["(pendiente) programado:nadie-vinculado"]},
-  {"id": "presentacion:0", "lines": ["(pendiente) presentacion:0"]},
-  {"id": "presentacion:1", "lines": ["(pendiente) presentacion:1"]},
-  {"id": "presentacion:2", "lines": ["(pendiente) presentacion:2"]},
-  {"id": "presentacion:3", "lines": ["(pendiente) presentacion:3"]},
-  {"id": "presentacion:4", "lines": ["(pendiente) presentacion:4"]},
-  {"id": "presentacion:5", "lines": ["(pendiente) presentacion:5"]}
+  {"id": "evento:tropiezo", "lines": ["Quieto ahí… ya has jugado bastante por ahora…"]},
+  {"id": "evento:pausa", "lines": ["Siéntate y mira durante el próximo turno… y quizás aprendas algo…"]},
+  {"id": "evento:al-altar", "lines": ["Vuelve conmigo… te echaba de menos. [risas]"]},
+  {"id": "evento:la-prueba", "lines": ["Enséñame qué sabes hacer. Y no tardes, que me aburro."]},
+  {"id": "evento:prisa", "lines": ["Un turno más para ti. Sorpréndeme, por una vez."]},
+  {"id": "evento:primer-muro", "lines": ["Esa casilla ya no existe para vosotros. Buscad otro camino."]},
+  {"id": "evento:elige-tu-veneno", "lines": ["Turno o runa… ¿qué me regalarás?"]},
+  {"id": "evento:generosidad-envenenada", "lines": ["Hoy estoy generoso: dos turnos para ti… o uno de ellos vuelve a casa. Elige mi regalo."]},
+  {"id": "evento:ensename", "lines": ["Señala a uno. Vamos a ver qué esconde."]},
+  {"id": "evento:ojos-en-ti", "lines": ["Enséñanos qué escondes… no está bien tener secretos…"]},
+  {"id": "evento:el-orbe-llama", "lines": ["Al orbe. Ahora. Tiene algo que decirte… y espero que sea malo. [risas]"]},
+  {"id": "evento:voluntad-ajena", "lines": ["Manda a uno al orbe. Luego no digas que nunca te di nada."]},
+  {"id": "evento:arquitecto", "lines": ["Elige a uno… yo me encargo de su camino…"]},
+  {"id": "evento:hazlo-tu", "lines": ["Te dejo decidir por mí… le cierro el camino, o que nos enseñe el Brazal… Tú eliges."]},
+  {"id": "evento:duelo-por-orden", "lines": ["Elige a tu víctima… pero cuidado: a veces las víctimas se convierten en cazadores."]},
+  {"id": "evento:el-precio", "lines": ["Róbale a uno… o págame tú con una runa. Pero alguien va a perder…"]},
+  {"id": "evento:tres-caminos", "lines": ["Un turno, una runa o jugar conmigo. Elige tu dolor… y date prisa."]},
+  {"id": "evento:ojo-por-ojo", "lines": ["Tu runa… o su sufrimiento. Dime qué clase de persona eres."]},
+  {"id": "evento:impuesto", "lines": ["Te veo muy cargado… Déjame aligerarte un poco el peso…"]},
+  {"id": "evento:cadena", "lines": ["Hoy te salvas. Que lo pague el siguiente."]},
+  {"id": "evento:destierro", "lines": ["Al Vacío. Tómate tu tiempo; aquí nadie te espera."]},
+  {"id": "evento:la-ley-de-sombras", "lines": ["¡Basta! Dejad de llorar como niños: se acabó la noche…"]},
+  {"id": "evento:noche-de-los-ecos", "lines": ["Que llegue la oscuridad… Me encanta el olor a miedo…"]},
+  {"id": "evento:piedad", "lines": ["Salid del Vacío. Todos. No es piedad, parásitos: es que os quiero ver fallar otra vez."]},
+  {"id": "evento:amanecer", "lines": ["Se acabó la noche… Salid del agujero, parásitos. Desde ahí abajo no se os oye gritar…"]},
+  {"id": "evento:marcha-atras", "lines": ["¡Todos a casa! Todo lo que habéis andado… no vale nada. Como vosotros."]},
+  {"id": "evento:hermanos-de-sangre", "lines": ["Tú y tú. Una runa, un duelo. ¿Por qué vosotros? Porque sois los que menos me importáis… y eso es decir mucho."]},
+  {"id": "evento:juicio", "lines": ["Señalad a uno. Al que más dedos tenga encima le pongo mi marca… y seréis vosotros, cobardes, quienes se la cobren."]},
+  {"id": "evento:favor", "lines": ["Hoy regalo una runa, y la mesa decide quién. Adelante, mediocres: votad al miserable que se la merece."]},
+  {"id": "evento:el-perseguido", "lines": ["Al que va primero. Marcado… ¡A por él, sabandijas!"]},
+  {"id": "evento:marca-ciega", "lines": ["Esta vez elige el azar… Rezad a quien queráis… Aquí nadie os va a escuchar."]},
+  {"id": "evento:todo-o-nada", "lines": ["Señala a dos. Que se batan en duelo por todo… Uno saldrá con las manos llenas… y el otro, con lo que se merece. [risa]"]},
+  {"id": "evento:cosecha", "lines": ["Hora de recolectar… Una runa cada uno… Lo siento mucho… [risa]"]},
+  {"id": "evento:cosecha-del-lider", "lines": ["Tú, el que más tiene: dame una. ¿Injusto?… No nos das ninguna pena…"]},
+  {"id": "evento:milagro", "lines": ["Tú… escoria: róbales a todos. Compartir es felicidad…"]},
+  {"id": "evento:destierro-del-lider", "lines": ["Ibas demasiado bien. Al Vacío… como tu cabeza. Allí nadie va primero."]},
+  {"id": "evento:trueque", "lines": ["Cuatro puertas: dos turnos, un robo, un regalo, un muro. Abre una. Da igual cuál: seguro que fallas…"]},
+  {"id": "evento:el-chivo", "lines": ["Uno sobra en esta mesa. Señaladlo y al Vacío con él. Me encanta que os peleéis…"]},
+  {"id": "comentario:burla-al-ultimo", "lines": [
+    "Tú, el de las manos vacías… Tranquilo: nadie espera nada de ti.",
+    "El último de la mesa… Sigue así: alguien tiene que serlo, y nadie lo hace como tú.",
+    "¿Aún sin runas? No pasa nada: perder también es participar… [risa]"
+  ]},
+  {"id": "comentario:cinco-runas", "lines": [
+    "Cinco runas en unas solas manos… Arrancádselas antes de que llegue al Altar…",
+    "Cinco runas. Una más y todo esto se acaba… ¿Vais a dejarle ganar? Patético.",
+    "Huelo a uno a punto de escaparse… Cazadlo."
+  ]},
+  {"id": "comentario:prisa", "lines": [
+    "Tic, tac… El dado no tira solo. Aunque viéndote, casi preferiría que sí.",
+    "¿Estás pensando? Qué novedad. Date prisa, que esto no mejora.",
+    "Tómate tu tiempo… Sabemos que te cuesta."
+  ]},
+  {"id": "comentario:acaparador", "lines": [
+    "Cuántas runas… ¿Y de verdad crees que alguien va a dejar que te las quedes?",
+    "Mira cuántas runas llevas… Tienes más de las que mereces.",
+    "Runas, runas, runas… Y ni una te va a salvar."
+  ]},
+  {"id": "comentario:mendigo", "lines": [
+    "¿Retas a quien no tiene nada? Qué valiente… y qué inútil.",
+    "Un duelo contra las manos vacías. Gana lo que ves: nada.",
+    "Tu rival no tiene runas… pero veo que eso no ha frenado tus ansias de hacer el ridículo."
+  ]},
+  {"id": "comentario:pardillo", "lines": [
+    "Retaste sin nada y te vas con menos… Digno de ti…",
+    "Ni una runa que apostar, ni una victoria que celebrar… Me fascina tu empeño en fracasar.",
+    "Retaste con las manos vacías… y encima perdiste. [risa] Hay que tener valor para ofrecerme un espectáculo tan lamentable."
+  ]},
+  {"id": "comentario:lento", "lines": [
+    "¡Tiempo! Tenías el robo en la mano… pero la has fastidiado. No me sorprende.",
+    "No te esfuerces… Se acabó. No me hagas perder más el tiempo.",
+    "Se acabó el tiempo y no has robado nada… Lamentable…"
+  ]},
+  {"id": "comentario:desagradecido", "lines": [
+    "Un regalo mío… y lo dejas morir en la mesa. Yo no olvido un desprecio.",
+    "¿No lo quieres? Perfecto. Tengo cosas peores que darte.",
+    "¿Lo dejas pasar? Bien. Quien no quiere regalos… recibe castigos."
+  ]},
+  {"id": "comentario:apuesta-fallida", "lines": ["Apostaste… y perdiste. Qué previsible."]},
+  {"id": "comentario:risa-al-cortar", "lines": [
+    "[risa] Perdona… ¿estabas en medio de algo?",
+    "[risa] ¿Ibas a hacer algo? Ya no.",
+    "Lo siento mucho… [gran risa irónica]"
+  ]},
+  {"id": "comentario:esta-vez-no", "lines": [
+    "¿Creías que ese truco funcionaría aquí? Esta vez no… Me hiciste esperar a mí; ahora espera tú.",
+    "¡Eso aquí no sirve! Aquí mando yo… y todavía no he terminado contigo.",
+    "¿Esperabas salir? [risa] Qué conmovedor… Me hiciste perder el tiempo. Ahora pagarás las consecuencias."
+  ]},
+  {"id": "instruccion:tirar", "lines": ["Te toca. Tira el dado; luego ya veremos si te sirve de algo."]},
+  {"id": "instruccion:elegir-casilla", "lines": ["Las casillas que brillan son tuyas por un momento. Elige una. Solo una."]},
+  {"id": "instruccion:nicho", "lines": ["Ese asiento vacío es un Elegido esperando a alguien. Siéntate, y será tuyo. Hasta que deje de serlo."]},
+  {"id": "instruccion:fuente", "lines": ["Una Fuente. Coge la runa. Seis distintas y eres libre. Inténtalo, por favor. Me encanta veros fallar."]},
+  {"id": "instruccion:dilema", "lines": ["Poco tiempo. Elige… o lo hago yo por ti. Te va a encantar. [risa]"]},
+  {"id": "instruccion:duelo", "lines": ["Un duelo: quien gana se lleva una runa del otro. Elige bien a quién retas… o no. Yo disfruto igual."]},
+  {"id": "instruccion:orbe", "lines": ["El orbe te llama. Tócalo antes de que se apague… más te vale hacerle caso."]},
+  {"id": "instruccion:voto", "lines": ["Señalad a uno. El más votado recibirá un regalo… [risa]"]},
+  {"id": "instruccion:seis-runas", "lines": ["Seis runas… Ven al Altar y demuéstrame lo que vales."]},
+  {"id": "instruccion:insolencia", "lines": ["Me has hecho esperar, escoria. Yo no olvido nada…"]},
+  {"id": "insolencia:leve", "lines": [
+    "Me has hecho esperar… Considéralo un pequeño recordatorio de quién manda aquí.",
+    "Tu tardanza me irrita… Procura no convertir mi paciencia en un recuerdo.",
+    "¿Te gusta hacerme esperar? Qué curioso… A mí me encanta verte pagar por ello."
+  ]},
+  {"id": "insolencia:media", "lines": [
+    "Me has hecho esperar demasiado… Esto te va a costar, y lo vas a notar.",
+    "Cada segundo de mi espera tiene un precio… y disfruto cobrándotelo.",
+    "Has agotado mi paciencia… pero aún me queda suficiente crueldad para ti."
+  ]},
+  {"id": "insolencia:grave", "lines": [
+    "Me he cansado de esperarte… y lo vas a lamentar.",
+    "Has confundido mi paciencia con debilidad… y me complace corregir ese error.",
+    "Has desperdiciado mi tiempo tantas veces… que he decidido devolverte el favor…"
+  ]},
+  {"id": "furia", "lines": [
+    "Cinco veces me has ignorado… Ahora mira bien, porque es lo último que vas a ver en mucho tiempo: el Vacío de la Furia. Allí no hay nadie a quien ignorar.",
+    "Ya me has aburrido, y eso aquí se paga más caro. ¡Al Vacío de la Furia!",
+    "¿Sabes qué es lo que más desprecio? Que me hagan esperar… Ahora vas a esperar tú, en la oscuridad, hasta que yo me acuerde de que existes."
+  ]},
+  {"id": "programado:inicio", "lines": [
+    "Ah… cuatro desgraciados más en mi mesa. Qué delicia. Aquí mando yo… y vosotros habéis venido a entretenerme. ¡Procurad no aburrirme!",
+    "¡Bienvenidos a mi pequeño infierno! Aquí se juega a mi manera… y vuestra única obligación es hacerme disfrutar. Especialmente cuando todo salga mal.",
+    "¡Silencio! Esta es mi mesa, mi juego… y vosotros, mis juguetes. [risa] Espero que seáis más divertidos de lo que parecéis."
+  ]},
+  {"id": "programado:corrupcion", "lines": [
+    "¡Este Dominio se apaga! No os encariñéis… todavía puedo quitaros mucho más.",
+    "¡Corrompido! Un lugar menos que explorar… me encanta reducir vuestras esperanzas.",
+    "¡Otro Dominio condenado! No pongáis esas caras… aún quedan lugares donde haceros sufrir."
+  ]},
+  {"id": "programado:orden-1", "lines": [
+    "¡Tú abres la partida! Qué honor… ser el primero en decepcionarme.",
+    "¡El primero… tú! Adelante, inaugura este desastre. Prometo disfrutar cada error.",
+    "¡Empiezas tú! Todos te observan… espero verte fallar…"
+  ]},
+  {"id": "programado:orden-2", "lines": [
+    "¡El segundo… tú! Ya has visto cómo se empieza… procura hacerlo peor.",
+    "¡Vas después! Qué privilegio… poder aprender de los errores ajenos antes de cometer los tuyos.",
+    "¡Segundo turno para ti! El primero abre el camino… tú puedes empezar a estropearlo."
+  ]},
+  {"id": "programado:orden-3", "lines": [
+    "¡El tercero… tú! Dos oportunidades para aprender… y sospecho que no aprovecharás ninguna.",
+    "¡Te toca tercero! Qué considerado… dejar que otros se arriesguen antes que tú.",
+    "¡Tercera posición! Ya has visto suficiente… ahora quiero contemplar tu propia desgracia."
+  ]},
+  {"id": "programado:orden-4", "lines": [
+    "¡Y tú, el último! Disfruta de la espera… a mí me divierte verte impacientarte.",
+    "¡Cierras la ronda! Qué apropiado… alguien tendrá que recoger los restos del desastre.",
+    "¡El último… tú! Menuda suerte… tendrás tiempo de sobra para temer tu turno."
+  ]},
+  {"id": "programado:fin-carrera", "lines": [
+    "¡Se acabó el tiempo! ¡Mirad a los Ecos! ¡Habéis fracasado antes de empezar! [risa] ¡Qué maravilla! Ni siquiera he tenido que hacer nada…",
+    "¡Enhorabuena, Ecos! ¡Cinco minutos y ya sois el hazmerreír del tablero! ¡Me fascina vuestra facilidad para caer tan bajo!",
+    "¡Ah, mis queridos Ecos! ¡Qué fracaso tan miserable! [gran risa irónica] No esperaba gran cosa de vosotros… ¡pero habéis conseguido decepcionarme igualmente!"
+  ]},
+  {"id": "programado:fin-carrera-todos", "lines": [
+    "Todos con Elegido… Qué aburrido. Me gustáis más cuando falláis.",
+    "¡La carrera ha terminado! Todos habéis llegado… Disfrutadlo: es lo último que vais a ganar sin mi permiso."
+  ]},
+  {"id": "programado:aspirante", "lines": [
+    "¡Mirad quién pretende ganar! Qué desagradable… ¿Vais a quedaros mirando mientras se sale con la suya?",
+    "¡Ese pretende escapar con la victoria! Qué insolencia… ¿De verdad vais a dejar que os humille a todos?",
+    "¡Mirad a ese! Ya se saborea la victoria… ¿Vais a permitirlo? ¡Me repugna tanta pasividad!"
+  ]},
+  {"id": "programado:ultimo-minuto", "lines": [
+    "¡Un minuto! Sesenta segundos… Ya puedo oler vuestras almas. Corred, gritad, rezad: a mí me saben igual de bien.",
+    "Queda un minuto y el Altar sigue vacío… Qué espectáculo tan triste, y qué bien me lo estoy pasando…"
+  ]},
+  {"id": "programado:diez-segundos", "lines": [
+    "Diez segundos… ya puedo saborearos…",
+    "Diez segundos… Mirad bien el Altar: es lo más cerca que vais a estar de él."
+  ]},
+  {"id": "programado:fin-tiempo", "lines": [
+    "¡Tiempo! ¡Se acabó! Lo habéis intentado como las sabandijas que sois, y habéis fracasado… Vuestras almas son mías para siempre. Poneos cómodos… la eternidad es larga… [gran risa]",
+    "¡Fin de la partida! Cuatro mediocres contra mí, y os pensabais que teníais alguna oportunidad… Ya no hay prisa, ya no hay reloj: os quedáis aquí, conmigo… Bienvenidos a vuestra nueva eternidad. Las normas, cuando me apetezca."
+  ]},
+  {"id": "programado:victoria", "lines": [
+    "¡No!… ¡NO! ¿Tú? ¿Una basura como tú?… Siglos reinando aquí para que me lo arrebate un insecto con suerte… Vete. ¡Vete antes de que haga pedazos esta mesa! Pero escúchame bien: volveré a encontrarte… y no habrá dados.",
+    "Imposible… ¡IMPOSIBLE! ¿Tú, que no sabías ni tirar un dado? ¡Esto no cuenta! ¡Esto es…! [silencio] …Vete. Llévate tu alma miserable y vete. La próxima vez no habrá reglas."
+  ]},
+  {"id": "programado:nadie-vinculado", "lines": [
+    "¿Nadie? ¿Ninguno de los cuatro ha sido capaz de llegar a un Nicho?… [risa] Los Elegidos llevan siglos esperando y les traigo esto. Partida acabada, almas para mí, y ni siquiera he tenido que mover un dedo. Sois lo más inútil que ha pisado mi mesa…",
+    "¡Ni un vínculo! Ni uno… Seis Elegidos ofreciéndose y vosotros dando vueltas como ratas ciegas. No merecéis ni mi crueldad: os quedáis aquí, en silencio, porque hasta castigaros me aburre. [risa]"
+  ]},
+  {"id": "presentacion:0", "lines": [
+    "El gran Shuten-dōji. Nunca perdió una lucha… y dudo que hoy empiece, con esta basura.",
+    "Shuten-dōji… Nunca ha perdido una batalla. Aunque llamarlo batalla, contra vosotros, sería insultarlo."
+  ]},
+  {"id": "presentacion:1", "lines": [
+    "Fenrir… Ni los dioses lograron encadenarlo. ¿De verdad creéis que tenéis alguna oportunidad?",
+    "Fenrir… Sus colmillos han probado sangre divina. La vuestra apenas le servirá de aperitivo."
+  ]},
+  {"id": "presentacion:2", "lines": [
+    "Apep… el devorador de la luz. Aunque viendo vuestras caras, poco queda por apagar.",
+    "Apep… Sus fauces no conocen la piedad…"
+  ]},
+  {"id": "presentacion:3", "lines": [
+    "Mictlantecuhtli… Ni la muerte se atreve a mirarlo a los ojos. Vosotros tampoco deberíais.",
+    "Mictlantecuhtli… Colecciona almas, ojos y huesos. Veo que pronto ampliará su colección.",
+    "Mictlantecuhtli… Ha recibido almas durante siglos. Hoy le toca soportar basura fresca."
+  ]},
+  {"id": "presentacion:4", "lines": [
+    "Tifón… la furia hecha carne. ¡Corred, escoria! Me encanta cuando lo intentáis.",
+    "Tifón… ¡El destructor de templos! Y hoy tendrá que ensuciarse las manos con vosotros…"
+  ]},
+  {"id": "presentacion:5", "lines": [
+    "Koschei… Lleva siglos burlándose de la muerte. Supongo que hoy le tocará burlarse de vosotros.",
+    "Koschei… Un alma que ni el abismo reclama…"
+  ]}
 ]
