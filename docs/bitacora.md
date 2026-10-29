@@ -4,6 +4,25 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo de la story; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera.
 
+## S-022. Arranque mínimo (29/10/2026, rama `story/S-022-arranque-minimo`, base `main`)
+
+- **Qué se pidió**: que alguien que no conoce el juego pueda abrir el exe, leer de qué va, jugar con el Warden hablándole y volver al menú. En código: el prólogo (R-PRO-1), el arranque sentado (R-CAM-1), la crónica sin duplicar (R-HUD-4, R-VOZ-3b), el ajuste de ayudas y "cómo se juega" para Blueprint, y una forma de volver al menú al acabar (Escape en la story; antes de fusionar, el autor la cambió por un botón e Intro). Los pasos de UGT en el editor, escritos en el README para que los haga el autor.
+- **Qué se decidió** (plan aprobado por el autor, nueve dudas):
+  - se fusiona `main` en la rama de la story, que venía de antes de los PR #50 y #51;
+  - el prólogo es `Hold` + `Resume` de `FStepClock` (no existe `Release`), sin tocar el reloj ni `SoulboundCore`. Espacio y `SbStepMode 0` no lo acortan; `SbEvent`, `SbStrike` y `SbClock` lo acaban antes de aplicarse;
+  - en la crónica, la línea fusionada va en la del evento y la de la frase queda vacía. Los eventos de prueba van como `evento "<id>"` y los dilemas con la etiqueta de su canal. `Bonded`, el fin de carrera, el aspirante y las victorias siguen en dos líneas, porque la story no los nombra;
+  - el índice de ayudas para Blueprint son `GetHintsIndex` y `SetHintsIndex` en el subsistema del perfil, así la correspondencia vive en un solo sitio. `HowToPlayText` quita los `## ` de los títulos;
+  - volver al menú: primero Escape sin consumirse; antes de fusionar, el autor la sustituyó (29/10/2026) por un botón de Slate "Volver al menú", con el ratón, y por Intro como tecla alternativa, porque Escape es la pausa de UGT y en PIE lo captura el editor;
+  - el texto de la pantalla del resultado y el de las teclas salen a funciones puras (`MatchResultText`, `ViewKeysText`), para poder probarlos sin mundo.
+- **Cómo funciona**:
+  - el anfitrión calcula `OpeningSeconds` al empezar (los `WardenSpoke` del instante cero por `WardenLineSeconds`) y, si es mayor que cero, detiene el reloj. Al vencer en tiempo del mundo lo reanuda, y el primer turno, el Warden y la carrera empiezan desde cero;
+  - `DescribeChronicleEvent` junta un evento con etiqueta con el `WardenSpoke` que va justo detrás;
+  - con la partida terminada, la vista cierra la sesión en línea si hay código de sesión y abre el `GameDefaultMap` leído de `UGameMapsSettings`.
+- **Dudas y resolución**: la story pedía "MSAA 4 como `DefaultEngine.ini`", pero el ini tiene `r.AntiAliasingMethod=0` en diferido. El README dice lo que hay y el antialiasing lo decide el autor en el paso de vídeo. `FStepClock::Release` no existe: se usa `Resume`.
+- **Tests**: 15 nuevos en `Soulbound.Game.Presentation` (`Prologo` 3, `Cronica` 4, `Instrucciones` 2, `ComoSeJuega` 4, `Vista` 2), vistos en rojo con esqueletos en un commit aparte. Fallaban 13 de los nuevos y `SentenciaEnUnaLinea`, actualizado porque el golpe directo ya es una sola línea; los dos que comprueban que algo sigue igual que antes pasaban, como debían. 375 superados. Con el cambio al botón, `ResultadoDiceVolverAlMenu` se ajustó primero (rojo, commit aparte) a "Intro o el botón: volver al menú". La parte del prólogo en el anfitrión, la vista, el botón y la tecla son pruebas manuales: no hay tests con mundo.
+- **Pendiente**: los pasos manuales del README (vídeo, menús, "cómo se juega", ayudas, imágenes) y el texto de `como-se-juega.md`, del autor; la prueba manual en PIE y en el exe; volver al menú para los clientes cuando tengan vista (`TODO(R-RED-1)`).
+- **Proceso**: unos 75 min, y 20 más con el cambio del botón. Preguntas que pararon al agente: 1 (el plan, con nueve dudas); el cambio del botón lo pidió el autor tras abrir el PR. Correcciones tras fusionar: (a rellenar por el autor). Build y tests a la primera: no. El primer build en rojo falló en compilación porque un heredoc del shell convirtió los `\n` de dos literales en saltos de línea reales; se corrigió el archivo y se pasaron los scripts de edición a archivos. Tras implementar, build y tests en verde a la primera; el ejecutable Shipping también compila.
+
 ## S-021 (corrección). Fin de carrera con todos vinculados (29/10/2026, rama `correccion/fin-carrera-todos`, base `main`)
 
 - **Qué se pidió**: partir la frase del fin de la carrera en dos claves según queden Ecos o no (decisión del autor del 28/10/2026).

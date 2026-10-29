@@ -234,4 +234,40 @@ bool FBoardViewFloorTintTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FViewKeysTextTest, "Soulbound.Game.Presentation.Vista.TeclasNombranLaVista", ViewStateTestFlags)
+
+bool FViewKeysTextTest::RunTest(const FString& Parameters)
+{
+	// Texto de S-022 (R-CAM-1): la línea de teclas nombra la vista actual, sentada o cenital, y la tecla que cambia a la otra.
+	TestEqual(TEXT("Sentada"), Soulbound::Presentation::ViewKeysText(true, TEXT("C"), TEXT("L"), TEXT("H"), TEXT("T")),
+		FString(TEXT("vista sentada (C: cenital) | L etiquetas | H paneles | T texto de depuración")));
+	TestEqual(TEXT("Cenital"), Soulbound::Presentation::ViewKeysText(false, TEXT("C"), TEXT("L"), TEXT("H"), TEXT("T")),
+		FString(TEXT("vista cenital (C: sentada) | L etiquetas | H paneles | T texto de depuración")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchResultTextTest, "Soulbound.Game.Presentation.Vista.ResultadoDiceVolverAlMenu", ViewStateTestFlags)
+
+bool FMatchResultTextTest::RunTest(const FString& Parameters)
+{
+	// Texto de S-022: la pantalla del resultado (S-018, R-PRO-4) dice quién gana y, debajo, "Intro o el botón: volver al menú" (decisión del autor del
+	// 29/10/2026: Escape es la pausa de UGT y en PIE lo captura el editor). Sin final, nada.
+	FMatchState State;
+	TestTrue(TEXT("Partida en curso: sin resultado"), Soulbound::Presentation::MatchResultText(State, TEXT("Intro")).IsEmpty());
+	State.MatchPhase = EMatchPhase::MatchOver;
+	State.Outcome = EMatchOutcome::PlayerVictory;
+	State.WinnerSeat = 2;
+	TestEqual(TEXT("Victoria de un jugador"), Soulbound::Presentation::MatchResultText(State, TEXT("Intro")),
+		FString(TEXT("GANA EL ASIENTO 2\nIntro o el botón: volver al menú")));
+	State.Outcome = EMatchOutcome::WardenVictory;
+	State.WinnerSeat = INDEX_NONE;
+	State.EndReason = EMatchEndReason::TimeOut;
+	TestEqual(TEXT("Victoria del Warden por tiempo"), Soulbound::Presentation::MatchResultText(State, TEXT("Intro")),
+		FString(TEXT("GANA EL WARDEN: SE ACABÓ EL TIEMPO\nIntro o el botón: volver al menú")));
+	State.EndReason = EMatchEndReason::NobodyBonded;
+	TestEqual(TEXT("Victoria del Warden: nadie se vinculó"), Soulbound::Presentation::MatchResultText(State, TEXT("Intro")),
+		FString(TEXT("GANA EL WARDEN: NADIE SE VINCULÓ\nIntro o el botón: volver al menú")));
+	return true;
+}
+
 #endif

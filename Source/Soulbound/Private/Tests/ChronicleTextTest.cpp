@@ -1,6 +1,7 @@
 // Tests del texto de la crónica del juego (S-017, decisión del autor del 23/10/2026): los disparadores no tienen línea propia,
 // van entre paréntesis en la decisión del Warden, que solo tiene línea si interviene con efecto. Sin mundo ni actor: las funciones
-// de texto de la vista. Filtro: "Soulbound.Game.Presentation.Cronica".
+// de texto de la vista. Desde S-022 (R-HUD-4, R-VOZ-3b), cada golpe, escena, castigo, Furia, comentario y aviso con su frase es una sola
+// línea. Filtro: "Soulbound.Game.Presentation.Cronica".
 
 #include "../../Presentation/EventText.h"
 #include "Match/MatchState.h"
@@ -21,6 +22,44 @@ namespace
 		Event.Value = Value;
 		Event.Detail = Detail;
 		return Event;
+	}
+
+	/** Una partida con un golpe ("Impuesto"), una escena ("Cosecha"), un evento de prueba fuera de los sacos y una frase. */
+	FMatchState ChronicleStateWithLines()
+	{
+		FMatchState State;
+		FWardenEventDef& Tax = State.WardenEvents.Events.AddDefaulted_GetRef();
+		Tax.Id = TEXT("impuesto");
+		Tax.Name = TEXT("Impuesto");
+		Tax.bInBag = true;
+		Tax.Channel = EWardenChannel::Strike;
+		FWardenEventDef& Harvest = State.WardenEvents.Events.AddDefaulted_GetRef();
+		Harvest.Id = TEXT("cosecha");
+		Harvest.Name = TEXT("Cosecha");
+		Harvest.bInBag = true;
+		Harvest.Channel = EWardenChannel::Scene;
+		FWardenEventDef& Probe = State.WardenEvents.Events.AddDefaulted_GetRef();
+		Probe.Id = TEXT("prueba-golpe");
+		Probe.Name = TEXT("Prueba");
+		FWardenLineEntry& Entry = State.WardenLines.Entries.AddDefaulted_GetRef();
+		Entry.Id = TEXT("evento:impuesto");
+		Entry.Lines = {TEXT("[risa] Pagarás.")};
+		return State;
+	}
+
+	/** La frase de la tabla de ChronicleStateWithLines, dicha a la mesa. */
+	FMatchEvent ChronicleSpoke()
+	{
+		return MakeEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 0, 0);
+	}
+
+	/** La línea de la crónica de Event seguido de su frase; comprueba además que la línea de la frase queda vacía. */
+	FString MergedLine(FAutomationTestBase& Test, FMatchState State, const FMatchEvent& Event)
+	{
+		State.EventLog = {Event, ChronicleSpoke()};
+		Test.TestTrue(FString::Printf(TEXT("La línea de la frase tras el evento %d queda vacía"), static_cast<int32>(Event.Type)),
+			Soulbound::Presentation::DescribeChronicleEvent(State, 1).IsEmpty());
+		return Soulbound::Presentation::DescribeChronicleEvent(State, 0);
 	}
 }
 
@@ -73,6 +112,97 @@ bool FChronicleVoteTest::RunTest(const FString& Parameters)
 	const FMatchEvent Resolved = MakeEvent(EMatchEventType::VoteResolved, 2, 3, 1);
 	TestEqual(TEXT("El más votado, con desempate"), Soulbound::Presentation::DescribeEvent(Resolved, Board, &Events),
 		FString(TEXT("el más votado: asiento 2, con 3 votos (desempate del Warden)")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FChronicleMergedEventTest, "Soulbound.Game.Presentation.Cronica.EventoYFraseEnUnaLinea", ChronicleTestFlags)
+
+bool FChronicleMergedEventTest::RunTest(const FString& Parameters)
+{
+	// CA-CRO-1 (S-022, R-HUD-4, R-VOZ-3b): WardenEventStarted seguido de su WardenSpoke es una sola línea, la etiqueta del canal con el
+	// nombre del evento y la frase; la del WardenSpoke queda vacía. Un dilema, con la etiqueta de su canal. Un evento de prueba, por su
+	// identificador (decisión del autor del 29/10/2026).
+	const FMatchState State = ChronicleStateWithLines();
+	TestEqual(TEXT("Golpe"), MergedLine(*this, State, MakeEvent(EMatchEventType::WardenEventStarted, 2, 0, 1)), FString(TEXT("golpe \"Impuesto\": Pagarás.")));
+	TestEqual(TEXT("Escena"), MergedLine(*this, State, MakeEvent(EMatchEventType::WardenEventStarted, 1, 1, 1)), FString(TEXT("escena \"Cosecha\": Pagarás.")));
+	TestEqual(TEXT("Dilema: la etiqueta de su canal"), MergedLine(*this, State, MakeEvent(EMatchEventType::WardenEventStarted, 2, 0, 3)), FString(TEXT("golpe \"Impuesto\": Pagarás.")));
+	TestEqual(TEXT("Evento de prueba"), MergedLine(*this, State, MakeEvent(EMatchEventType::WardenEventStarted, 2, 2, 1)), FString(TEXT("evento \"prueba-golpe\": Pagarás.")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FChronicleMergedWardenTest, "Soulbound.Game.Presentation.Cronica.CastigoFuriaComentarioYAvisoEnUnaLinea", ChronicleTestFlags)
+
+bool FChronicleMergedWardenTest::RunTest(const FString& Parameters)
+{
+	// CA-CRO-1 (S-022): lo mismo para el castigo de insolencia (con su gravedad), la Furia, el comentario y el aviso del final.
+	const FMatchState State = ChronicleStateWithLines();
+	TestEqual(TEXT("Castigo leve"), MergedLine(*this, State, MakeEvent(EMatchEventType::InsolencePunished, 1, 1, static_cast<int32>(EInsolencePunishment::Light))),
+		FString(TEXT("castigo leve: Pagarás.")));
+	TestEqual(TEXT("Castigo grave"), MergedLine(*this, State, MakeEvent(EMatchEventType::InsolencePunished, 1, 3, static_cast<int32>(EInsolencePunishment::Severe))),
+		FString(TEXT("castigo grave: Pagarás.")));
+	TestEqual(TEXT("Furia"), MergedLine(*this, State, MakeEvent(EMatchEventType::FuryUnleashed, 1, INDEX_NONE)), FString(TEXT("Furia: Pagarás.")));
+	TestEqual(TEXT("Comentario"), MergedLine(*this, State, MakeEvent(EMatchEventType::WardenRemark, 1, static_cast<int32>(EWardenRemarkKind::Hurry))),
+		FString(TEXT("comentario: Pagarás.")));
+	TestEqual(TEXT("Aviso del final"), MergedLine(*this, State, MakeEvent(EMatchEventType::MatchEndWarning, INDEX_NONE, 60)), FString(TEXT("aviso: Pagarás.")));
+
+	// La Furia por insolencia: el castigo no dice frase (la dice la Furia), así que conserva su línea y la Furia lleva la frase.
+	FMatchState Fury = State;
+	Fury.EventLog = {MakeEvent(EMatchEventType::InsolencePunished, 1, 4, static_cast<int32>(EInsolencePunishment::Fury)),
+		MakeEvent(EMatchEventType::FuryUnleashed, 1, INDEX_NONE), ChronicleSpoke()};
+	TestTrue(TEXT("El castigo de la Furia, su línea de siempre"), Soulbound::Presentation::DescribeChronicleEvent(Fury, 0).Contains(TEXT("CASTIGO")));
+	TestEqual(TEXT("La Furia, con la frase"), Soulbound::Presentation::DescribeChronicleEvent(Fury, 1), FString(TEXT("Furia: Pagarás.")));
+	TestTrue(TEXT("Y la frase, vacía"), Soulbound::Presentation::DescribeChronicleEvent(Fury, 2).IsEmpty());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FChronicleUnmergedTest, "Soulbound.Game.Presentation.Cronica.SinFraseDetrasLasDeSiempre", ChronicleTestFlags)
+
+bool FChronicleUnmergedTest::RunTest(const FString& Parameters)
+{
+	// CA-CRO-1 (S-022): un WardenEventStarted sin WardenSpoke detrás conserva la línea descriptiva; con la tabla de frases vacía, todo como
+	// hoy (cada evento con su línea); y lo que la story no nombra (la presentación de un Elegido tras Bonded) sigue en dos líneas.
+	const FMatchState State = ChronicleStateWithLines();
+	FMatchState Alone = State;
+	Alone.EventLog = {MakeEvent(EMatchEventType::WardenEventStarted, 2, 0, 1), MakeEvent(EMatchEventType::EffectApplied, 2, 0)};
+	const FString AloneText = Soulbound::Presentation::DescribeChronicleEvent(Alone, 0);
+	TestTrue(FString::Printf(TEXT("Sin frase detrás, la descriptiva (%s)"), *AloneText), AloneText.Contains(TEXT("GOLPE")) && AloneText.Contains(TEXT("asiento 2")));
+
+	FMatchState Silent = State;
+	Silent.WardenLines = FWardenLineTable();
+	Silent.EventLog = {MakeEvent(EMatchEventType::WardenEventStarted, 2, 0, 1), ChronicleSpoke(), MakeEvent(EMatchEventType::WardenRemark, 1, 0), ChronicleSpoke()};
+	TestTrue(TEXT("Sin tabla, el evento con su línea"), Soulbound::Presentation::DescribeChronicleEvent(Silent, 0).Contains(TEXT("GOLPE")));
+	TestFalse(TEXT("Sin tabla, la frase con la suya"), Soulbound::Presentation::DescribeChronicleEvent(Silent, 1).IsEmpty());
+	TestTrue(TEXT("Sin tabla, el comentario con la suya"), Soulbound::Presentation::DescribeChronicleEvent(Silent, 2).Contains(TEXT("comenta")));
+	TestFalse(TEXT("Sin tabla, su frase con la suya"), Soulbound::Presentation::DescribeChronicleEvent(Silent, 3).IsEmpty());
+
+	FMatchState Bonded = State;
+	Bonded.EventLog = {MakeEvent(EMatchEventType::Bonded, 1, 0), ChronicleSpoke()};
+	TestFalse(TEXT("Bonded, su línea"), Soulbound::Presentation::DescribeChronicleEvent(Bonded, 0).IsEmpty());
+	TestEqual(TEXT("Y la frase aparte"), Soulbound::Presentation::DescribeChronicleEvent(Bonded, 1), FString(TEXT("Pagarás.")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FChronicleOracleStillOneLineTest, "Soulbound.Game.Presentation.Cronica.SentenciaSigueEnUnaLinea", ChronicleTestFlags)
+
+bool FChronicleOracleStillOneLineTest::RunTest(const FString& Parameters)
+{
+	// CA-CRO-1 (S-022): la sentencia del Oráculo sigue siendo una sola línea (S-021); el evento que lanza no se junta con nada.
+	FMatchState State = ChronicleStateWithLines();
+	State.EventLog = {MakeEvent(EMatchEventType::OracleSentence, 2, 0, 0), MakeEvent(EMatchEventType::WardenTriggered, 2, 0), ChronicleSpoke(),
+		MakeEvent(EMatchEventType::WardenEventStarted, 2, 0, 1)};
+	TArray<FString> Texts;
+	for (int32 Index = 0; Index < State.EventLog.Num(); ++Index)
+	{
+		const FString Text = Soulbound::Presentation::DescribeChronicleEvent(State, Index);
+		if (!Text.IsEmpty())
+		{
+			Texts.Add(Text);
+		}
+	}
+	if (TestEqual(TEXT("Una sola línea"), Texts.Num(), 1))
+	{
+		TestEqual(TEXT("La sentencia con la frase"), Texts[0], FString(TEXT("sentencia del Oráculo: Pagarás.")));
+	}
 	return true;
 }
 

@@ -42,3 +42,20 @@ FLinearColor Soulbound::Presentation::WedgeFloorTint(const FLinearColor& DomainC
 	}
 	return FLinearColor(Mixed.R * ForgottenDim, Mixed.G * ForgottenDim, Mixed.B * ForgottenDim, Mixed.A);
 }
+
+FString Soulbound::Presentation::ViewKeysText(bool bSeated, const FString& ViewKey, const FString& OverlayKey, const FString& PanelsKey, const FString& DebugTextKey)
+{
+	return FString::Printf(TEXT("vista %s (%s: %s) | %s etiquetas | %s paneles | %s texto de depuración"), bSeated ? TEXT("sentada") : TEXT("cenital"), *ViewKey,
+		bSeated ? TEXT("cenital") : TEXT("sentada"), *OverlayKey, *PanelsKey, *DebugTextKey);
+}
+
+FString Soulbound::Presentation::MatchResultText(const FMatchState& State, const FString& ReturnKey)
+{
+	if (!State.IsMatchOver())
+	{
+		return FString();
+	}
+	const FString Winner = State.Outcome == EMatchOutcome::PlayerVictory ? FString::Printf(TEXT("GANA EL ASIENTO %d"), State.WinnerSeat)
+		: State.EndReason == EMatchEndReason::TimeOut ? FString(TEXT("GANA EL WARDEN: SE ACABÓ EL TIEMPO")) : FString(TEXT("GANA EL WARDEN: NADIE SE VINCULÓ"));
+	return FString::Printf(TEXT("%s\n%s o el botón: volver al menú"), *Winner, *ReturnKey);
+}

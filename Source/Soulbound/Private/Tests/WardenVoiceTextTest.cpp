@@ -1,6 +1,6 @@
 // Tests del texto de la voz del Warden en el juego (S-021, GDD 06 y 07): la frase que enseña la línea del Warden (R-VOZ-1 sin audio,
-// R-VOZ-3b), la crónica con la sentencia del Oráculo en una sola línea y la cola de la línea en pantalla. Sin mundo ni actor: las
-// funciones de texto de la vista. Filtro: "Soulbound.Game.Presentation.Voz".
+// R-VOZ-3b), la crónica con la sentencia del Oráculo en una sola línea y la cola de la línea en pantalla; desde S-022, la duración del
+// prólogo (R-PRO-1). Sin mundo ni actor: las funciones de texto de la vista. Filtros: "Soulbound.Game.Presentation.Voz" y "…Prologo".
 
 #include "../../Presentation/EventText.h"
 #include "../../Presentation/WardenLineQueue.h"
@@ -104,7 +104,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceOracleOneLineTest, "Soulbound.Game.Presen
 bool FVoiceOracleOneLineTest::RunTest(const FString& Parameters)
 {
 	// Texto (S-021): la sentencia del Oráculo es una sola línea de la crónica, "sentencia del Oráculo: <frase>", y no tres (la sentencia, la
-	// frase y el evento lanzado). Un golpe por Warden directo conserva su línea del evento, y la frase aparte.
+	// frase y el evento lanzado). Desde S-022 (CA-CRO-1), un golpe por Warden directo también es una sola línea, la del evento con la frase.
 	FMatchState Oracle = StateWithLines();
 	Oracle.EventLog = {
 		MakeVoiceEvent(EMatchEventType::OracleSentence, 2, 0, 0),
@@ -121,10 +121,9 @@ bool FVoiceOracleOneLineTest::RunTest(const FString& Parameters)
 	FMatchState Direct = StateWithLines();
 	Direct.EventLog = {MakeVoiceEvent(EMatchEventType::WardenEventStarted, 2, 0, 1), MakeVoiceEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 0, 1)};
 	const TArray<FString> DirectTexts = ChronicleTexts(Direct);
-	if (TestEqual(TEXT("Directo: la línea del evento y la frase"), DirectTexts.Num(), 2))
+	if (TestEqual(TEXT("Directo: una sola línea, la del evento con la frase"), DirectTexts.Num(), 1))
 	{
-		TestTrue(TEXT("La primera, la del evento"), DirectTexts[0].Contains(TEXT("DECRETA")));
-		TestEqual(TEXT("La segunda, la frase sin prefijo"), DirectTexts[1], FString(TEXT("Prisa, prisa.")));
+		TestEqual(TEXT("El evento de prueba, por su identificador"), DirectTexts[0], FString(TEXT("evento \"prisa\": Prisa, prisa.")));
 	}
 
 	// Sin frases en la partida (la tabla vacía), la sentencia conserva sus dos líneas de siempre.
@@ -164,6 +163,50 @@ bool FVoiceLineQueueTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("La nueva sustituye a la que quedaba"), Queue.Current(52.0, Seconds), FString(TEXT("c")));
 	TestEqual(TEXT("Y se enseña sus 6 s enteros desde que se pide"), Queue.Current(57.9, Seconds), FString(TEXT("c")));
 	TestTrue(TEXT("Luego, ninguna: a y b se descartaron"), Queue.Current(58.0, Seconds).IsEmpty());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceOpeningSevenTest, "Soulbound.Game.Presentation.Prologo.SieteFrasesEnCero", VoiceTestFlags)
+
+bool FVoiceOpeningSevenTest::RunTest(const FString& Parameters)
+{
+	// CA-PRL-1, R-PRO-1 (S-022, decisión del autor del 29/10/2026): el prólogo dura lo que tarda en enseñarse la apertura, el número de
+	// WardenSpoke del instante cero por los segundos de línea. Siete frases (inicio, dos corrupciones, cuatro del orden) a 6 s: 42 s.
+	FMatchState State = StateWithLines();
+	for (int32 Line = 0; Line < 7; ++Line)
+	{
+		State.EventLog.Add(MakeVoiceEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 0, 0));
+	}
+	TestEqual(TEXT("Siete frases a 6 s"), Soulbound::Presentation::OpeningSeconds(State, 6.0), 42.0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceOpeningOnlyZeroTest, "Soulbound.Game.Presentation.Prologo.SoloCuentaElCero", VoiceTestFlags)
+
+bool FVoiceOpeningOnlyZeroTest::RunTest(const FString& Parameters)
+{
+	// CA-PRL-1, R-PRO-1: solo cuentan las frases del instante cero; las de más tarde y los demás eventos del instante cero, no.
+	FMatchState State = StateWithLines();
+	State.EventLog.Add(MakeVoiceEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 0, 0));
+	State.EventLog.Add(MakeVoiceEvent(EMatchEventType::WardenSpoke, 1, 0, 1));
+	State.EventLog.Add(MakeVoiceEvent(EMatchEventType::HomeAssigned, 1, 0));
+	FMatchEvent Later = MakeVoiceEvent(EMatchEventType::WardenSpoke, INDEX_NONE, 0, 0);
+	Later.ClockSeconds = 12.5;
+	State.EventLog.Add(Later);
+	TestEqual(TEXT("Dos frases en el cero, a 6 s"), Soulbound::Presentation::OpeningSeconds(State, 6.0), 12.0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceOpeningSilentTest, "Soulbound.Game.Presentation.Prologo.SinFrases", VoiceTestFlags)
+
+bool FVoiceOpeningSilentTest::RunTest(const FString& Parameters)
+{
+	// CA-PRL-1, R-PRO-1: con la tabla de frases vacía el motor no deja ningún WardenSpoke: cero segundos y ningún prólogo, así que los tests
+	// de reglas y la simulación no cambian.
+	FMatchState State;
+	State.EventLog.Add(MakeVoiceEvent(EMatchEventType::HomeAssigned, 0, 0));
+	TestEqual(TEXT("Sin frases, cero"), Soulbound::Presentation::OpeningSeconds(State, 6.0), 0.0);
+	TestEqual(TEXT("Con el registro vacío, cero"), Soulbound::Presentation::OpeningSeconds(FMatchState(), 6.0), 0.0);
 	return true;
 }
 

@@ -22,6 +22,16 @@ void UPlayerProfileSubsystem::SetHints(EHintsMode Mode)
 	}
 }
 
+int32 UPlayerProfileSubsystem::GetHintsIndex() const
+{
+	return Soulbound::Presentation::HintsModeToIndex(GetHints());
+}
+
+void UPlayerProfileSubsystem::SetHintsIndex(int32 Index)
+{
+	SetHints(Soulbound::Presentation::HintsModeFromIndex(Index));
+}
+
 bool UPlayerProfileSubsystem::TeachInstruction(EInstructionMoment Moment)
 {
 	if (!Profile)
