@@ -258,6 +258,7 @@ bool FVoiceRaceTest::RunTest(const FString& Parameters)
 		}
 		F.State.WardenLines = F.Lines;
 		F.State.Warden.VoiceSeed = 5;
+		const int32 From = F.State.EventLog.Num();
 		for (int32 Seat = 0; Seat < F.State.Seats.Num(); ++Seat)
 		{
 			if (F.BondAny(*this, Seat) == INDEX_NONE)
@@ -265,13 +266,12 @@ bool FVoiceRaceTest::RunTest(const FString& Parameters)
 				return false;
 			}
 		}
-		const int32 BeforeEnd = F.State.EventLog.Num();
-		F.Now += 1.0;
-		TestTrue(TEXT("La carrera termina con todos vinculados"), Soulbound::Rules::EndBondRace(F.State, F.Now));
-		const int32 Ended = IndexOfEvent(F.State, EMatchEventType::BondRaceEnded, BeforeEnd);
+		// El último vínculo agota los Nichos Libres y la máquina de turnos termina la carrera (R-CAR-1): no hace falta terminarla a mano.
+		TestEqual(TEXT("La carrera ha terminado"), AsInt(F.State.MatchPhase), AsInt(EMatchPhase::RuneHunt));
+		const int32 Ended = IndexOfEvent(F.State, EMatchEventType::BondRaceEnded, From);
 		TestTrue(TEXT("Justo después, programado:fin-carrera-todos"), Ended != INDEX_NONE && IsFollowedBySpoke(F.State, Ended, Soulbound::Warden::LineRaceEndAll));
 		TestEqual(TEXT("A la mesa"), F.State.EventLog[Ended + 1].Seat, INDEX_NONE);
-		TestEqual(TEXT("Y es la única"), SpokenSince(F.State, BeforeEnd), 1);
+		TestFalse(TEXT("Y no la de los Ecos"), IsFollowedBySpoke(F.State, Ended, Soulbound::Warden::LineRaceEnd));
 	}
 	{
 		FVoiceFixture F;

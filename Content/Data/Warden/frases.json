@@ -69,6 +69,7 @@
   {"id": "programado:orden-3", "lines": ["(pendiente) programado:orden-3"]},
   {"id": "programado:orden-4", "lines": ["(pendiente) programado:orden-4"]},
   {"id": "programado:fin-carrera", "lines": ["(pendiente) programado:fin-carrera"]},
+  {"id": "programado:fin-carrera-todos", "lines": ["(pendiente) programado:fin-carrera-todos"]},
   {"id": "programado:aspirante", "lines": ["(pendiente) programado:aspirante"]},
   {"id": "programado:ultimo-minuto", "lines": ["(pendiente) programado:ultimo-minuto"]},
   {"id": "programado:diez-segundos", "lines": ["(pendiente) programado:diez-segundos"]},
