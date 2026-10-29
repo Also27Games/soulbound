@@ -83,7 +83,7 @@ bool FVoiceLinesLoaderTest::RunTest(const FString& Parameters)
 	{
 		TestTrue(FString::Printf(TEXT("Se exige la posición %d del orden"), Position), Required.Contains(Soulbound::Rules::ScheduledOrderKey(Position)));
 	}
-	for (const FString& Key : {Soulbound::Warden::LineStart, Soulbound::Warden::LineCorruption, Soulbound::Warden::LineRaceEnd, Soulbound::Warden::LineAspirant,
+	for (const FString& Key : {Soulbound::Warden::LineStart, Soulbound::Warden::LineCorruption, Soulbound::Warden::LineRaceEnd, Soulbound::Warden::LineRaceEndAll, Soulbound::Warden::LineAspirant,
 		Soulbound::Warden::LineLastMinute, Soulbound::Warden::LineTenSeconds, Soulbound::Warden::LineTimeOut, Soulbound::Warden::LineVictory, Soulbound::Warden::LineNobodyBonded, Soulbound::Warden::LineFury})
 	{
 		TestTrue(FString::Printf(TEXT("Se exige %s"), *Key), Required.Contains(Key));

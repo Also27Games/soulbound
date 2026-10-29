@@ -247,6 +247,31 @@ bool FVoiceRaceTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Justo después, programado:fin-carrera"), Ended != INDEX_NONE && IsFollowedBySpoke(F.State, Ended, Soulbound::Warden::LineRaceEnd));
 		TestEqual(TEXT("A la mesa"), F.State.EventLog[Ended + 1].Seat, INDEX_NONE);
 		TestEqual(TEXT("Y es la única"), SpokenSince(F.State, BeforeEnd), 1);
+		TestFalse(TEXT("Con Ecos no es la de todos"), IsFollowedBySpoke(F.State, Ended, Soulbound::Warden::LineRaceEndAll));
+	}
+	{
+		// Decisión del autor del 28/10/2026: si todos los asientos se han vinculado, no queda ningún Eco y la frase es la de "todos".
+		FVoiceFixture F;
+		if (!F.StartInRace(*this) || !Soulbound::Tests::LoadTestWardenLines(*this, F.Lines))
+		{
+			return false;
+		}
+		F.State.WardenLines = F.Lines;
+		F.State.Warden.VoiceSeed = 5;
+		for (int32 Seat = 0; Seat < F.State.Seats.Num(); ++Seat)
+		{
+			if (F.BondAny(*this, Seat) == INDEX_NONE)
+			{
+				return false;
+			}
+		}
+		const int32 BeforeEnd = F.State.EventLog.Num();
+		F.Now += 1.0;
+		TestTrue(TEXT("La carrera termina con todos vinculados"), Soulbound::Rules::EndBondRace(F.State, F.Now));
+		const int32 Ended = IndexOfEvent(F.State, EMatchEventType::BondRaceEnded, BeforeEnd);
+		TestTrue(TEXT("Justo después, programado:fin-carrera-todos"), Ended != INDEX_NONE && IsFollowedBySpoke(F.State, Ended, Soulbound::Warden::LineRaceEndAll));
+		TestEqual(TEXT("A la mesa"), F.State.EventLog[Ended + 1].Seat, INDEX_NONE);
+		TestEqual(TEXT("Y es la única"), SpokenSince(F.State, BeforeEnd), 1);
 	}
 	{
 		FVoiceFixture F;
