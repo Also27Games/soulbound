@@ -55,7 +55,10 @@ void ABoardPreviewActor::BuildPreview()
 	// Transitorios: no se guardan en el mapa.
 	FBoardKitFixedPieces Fixed;
 	Kit.PlaceFixed(*this, Loaded.Board, Layout, Fixed, RF_Transient);
-	Kit.TintWedgeFloors(Fixed, Loaded.Board, Config);
+	// Recién cargado ningún Dominio está Olvidado (lo decide StartMatch): todas las cuñas, con su color entero.
+	TArray<bool> NoneForgotten;
+	NoneForgotten.Init(false, Loaded.Board.Domains.Num());
+	Kit.TintWedgeFloors(Fixed, NoneForgotten, Config);
 
 	FBoardKitStructureOptions Options;
 	Options.bVisible = true;

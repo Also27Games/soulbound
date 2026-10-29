@@ -87,6 +87,8 @@ namespace Soulbound::Presentation
 			case EMatchEventType::FuryUnleashed: return TEXT("Furia");
 			case EMatchEventType::WardenRemark: return TEXT("comentario");
 			case EMatchEventType::MatchEndWarning: return TEXT("aviso");
+			// S-023: la corrupción de la apertura va en una línea con su Dominio.
+			case EMatchEventType::DomainForgotten: return FString::Printf(TEXT("Dominio %d Olvidado"), Event.Value);
 			default: return FString();
 			}
 		}
@@ -280,6 +282,9 @@ namespace Soulbound::Presentation
 		}
 		case EMatchEventType::MatchEndWarning:
 			return FString::Printf(TEXT("el Warden avisa: quedan %d s para el final de la partida"), Event.Value);
+		// S-023 (R-WAR-10): el Dominio que empieza Olvidado; su frase de corrupción va justo después.
+		case EMatchEventType::DomainForgotten:
+			return FString::Printf(TEXT("el Warden corrompe el Dominio %d: queda Olvidado"), Event.Value);
 		// S-017: el Oráculo del Caos y los disparadores contextuales.
 		case EMatchEventType::OracleOpened:
 			return FString::Printf(TEXT("ORÁCULO: el asiento %d tiene que consultarlo (%s)"), Event.Seat, *OracleOriginText(Event.Value));
@@ -694,6 +699,8 @@ namespace Soulbound::Presentation
 		// S-021: lo que dice el Warden y el aviso del final.
 		case EMatchEventType::WardenSpoke:
 		case EMatchEventType::MatchEndWarning:
+		// S-023: el Dominio que corrompe al empezar.
+		case EMatchEventType::DomainForgotten:
 		// S-016 (B): los castigos de insolencia, la Furia y sus negativas.
 		case EMatchEventType::InsolencePunished:
 		case EMatchEventType::FuryUnleashed:

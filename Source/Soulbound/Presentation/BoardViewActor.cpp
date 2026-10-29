@@ -1165,20 +1165,23 @@ void ABoardViewActor::BuildOverlay()
 	FLegendRow Domains;
 	Domains.Title = TEXT("Dominios y su Elegido (color de la casilla, D<n> en la etiqueta). Fuera = Olvidado");
 	TWeakObjectPtr<UMatchHostSubsystem> WeakHost = Host;
+	TWeakObjectPtr<ABoardViewActor> WeakView = this;
 	for (int32 Id = 0; Id < Board.Domains.Num(); ++Id)
 	{
 		FLegendChip Chip;
 		Chip.Color = DomainColor(Id);
 		// Al día: fuera de la partida (Olvidado), en juego, o en juego con el asiento que reclamó su Nicho.
-		Chip.TextGetter = [WeakHost, Id]() -> FString
+		Chip.TextGetter = [WeakHost, WeakView, Id]() -> FString
 		{
 			const UMatchHostSubsystem* HostPtr = WeakHost.Get();
-			if (!HostPtr || !HostPtr->HasMatch() || !HostPtr->GetState().Board.Domains.IsValidIndex(Id))
+			const ABoardViewActor* ViewPtr = WeakView.Get();
+			if (!HostPtr || !ViewPtr || !HostPtr->HasMatch() || !HostPtr->GetState().Board.Domains.IsValidIndex(Id))
 			{
 				return FString::Printf(TEXT("D%d"), Id);
 			}
 			const FDomainState& Domain = HostPtr->GetState().Board.Domains[Id];
-			if (Domain.State == EDomainState::Forgotten)
+			// S-023: lo que pinta la vista, que en el prólogo va con la frase de corrupción.
+			if (ViewPtr->IsDomainShownForgotten(Id))
 			{
 				return FString::Printf(TEXT("D%d %s: OLVIDADO (fuera)"), Id, *DomainTitle(HostPtr->GetState(), Id));
 			}
@@ -1428,8 +1431,13 @@ void ABoardViewActor::Refresh()
 		Reachable.Append(State.PendingChoice.Options);
 	}
 
+	// S-023 (R-PRO-1): en el prólogo, un Dominio Olvidado se ve en juego hasta que se enseña su frase de corrupción; después, lo del estado.
+	bDomainsShownInPrologue = HostPtr->IsInPrologue();
+	DomainsShownOpeningLines = WardenLineQueue.ShownCount();
+	DomainsShownForgotten = Soulbound::Presentation::ForgottenDomainsShown(State, bDomainsShownInPrologue, DomainsShownOpeningLines);
+
 	// El suelo de cada cuña lleva el color de su Dominio, apagado si está Olvidado (S-019, R-VIS-2, R-VIS-5).
-	Kit.TintWedgeFloors(KitFixed, State.Board, *this);
+	Kit.TintWedgeFloors(KitFixed, DomainsShownForgotten, *this);
 
 	for (const FTileState& Tile : State.Board.Tiles)
 	{
@@ -1439,7 +1447,7 @@ void ABoardViewActor::Refresh()
 			continue;
 		}
 		const FDomainState* Domain = State.Board.Domains.IsValidIndex(Tile.DomainId) ? &State.Board.Domains[Tile.DomainId] : nullptr;
-		const bool bForgotten = Domain && Domain->State == EDomainState::Forgotten;
+		const bool bForgotten = IsDomainShownForgotten(Tile.DomainId);
 		const float Dim = bForgotten ? ForgottenDim : 1.f;
 
 		// La losa lleva el color del Dominio (el del tipo, en el Altar); la marca de encima, el del tipo.
@@ -1467,7 +1475,8 @@ void ABoardViewActor::Refresh()
 			case ETileType::Niche:
 				// El cubo no cambia de color por quien lo reclama: el Dominio se sigue viendo. Libre y Reclamado, el color de
 				// tipo; Cerrado, gris oscuro. El Reclamado lleva el aro y el número del asiento (más abajo).
-				Mark = Domain && Domain->NicheState == ENicheState::Closed ? NicheClosedColor : NicheFreeColor;
+				// S-023: el Nicho Cerrado de un Dominio que la apertura aún no ha corrompido se ve Libre, como el resto del Dominio.
+				Mark = Domain && Domain->NicheState == ENicheState::Closed && bForgotten ? NicheClosedColor : NicheFreeColor;
 				break;
 			case ETileType::PowerSource:
 				// Agotada (S-008): la cruz se apaga; viva, el color del tipo.
@@ -1951,6 +1960,14 @@ void ABoardViewActor::TickHud()
 	}
 	const FMatchState& State = HostPtr->GetState();
 
+	// S-023: en el prólogo no cambia el estado, pero cada frase de corrupción apaga su Dominio: se repinta al enseñarse una frase de la
+	// apertura y al terminar el prólogo. WardenLineNow avanza la cola aunque la capa de la línea no se haya dibujado aún.
+	WardenLineNow();
+	if (HostPtr->IsInPrologue() != bDomainsShownInPrologue || (bDomainsShownInPrologue && WardenLineQueue.ShownCount() != DomainsShownOpeningLines))
+	{
+		Refresh();
+	}
+
 	// La cámara es la vista del jugador local. Se pone al iniciar la partida, o en cuanto exista el controlador. Desde
 	// S-019, la cenital o la sentada, según la tecla.
 	if (Camera)
@@ -1995,6 +2012,12 @@ void ABoardViewActor::TickHud()
 	{
 		ShowText(0, FColor::Orange, FString::Printf(TEXT("Entre turnos | evento del Warden en curso | fase: %s | el siguiente turno es del asiento %d"),
 			PhaseName(State.TurnPhase), State.ActiveSeat));
+	}
+
+	// S-023: la mesa espera al Warden; el reloj de partida sigue, el de turno no.
+	if (HostPtr->IsWardenSpeaking() && !State.IsMatchOver())
+	{
+		ShowText(0, FColor::Orange, FString::Printf(TEXT("El Warden habla: la mesa espera a que termine | teclas: %s"), *DescribeViewKeys()));
 	}
 
 	if (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::FinalChallenge)
