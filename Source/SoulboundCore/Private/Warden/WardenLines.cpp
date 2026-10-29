@@ -94,6 +94,7 @@ namespace Soulbound::Rules
 			Keys.Add(ScheduledOrderKey(Position));
 		}
 		Keys.Add(Soulbound::Warden::LineRaceEnd);
+		Keys.Add(Soulbound::Warden::LineRaceEndAll);
 		Keys.Add(Soulbound::Warden::LineAspirant);
 		Keys.Add(Soulbound::Warden::LineLastMinute);
 		Keys.Add(Soulbound::Warden::LineTenSeconds);
