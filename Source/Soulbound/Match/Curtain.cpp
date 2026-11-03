@@ -1,8 +1,10 @@
 #include "Curtain.h"
 
-void FCurtain::Lower(double WorldNow, double InTimeoutSeconds)
+void FCurtain::Lower(double WorldNow, double InTimeoutSeconds, double InGraceSeconds)
 {
 	bDown = true;
+	bRaised = false;
+	GraceSeconds = InGraceSeconds;
 	LoweredWorldSeconds = WorldNow;
 	TimeoutSeconds = InTimeoutSeconds;
 }
@@ -14,7 +16,14 @@ bool FCurtain::Raise(double WorldNow)
 		return false;
 	}
 	bDown = false;
+	bRaised = true;
+	RaisedWorldSeconds = WorldNow;
 	return true;
+}
+
+bool FCurtain::IsDown(double WorldNow) const
+{
+	return bDown || (bRaised && WorldNow < RaisedWorldSeconds + GraceSeconds);
 }
 
 bool FCurtain::TimedOut(double WorldNow) const

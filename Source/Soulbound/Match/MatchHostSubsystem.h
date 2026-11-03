@@ -151,9 +151,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Partida")
 	void RaiseCurtain();
 
-	/** Si el telón está bajado: el prólogo espera a la presentación y ni las frases del Warden ni el reloj de partida han empezado. */
+	/**
+	 * Si el telón está bajado: el prólogo espera a la presentación y ni las frases del Warden ni el reloj de partida han empezado. Sigue
+	 * siendo verdadero durante CurtainGraceSeconds tras subirlo (ampliación del 3/11), con el tiempo del mundo que lleva el anfitrión.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Partida")
-	bool IsCurtainDown() const { return Curtain.IsDown(); }
+	bool IsCurtainDown() const;
 
 	/**
 	 * Si la mesa espera al Warden (S-023, decisión del autor del 29/10/2026; glosario propuesto "espera del Warden"): una frase que no es
@@ -304,6 +307,14 @@ public:
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Partida")
 	float CurtainTimeoutSeconds = 6.f;
+
+	/**
+	 * Margen tras subir el telón (S-024, ampliación del 3/11): la vista y el HUD lo siguen tratando como bajado y el prólogo no cuenta
+	 * hasta que pasa, para que la primera frase no llegue pegada a la desaparición de la pantalla de carga. Valor inicial 1,5
+	 * (Config/DefaultGame.ini). Cero: sin margen.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Partida")
+	float CurtainGraceSeconds = 1.5f;
 
 	/** Modo paso a paso al iniciar la partida. Valor inicial false (S-007). Se cambia en juego con SetStepMode o SbStepMode. */
 	UPROPERTY(Config, BlueprintGetter = IsStepMode, BlueprintSetter = SetStepMode, Category = "Partida")

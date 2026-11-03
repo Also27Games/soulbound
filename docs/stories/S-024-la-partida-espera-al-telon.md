@@ -53,3 +53,13 @@ Manuales, por el autor, con captura:
 - La conexión en el Blueprint de Ultra Loading Screen: paso manual del README, lo hace el autor.
 - Que el HUD de depuración se dibuje por encima de la pantalla de carga: cosmético, story de interfaz.
 - Esperar al telón sin prólogo: no se pide.
+
+## Ampliación del 3/11: margen tras subir el telón
+
+Decidido por el autor el 3/11/2026, con la story ya implementada (PR 55): al subir el telón, la primera frase llega pegada a la desaparición de la pantalla de carga. Se añade un margen.
+
+- **Parámetro**: `CurtainGraceSeconds` (`UPROPERTY(Config, EditAnywhere)` del anfitrión, valor inicial 1,5 en `Config/DefaultGame.ini`, con comentario).
+- **`FCurtain`**: `Lower(WorldNow, TimeoutSeconds, GraceSeconds)` recibe también el margen. `Raise(WorldNow)` anota cuándo se subió. `IsDown(WorldNow)` es verdadero mientras no se ha subido o mientras `WorldNow` sea menor que la subida más el margen. `TimedOut` no cambia: solo cuenta con el telón sin subir.
+- **Anfitrión**: el final del prólogo se fija en subida + margen + `OpeningSeconds`. `IsCurtainDown()` pasa el tiempo del mundo a `FCurtain::IsDown`; la vista y el HUD lo usan tal cual. `EndPrologue` (las herramientas de depuración) deja el telón sin margen.
+- **Criterio automático, CA-TEL-4** (margen, `Soulbound.Game.Match.Telon.MargenTrasSubir`): bajado en 10 y subido en 12 con margen 1,5, `IsDown(13)` es verdadero, `IsDown(13.5)` falso y `TimedOut(13)` falso; con margen 0, `IsDown(12)` es falso. CA-TEL-1 a CA-TEL-3 pasan a llamar a `IsDown(WorldNow)`.
+- **Manual**: en Standalone, la primera frase aparece 1,5 s después de que la barra de carga se vaya, y el log dice "Telón subido (presentación)" seguido de "Prólogo: la partida empieza dentro de N s" con N igual al margen más la apertura.

@@ -16,16 +16,22 @@ struct FCurtain
 	double LoweredWorldSeconds = 0.0;
 	/** Segundos que espera como máximo; cero o negativo, el tope vence en el acto. */
 	double TimeoutSeconds = 0.0;
+	/** Margen tras subirlo (ampliación del 3/11): durante estos segundos IsDown sigue siendo verdadero. */
+	double GraceSeconds = 0.0;
+	/** Verdadero desde que se sube un telón bajado; con RaisedWorldSeconds fija cuándo acaba el margen. */
+	bool bRaised = false;
+	/** Tiempo del mundo en que se subió. */
+	double RaisedWorldSeconds = 0.0;
 
-	/** Baja el telón en WorldNow y anota desde cuándo; TimeoutSeconds es el tope de espera. */
-	void Lower(double WorldNow, double InTimeoutSeconds);
+	/** Baja el telón en WorldNow y anota desde cuándo; InTimeoutSeconds es el tope de espera e InGraceSeconds el margen tras subirlo. */
+	void Lower(double WorldNow, double InTimeoutSeconds, double InGraceSeconds = 0.0);
 
-	/** Sube el telón. Devuelve true si estaba bajado; subirlo dos veces no hace nada la segunda y devuelve false. */
+	/** Sube el telón y anota cuándo. Devuelve true si estaba bajado; subirlo dos veces no hace nada la segunda y devuelve false. */
 	bool Raise(double WorldNow);
 
-	/** Verdadero mientras está bajado. */
-	bool IsDown() const { return bDown; }
+	/** Verdadero mientras no se ha subido, o mientras WorldNow no ha pasado de la subida más el margen. Sin bajar nunca, falso. */
+	bool IsDown(double WorldNow) const;
 
-	/** Verdadero si el telón sigue bajado y el tope ha vencido en WorldNow. Subido o sin bajar, siempre falso. */
+	/** Verdadero si el telón sigue sin subir y el tope ha vencido en WorldNow. Subido o sin bajar, siempre falso (el margen no cuenta). */
 	bool TimedOut(double WorldNow) const;
 };

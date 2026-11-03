@@ -140,7 +140,7 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 		// S-024 (R-PRO-1 precisión): el prólogo no empieza hasta que la presentación sube el telón (RaiseCurtain) o vence el tope; el
 		// final del prólogo se fija entonces (LiftCurtain), no aquí.
 		StepClock.Hold(World.GetTimeSeconds());
-		Curtain.Lower(World.GetTimeSeconds(), CurtainTimeoutSeconds);
+		Curtain.Lower(World.GetTimeSeconds(), CurtainTimeoutSeconds, CurtainGraceSeconds);
 		UE_LOG(LogSoulboundMatch, Log, TEXT("Telón bajado: el prólogo empieza cuando la presentación lo suba o, como tarde, a los %.0f s."), CurtainTimeoutSeconds);
 	}
 
@@ -165,10 +165,18 @@ void UMatchHostSubsystem::EndPrologue(const TCHAR* Why)
 	{
 		UE_LOG(LogSoulboundMatch, Log, TEXT("Telón subido (%s)."), Why);
 	}
+	// Sin margen: las herramientas de depuración no esperan, y la vista no debe seguir con el telón bajado tras acabar el prólogo.
+	Curtain = FCurtain();
 	bInPrologue = false;
 	StepClock.Resume(GetWorld()->GetTimeSeconds());
 	UE_LOG(LogSoulboundMatch, Log, TEXT("Prólogo terminado (%s): empieza la partida."), Why);
 	OnMatchStateChanged.Broadcast();
+}
+
+bool UMatchHostSubsystem::IsCurtainDown() const
+{
+	const UWorld* World = GetWorld();
+	return World && Curtain.IsDown(World->GetTimeSeconds());
 }
 
 void UMatchHostSubsystem::RaiseCurtain()
@@ -183,10 +191,10 @@ void UMatchHostSubsystem::LiftCurtain(const TCHAR* Why)
 	{
 		return;
 	}
-	// El prólogo dura lo mismo (OpeningSeconds); solo cambia desde cuándo se cuenta.
-	PrologueEndsWorldSeconds = World->GetTimeSeconds() + PrologueSeconds;
+	// El prólogo dura lo mismo (OpeningSeconds); solo cambia desde cuándo se cuenta: desde la subida más el margen.
+	PrologueEndsWorldSeconds = World->GetTimeSeconds() + Curtain.GraceSeconds + PrologueSeconds;
 	UE_LOG(LogSoulboundMatch, Log, TEXT("Telón subido (%s)."), Why);
-	UE_LOG(LogSoulboundMatch, Log, TEXT("Prólogo: la partida empieza dentro de %.0f s, cuando el Warden termine la apertura."), PrologueSeconds);
+	UE_LOG(LogSoulboundMatch, Log, TEXT("Prólogo: la partida empieza dentro de %.1f s (margen %.1f s y apertura), cuando el Warden termine la apertura."), Curtain.GraceSeconds + PrologueSeconds, Curtain.GraceSeconds);
 }
 
 bool UMatchHostSubsystem::NoteWardenLines()
@@ -260,7 +268,7 @@ void UMatchHostSubsystem::Advance()
 	if (bHasMatch && bInPrologue)
 	{
 		// S-024: con el telón bajado nada avanza, salvo que haya vencido el tope y se suba solo.
-		if (Curtain.IsDown())
+		if (Curtain.bDown)
 		{
 			if (!Curtain.TimedOut(GetWorld()->GetTimeSeconds()))
 			{
