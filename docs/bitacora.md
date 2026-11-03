@@ -4,6 +4,16 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo de la story; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera.
 
+## S-024. La partida espera al telón (3/11/2026, rama `story/S-024-la-partida-espera-al-telon`, base `main`)
+
+- **Qué se pidió**: que el prólogo del Warden y sus frases no empiecen hasta que la pantalla de carga de Ultra Loading Screen se haya ido, con un tope por si nadie avisa.
+- **Qué se decidió** (plan aprobado por el autor): un concepto nuevo, el **telón** (`FCurtain`, regla sin mundo junto a `FStepClock`), en vez de timers de Unreal; tope `CurtainTimeoutSeconds` = 6 s en `DefaultGame.ini`; `RaiseCurtain` sin prólogo es un no-op. `SoulboundCore` no cambia.
+- **Cómo funciona**: `StartFromData` baja el telón si hay prólogo (y mantiene `StepClock.Hold`) sin fijar el final del prólogo. `RaiseCurtain` (presentación) o `Advance` (tope vencido) lo suben vía `LiftCurtain`, que fija `PrologueEndsWorldSeconds` desde ese instante y deja en el log "Telón subido (presentación|tope)" y luego "Prólogo: la partida empieza dentro de N s". `EndPrologue` lo sube antes, así `SbEvent`, `SbStrike` y `SbClock` siguen funcionando. La vista devuelve vacío en `WardenLineNow` con el telón bajado, de modo que la cola empieza a contar al subir, y el HUD dice "Esperando el telón".
+- **Dudas y resolución**: el nombre del evento de Ultra Loading Screen lo pone el autor en el PR (el paso del README lo deja pendiente). El tope de 6 s hace que en PIE sin pantalla de carga cada partida tarde 6 s en empezar; aceptado. La story pedía `Match/Curtain.h`: va en `Source/Soulbound/Match/`, junto a `StepClock.h`, donde ya vive. La story solo existía en `origin/main`; la rama se creó desde ahí.
+- **Tests**: 3 nuevos (`Soulbound.Game.Match.Telon.EsperaYSubida`, `.TopeVence`, `.SinBajarNoHaceNada`; CA-TEL-1, 2 y 3), vistos fallar (sin `Curtain.h` el módulo no compilaba) antes de implementar. 383 superados. El anfitrión y la vista tienen solo los tres criterios manuales de la story.
+- **Pendiente**: las tres pruebas manuales con captura (Standalone con `Saved` borrado, PIE sin pantalla de carga, `SbStrike` con el telón bajado) y la conexión en el Blueprint de ULS, del autor.
+- **Proceso**: unos 25 min. Preguntas que pararon al agente: 1 (el plan). Correcciones tras fusionar: (a rellenar por el autor). Build y tests a la primera: sí tras implementar; el rojo previo fue de compilación, por diseño.
+
 ## S-023. La mesa espera al Warden (29/10/2026, rama `story/S-023-la-mesa-espera-al-warden`, base `main`)
 
 - **Qué se pidió**: que la partida se detenga mientras el Warden habla (salvo comentarios, avisos del final e instrucciones) sin parar el reloj de partida; una frase propia que cierre el prólogo (`programado:comienzo`); y que los Dominios Olvidados se apaguen en la apertura con su frase de corrupción, con un evento nuevo que diga cuál (`DomainForgotten`, R-WAR-10).
