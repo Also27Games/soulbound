@@ -1592,6 +1592,12 @@ void ABoardViewActor::RefreshWardenLine(const FMatchState& State)
 
 FString ABoardViewActor::WardenLineNow()
 {
+	// S-024 (R-PRO-1 precisión): con el telón bajado no se pide la frase a la cola, así que su primera frase empieza a contar cuando sube.
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (HostPtr && HostPtr->IsCurtainDown())
+	{
+		return FString();
+	}
 	return WardenLineQueue.Current(FPlatformTime::Seconds(), WardenLineSeconds);
 }
 
@@ -1995,7 +2001,12 @@ void ABoardViewActor::TickHud()
 
 	// La línea del turno lleva el color del asiento que juega; entre turnos, blanca (no juega nadie).
 	const bool bSomeoneActive = !State.IsMatchOver() && State.TurnPhase != ETurnPhase::BetweenTurns;
-	if (HostPtr->IsInPrologue())
+	if (HostPtr->IsCurtainDown())
+	{
+		// S-024 (R-PRO-1 precisión): el telón está bajado; del Warden, nada hasta que suba.
+		ShowText(0, FColor::Orange, FString::Printf(TEXT("Esperando el telón | teclas: %s"), *DescribeViewKeys()));
+	}
+	else if (HostPtr->IsInPrologue())
 	{
 		// S-022 (R-PRO-1): el Warden abre la partida; aún no hay turno.
 		ShowText(0, FColor::Orange, FString::Printf(TEXT("Prólogo: el Warden abre la partida; el primer turno empieza cuando termine | teclas: %s"), *DescribeViewKeys()));

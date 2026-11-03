@@ -129,16 +129,19 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 
 	// S-022 (R-PRO-1, decisión del autor del 29/10/2026): el prólogo. La partida no empieza hasta que el Warden termina la apertura; los
 	// segundos de línea son los de la vista, que es quien la enseña. Sin frases no hay apertura ni prólogo.
-	const double PrologueSeconds = Soulbound::Presentation::OpeningSeconds(State, GetDefault<ABoardViewActor>()->WardenLineSeconds);
+	PrologueSeconds = Soulbound::Presentation::OpeningSeconds(State, GetDefault<ABoardViewActor>()->WardenLineSeconds);
 	bInPrologue = PrologueSeconds > 0.0;
 	// S-023: la apertura es del prólogo; la espera del Warden mira lo que se diga desde aquí.
 	bWardenSpeaking = false;
 	WardenLinesScanned = State.EventLog.Num();
+	Curtain = FCurtain();
 	if (bInPrologue)
 	{
+		// S-024 (R-PRO-1 precisión): el prólogo no empieza hasta que la presentación sube el telón (RaiseCurtain) o vence el tope; el
+		// final del prólogo se fija entonces (LiftCurtain), no aquí.
 		StepClock.Hold(World.GetTimeSeconds());
-		PrologueEndsWorldSeconds = World.GetTimeSeconds() + PrologueSeconds;
-		UE_LOG(LogSoulboundMatch, Log, TEXT("Prólogo: la partida empieza dentro de %.0f s, cuando el Warden termine la apertura."), PrologueSeconds);
+		Curtain.Lower(World.GetTimeSeconds(), CurtainTimeoutSeconds);
+		UE_LOG(LogSoulboundMatch, Log, TEXT("Telón bajado: el prólogo empieza cuando la presentación lo suba o, como tarde, a los %.0f s."), CurtainTimeoutSeconds);
 	}
 
 	UE_LOG(LogSoulboundMatch, Log, TEXT("Partida iniciada: %d casillas, semilla %d, humano en el asiento %d."), State.Board.Tiles.Num(), UsedSeed, HumanSeat);
@@ -157,10 +160,33 @@ void UMatchHostSubsystem::EndPrologue(const TCHAR* Why)
 	{
 		return;
 	}
+	// S-024: las herramientas de depuración (SbEvent, SbStrike, SbClock) acaban el prólogo con el telón aún bajado: se sube antes.
+	if (Curtain.Raise(GetWorld()->GetTimeSeconds()))
+	{
+		UE_LOG(LogSoulboundMatch, Log, TEXT("Telón subido (%s)."), Why);
+	}
 	bInPrologue = false;
 	StepClock.Resume(GetWorld()->GetTimeSeconds());
 	UE_LOG(LogSoulboundMatch, Log, TEXT("Prólogo terminado (%s): empieza la partida."), Why);
 	OnMatchStateChanged.Broadcast();
+}
+
+void UMatchHostSubsystem::RaiseCurtain()
+{
+	LiftCurtain(TEXT("presentación"));
+}
+
+void UMatchHostSubsystem::LiftCurtain(const TCHAR* Why)
+{
+	const UWorld* World = GetWorld();
+	if (!World || !Curtain.Raise(World->GetTimeSeconds()))
+	{
+		return;
+	}
+	// El prólogo dura lo mismo (OpeningSeconds); solo cambia desde cuándo se cuenta.
+	PrologueEndsWorldSeconds = World->GetTimeSeconds() + PrologueSeconds;
+	UE_LOG(LogSoulboundMatch, Log, TEXT("Telón subido (%s)."), Why);
+	UE_LOG(LogSoulboundMatch, Log, TEXT("Prólogo: la partida empieza dentro de %.0f s, cuando el Warden termine la apertura."), PrologueSeconds);
 }
 
 bool UMatchHostSubsystem::NoteWardenLines()
@@ -233,6 +259,15 @@ void UMatchHostSubsystem::Advance()
 {
 	if (bHasMatch && bInPrologue)
 	{
+		// S-024: con el telón bajado nada avanza, salvo que haya vencido el tope y se suba solo.
+		if (Curtain.IsDown())
+		{
+			if (!Curtain.TimedOut(GetWorld()->GetTimeSeconds()))
+			{
+				return;
+			}
+			LiftCurtain(TEXT("tope"));
+		}
 		if (GetWorld()->GetTimeSeconds() < PrologueEndsWorldSeconds)
 		{
 			return; // el Warden aún dice la apertura: ni dummies, ni reloj, ni turno
