@@ -1272,7 +1272,13 @@ void ABoardViewActor::BuildOverlay()
 		.HAlign(HAlign_Right)
 		.VAlign(VAlign_Fill)
 		.Padding(FMargin(0.f, 8.f, 8.f, 8.f))
-		.Visibility(EVisibility::SelfHitTestInvisible)
+		// S-024: con el telón bajado (o en su margen) los paneles no se dibujan, se vean o no a través de la pantalla de carga; la tecla de
+		// los paneles sigue mandando después.
+		.Visibility_Lambda([this]()
+		{
+			const UMatchHostSubsystem* HostPtr = Host.Get();
+			return bPanelsHidden || (HostPtr && HostPtr->IsCurtainDown()) ? EVisibility::Collapsed : EVisibility::SelfHitTestInvisible;
+		})
 		[
 			SNew(SBox)
 			.WidthOverride(PanelWidthPixels)
@@ -1822,11 +1828,8 @@ void ABoardViewActor::ToggleOverlay()
 
 void ABoardViewActor::TogglePanels()
 {
+	// La visibilidad de los paneles la calcula su capa (bPanelsHidden y el telón, S-024); aquí solo se recoloca el tablero.
 	bPanelsHidden = !bPanelsHidden;
-	if (Overlay.IsValid())
-	{
-		Overlay->SetVisibility(bPanelsHidden ? EVisibility::Collapsed : EVisibility::SelfHitTestInvisible);
-	}
 	UpdateCamera();
 }
 
@@ -1991,6 +1994,13 @@ void ABoardViewActor::TickHud()
 		}
 	}
 
+	// S-024 (decisión del autor del 4/11): con el telón bajado, o en su margen, el HUD de depuración no dibuja nada: se vería a través de la
+	// pantalla de carga. Los paneles y la línea del Warden lo respetan en sus propias capas.
+	if (HostPtr->IsCurtainDown())
+	{
+		return;
+	}
+
 	const bool bWaiting = State.TurnPhase == ETurnPhase::RollAndChoose;
 	const bool bHumanTurn = bWaiting && State.ActiveSeat == HostPtr->GetHumanSeat();
 	// S-021 (A3): el texto que explica qué hacer ("<- tu turno: ...") sigue el ajuste de ayudas; las opciones numeradas y el tiempo, nunca.
@@ -2001,12 +2011,7 @@ void ABoardViewActor::TickHud()
 
 	// La línea del turno lleva el color del asiento que juega; entre turnos, blanca (no juega nadie).
 	const bool bSomeoneActive = !State.IsMatchOver() && State.TurnPhase != ETurnPhase::BetweenTurns;
-	if (HostPtr->IsCurtainDown())
-	{
-		// S-024 (R-PRO-1 precisión): el telón está bajado; del Warden, nada hasta que suba.
-		ShowText(0, FColor::Orange, FString::Printf(TEXT("Esperando el telón | teclas: %s"), *DescribeViewKeys()));
-	}
-	else if (HostPtr->IsInPrologue())
+	if (HostPtr->IsInPrologue())
 	{
 		// S-022 (R-PRO-1): el Warden abre la partida; aún no hay turno.
 		ShowText(0, FColor::Orange, FString::Printf(TEXT("Prólogo: el Warden abre la partida; el primer turno empieza cuando termine | teclas: %s"), *DescribeViewKeys()));
