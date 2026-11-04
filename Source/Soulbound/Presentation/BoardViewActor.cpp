@@ -1272,7 +1272,13 @@ void ABoardViewActor::BuildOverlay()
 		.HAlign(HAlign_Right)
 		.VAlign(VAlign_Fill)
 		.Padding(FMargin(0.f, 8.f, 8.f, 8.f))
-		.Visibility(EVisibility::SelfHitTestInvisible)
+		// S-024: con el telón bajado (o en su margen) los paneles no se dibujan, se vean o no a través de la pantalla de carga; la tecla de
+		// los paneles sigue mandando después.
+		.Visibility_Lambda([this]()
+		{
+			const UMatchHostSubsystem* HostPtr = Host.Get();
+			return bPanelsHidden || (HostPtr && HostPtr->IsCurtainDown()) ? EVisibility::Collapsed : EVisibility::SelfHitTestInvisible;
+		})
 		[
 			SNew(SBox)
 			.WidthOverride(PanelWidthPixels)
@@ -1592,6 +1598,12 @@ void ABoardViewActor::RefreshWardenLine(const FMatchState& State)
 
 FString ABoardViewActor::WardenLineNow()
 {
+	// S-024 (R-PRO-1 precisión): con el telón bajado no se pide la frase a la cola, así que su primera frase empieza a contar cuando sube.
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (HostPtr && HostPtr->IsCurtainDown())
+	{
+		return FString();
+	}
 	return WardenLineQueue.Current(FPlatformTime::Seconds(), WardenLineSeconds);
 }
 
@@ -1816,11 +1828,8 @@ void ABoardViewActor::ToggleOverlay()
 
 void ABoardViewActor::TogglePanels()
 {
+	// La visibilidad de los paneles la calcula su capa (bPanelsHidden y el telón, S-024); aquí solo se recoloca el tablero.
 	bPanelsHidden = !bPanelsHidden;
-	if (Overlay.IsValid())
-	{
-		Overlay->SetVisibility(bPanelsHidden ? EVisibility::Collapsed : EVisibility::SelfHitTestInvisible);
-	}
 	UpdateCamera();
 }
 
@@ -1983,6 +1992,13 @@ void ABoardViewActor::TickHud()
 				UpdateCamera();
 			}
 		}
+	}
+
+	// S-024 (decisión del autor del 4/11): con el telón bajado, o en su margen, el HUD de depuración no dibuja nada: se vería a través de la
+	// pantalla de carga. Los paneles y la línea del Warden lo respetan en sus propias capas.
+	if (HostPtr->IsCurtainDown())
+	{
+		return;
 	}
 
 	const bool bWaiting = State.TurnPhase == ETurnPhase::RollAndChoose;

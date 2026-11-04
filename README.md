@@ -37,6 +37,7 @@ Lo que no está en el repositorio y hay que instalar a mano, en este orden.
 6. **Ultra Game Template** (Fab, Launcher > Add to Project): queda en `Content/UltraGameTemplate/`, ignorado. Tras instalarlo, tres ajustes manuales dentro de su contenido:
    - `UGT_GameInstance`: Class Settings > Parent Class = `UltraLoadingScreen_GameInstance` (integración con Ultra Loading Screen; tutorial de cinco minutos del autor de ambos).
    - `TransitionOrLoadingScreenWidget`: añadir los nodos `Show Ultra Loading Screen` y `Hide Ultra Loading Screen` donde indica el mismo tutorial.
+   - `TransitionOrLoadingScreenWidget` (S-024, el telón): en el evento de Ultra Loading Screen que avisa de que la pantalla de carga se ha ido (nombre exacto: pendiente de confirmar por el autor), *Get World Subsystem* (`MatchHostSubsystem`) y, si es válido (en los menús no existe), llamar a `RaiseCurtain`. Sin esta conexión el juego arranca igual: el telón se sube solo a los `CurtainTimeoutSeconds` (6 s, `DefaultGame.ini`).
    - Data Asset de configuración: `Disable Game Pause on Enter Pause Menu` activado (la pausa nunca detiene la partida); "nueva partida" apuntando al mapa del juego.
 
    Arranque mínimo (S-022), cinco pasos más, en este orden: el vídeo primero, porque quita los avisos rojos de cada arranque; las imágenes al final, porque dependen del arte. Ninguno toca código; cada asset que cambie va en un commit aparte y se verifica en el editor.

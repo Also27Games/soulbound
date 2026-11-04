@@ -5,6 +5,7 @@
 #include "Match/MatchState.h"
 #include "Match/TurnRules.h"
 #include "StepClock.h"
+#include "Curtain.h"
 #include "Math/RandomStream.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Warden/WardenBrain.h"
@@ -141,6 +142,21 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Partida")
 	bool IsInPrologue() const { return bInPrologue; }
+
+	/**
+	 * Sube el telón (S-024, R-PRO-1 precisión; nombre propuesto "telón", aún no está en el glosario): la presentación lo llama cuando la
+	 * pantalla de carga se ha ido, y el prólogo empieza a contar desde ese instante. Si el telón no está bajado (sin prólogo, o ya subido)
+	 * no hace nada. En los menús el subsistema no existe: quien lo llama comprueba que es válido.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Partida")
+	void RaiseCurtain();
+
+	/**
+	 * Si el telón está bajado: el prólogo espera a la presentación y ni las frases del Warden ni el reloj de partida han empezado. Sigue
+	 * siendo verdadero durante CurtainGraceSeconds tras subirlo (ampliación del 3/11), con el tiempo del mundo que lleva el anfitrión.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Partida")
+	bool IsCurtainDown() const;
 
 	/**
 	 * Si la mesa espera al Warden (S-023, decisión del autor del 29/10/2026; glosario propuesto "espera del Warden"): una frase que no es
@@ -284,6 +300,22 @@ public:
 	UPROPERTY(Config)
 	float DummyResponseSeconds = 5.f;
 
+	/**
+	 * Segundos que el telón espera a la presentación (S-024) antes de subirse solo, para que el juego no dependa de la conexión en
+	 * Blueprint con la pantalla de carga. Valor inicial 6 (Config/DefaultGame.ini). En PIE sin pantalla de carga es lo que tarda en
+	 * empezar cada partida. Cero o negativo: el tope vence en el acto.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Partida")
+	float CurtainTimeoutSeconds = 6.f;
+
+	/**
+	 * Margen tras subir el telón (S-024, ampliación del 3/11): la vista y el HUD lo siguen tratando como bajado y el prólogo no cuenta
+	 * hasta que pasa, para que la primera frase no llegue pegada a la desaparición de la pantalla de carga. Valor inicial 1,5
+	 * (Config/DefaultGame.ini). Cero: sin margen.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Partida")
+	float CurtainGraceSeconds = 1.5f;
+
 	/** Modo paso a paso al iniciar la partida. Valor inicial false (S-007). Se cambia en juego con SetStepMode o SbStepMode. */
 	UPROPERTY(Config, BlueprintGetter = IsStepMode, BlueprintSetter = SetStepMode, Category = "Partida")
 	bool bStepMode = false;
@@ -304,6 +336,9 @@ private:
 
 	/** Acaba el prólogo, si dura: el reloj de partida se reanuda desde cero (FStepClock::Resume). Why dice por qué, para el log. */
 	void EndPrologue(const TCHAR* Why);
+
+	/** Sube el telón, si está bajado, y fija el final del prólogo desde ahora. Why dice quién (presentación, tope...), para el log. */
+	void LiftCurtain(const TCHAR* Why);
 
 	/**
 	 * Mira lo que ha dicho el Warden desde la última vez (S-023): si algo detiene la mesa (WardenWaitSeconds), empieza la espera o la
@@ -381,6 +416,10 @@ private:
 	bool bInPrologue = false;
 	/** Tiempo del mundo en que acaba el prólogo. */
 	double PrologueEndsWorldSeconds = 0.0;
+	/** El telón (S-024): bajado, el prólogo no ha empezado. */
+	FCurtain Curtain;
+	/** Lo que dura el prólogo (OpeningSeconds), anotado al iniciar para fijar su final cuando suba el telón. */
+	double PrologueSeconds = 0.0;
 	/** Si la mesa espera al Warden (S-023). El reloj de partida sigue: no es una espera de FStepClock. */
 	bool bWardenSpeaking = false;
 	/** Tiempo del mundo en que empezó la espera del Warden y en que acaba. */
