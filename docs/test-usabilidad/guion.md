@@ -1,6 +1,6 @@
 # Test de usabilidad de Soulbound (Fase 1): guion
 
-**Qué se prueba**: la build empaquetada del TFM (Development, `.\Scripts\build.ps1 -Que package`, un solo zip con fecha para todos), con un humano y tres bots básicos. **Cuándo**: del 9 al 15 de noviembre de 2026. **Quién**: cuatro probadores, P1 a P4, que en este repositorio nunca llevan nombre. P1 a P3 juegan en su propio PC, lejos del autor, en una videollamada con pantalla compartida (sesión remota). P4 juega al lado del autor (sesión presencial). P1 a P3 tienen costumbre de videojuegos; P4 juega a juegos de mesa y no a videojuegos.
+**Qué se prueba**: la build empaquetada del TFM (Development, `.\Scripts\build.ps1 -Que package`, un solo zip con fecha para todos), con un humano y tres jugadores automáticos (dummies: corren al Nicho libre más cercano, luego hacia el Altar, y eligen al azar lo demás; el bot básico del diseño es Fase 2). **Cuándo**: del 9 al 15 de noviembre de 2026. **Quién**: cuatro probadores, P1 a P4, que en este repositorio nunca llevan nombre. P1 a P3 juegan en su propio PC, lejos del autor, en una videollamada con pantalla compartida (sesión remota). P4 juega al lado del autor (sesión presencial). P1 a P3 tienen costumbre de videojuegos; P4 juega a juegos de mesa y no a videojuegos.
 
 **Qué queremos saber** (en este orden; lo que se aprende, no lo que se mide):
 

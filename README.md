@@ -2,8 +2,6 @@
 
 Trabajo de Fin de Máster del Máster en Desarrollo con IA (BIG School, 3ª edición). Autor: Lluis Alonso.
 
-Este README sigue el guion de entrega del TFM: descripción general, stack tecnológico, instalación y ejecución, estructura del proyecto, funcionalidades principales y acceso de prueba. Los enlaces de entrega (despliegue, slides, vídeo) están al final.
-
 ## 1. Descripción general
 
 **Soulbound** es un party game de terror social: cuatro jugadores atrapados en una cripta viviente compiten en un juego de mesa mortal dirigido por un anfitrión sádico, el Warden, que cambia las reglas a su antojo. Para escapar hay que reunir seis runas y sobrevivir a sus caprichos antes de que el tiempo se agote.
@@ -13,7 +11,7 @@ Este README sigue el guion de entrega del TFM: descripción general, stack tecno
 ## 2. Stack tecnológico
 
 - **Motor**: Unreal Engine 5.8.3, C++ (módulos `SoulboundCore` y `Soulbound`), Blueprints solo como adaptadores de presentación.
-- **Online**: Epic Online Services a través de Redpoint EOS Online Framework (Free Edition) y un plugin propio de sesiones por código (`A27Online`); login por Steam en la build empaquetada.
+- **Online** (infraestructura, sin partida en línea en esta entrega): Epic Online Services a través de Redpoint EOS Online Framework (Free Edition) y un plugin propio de sesiones por código (`A27Online`, escrito antes del máster y reutilizado aquí tal cual, como dependencia externa); login por Steam en la build empaquetada cuando hay cliente de Steam, y sin él el juego arranca igual.
 - **Menús, opciones y carga**: Ultra Game Template y Ultra Loading Screen (Fab), usados como cajas negras tras un adaptador propio.
 - **Herramientas**: Rider, Visual Studio 2022 (toolchain), Git con LFS, GitHub CLI, PowerShell (`Scripts/`), Python (utilidades de arte).
 - **IA en el desarrollo**: Claude Code con la skill del proyecto (`.claude/skills/soulbound/`), guía para agentes en `CLAUDE.md`, y el plugin Unreal MCP del editor para consulta y tests.
@@ -23,7 +21,7 @@ Este README sigue el guion de entrega del TFM: descripción general, stack tecno
 
 ### Jugar la build
 
-Requisitos: Windows 10 u 11 (o Steam Deck con Proton), cliente de Steam abierto con sesión iniciada y la clave de la app (ver "Acceso de prueba"). Descargar la build del enlace de despliegue, descomprimir y ejecutar `Soulbound\Binaries\Win64\Soulbound.exe`. Para jugar en línea: un jugador crea partida y comparte el código de cuatro letras; los demás lo introducen.
+Requisitos: Windows 10 u 11 de 64 bits, tarjeta gráfica con DirectX 12, 8 GB de memoria, ratón y teclado; 1 GB libre en disco. No hace falta Steam, cuenta ni conexión. Descargar la build del enlace de despliegue (al final), descomprimir en una carpeta propia (no en `Archivos de programa`) y ejecutar `Soulbound.exe`. Windows avisa de que el programa no está firmado ("Windows protegió su PC"): *Más información* › *Ejecutar de todas formas*. Si pide instalar un componente de Microsoft Visual C++, aceptar. En el menú, *Jugar* abre la pantalla "Cómo se juega" y de ahí a la partida contra tres jugadores automáticos. Teclas en partida: clic en una casilla iluminada para moverse, números para responder al Warden, clic en una ficha para votar, Esc para la pausa, C vista, L etiquetas, H paneles, Intro para volver al menú al acabar. El registro de la partida queda en `Soulbound\Saved\Logs\`.
 
 ### Desarrollo en Windows
 
@@ -34,23 +32,8 @@ Lo que no está en el repositorio y hay que instalar a mano, en este orden.
 3. **Clonar** y activar el filtro de secretos y los hooks (en Git Bash): `sh Scripts/eos-secrets/install.sh`. Rellenar `Config/Local/EOS.ini` con los identificadores del producto en el portal de Epic y la clave de licencia de Redpoint (nunca se versionan), y regenerar el archivo de trabajo: `Remove-Item Config\DefaultEngine.ini; git checkout -- Config/DefaultEngine.ini`.
 4. **Redpoint EOS Online Framework, Free Edition** para 5.8, en `Plugins/OnlineSubsystemRedpointEOS/`, y el **SDK de EOS** en `Plugins/EOS-SDK-<version>/` (la versión la dice Redpoint al compilar). Los dos están ignorados por Git.
 5. **Ultra Loading Screen** (Fab): instalar en el motor; el plugin ya está activado en el proyecto. Va antes que UGT porque UGT se reparenta a su GameInstance.
-6. **Ultra Game Template** (Fab, Launcher > Add to Project): queda en `Content/UltraGameTemplate/`, ignorado. Tras instalarlo, tres ajustes manuales dentro de su contenido:
-   - `UGT_GameInstance`: Class Settings > Parent Class = `UltraLoadingScreen_GameInstance` (integración con Ultra Loading Screen; tutorial de cinco minutos del autor de ambos).
-   - `TransitionOrLoadingScreenWidget`: añadir los nodos `Show Ultra Loading Screen` y `Hide Ultra Loading Screen` donde indica el mismo tutorial.
-   - `UGT_GameInstance` (S-024, el telón): en el evento `FadeLoadingScreen` de `UltraLoadingScreen_GameInstance` (la clase padre), que avisa de que la pantalla de carga empieza a irse, *Get World Subsystem* (`MatchHostSubsystem`) › *Is Valid* › `RaiseCurtain`. En los menús el subsistema existe pero está inactivo y la llamada no hace nada; sin esta conexión el juego arranca igual, porque el telón se sube solo a los `CurtainTimeoutSeconds` (6 s, `DefaultGame.ini`). Comprobar en el log: "Telón subido (presentación)" después de "Login OK".
-   - Data Asset de configuración (`DefaultGameDataAsset`): `Disable Game Pause on Enter Pause Menu` activado (la pausa nunca detiene la partida); "nueva partida" apuntando al mapa del juego.
-
-   Una regla antes de seguir: **UGT aplica sus ajustes guardados al arrancar y al abrir cada menú, por encima de los ini del proyecto.** Lo que puede sorprender no son sus menús sino lo que aplican; por eso se han quitado todas las filas sin función en Soulbound, y cualquier opción que se añada hay que comprobar qué comando ejecuta. Los pasos siguientes son los que dejan UGT como está en el test de usabilidad (noviembre de 2026); ninguno toca código. Los assets propios que usan (logos y fondos) sí están en el repositorio, en `Content/Art/Logos/` y `Content/Art/Carga/`, y son arte generado por IA declarado como placeholder.
-   - **Arranque limpio** (`DefaultGameDataAsset`): sin diapositiva del publisher, sin diapositiva de agradecimientos, sin mensaje de bienvenida al abrir el juego, sin enlaces a redes y sin la pantalla "Configuración inicial" del primer arranque (lo útil de ella ya está en Opciones › Vídeo). El texto de la esquina del menú: "Soulbound v0.1 · en desarrollo". El logo del estudio de la intro es `Content/Art/Logos/`.
-   - **Idioma**: castellano por defecto en `UGT_GameSettingsMenu`. Comprobar con la carpeta `Saved` borrada: el menú tiene que arrancar en castellano a la primera.
-   - **Menú principal**: Jugar, Configuración y Salir; el menú de créditos se quita hasta la entrega (volverá con los créditos reales). Fondo: la imagen de `Content/Art/Carga/` sin el Warden, en vez del escenario 3D de ejemplo; logo del juego de `Content/Art/Logos/` arriba a la izquierda. Para volver al menú al acabar la partida no hace falta nada en UGT: el juego pone un botón "Volver al menú" (Slate, en código) y la tecla Intro (`ReturnToMenuKey`).
-   - **"Cómo se juega"**: es la pantalla de nueva partida de UGT, la que sale cada vez que se pulsa Jugar (la de arranque queda desactivada). Título "Cómo se juega"; el bloque de texto, con ajuste de línea automático, se rellena en su Construct con el nodo *How To Play Text* (`UHowToPlayLibrary::HowToPlayText`, `BlueprintPure`), que devuelve `Content/Data/Textos/como-se-juega.md` con los títulos sin `## `; si el archivo falla, texto vacío y el motivo en el log. El botón "¡Saber más!" se oculta; el de Jugar se queda. Fondo negro.
-   - **Opciones › Juego**: se quitan las filas de UGT (idiomas, subtítulos, tamaño de texto, dificultad, daño, temblores, balanceo, vibración, modo realista) y se añade **Ayudas**, un selector con Automático, Siempre y Nunca en este orden (los `DisplayName` de `EHintsMode`). En el Construct del menú, *Get Game Instance Subsystem* (`PlayerProfileSubsystem`) › `GetHintsIndex` selecciona el índice; al cambiar la selección, `SetHintsIndex` guarda el perfil; "Restablecer" pone 0. Comprobar que se recuerda al cerrar y abrir el juego, y en partida con `SbHints` sin argumentos.
-   - **Opciones › Audio**: el botón se oculta, no se borra (el juego no emite sonido; volverá con la story de audio).
-   - **Opciones › Vídeo**, en `UGT_VideoSettingsMenu`: se quitan el bloque de escaladores con IA (DLSS y FSR no tienen plugin; TSR y escalado simple sobran), campo de visión, HDR, Stat Unit, desenfoque de movimiento, y de la configuración avanzada las filas Lumen, Nanite, Distance Field Shadows, Lumen Hardware Raytracing y densidad de vegetación; también el botón de Steam Deck. Se quedan resolución, modo, aplicar, límite de FPS, gamma, anti-aliasing, V-Sync, preajuste global y las filas avanzadas restantes. En la función `ConfigGlobalPresets`, las seis ramas del preajuste (Ultra Low a Cinematic) escriben todas las variables de `UGT_VideoSave`: poner **Lumen, Nanite, Hardware Ray Tracing y Distance Field Shadows a Desactivado en las seis**; si no, el preajuste "Alto" vuelve a encender Lumen aunque el ini diga lo contrario. Comprobar en PIE que al abrir Opciones › Vídeo en la pausa no sale el aviso rojo de Lumen, y en el log del arranque del mapa `r.DynamicGlobalIlluminationMethod = "0"` y `r.Nanite = "0"`. El resto de valores por defecto de UGT (gamma, escalado, pantalla completa) se dejan hasta el test; la resolución se adapta sola a cada pantalla.
-   - **Menú de pausa**: Reanudar, Configuración y Salir al menú principal, sin logo. El HUD de depuración se dibuja por encima de la pausa; es cosa del juego, no de UGT.
-   - **Pantalla de carga** (Ultra Loading Screen): la imagen de `Content/Art/Carga/` con el Warden (textura con *Compression* UserInterface2D y *Never Stream*), texto "Cargando", y el círculo, la barra y el porcentaje recolocados en la franja inferior de la imagen, que está vacía para eso. Al irse la imagen, el juego espera `CurtainGraceSeconds` (1,5 s) antes de que el Warden hable.
-7. **Steam**: el App Id del producto está en `Config/Windows/WindowsEngine.ini`. La build empaquetada hace login por Steam (cliente abierto y sesión iniciada); en el editor se usa la Developer Authentication Tool de Epic, que Redpoint lanza solo.
+6. **Ultra Game Template** (Fab, Launcher > Add to Project): queda en `Content/UltraGameTemplate/`, ignorado. Sus ajustes no viajan con el repositorio: la integración con Ultra Loading Screen y el telón, los menús, las opciones y la pantalla de carga se rehacen a mano siguiendo `docs/configuracion-ugt.md`. Sin ellos el juego arranca y la partida funciona, pero con los menús de ejemplo de UGT.
+7. **Steam**: el App Id del producto está en `Config/Windows/WindowsEngine.ini`. Solo interviene en la sesión en línea del spike: la build empaquetada intenta el login por Steam si el cliente está abierto, y si no, arranca igual y la partida local no lo nota. En el editor se usa la Developer Authentication Tool de Epic, que Redpoint lanza solo.
 
 Compilar, probar y empaquetar sin abrir el editor:
 
@@ -64,37 +47,48 @@ Compilar, probar y empaquetar sin abrir el editor:
 
 - `Source/SoulboundCore/`: motor de reglas sin mundo (solo `Core` y `CoreUObject`). Estado en `USTRUCT`, reglas como funciones libres, tests de automatización por criterio de aceptación.
 - `Source/Soulbound/`: el juego (subsistemas, GameMode, controladores, presentación).
-- `Plugins/A27Online/`: plugin propio de sesiones por código sobre Epic Online Services.
+- `Plugins/A27Online/`: plugin propio de sesiones por código sobre Epic Online Services, anterior al máster; no se modifica desde las stories.
 - `Scripts/`: `build.ps1` (compilar y empaquetar sin editor), `test.ps1` (tests por consola), `eos-secrets/` (secretos fuera del repositorio), `git-hooks/`, `art/` (utilidades de arte), `board-editor/` (editor de tableros: una página HTML que genera tableros aleatorios a partir de parámetros, permite editarlos a mano, valida las mismas reglas que el motor y descarga el JSON de `Content/Data/Boards/`).
-- `docs/`: `stories/` (una story por archivo), `bitacora.md` (historia legible del proyecto, una entrada por story), `aplicacion-del-master.md` (qué práctica del máster respalda cada decisión, y qué no aplica y por qué), documentación de diseño y arquitectura pública (en construcción).
+- `docs/`: `stories/` (una story por archivo), `bitacora.md` (historia legible del proyecto, una entrada por story), `aplicacion-del-master.md` (qué práctica del máster respalda cada decisión, y qué no aplica y por qué), `configuracion-ugt.md` (los ajustes manuales de Ultra Game Template), `test-usabilidad/` (guion e informe), documentación de diseño y arquitectura pública (en construcción).
 - `CLAUDE.md`: guía para los agentes. La skill del proyecto (glosario, pilares, plantillas, checklist de revisión) está en `.claude/skills/soulbound/`.
 
-Ramas: `main` contiene el proyecto y la infraestructura; `spike` (septiembre de 2026) contiene la prueba técnica, con código desechable, hasta que se decida qué sobrevive.
+Ramas: `main` contiene el proyecto estable; cada story se hace en una rama `story/S-NNN-nombre` y entra por pull request. La prueba técnica de septiembre de 2026 (rama `spike`, ya fusionada y borrada) sobrevive como `Source/Soulbound/Spike/`: el controlador con los comandos de consola `Sb*` y el mapa de partida.
 
 ## 5. Funcionalidades principales
 
-Alcance de la Fase 1 (en construcción; se marca lo que está hecho):
+Lo que hay en `main` a fecha del test de usabilidad (noviembre de 2026), tras 24 stories (`docs/stories/`), con 384 tests de automatización por consola:
 
-- [x] Motor de reglas sin mundo con tests por consola: casillas alcanzables con Altar y Sellos (GDD 01).
-- [x] Simulación de partidas enteras con reloj virtual, determinista por semilla.
-- [x] Anfitrión del Warden en juego que llama al mismo cerebro que la simulación.
-- [x] Partida en línea por código de cuatro letras (crear, unirse, salir, reconexión), login por Steam.
-- [x] Menús, opciones, pausa sin detener la partida y pantalla de carga entre niveles.
-- [ ] Tablero completo: seis Dominios, Altar, Nichos, Fuentes y Nodos; turnos y dados.
-- [ ] Carrera por el vínculo, Elegidos y Ecos; runas y poderes; duelos y trilero; victoria.
-- [ ] El Warden completo: eventos, decretos, dilemas, votaciones, Oráculo, insolencia y Furia, voz sintética con subtítulos.
-- [ ] Interfaz en plano: cámara sentada, selección en el mundo, HUD, objetos diegéticos, Umbral, barcas y postpartida.
-- [ ] Bots básicos y decisores; grabación y reproducción de partidas.
-- [ ] 60 FPS en Steam Deck.
+**Una partida completa, de uno contra tres bots.**
+
+- **Tablero desde datos**: seis Dominios alrededor del Altar, con Nicho, Fuente de Poder y Nodo de Poder en cada uno; tableros en JSON (`Content/Data/Boards/`) validados por el motor y generados con el editor de tableros de `Scripts/board-editor/`. Dominios Olvidados sorteados al empezar.
+- **Turnos y dados**, con reloj de turno y de elección; movimiento por el grafo con las reglas del Altar y de los Sellos.
+- **Carrera por el vínculo**: cinco minutos para reclamar un Nicho y vincularse a su Elegido; quien no llega sigue como Eco, confinado a los Dominios Olvidados, y puede ganar igual.
+- **Runas y poderes**: seis Fuentes, seis runas, seis poderes (Celeridad, Paso Libre, Vuelo Planar, Expulsión, Duelo, Desvío), con un mapa fijo de runa a poder distinto para cada Elegido: la misma runa da un poder diferente a cada uno, y la runa del propio Dominio siempre da Celeridad; minijuego de habilidad en las Fuentes de los Olvidados.
+- **Duelo, robo y trilero**; el Vacío de la Furia y la vuelta al hogar.
+- **Victoria**: seis runas distintas, vuelta al Altar y desafío final; a los cuarenta minutos gana el Warden.
+- **El Warden**: un cerebro por actos con sacos de eventos (38 en datos, `Content/Data/Events/`), decretos, dilemas, votaciones, el Oráculo del Caos, Sellos, insolencia y Furia. Sus frases viven en `Content/Data/Warden/frases.json` y las enseña una vez por jugador (perfil guardado en la máquina), con el ajuste Ayudas en Opciones. Sin voz sintética: subtítulos.
+- **Jugadores automáticos**: los tres asientos libres los ocupan dummies, decisores de prueba que corren al Nicho libre más cercano, luego hacia el Altar, y eligen al azar lo demás. Sirven para que la mesa esté llena; el bot básico por prioridades del diseño es Fase 2.
+- **Simulación sin mundo**: partidas enteras con reloj virtual, deterministas por semilla, como tests; la misma lógica que mueve la partida en el editor.
+- **Presentación**: tablero en 3D generado desde los datos sobre un kit de piezas, fichas que recorren su camino, vista cenital y sentada, HUD de depuración con leyenda y crónica, pantalla "Cómo se juega" desde datos, menús, opciones, pausa que no detiene la partida y pantalla de carga; la partida espera a que la pantalla de carga se vaya.
+
+**Lo que queda fuera de esta entrega** y pasa a la Fase 2, con lo que ya existe para cada cosa:
+
+- **Partida en línea.** Existe la sesión por código de cuatro letras sobre Epic Online Services (crear, unirse, salir; plugin propio `A27Online`, probado en el editor con dos jugadores en septiembre de 2026), pero la partida no se replica: quien se une llega al mapa y no ve la partida del anfitrión. La arquitectura está pensada para ello (un solo escritor del estado, intenciones validadas, bots que ocupan asientos), y el GDD de multijugador está aprobado; implementarlo es la primera story de la Fase 2.
+- **Interfaz del diseño** (GDD 07): cámara y objetos diegéticos, Umbral, barcas y postpartida. Hoy la interfaz es la vista de depuración, legible pero sin arte.
+- **Voz sintética del Warden**, sonido y música. Hoy no hay audio.
+- **Bot básico** por prioridades y dificultades (GDD 08); hoy, dummies.
+- **Grabación y reproducción de partidas** (la simulación ya es determinista por semilla; falta el registro).
+- **Steam Deck a 60 FPS** y la publicación en Steam.
 
 ## 6. Acceso de prueba
 
-El juego no tiene usuario y contraseña propios: la identidad la da Steam. Para probar la build hace falta una **clave de Steam** de la app, que se facilita con la entrega (formulario) o a petición al autor. En el editor no hace falta clave: se usa la Developer Authentication Tool de Epic.
+**No hace falta usuario, contraseña ni cuenta.** La build empaquetada arranca sin Steam y sin conexión, y la partida local contra bots no usa ningún servicio externo. En el editor tampoco: la Developer Authentication Tool de Epic solo interviene si se prueba la sesión en línea del spike (comandos `SbCreate` y `SbJoin` de la consola), que no forma parte de la entrega.
 
 ## Entregables del TFM
 
 - Repositorio: este.
-- Despliegue o publicación: pendiente (build descargable y clave de Steam).
+- Despliegue o publicación: pendiente (build descargable para Windows, sin cuenta ni clave; enlace al cerrar el test de usabilidad).
+- Test de usabilidad: guion en `docs/test-usabilidad/guion.md`; informe en `docs/test-usabilidad/informe.md` al acabar (noviembre de 2026).
 - Slides: pendiente (enlace o archivo en `docs/`).
 - Vídeo con explicación y captura de pantalla: pendiente.
 
