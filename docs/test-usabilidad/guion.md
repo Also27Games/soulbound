@@ -28,13 +28,13 @@ No hay respuestas buenas ni malas. Si algo no se entiende, el fallo es del juego
 **Lo que necesitas**
 
 - Windows 10 u 11 de 64 bits, tarjeta gráfica con DirectX 12, 8 GB de memoria. Ratón y teclado. No hace falta Steam ni ninguna cuenta.
-- Espacio libre en disco: el doble del tamaño del zip.
+- El zip pesa unos 411 MB; ten 1 GB libre en disco.
 - Una hora, sin interrupciones si puede ser.
 - Para la sesión: una videollamada en la que compartas pantalla (la que prefieras). Si no puede ser, graba la partida con la barra de juegos de Windows: **Win+Alt+R** empieza y para la grabación, y el vídeo queda en `Vídeos\Capturas`.
 
 **Antes de la sesión**
 
-1. Descarga el zip del enlace y descomprímelo en una carpeta tuya, por ejemplo `C:\Juegos\Soulbound`. No lo descomprimas dentro de `Archivos de programa`.
+1. Descarga el zip del enlace de Google Drive. Drive avisará de que no puede analizar un archivo tan grande en busca de virus: pulsa **Descargar de todos modos**. Descomprímelo en una carpeta tuya, por ejemplo `C:\Juegos\Soulbound`. No lo descomprimas dentro de `Archivos de programa`.
 2. Abre `Soulbound.exe`. Windows puede avisar con "Windows protegió su PC": pulsa **Más información** y luego **Ejecutar de todas formas**. El aviso sale porque el programa no está firmado, es normal en una versión de desarrollo.
 3. Si el juego pide instalar algo de Microsoft Visual C++, acepta: es un componente de Windows que el juego necesita.
 4. Si llega al menú principal, cierra el juego con **Salir**. Ya está. **No empieces ninguna partida hasta la sesión**: queremos ver tu primera vez.
