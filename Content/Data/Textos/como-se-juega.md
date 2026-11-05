@@ -14,4 +14,4 @@ Habla, ordena y castiga. Cuando te pida algo, respóndele a tiempo: cada vez que
 
 El Altar está en el centro: ahí empezáis todos y ahí se gana. De él salen seis Dominios, cada uno con su color. Al final de cada Dominio hay un Nicho: el primero que llega se vincula a su Elegido. En cada Dominio hay también una Fuente, donde se consigue su runa, y un Nodo de Duelo, del Oráculo o Planar, con acción propia: retar a duelo, consultar al Oráculo o saltar a otro Nodo Planar. Los Dominios que el Warden apaga al empezar son Olvidados: sin Elegido ni Nicho, y hogar de los Ecos. En tu turno, tira el dado y haz clic en una de las casillas iluminadas.
 
-Teclas: C cambia la vista, L muestra las etiquetas de las casillas, H ocultas los paneles, Intro vuelve al menú al acabar.
+Teclas: C cambia la vista, L muestra las etiquetas de las casillas, H oculta los paneles, Intro vuelve al menú al acabar.
