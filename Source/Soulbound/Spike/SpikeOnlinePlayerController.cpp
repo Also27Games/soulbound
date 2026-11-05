@@ -37,7 +37,8 @@ void ASpikeOnlinePlayerController::BeginPlay()
 		Online->OnLeaveSessionComplete.AddDynamic(this, &ASpikeOnlinePlayerController::HandleLeft);
 	}
 
-	Say(TEXT("Spike online. Comandos: SbStatus, SbLogin, SbCreate, SbJoin <codigo>, SbLeave"));
+	//Say(TEXT("Spike online. Comandos: SbStatus, SbLogin, SbCreate, SbJoin <codigo>, SbLeave"));
+	UE_LOG(LogSoulboundSpike, Log, TEXT("Spike online. Comandos: SbStatus, SbLogin, SbCreate, SbJoin <codigo>, SbLeave"));
 }
 
 void ASpikeOnlinePlayerController::SetupInputComponent()
@@ -277,7 +278,15 @@ void ASpikeOnlinePlayerController::SbLeave()
 
 void ASpikeOnlinePlayerController::HandleLogin(bool bWasSuccessful, const FString& ErrorMessage)
 {
-	Say(bWasSuccessful ? TEXT("Login OK") : FString::Printf(TEXT("Login FALLIDO: %s"), *ErrorMessage));
+	//Say(bWasSuccessful ? TEXT("Login OK") : FString::Printf(TEXT("Login FALLIDO: %s"), *ErrorMessage));
+	if (bWasSuccessful)
+	{
+		UE_LOG(LogSoulboundSpike, Log, TEXT("Login OK"));
+	}
+	else
+	{
+		UE_LOG(LogSoulboundSpike, Warning, TEXT("Login FALLIDO: %s"), *ErrorMessage);
+	}
 }
 
 void ASpikeOnlinePlayerController::HandleCreated(bool bWasSuccessful)
