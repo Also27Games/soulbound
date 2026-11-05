@@ -16,7 +16,7 @@ Soulbound es un party game de terror social con un anfitrión IA, el Warden. Unr
 | `references/glosario.md` | Nombres oficiales de conceptos y su identificador en código |
 | `references/plantilla-gdd-sistema.md` | Estructura de un GDD de sistema |
 | `references/checklist-revision.md` | Revisión de un GDD y revisión de un PR de código |
-| `docs/aplicacion-del-master.md` | Qué práctica del máster respalda cada decisión del proyecto |
+| `docs/decisiones.md` | Las decisiones que definen el proyecto, dónde verlas y qué se dejó fuera a sabiendas |
 
 ## Arquitectura en dos líneas
 

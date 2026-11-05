@@ -20,7 +20,7 @@ El autor y única persona que decide es Lluis Alonso. Los agentes proponen, él 
 3. Para escribir o revisar el GDD de un sistema, usa `references/plantilla-gdd-sistema.md` y sigue el bucle de autoría de abajo.
 4. Para revisar un documento de diseño o un PR de código, aplica `references/checklist-revision.md` (parte A para GDD, parte B para código).
 5. El detalle completo de pilares, anti-pilares y arco emocional está en `docs/gdd/00-concepto-y-pilares.md` del repositorio. Si no existe todavía en este checkout, pide al usuario dónde está.
-6. Qué práctica del máster respalda cada decisión, y qué se descartó y por qué: `docs/aplicacion-del-master.md`.
+6. Las decisiones que definen el proyecto, dónde verlas y qué se dejó fuera a sabiendas: `docs/decisiones.md`.
 
 ## Cómo se encarga una story a un agente
 
