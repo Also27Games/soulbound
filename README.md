@@ -63,9 +63,10 @@ Lo que hay en `main` a fecha del test de usabilidad (noviembre de 2026), tras 24
 - **Tablero desde datos**: seis Dominios alrededor del Altar, con Nicho, Fuente de Poder y Nodo de Poder en cada uno; tableros en JSON (`Content/Data/Boards/`) validados por el motor y generados con el editor de tableros de `Scripts/board-editor/`. Dominios Olvidados sorteados al empezar.
 - **Turnos y dados**, con reloj de turno y de elección; movimiento por el grafo con las reglas del Altar y de los Sellos.
 - **Carrera por el vínculo**: cinco minutos para reclamar un Nicho y vincularse a su Elegido; quien no llega sigue como Eco, confinado a los Dominios Olvidados, y puede ganar igual.
-- **Runas y poderes**: seis Fuentes, seis runas, seis poderes (Celeridad, Paso Libre, Vuelo Planar, Expulsión, Duelo, Desvío), con un mapa fijo de runa a poder distinto para cada Elegido: la misma runa da un poder diferente a cada uno, y la runa del propio Dominio siempre da Celeridad; minijuego de habilidad en las Fuentes de los Olvidados.
+- **Runas y poderes**: seis Fuentes, seis runas, seis poderes (Celeridad, Paso Libre, Vuelo Planar, Expulsión, Duelo, Desvío), con un mapa fijo de runa a poder distinto para cada Elegido: la misma runa da un poder diferente a cada uno, y la runa del propio Dominio siempre da Celeridad.
 - **Duelo, robo y trilero**; el Vacío de la Furia y la vuelta al hogar.
 - **Victoria**: seis runas distintas, vuelta al Altar y desafío final; a los cuarenta minutos gana el Warden.
+- **Pruebas de habilidad, sin minijuego todavía**: la runa en la Fuente de un Dominio Olvidado, el duelo, el escape del Vacío, la Prueba del Warden y el desafío final tienen sus reglas hechas y probadas (cuándo saltan, quién gana, qué se pierde), pero el resultado lo decide el azar y la pantalla lo dice. El trilero sí lo juega el jugador: elige él.
 - **El Warden**: un cerebro por actos con sacos de eventos (38 en datos, `Content/Data/Events/`), decretos, dilemas, votaciones, el Oráculo del Caos, Sellos, insolencia y Furia. Sus frases viven en `Content/Data/Warden/frases.json` y las enseña una vez por jugador (perfil guardado en la máquina), con el ajuste Ayudas en Opciones. Sin voz sintética: subtítulos.
 - **Jugadores automáticos**: los tres asientos libres los ocupan dummies, decisores de prueba que corren al Nicho libre más cercano, luego hacia el Altar, y eligen al azar lo demás. Sirven para que la mesa esté llena; el bot básico por prioridades del diseño es Fase 2.
 - **Simulación sin mundo**: partidas enteras con reloj virtual, deterministas por semilla, como tests; la misma lógica que mueve la partida en el editor.
@@ -74,6 +75,7 @@ Lo que hay en `main` a fecha del test de usabilidad (noviembre de 2026), tras 24
 **Lo que queda fuera de esta entrega** y pasa a la Fase 2, con lo que ya existe para cada cosa:
 
 - **Partida en línea.** Existe la sesión por código de cuatro letras sobre Epic Online Services (crear, unirse, salir; plugin propio `A27Online`, probado en el editor con dos jugadores en septiembre de 2026), pero la partida no se replica: quien se une llega al mapa y no ve la partida del anfitrión. La arquitectura está pensada para ello (un solo escritor del estado, intenciones validadas, bots que ocupan asientos), y el GDD de multijugador está aprobado; implementarlo es la primera story de la Fase 2.
+- **Minijuego de habilidad** (GDD 09, el anillo): la prueba corta de pulsar en el momento justo que decide las cinco situaciones anteriores. El motor ya espera su resultado y las reglas que lo rodean están probadas; falta la prueba en sí, y hasta entonces la victoria final se decide al azar.
 - **Interfaz del diseño** (GDD 07): cámara y objetos diegéticos, Umbral, barcas y postpartida. Hoy la interfaz es la vista de depuración, legible pero sin arte.
 - **Voz sintética del Warden**, sonido y música. Hoy no hay audio.
 - **Bot básico** por prioridades y dificultades (GDD 08); hoy, dummies.

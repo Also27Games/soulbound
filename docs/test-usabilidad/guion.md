@@ -69,6 +69,7 @@ Lo que se dice, con estas palabras o parecidas:
 - "Piensa en voz alta todo el rato: qué crees que pasa, qué vas a hacer, qué esperabas que pasara."
 - "El arte es provisional. La pantalla de carga tiene un personaje que luego no aparece en el tablero: es intencionado por ahora."
 - "Verás texto pequeño por la pantalla. Es de depuración. Úsalo si te sirve, ignóralo si no."
+- "Las pruebas de habilidad no están hechas todavía. Cuando haya un duelo, una prueba o el desafío final, el juego lo resuelve solo, al azar, y lo dice en pantalla: no tienes que pulsar nada. El trilero sí es tuyo: ahí eliges tú."
 - "Puedes parar cuando quieras. Si a los veinte minutos de partida quieres dejarlo, lo dejamos."
 
 No se dice: qué teclas hay, qué es el Warden, cómo se gana. Eso lo tiene que contar el juego.
@@ -181,5 +182,6 @@ El informe va en `docs/test-usabilidad/informe.md` cuando acaben las cuatro sesi
 
 - **Antes de la primera sesión**: probar el protocolo entero contigo mismo con el zip definitivo, cronómetro en mano, y borrar `Saved` antes de cada sesión tuya. El perfil del jugador (instrucciones vistas) se guarda en la máquina de cada probador: en la suya empieza vacío, como tiene que ser.
 - **La primera sesión es la que más enseña** sobre el guion. Si una tarea no funciona, se corrige el guion para las siguientes y se anota en el informe que P1 jugó con la versión anterior.
+- **Limitación conocida, no hallazgo**: el minijuego de habilidad no existe en esta build y las cinco pruebas se resuelven al azar (la pantalla lo dice). Lo que comenten de eso se anota aparte y no cuenta para los umbrales; sí cuenta si no entienden qué ha pasado o creen que el juego se ha colgado.
 - **Sesión presencial (P4)**: la tentación de ayudar es mayor. Misma regla: devolver la pregunta y anotar.
 - **Lo que se guarda y dónde**: logs, grabaciones, incidencias y respuestas, en `docs-privado`, fuera del repositorio público. Aquí solo el guion y el informe anonimizado.
