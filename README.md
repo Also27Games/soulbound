@@ -97,3 +97,5 @@ Lo que hay en `main` a fecha del test de usabilidad (noviembre de 2026), tras 24
 ## Propiedad intelectual
 
 Soulbound es un diseño original inspirado en el género de los juegos de mesa con anfitrión en vídeo de los años 90. No contiene material de terceros. Los assets y plugins de pago o con licencia propia (Redpoint, EOS SDK, Ultra Game Template, Ultra Loading Screen) no se versionan en este repositorio. El arte generado con IA que aparezca durante el desarrollo es placeholder declarado.
+
+**Derechos.** Este repositorio está abierto para que pueda evaluarse mi trabajo de fin de máster y para enseñar cómo se ha hecho. Soulbound es un juego que quiero publicar, y su código, su diseño, sus textos y su arte no llevan licencia de uso. Para reutilizar cualquier parte, pregúntame antes.

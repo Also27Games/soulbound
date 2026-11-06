@@ -1933,7 +1933,7 @@ def argumentos():
     # Dónde va el trono respecto a la losa del Nicho (ronda 6, a decidir por el autor): "detras", al fondo
     # del ramal mirando hacia la losa (el jugador ve su respaldo), o "lateral", al lado de la losa y de cara
     # al asiento del jugador (ve su frente y la losa queda libre).
-    # Tercera opción, "nicho" (propuesta del tutor del 19/10/2026): no hay trono aparte; la losa del Nicho
+    # Tercera opción, "nicho" (propuesta del 19/10/2026): no hay trono aparte; la losa del Nicho
     # lleva un respaldo bajo y la ficha se sienta en ella mirando al Altar. El trono grande queda para el
     # Warden, en el Altar.
     ap.add_argument("--trono", choices=("detras", "lateral", "nicho"), default="detras")

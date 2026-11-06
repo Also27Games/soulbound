@@ -157,24 +157,22 @@ Tres abiertas:
 
 ### 3.2 Qué cuenta como problema
 
-Para que el informe no dependa del humor del día, se fija antes de empezar:
+Para que el informe no dependa del humor del día, se fija antes de empezar. Los umbrales están escritos para cuatro probadores; si al cerrar han jugado menos, se leen en proporción y el informe lo dice:
 
 - Un **bloqueo** en una tarea para dos o más probadores: problema que se arregla antes de la entrega.
-- Un **tropiezo** en la misma tarea para tres o más: se arregla si cabe en la semana de arreglos (16 al 20 de noviembre); si no, va al informe como pendiente.
+- Un **tropiezo** en la misma tarea para tres o más: se arregla si cabe en los dos primeros días de la semana de cierre (16 y 17 de noviembre); si no, va al informe como pendiente para la Fase 2.
 - Pregunta 1, 3 o 4 con media por debajo de 3: el Warden no enseña a jugar lo bastante; se revisan las frases de instrucción y la pantalla "Cómo se juega".
 - Pregunta 7 por debajo de 3 en algún probador: se revisa el registro de voz del Warden con ese probador delante (qué frase).
 - Reloj de turno agotado en T3 por más de un probador: la petición en pantalla no se ve; se revisa antes que nada.
 
 ### 3.3 Plantilla del informe
 
-El informe va en `docs/test-usabilidad/informe.md` cuando acaben las cuatro sesiones, con esta estructura y sin nombres:
+El informe va en `docs/test-usabilidad/informe.md`. Se cierra el domingo 15 de noviembre con los probadores que hayan jugado hasta entonces, cabe en una página y no lleva nombres:
 
-1. **Qué se probó**: build (fecha del zip, commit), fechas, probadores P1 a P4 con una línea de perfil cada uno (costumbre de videojuegos y de juegos de mesa; nada más).
-2. **Resultados por tarea**: tabla con una fila por tarea y una columna por probador: tiempo, completada sola / con intervención / no completada.
-3. **Incidencias**: todas las de gravedad bloqueo y tropiezo, agrupadas por causa, con cuántos probadores y en qué tarea.
-4. **Cuestionario**: media y mínimo de cada pregunta cerrada; las respuestas abiertas, literales.
-5. **Lo que se cambia** antes de la entrega, con la story o el commit que lo arregla. **Lo que se deja** y por qué.
-6. **Lo que el test no pudo decir**: cuatro probadores no dan cifras; qué conviene volver a probar en Fase 2.
+1. **Qué se probó**: build (fecha del zip, commit), fechas y cuántos probadores, con una línea de perfil cada uno (costumbre de videojuegos y de juegos de mesa; nada más).
+2. **Qué se entendió y qué no**, tarea por tarea, en una frase cada una, con los bloqueos y tropiezos que la sostienen y las medias del cuestionario que vengan al caso.
+3. **Lo que se cambia** antes de la entrega, con la story o el commit que lo arregla. **Lo que se deja** para la Fase 2 y por qué.
+4. **Lo que el test no pudo decir**: con tan pocos probadores no hay cifras; qué conviene volver a probar en la Fase 2.
 
 ---
 

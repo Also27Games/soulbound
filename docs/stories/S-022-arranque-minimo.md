@@ -30,7 +30,7 @@ Decidido por el autor (27-28/10/2026, ESTADO): la vista sentada por defecto; los
 
 ### Pasos manuales (autor, después de fusionar, con captura en el PR de datos)
 
-Imágenes del menú, menús, ajuste de ayudas, página "cómo se juega", vídeo por defecto. Con los pasos del README. Assets solo del autor, en commit aparte, verificados en el editor. El texto de "cómo se juega" lo escribe el autor con el tutor y entra en `Content/Data/Textos/como-se-juega.md` en el mismo commit de datos que `frases.json`.
+Imágenes del menú, menús, ajuste de ayudas, página "cómo se juega", vídeo por defecto. Con los pasos del README. Assets solo del autor, en commit aparte, verificados en el editor. El texto de "cómo se juega" lo escribe el autor y entra en `Content/Data/Textos/como-se-juega.md` en el mismo commit de datos que `frases.json`.
 
 ## Criterios de aceptación
 
