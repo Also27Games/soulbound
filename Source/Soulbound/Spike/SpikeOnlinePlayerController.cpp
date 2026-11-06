@@ -84,6 +84,12 @@ void ASpikeOnlinePlayerController::OnPrimaryClick()
 	{
 		return;
 	}
+	// S-026: durante el anillo del humano, el clic izquierdo es la pulsación y no tiene otro uso. La lleva la entrada del anillo de la
+	// vista, que la fecha antes que este enlace; aquí solo se ignora.
+	if (Match->GetRingRun())
+	{
+		return;
+	}
 	FHitResult Hit;
 	if (GetHitResultUnderCursor(ECC_Visibility, false, Hit))
 	{

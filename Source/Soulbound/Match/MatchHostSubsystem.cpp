@@ -14,6 +14,7 @@
 #include "Match/MatchStart.h"
 #include "Match/WardenEventRules.h"
 #include "Match/WardenEvents.h"
+#include "HAL/PlatformTime.h"
 #include "Misc/DateTime.h"
 #include "Misc/Paths.h"
 #include "TimerManager.h"
@@ -72,6 +73,10 @@ void UMatchHostSubsystem::Deinitialize()
 		World->GetTimerManager().ClearTimer(AdvanceTimer);
 	}
 	OnMatchStateChanged.Clear();
+	// S-026: el anillo no sobrevive al mundo; la vista retira su entrada en su EndPlay.
+	HumanRing.Reset();
+	OnRingOpened.Clear();
+	OnRingClosed.Clear();
 	Super::Deinitialize();
 }
 
@@ -105,6 +110,9 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 	MatchRng.Initialize(UsedSeed);
 	// Los decisores tienen su propio generador (semilla + 1), como en la simulación: no tocan los dados de la partida.
 	DeciderRng.Initialize(UsedSeed + 1);
+	// S-026: las secuencias del anillo del humano, con su propio sorteo (semilla + 5; la simulación usa de + 1 a + 4).
+	RingRng.Initialize(UsedSeed + 5);
+	HumanRing.Reset();
 
 	// S-016: el Warden viaja en el estado, con su sorteo propio (semilla + 2), igual que en la simulación.
 	FMatchStartResult Start = Soulbound::Rules::StartMatch(Board.Board, Params.Params, Elects.Table, Soulbound::Match::MaxPlayers, MatchRng, Events.Table, Warden.Params, Lines.Table);
@@ -372,6 +380,11 @@ void UMatchHostSubsystem::Advance()
 		{
 			Pending = FPendingDecision();
 		}
+		// S-026: el anillo del humano vive lo que su respuesta pendiente; descartada esta (cambió la fase o el turno), se descarta.
+		if (HumanRing.IsSet() && !(Pending.bPending && Pending.bRing))
+		{
+			CloseRing(TOptional<FRingOutcome>(), TEXT("la fase ha cambiado"));
+		}
 		if (State.PendingChoice.IsOpen() && bChoiceDummy)
 		{
 			// Elecciones (S-009, S-010): dados, repetir, salto, acción, runa de Koschei y esfera. Se pregunta al decisor del
@@ -439,6 +452,46 @@ void UMatchHostSubsystem::Advance()
 				Pending.bPending = false;
 			}
 		}
+		else if (State.TurnPhase == ETurnPhase::SkillTrial && !bDummy && bHumanPlaysSkillTrials)
+		{
+			// S-026: el humano juega su prueba con el anillo. Mientras dura, no se entrega nada al motor por él: la máquina espera en
+			// SkillTrial, como hoy. Su resultado lo dan las reglas del anillo (RingRules) al cerrarse; SbTrial manda sobre él.
+			// TODO(R-MIN): el reloj de turno sigue corriendo durante la Prueba del Warden, como antes de S-026 (cuestión abierta del GDD 09).
+			// Una prueba de tres pulsos dura de 5 a 8 s y el reloj es de 30; si el autor decide pararlo, lo hará el motor, no el anfitrión.
+			if (!Pending.bPending)
+			{
+				Pending = FPendingDecision();
+				Pending.bPending = true;
+				Pending.bRing = true;
+				Pending.Seat = Seat;
+				Pending.TurnCount = State.TurnCount;
+				Pending.ReadyAtSeconds = Now;
+#if !UE_BUILD_SHIPPING
+				// Condición del autor del 06/11/2026: con un resultado fijado antes de empezar, el anillo no se abre.
+				if (ForcedTrialResult.IsSet())
+				{
+					Pending.bPassedTrial = ForcedTrialResult.GetValue();
+					ForcedTrialResult.Reset();
+					UE_LOG(LogSoulboundMatch, Log, TEXT("Anillo: no se abre; SbTrial fija la prueba como %s."), Pending.bPassedTrial ? TEXT("superada") : TEXT("fallada"));
+				}
+				else
+#endif
+				{
+					const TOptional<FRingTrialParams> RingParams = Soulbound::Rules::RingParamsForTrial(State.Params.Ring, State.PendingTrial, State.PendingDifficulty);
+					if (RingParams.IsSet())
+					{
+						OpenRing(*RingParams, State.PendingTrial, false);
+					}
+				}
+			}
+			if (SettleRing())
+			{
+				bChanged |= Soulbound::Rules::SubmitSkillTrialResult(State, Seat, Pending.bPassedTrial, Now) == EIntentResult::Accepted;
+				Pending.bPending = false;
+				// Tras el minijuego puede quedar abierta una elección (S-009, R-INT-1): se atiende en la vuelta siguiente.
+				continue;
+			}
+		}
 		else if (State.TurnPhase == ETurnPhase::SkillTrial)
 		{
 			// El minijuego se resuelve como el destino: se pregunta a un decisor y se entrega su resultado. Mientras el
@@ -479,23 +532,35 @@ void UMatchHostSubsystem::Advance()
 			{
 				const int32 Challenger = State.Duel.Challenger;
 				const int32 Challenged = State.Duel.Challenged;
-				auto Perform = [this](int32 DuelSeat) -> double
+				// S-026: con el interruptor encendido, el humano rinde con el anillo y su decisor no se consulta; el rival dummy sigue con el
+				// suyo y el Warden, en su duelo, con su valor de datos.
+				const bool bHumanRing = bHumanPlaysSkillTrials && State.Duel.IsParticipant(HumanSeat);
+				auto Perform = [this, bHumanRing](int32 DuelSeat) -> double
 				{
+					if (bHumanRing && DuelSeat == HumanSeat)
+					{
+						return 0.0; // lo pone el anillo al cerrarse (SettleRing)
+					}
 					IDecider& Decider = Deciders.IsValidIndex(DuelSeat) && Deciders[DuelSeat].IsValid() ? *Deciders[DuelSeat] : static_cast<IDecider&>(HumanTrialDecider);
 					return Decider.DuelPerformance(State, DuelSeat, DeciderRng);
 				};
+				Pending = FPendingDecision();
 				Pending.bPending = true;
+				Pending.bRing = bHumanRing;
 				Pending.Seat = Seat;
 				Pending.TurnCount = State.TurnCount;
 				Pending.ChoiceKind = EChoiceKind::None;
 				Pending.bDuel = true;
-				Pending.ReadyAtSeconds = Now + DummyResponseSeconds;
+				// Con el anillo, la espera es la del propio anillo: se entrega en cuanto se cierra.
+				Pending.ReadyAtSeconds = bHumanRing ? Now : Now + DummyResponseSeconds;
 				// Contra el Warden (S-015) no hay asiento retador: su rendimiento es un dato del motor y solo rinde el retado.
 				Pending.ChallengerPerformance = State.Duel.bAgainstWarden ? 0.0 : Perform(Challenger);
 				Pending.ChallengedPerformance = Perform(Challenged);
+				bool bForced = false;
 #if !UE_BUILD_SHIPPING
 				// SbDuel: el resultado fijado sustituye a los dos rendimientos; los decisores ya consumieron su sorteo. Con un
-				// margen menor que 1 (validado en partida.json), 1 contra 0 gana siempre y 0 contra 1 pierde siempre.
+				// margen menor que 1 (validado en partida.json), 1 contra 0 gana siempre y 0 contra 1 pierde siempre. Con el anillo,
+				// fijado antes de empezar, el anillo no se abre (condición del autor del 06/11/2026).
 				if (ForcedDuelResult.IsSet() && State.Duel.IsParticipant(HumanSeat))
 				{
 					const bool bHumanWins = ForcedDuelResult.GetValue();
@@ -503,10 +568,15 @@ void UMatchHostSubsystem::Advance()
 					Pending.ChallengerPerformance = bHumanChallenges == bHumanWins ? 1.0 : 0.0;
 					Pending.ChallengedPerformance = 1.0 - Pending.ChallengerPerformance;
 					ForcedDuelResult.Reset();
+					bForced = true;
 				}
 #endif
+				if (bHumanRing && !bForced)
+				{
+					OpenRing(Soulbound::Rules::RingParamsForDuel(State.Params.Ring), ESkillTrial::None, true);
+				}
 			}
-			if (Now >= Pending.ReadyAtSeconds)
+			if (SettleRing() && Now >= Pending.ReadyAtSeconds)
 			{
 				const int32 Challenger = State.Duel.Challenger;
 				const int32 Challenged = State.Duel.Challenged;
@@ -523,6 +593,8 @@ void UMatchHostSubsystem::Advance()
 		else
 		{
 			Pending.bPending = false;
+			// S-026: fuera de una prueba o un duelo no hay anillo que jugar.
+			CloseRing(TOptional<FRingOutcome>(), TEXT("la fase ha cambiado"));
 		}
 
 		// Falso cuando espera una intención, o si la partida no tiene orden de turno; en ambos casos no hay más que hacer.
@@ -680,6 +752,99 @@ EIntentResult UMatchHostSubsystem::SubmitHumanOracleRefuse()
 	return Result;
 }
 
+bool UMatchHostSubsystem::PressRing(double PressSeconds)
+{
+	if (!HumanRing.IsSet())
+	{
+		return false;
+	}
+	const int32 Before = HumanRing->Run.Precisions().Num();
+	const bool bCounted = HumanRing->Run.Press(PressSeconds);
+	if (bCounted)
+	{
+		UE_LOG(LogSoulboundMatch, Log, TEXT("Anillo: pulso %d de %d, precisión %.2f."), HumanRing->Run.Precisions().Num(), HumanRing->Run.NumPulses(),
+			HumanRing->Run.Precisions().Last());
+	}
+	else if (HumanRing->Run.Precisions().Num() > Before)
+	{
+		UE_LOG(LogSoulboundMatch, Log, TEXT("Anillo: la pulsación cae entre pulsos; el pulso vencido queda en 0."));
+	}
+	return bCounted;
+}
+
+void UMatchHostSubsystem::OpenRing(const FRingTrialParams& Params, ESkillTrial Trial, bool bDuel)
+{
+	// La semilla de cada prueba sale del sorteo del anillo, derivado de la semilla de la partida: la misma partida da las mismas secuencias.
+	const int32 RingSeed = static_cast<int32>(RingRng.GetUnsignedInt() & 0x7fffffff);
+	FHumanRing Ring;
+	Ring.Params = Params;
+	Ring.Trial = Trial;
+	Ring.bDuel = bDuel;
+	Ring.Run.Begin(Soulbound::Rules::MakeRingSequence(State.Params.Ring, Params, RingSeed), FPlatformTime::Seconds() + FMath::Max(RingAnnounceSeconds, 0.f));
+	HumanRing = MoveTemp(Ring);
+	UE_LOG(LogSoulboundMatch, Log, TEXT("Anillo abierto (%s): %d pulsos, cierre %.2f s, zona %.2f, semilla %d."),
+		bDuel ? TEXT("duelo") : *UEnum::GetValueAsString(Trial), Params.Pulses, Params.CloseSeconds, Params.SweetZone, RingSeed);
+	OnRingOpened.Broadcast();
+}
+
+void UMatchHostSubsystem::CloseRing(const TOptional<FRingOutcome>& Outcome, const TCHAR* Why)
+{
+	if (!HumanRing.IsSet())
+	{
+		return;
+	}
+	HumanRing.Reset();
+	UE_LOG(LogSoulboundMatch, Log, TEXT("Anillo cerrado: %s."), Why);
+	OnRingClosed.Broadcast(Outcome);
+}
+
+FRingOutcome UMatchHostSubsystem::MakeRingOutcome(bool bForced) const
+{
+	FRingOutcome Outcome;
+	if (!HumanRing.IsSet())
+	{
+		return Outcome;
+	}
+	Outcome.Trial = HumanRing->Trial;
+	Outcome.bDuel = HumanRing->bDuel;
+	Outcome.bForced = bForced;
+	Outcome.Precisions = HumanRing->Run.Precisions();
+	if (Outcome.bDuel)
+	{
+		Outcome.Performance = Soulbound::Rules::RingDuelPerformance(Outcome.Precisions);
+	}
+	else
+	{
+		Outcome.bPassed = Soulbound::Rules::RingTrialPassed(HumanRing->Params, Outcome.Precisions);
+	}
+	return Outcome;
+}
+
+bool UMatchHostSubsystem::SettleRing()
+{
+	if (!HumanRing.IsSet())
+	{
+		return true;
+	}
+	HumanRing->Run.Advance(FPlatformTime::Seconds());
+	if (!HumanRing->Run.IsFinished())
+	{
+		return false;
+	}
+	const FRingOutcome Outcome = MakeRingOutcome(false);
+	if (Outcome.bDuel)
+	{
+		// R-MIN-4: el rendimiento del humano es la media; el del rival ya lo decidió su decisor al empezar.
+		(State.Duel.Challenger == HumanSeat ? Pending.ChallengerPerformance : Pending.ChallengedPerformance) = Outcome.Performance;
+	}
+	else
+	{
+		Pending.bPassedTrial = Outcome.bPassed;
+	}
+	CloseRing(Outcome, Outcome.bDuel ? TEXT("duelo jugado") : Outcome.bPassed ? TEXT("prueba superada") : TEXT("prueba fallada"));
+	return true;
+}
+
 FWardenDecision UMatchHostSubsystem::EvaluateWarden()
 {
 	if (!bHasMatch)
@@ -826,6 +991,16 @@ FDebugEditOutcome UMatchHostSubsystem::DebugFixTrial(bool bPass)
 	if (bApplied)
 	{
 		ForcedTrialResult = bPass;
+		// S-026 (condición del autor del 06/11/2026): fijado durante la prueba, el anillo se cierra en el acto con ese resultado; el
+		// motor lo recibe en el siguiente avance.
+		if (HumanRing.IsSet() && !HumanRing->bDuel && Pending.bPending && Pending.bRing)
+		{
+			Pending.bPassedTrial = bPass;
+			ForcedTrialResult.Reset();
+			FRingOutcome Outcome = MakeRingOutcome(true);
+			Outcome.bPassed = bPass;
+			CloseRing(Outcome, TEXT("SbTrial fija el resultado"));
+		}
 	}
 	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("el próximo minijuego del humano se %s"), bPass ? TEXT("supera") : TEXT("falla")) : Soulbound::Presentation::DescribeDebugResult(Result));
 }
@@ -843,6 +1018,18 @@ FDebugEditOutcome UMatchHostSubsystem::DebugFixDuel(bool bWin)
 	if (bApplied)
 	{
 		ForcedDuelResult = bWin;
+		// S-026 (condición del autor del 06/11/2026): fijado durante el duelo, el anillo se cierra en el acto con ese resultado, como
+		// hace SbDuel con los rendimientos: 1 contra 0 o al revés.
+		if (HumanRing.IsSet() && HumanRing->bDuel && Pending.bPending && Pending.bRing && State.Duel.IsParticipant(HumanSeat))
+		{
+			const bool bHumanChallenges = State.Duel.Challenger == HumanSeat;
+			Pending.ChallengerPerformance = bHumanChallenges == bWin ? 1.0 : 0.0;
+			Pending.ChallengedPerformance = 1.0 - Pending.ChallengerPerformance;
+			ForcedDuelResult.Reset();
+			FRingOutcome Outcome = MakeRingOutcome(true);
+			Outcome.Performance = bWin ? 1.0 : 0.0;
+			CloseRing(Outcome, TEXT("SbDuel fija el resultado"));
+		}
 	}
 	return FinishDebugEdit(bApplied, bApplied ? FString::Printf(TEXT("el humano %s el próximo duelo en que participe"), bWin ? TEXT("gana") : TEXT("pierde")) : Soulbound::Presentation::DescribeDebugResult(Result));
 }
