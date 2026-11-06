@@ -4,6 +4,29 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo del agente, desde el plan aprobado hasta abrir el PR; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera. Las correcciones se rellenaron el 6/11/2026 a partir del historial de Git, de las conversaciones de trabajo del autor y de las sesiones de los agentes; "ninguna" significa que no consta ninguna en esas fuentes.
 
+## S-026. El anillo: el jugador humano juega sus pruebas de habilidad (6/11/2026, rama `story/S-026-el-anillo`, base `main`)
+
+- **Qué se pidió**: la versión mínima del minijuego del GDD 09, el anillo, entre el motor y el jugador humano. Abarca las cinco pruebas (Fuente de un Olvidado, Prueba del Warden, escape del Vacío, duelo y desafío final), con clic izquierdo y los valores iniciales del GDD en datos. Los dummies siguen al azar y un interruptor (`bHumanPlaysSkillTrials`) devuelve el juego de antes. `TurnRules` y `DuelRules` no se tocan.
+- **Qué se decidió** (plan aprobado por el autor, con sus cuatro dudas):
+  - El hueco de 0,8 a 2 s se cuenta desde el final de la zona buena de un pulso hasta el inicio del siguiente.
+  - Un clic antes de la zona gasta el pulso con 0.
+  - Umbrales en datos; el tipo de criterio de cada uso, fijo en el código como regla. CA-MIN-3 se lee así: cierre, zona, pulsos y umbral salen de datos.
+  - La crónica dice "con el anillo" solo para el humano con el interruptor encendido.
+  - Las decisiones técnicas, también aceptadas: reloj real (`FPlatformTime::Seconds`), duelo fuera de `ESkillTrial`, tolerancia de 1e-9 en la media, validación de huecos y de `duelDifficulty`.
+  - Las tres condiciones del autor:
+    - La entrada solo está registrada mientras hay anillo.
+    - `SbTrial` y `SbDuel` fijados antes de la prueba impiden abrirla; fijados durante, la cierran en el acto.
+    - `RingRng` usa la semilla + 5.
+- **Cómo funciona**:
+  - `RingRules` (`SoulboundCore`) da la precisión, la secuencia por semilla, los parámetros de cada uso y el resultado. `MatchParams` carga y valida el bloque `ring` de `partida.json`.
+  - `FRingTrialRun` (sin mundo, junto a `FCurtain`) lleva los pulsos con el tiempo como dato.
+  - El anfitrión abre el anillo en `SkillTrial` o en `Duel` con el humano dentro, no entrega nada mientras dura y, al cerrarse, llama a `SubmitSkillTrialResult` o `SubmitDuelPerformance`. Si la fase cambia antes, lo descarta.
+  - La vista registra un preprocesador de Slate (`FRingInputProcessor`) que fecha el clic al recibirlo y nunca lo consume, y pinta `SRingPanel`. El controlador ignora el clic izquierdo durante el anillo.
+- **Dudas y resolución**: el GDD 09 no está publicado; la story bastaba. Con el juego en pausa la entrada no pulsa y los pulsos, que corren en tiempo real, se pierden, como pide el último criterio manual. El segundo clic de dos rápidos llega a Slate como doble clic, así que también cuenta.
+- **Tests**: 10 nuevos de la story (`Soulbound.Core.Ring.*` cubre CA-MIN-1, 2, 3, 6, 12 y 13; `Soulbound.Game.Match.Anillo.*` cubre CA-ANI-1 a 4), vistos en rojo con un esqueleto en un commit aparte. Hay además `Cronica.AnilloDelHumano` (decisión 4), visto en rojo pero en el mismo commit que su implementación, y los valores iniciales del anillo en `Params.SalenDelArchivo`. En total, 395 superados. Las cifras de `Soulbound.Core.Simulation.*` no cambian.
+- **Pendiente** (del autor, en PIE): los ocho criterios manuales de la story, con captura, y la condición (a) del preprocesador. En el log aparece "Anillo: entrada registrada/retirada (activas: N)"; tras dos sesiones seguidas de PIE tiene que acabar en 0. Calibrar la dificultad en el editor. El reloj de turno durante la Prueba del Warden queda como `TODO(R-MIN)` en el anfitrión.
+- **Proceso**: unos 45 min. Preguntas que pararon al agente: 1 (el plan, con cuatro dudas). Correcciones tras fusionar: las anota el autor. Build y tests a la primera: sí. El rojo previo fue por diseño, y la batería completa pasó en verde en cada paso. El editor estaba cerrado (MCP de Unreal sin conexión): nada se probó en PIE.
+
 ## S-024. La partida espera al telón (3/11/2026, rama `story/S-024-la-partida-espera-al-telon`, base `main`)
 
 - **Qué se pidió**: que el prólogo del Warden y sus frases no empiecen hasta que la pantalla de carga de Ultra Loading Screen se haya ido, con un tope por si nadie avisa.
