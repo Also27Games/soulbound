@@ -28,9 +28,12 @@ namespace Soulbound::Presentation
 
 	/**
 	 * Frase del evento, en español, con el número de asiento y los datos del evento. Board da los nombres de casilla;
-	 * WardenEvents, el texto de los eventos del Warden (S-014), si se tiene.
+	 * WardenEvents, el texto de los eventos del Warden (S-014), si se tiene. RingSeat (S-026): el asiento que juega sus pruebas y sus
+	 * duelos con el anillo (el humano con bHumanPlaysSkillTrials encendido), o INDEX_NONE; sus resultados dicen "con el anillo" y los de
+	 * los demás, "resuelto al azar", como antes de S-026.
 	 */
-	FString DescribeEvent(const FMatchEvent& Event, const FBoardState& Board, const FWardenEventTable* WardenEvents = nullptr, const FWardenLineTable* WardenLines = nullptr);
+	FString DescribeEvent(const FMatchEvent& Event, const FBoardState& Board, const FWardenEventTable* WardenEvents = nullptr, const FWardenLineTable* WardenLines = nullptr,
+		int32 RingSeat = INDEX_NONE);
 
 	/** Nombre en español del tipo de un comentario del Warden (EWardenRemarkKind en un Value), para la crónica (S-021). */
 	FString RemarkKindText(int32 Kind);
@@ -51,10 +54,10 @@ namespace Soulbound::Presentation
 	 * La línea de la crónica del juego para el evento Index del registro de State, con su contexto (S-021): la sentencia del Oráculo es una
 	 * sola línea, "sentencia del Oráculo: <frase>", en vez de tres. Desde S-022 (R-HUD-4), un golpe, una escena, un castigo de insolencia, la
 	 * Furia, un comentario o el aviso del final seguidos de su frase también son una sola línea, en la del evento: `golpe "Impuesto": <frase>`,
-	 * y la de la frase queda vacía. Con la tabla de frases vacía conserva las líneas de siempre. El resto es DescribeEvent. Vacía si el evento
-	 * no tiene línea.
+	 * y la de la frase queda vacía. Con la tabla de frases vacía conserva las líneas de siempre. El resto es DescribeEvent, con RingSeat
+	 * (S-026). Vacía si el evento no tiene línea.
 	 */
-	FString DescribeChronicleEvent(const FMatchState& State, int32 Index);
+	FString DescribeChronicleEvent(const FMatchState& State, int32 Index, int32 RingSeat = INDEX_NONE);
 
 	/** Nombre en español de un efecto (EEffect en un Value), para la crónica y la vista (S-014). */
 	FString EffectName(int32 Effect);
