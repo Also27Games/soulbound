@@ -955,6 +955,9 @@ void ABoardViewActor::BuildOverlay()
 		Bracers.Chips.Add(Chip);
 	}
 	Rows.Add(Bracers);
+	// S-027: las teclas de los paneles, también en la leyenda.
+	Rows.Add({FString::Printf(TEXT("Teclas: %s Grimorio | %s depuración | %s panel de estado | %s paneles"), *GrimoireKey.GetDisplayName().ToString(),
+		*DebugPanelKey.GetDisplayName().ToString(), *DebugTextToggleKey.GetDisplayName().ToString(), *PanelsToggleKey.GetDisplayName().ToString()), {}});
 
 	// S-027 (R-HUD-3): la letra y el ancho de todos los paneles se leen en cada pintado, para que sigan a la resolución sin rehacerlos.
 	const TAttribute<int32> PanelFont = TAttribute<int32>::CreateLambda([this]() { return PanelSlateFontSize; });
