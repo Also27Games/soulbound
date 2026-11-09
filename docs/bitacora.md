@@ -4,6 +4,45 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo del agente, desde el plan aprobado hasta abrir el PR; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera. Las correcciones se rellenaron el 6/11/2026 a partir del historial de Git, de las conversaciones de trabajo del autor y de las sesiones de los agentes; "ninguna" significa que no consta ninguna en esas fuentes.
 
+## S-027. La partida se lee: HUD en paneles, Grimorio, cuatro Ayudas más y vuelta al menú (9/11/2026, rama `story/S-027-la-partida-se-lee`, base `main`)
+
+- **Qué se pidió**: arreglar lo que salió en el test de usabilidad.
+  - A 1024x768 las líneas de estado (mensajes de pantalla del motor) se montaban unas sobre otras.
+  - El Elegido no se entendía.
+  - Cuatro acciones no las explicaba nadie: ser Eco, robar, el Vacío y el anillo.
+  - "Volver al menú" llevaba a los logos de arranque.
+  - Pasan a paneles Slate que escalan, un Grimorio con la tecla G, cuatro Ayudas nuevas y `ReturnToMenuMap`. Ninguna regla de juego cambia.
+- **Qué se decidió** (plan aprobado por el autor, con sus nueve dudas):
+  - Escala: Unreal ya aplica a la interfaz una escala de DPI de más o menos alto/1080 (0,711 a 1024x768, visto en el registro). `ScaledPanelFontSize` da píxeles reales, que la vista divide por esa escala, y la cámara deja al tablero el ancho real de la columna. Antes calculaba con 460 px cuando ocupaba 327.
+  - Las líneas que la story no repartía (votación, aspirantes, resultado) van al panel de estado, con el resultado arriba y en grande.
+  - T sigue ocultando el panel de estado. El de depuración va con **D, no con F1**, que es una tecla de depuración de Unreal; la story se corrige.
+  - `ShowsRequestHints` solo cuenta los diez momentos de S-021.
+  - No hay Ayuda de Eco si la carrera acaba con cero Elegidos.
+  - Los textos de `grimorio.json` los redacta el agente desde el glosario y los revisa el autor.
+  - Las funciones de texto de `BoardViewActor.cpp` se mueven tal cual a `StatusText`. G y D se enlazan en la vista, como C, L, H y T. H cierra el Grimorio.
+- **Cómo funciona**:
+  - `StatusText` (puro) construye las líneas de estado y depuración, las filas del Grimorio y la escala.
+  - `SStatusPanel` (dos instancias) y `SGrimoirePanel` solo pintan.
+  - `TickHud` les pasa el estado cada 0,25 s.
+  - `FInstructionTracker` detecta `Echo`, `Steal` y `Void` en `Observe`; `RingOpened` lo llama la vista al abrirse el anillo.
+  - `MenuMapPackage` elige el mapa del menú.
+- **Dudas y resolución**: las nueve del plan, más una. La nota de la story decía que `ChoicePrompt` y compañía estaban en `EventText`, pero estaban en el espacio anónimo del actor; se movieron. La "petición al jugador" se lee así: su elección pendiente o, en su turno de tirada, la línea de la tirada.
+- **Tests**: 12 de la story, todos vistos en rojo con el esqueleto, en commit aparte.
+  - `Estado.*`: CA-HUD-1, 2 y 5, y el resultado arriba.
+  - `Grimorio.*`: CA-HUD-3 y 4.
+  - `Instrucciones.Eco/Robar/Vacio/Anillo`: CA-INS-1 a 4.
+  - `Voice.CuatroAyudasNuevas`: CA-INS-5.
+  - `Vista.MapaDelMenu`: CA-MEN-1.
+  - Además, `TeclasNombranLaVista` y `Ayudas` ampliados.
+  - En total, 407 superados. En el rojo cayeron también 12 tests de voz del motor que cargan `frases.json`, porque se exigían las claves nuevas antes de añadirlas.
+- **Comprobado por el agente**: el juego, lanzado con `-game` a 1024x768 y capturado. El panel de estado no se monta, no sale el aviso "DisableAllScreenMessages", D y G funcionan, T oculta el panel de estado y la petición sale primera y grande en el turno del humano.
+- **Pendiente**:
+  - Los criterios manuales que faltan: 1920x1080, cambio de resolución en Opciones, Ayudas de Eco y anillo, vuelta al menú y comandos `Sb*`.
+  - Los textos de las cuatro Ayudas (siguen en "(pendiente)") y la revisión de `grimorio.json`.
+  - La frase del Warden sale cortada por la izquierda a 1024x768 (ya pasaba antes; `TODO(R-HUD-3)`).
+  - Renombrar con Rider `DebugTextToggleKey`, `bDebugTextHidden` y `ToggleDebugText`.
+- **Proceso**: unos 55 min. Preguntas que pararon al agente: 1 (el plan, con nueve dudas). Correcciones tras fusionar: las anota el autor. Build a la primera: no (un include y un nombre que tapaba un miembro). Tests: sí, en verde a la primera tras implementar.
+
 ## S-026. El anillo: el jugador humano juega sus pruebas de habilidad (6/11/2026, rama `story/S-026-el-anillo`, base `main`)
 
 - **Qué se pidió**: la versión mínima del minijuego del GDD 09, el anillo, entre el motor y el jugador humano. Abarca las cinco pruebas (Fuente de un Olvidado, Prueba del Warden, escape del Vacío, duelo y desafío final), con clic izquierdo y los valores iniciales del GDD en datos. Los dummies siguen al azar y un interruptor (`bHumanPlaysSkillTrials`) devuelve el juego de antes. `TurnRules` y `DuelRules` no se tocan.

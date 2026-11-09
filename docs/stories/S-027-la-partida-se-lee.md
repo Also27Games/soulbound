@@ -13,7 +13,7 @@ El test de usabilidad (noviembre de 2026) ha dado tres cosas que esta story arre
 
 Decidido por el autor el 9/11/2026:
 
-- El HUD de estado pasa a **paneles Slate** que escalan con la altura de la pantalla, como la leyenda y la crónica. Lo que es para el jugador se queda a la vista; lo que es de depuración (semilla, tiempo, ronda, evaluación del Warden, insolencias, paso a paso) va a un panel aparte, **oculto por defecto**, que se abre con **F1**.
+- El HUD de estado pasa a **paneles Slate** que escalan con la altura de la pantalla, como la leyenda y la crónica. Lo que es para el jugador se queda a la vista; lo que es de depuración (semilla, tiempo, ronda, evaluación del Warden, insolencias, paso a paso) va a un panel aparte, **oculto por defecto**, que se abre con **D** (decisión del autor del 9/11/2026, en el plan de la story: F1 es una tecla de depuración del propio Unreal; antes decía F1).
 - **El Grimorio**: la tecla **G** abre un panel con los cuatro asientos: Elegido, afinidad, runas y el poder que da cada runa, y poderes activos. Los textos de afinidades y poderes salen de datos.
 - **Cuatro Ayudas nuevas** del Warden: al quedar como Eco al acabar la carrera, la primera vez que se puede robar, al entrar en el Vacío, y la primera vez que se abre el anillo. Los textos los escribe el autor; la story deja las claves con "(pendiente)" como en S-021.
 - **"Volver al menú" abre el mapa del menú principal**, el mismo que el menú de pausa de UGT, leído de un parámetro de configuración.
@@ -25,7 +25,7 @@ Decidido por el autor el 9/11/2026:
 ### Vista (`Soulbound`, `Presentation/`)
 
 - **R-HUD-1 (precisión). Panel de estado.** Un panel Slate arriba a la izquierda (`SStatusPanel`, nombre propuesto; patrón de `SLegendPanel`) sustituye a las líneas 0, 1, 3, 6, 8, 9, 10, 11, 12 y 13 de `ShowText`: fase de la partida y prólogo, tirada y reloj de turno, Sellos activos, carrera, la petición al jugador (`ChoicePrompt`), trilero, duelo, evento del Warden, Noche de los Ecos y Oráculo. Mismo contenido y mismos colores que hoy; solo cambia dónde y cómo se dibuja. La petición al jugador va la primera y con el tamaño mayor del panel.
-- **R-HUD-2 (precisión). Panel de depuración.** Un segundo panel (`SDebugPanel`, nombre propuesto) con las líneas 2, 4, 5 y 7: paso a paso, evaluación del Warden, semilla y tiempo, asientos e insolencias. Oculto al empezar; **F1** lo muestra y lo oculta. `ShowText` y `AddOnScreenDebugMessage` dejan de usarse en la vista: el aviso de Unreal desaparece solo. Las respuestas de los comandos `Sb*` del controlador (`Say`) no cambian: solo salen cuando alguien escribe un comando.
+- **R-HUD-2 (precisión). Panel de depuración.** Un segundo panel (`SDebugPanel`, nombre propuesto) con las líneas 2, 4, 5 y 7: paso a paso, evaluación del Warden, semilla y tiempo, asientos e insolencias. Oculto al empezar; **D** lo muestra y lo oculta. `ShowText` y `AddOnScreenDebugMessage` dejan de usarse en la vista: el aviso de Unreal desaparece solo. Las respuestas de los comandos `Sb*` del controlador (`Say`) no cambian: solo salen cuando alguien escribe un comando.
 - **R-HUD-3 (precisión). Escala.** El tamaño de fuente de todos los paneles (estado, depuración, leyenda, crónica y Grimorio) se calcula a partir de la altura del viewport: `PanelFontSize` pasa a ser el tamaño a 1080 píxeles de alto y se escala en proporción, con un mínimo en Config (`PanelMinFontSize`, valor inicial 9). El ancho de los paneles de la derecha, igual. Se recalcula al cambiar la resolución desde el menú.
 - **R-HUD-4. El Grimorio.** La tecla **G** muestra y oculta un panel centrado (`SGrimoirePanel`, nombre del glosario) con una fila por asiento: número y si es humano; Eco o Elegido, con el nombre del Elegido y su Dominio; la afinidad, con su nombre y una frase de qué hace; las seis runas, con la cantidad que tiene de cada una y el poder que le da cada una según su mapa, marcando las activas; y los poderes activos. Mientras está abierto, la partida sigue (no es pausa) y los clics sobre el tablero no cuentan. **H** oculta también el Grimorio. Los textos de afinidades y poderes se leen de `Content/Data/Textos/grimorio.json` (nombre propuesto): una frase por afinidad (`EAffinity`) y una por poder (`EPower`); si falta el archivo o una clave, el panel enseña el nombre del enumerado y lo dice en el log, como hace `HowToPlayLibrary`.
 - **R-HUD-5 (precisión). Lo que sale del panel de estado se construye con funciones puras** en `Presentation/StatusText.h` (nombre propuesto, junto a `EventText.h`): dado el estado de la partida y qué asiento es el humano, devuelven las líneas del panel de estado, las del de depuración y las filas del Grimorio, como texto y color. Sin actor, sin mundo, con tests.
@@ -57,7 +57,7 @@ Automáticos, en `Soulbound`, sin mundo (`Private/Tests/StatusTextTest.cpp`, nom
 Manuales, por el autor, en PIE y en una build a 1024x768 y a 1920x1080, con captura:
 
 - A 1024x768 ninguna línea del panel de estado se monta con otra ni con la frase del Warden, y no aparece el aviso de Unreal de los mensajes en pantalla.
-- F1 muestra el panel de depuración con la semilla; otra vez F1 lo oculta. Al empezar, no está.
+- D muestra el panel de depuración con la semilla; otra vez D lo oculta. Al empezar, no está.
 - G abre el Grimorio con los cuatro asientos y sus textos de afinidad y poder; G o H lo cierran; con él abierto, un clic en el tablero no mueve la ficha.
 - Al cambiar la resolución en Opciones › Vídeo, los paneles cambian de tamaño sin reiniciar.
 - Al acabar la carrera como Eco, el Warden dice la ayuda `instruccion:eco`; con "Ayudas: Nunca", no.
@@ -72,9 +72,9 @@ Manuales, por el autor, en PIE y en una build a 1024x768 y a 1920x1080, con capt
 - `ChoicePrompt`, `ShellGameLine` y los textos de evento y duelo ya existen en `EventText`; el panel los usa, no los duplica.
 - El Grimorio lee `FMatchState::Elects` (`FElectsTable`) y `FSeatState::Runes`; `IsPowerActive` y `GetActivePowers` (`Match/RuneRules.h`) dicen qué está activo. Nada nuevo en el motor para esto.
 - Los tres momentos nuevos tocan `SoulboundCore` solo en el enumerado; su detección vive en `FInstructionTracker` (presentación). Si el cargador de frases o `ShouldTeach` necesitan algo más que la clave, es duda para el autor.
-- `G` y `F1` están libres (las teclas usadas: C, L, H, T, R, números, espacio, clics). Van en el controlador del spike como las demás, con su línea en `SbHelp`.
+- `G` y `D` están libres (las teclas usadas: C, L, H, T, R, números, espacio, clics). Van en el controlador del spike como las demás, con su línea en `SbHelp`.
 - Tests primero, en rojo. Los paneles solo tienen criterio manual.
-- Al cerrar: la leyenda del HUD y el README (sección "Jugar la build", teclas) mencionan G y F1; la línea de teclas del final de `Content/Data/Textos/como-se-juega.md` también.
+- Al cerrar: la leyenda del HUD y el README (sección "Jugar la build", teclas) mencionan G y D; la línea de teclas del final de `Content/Data/Textos/como-se-juega.md` también.
 
 ## Fuera de esta story
 
