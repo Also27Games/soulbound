@@ -2388,8 +2388,9 @@ FRingPanelModel ABoardViewActor::RingPanelModel() const
 		Model.bVisible = true;
 		Model.bShowRing = true;
 		Model.Title = LastRingTitle;
+		// En el anuncio, la instrucción bajo el título; los pulsos que vienen ya se ven en las marcas de abajo.
 		Model.Counter = Run->IsAnnouncing(Now)
-			? FString::Printf(TEXT("%d pulsos | clic izquierdo cuando el anillo toque la runa"), Total)
+			? FString(TEXT("Haz clic cuando el anillo toque la runa"))
 			: FString::Printf(TEXT("pulso %d de %d"), FMath::Min(Done.Num() + 1, Total), Total);
 		Model.CloseFraction = Run->CloseFraction(Now);
 		Model.ZoneFraction = Run->Sequence.CloseSeconds > 0.0 ? 0.5 * Run->Sequence.SweetZoneSeconds / Run->Sequence.CloseSeconds : 0.0;
