@@ -206,4 +206,50 @@ bool FChronicleOracleStillOneLineTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FChronicleRingSeatTest, "Soulbound.Game.Presentation.Cronica.AnilloDelHumano", ChronicleTestFlags)
+
+bool FChronicleRingSeatTest::RunTest(const FString& Parameters)
+{
+	// S-026 (decisión del autor del 06/11/2026): con el interruptor encendido, los resultados de las pruebas y los duelos del asiento
+	// humano dicen "con el anillo"; los de los dummies, y todos con el interruptor apagado (RingSeat INDEX_NONE), "al azar", como antes.
+	const FBoardState Board;
+	const int32 Human = 0;
+	const int32 Dummy = 2;
+	const TArray<FMatchEvent> Results = {
+		MakeEvent(EMatchEventType::SkillMinigamePassed, Human, 1),
+		MakeEvent(EMatchEventType::SkillMinigameFailed, Human, 1),
+		MakeEvent(EMatchEventType::WardenTrialPassed, Human, 1),
+		MakeEvent(EMatchEventType::WardenTrialFailed, Human, 2),
+		MakeEvent(EMatchEventType::VoidEscapePassed, Human, 0),
+		MakeEvent(EMatchEventType::VoidEscapeFailed, Human, 0),
+		MakeEvent(EMatchEventType::FinalChallengeFailed, Human, 3),
+		MakeEvent(EMatchEventType::MatchWon, Human, INDEX_NONE),
+	};
+	for (const FMatchEvent& HumanEvent : Results)
+	{
+		const FString WithRing = Soulbound::Presentation::DescribeEvent(HumanEvent, Board, nullptr, nullptr, Human);
+		TestTrue(FString::Printf(TEXT("Humano con anillo: «%s» dice con el anillo"), *WithRing), WithRing.Contains(TEXT("con el anillo")));
+		TestFalse(FString::Printf(TEXT("Humano con anillo: «%s» no dice al azar"), *WithRing), WithRing.Contains(TEXT("al azar")));
+		const FString Off = Soulbound::Presentation::DescribeEvent(HumanEvent, Board);
+		TestTrue(FString::Printf(TEXT("Interruptor apagado: «%s» dice al azar"), *Off), Off.Contains(TEXT("al azar")) && !Off.Contains(TEXT("anillo")));
+		FMatchEvent DummyEvent = HumanEvent;
+		DummyEvent.Seat = Dummy;
+		const FString DummyText = Soulbound::Presentation::DescribeEvent(DummyEvent, Board, nullptr, nullptr, Human);
+		TestTrue(FString::Printf(TEXT("Dummy: «%s» sigue al azar"), *DummyText), DummyText.Contains(TEXT("al azar")) && !DummyText.Contains(TEXT("anillo")));
+	}
+
+	// El duelo: con el humano dentro, gane o pierda, con el anillo; entre dummies, al azar.
+	FMatchEvent HumanLoses = MakeEvent(EMatchEventType::DuelWon, Dummy, 0);
+	HumanLoses.OtherSeat = Human;
+	TestTrue(TEXT("Duelo que pierde el humano: con el anillo"), Soulbound::Presentation::DescribeEvent(HumanLoses, Board, nullptr, nullptr, Human).Contains(TEXT("con el anillo")));
+	FMatchEvent HumanWins = MakeEvent(EMatchEventType::DuelWon, Human, 1);
+	HumanWins.OtherSeat = Dummy;
+	TestTrue(TEXT("Duelo que gana el humano: con el anillo"), Soulbound::Presentation::DescribeEvent(HumanWins, Board, nullptr, nullptr, Human).Contains(TEXT("con el anillo")));
+	FMatchEvent Dummies = MakeEvent(EMatchEventType::DuelWon, Dummy, 0);
+	Dummies.OtherSeat = 3;
+	TestTrue(TEXT("Duelo entre dummies: al azar"), Soulbound::Presentation::DescribeEvent(Dummies, Board, nullptr, nullptr, Human).Contains(TEXT("al azar")));
+	TestTrue(TEXT("Duelo del humano con el interruptor apagado: al azar"), Soulbound::Presentation::DescribeEvent(HumanWins, Board).Contains(TEXT("al azar")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

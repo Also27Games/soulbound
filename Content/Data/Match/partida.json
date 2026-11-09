@@ -21,5 +21,19 @@
   "shortChoiceClockSeconds": 6,
   "wardenTrialDifficulty": "normal",
   "wardenDuelPerformance": 0.75,
-  "finalChallengeDifficulty": "normal"
+  "finalChallengeDifficulty": "normal",
+  "ring": {
+    "pulseGapMinSeconds": 0.8,
+    "pulseGapMaxSeconds": 2,
+    "easy": { "closeSeconds": 1.6, "sweetZone": 0.25, "passThreshold": 0.4 },
+    "normal": { "closeSeconds": 1.2, "sweetZone": 0.18, "passThreshold": 0.55 },
+    "hard": { "closeSeconds": 0.9, "sweetZone": 0.12, "passThreshold": 0.65 },
+    "forgottenSourcePulses": 2,
+    "wardenTrialPulses": 3,
+    "voidEscapePulses": 3,
+    "duelPulses": 3,
+    "duelDifficulty": "normal",
+    "finalChallengePulses": 6,
+    "finalChallengeSweetZone": 0.2
+  }
 }

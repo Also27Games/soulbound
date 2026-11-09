@@ -6,6 +6,7 @@
 #include "Match/TurnRules.h"
 #include "StepClock.h"
 #include "Curtain.h"
+#include "RingTrialRun.h"
 #include "Math/RandomStream.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "Warden/WardenBrain.h"
@@ -27,6 +28,32 @@ struct FDebugEditOutcome
 
 /** Aviso de que el estado de la partida ha cambiado. Lo lanza solo el anfitrión de partida. */
 DECLARE_MULTICAST_DELEGATE(FOnMatchStateChanged);
+
+/**
+ * Cómo acabó una prueba del anillo del humano (S-026; nombre propuesto en el PR), para que la vista lo enseñe un momento. Es lo que el
+ * anfitrión entregó al motor por el humano, también si lo fijó SbTrial o SbDuel.
+ */
+struct FRingOutcome
+{
+	/** La prueba que era; None si era un duelo. */
+	ESkillTrial Trial = ESkillTrial::None;
+	/** Si era un duelo: entonces vale Performance y no bPassed. */
+	bool bDuel = false;
+	/** Si se superó (prueba de habilidad). */
+	bool bPassed = false;
+	/** Rendimiento en el duelo, de 0 a 1. */
+	double Performance = 0.0;
+	/** Si el resultado lo fijó un comando de depuración (SbTrial, SbDuel) en vez del anillo. */
+	bool bForced = false;
+	/** Precisiones de los pulsos jugados; con un resultado fijado, las que hubiera hasta entonces. */
+	TArray<double> Precisions;
+};
+
+/** Se abre una prueba del anillo del humano (S-026). */
+DECLARE_MULTICAST_DELEGATE(FOnRingOpened);
+
+/** Se cierra la prueba del anillo del humano (S-026): con su resultado si se entregó, o sin él si se descartó (la fase cambió). */
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnRingClosed, const TOptional<FRingOutcome>& /*Outcome*/);
 
 /**
  * Anfitrión de partida (glosario "MatchHost", nombre propuesto en S-005): UWorldSubsystem, solo en el servidor y
@@ -165,6 +192,36 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Partida")
 	bool IsWardenSpeaking() const { return bWardenSpeaking; }
+
+	/** Si el humano juega sus pruebas con el anillo (S-026, bHumanPlaysSkillTrials). Apagado, las resuelve un dummy al azar, como antes. */
+	bool HumanPlaysSkillTrials() const { return bHumanPlaysSkillTrials; }
+
+	/**
+	 * La prueba del anillo del humano en curso (S-026), en solo lectura, o nullptr si no hay. Su tiempo es el reloj real
+	 * (FPlatformTime::Seconds): la vista pinta con él.
+	 */
+	const FRingTrialRun* GetRingRun() const { return HumanRing.IsSet() ? &HumanRing->Run : nullptr; }
+
+	/** Qué prueba juega el humano con el anillo: None si no hay o si es un duelo (IsRingDuel). */
+	ESkillTrial GetRingTrial() const { return HumanRing.IsSet() ? HumanRing->Trial : ESkillTrial::None; }
+
+	/** Si la prueba del anillo en curso es un duelo. */
+	bool IsRingDuel() const { return HumanRing.IsSet() && HumanRing->bDuel; }
+
+	/** Dificultad con que se juega la prueba del anillo en curso; normal si no hay. */
+	ESkillDifficulty GetRingDifficulty() const { return HumanRing.IsSet() ? HumanRing->Params.Difficulty : ESkillDifficulty::Normal; }
+
+	/**
+	 * Pulsación del humano en el anillo (S-026), fechada con el reloj real del evento de entrada (R-MIN-18): PressSeconds. Sin prueba en
+	 * curso no hace nada. Devuelve si contó (FRingTrialRun::Press); el resultado se entrega al motor en el siguiente avance.
+	 */
+	bool PressRing(double PressSeconds);
+
+	/** Se lanza al abrir una prueba del anillo del humano (S-026). */
+	FOnRingOpened OnRingOpened;
+
+	/** Se lanza al cerrarla, con su resultado o sin él si se descartó (S-026). */
+	FOnRingClosed OnRingClosed;
 
 #if !UE_BUILD_SHIPPING
 	// Herramientas de depuración (S-011, glosario "DebugEdit"). Son las únicas vías por las que los comandos Sb… cambian
@@ -320,6 +377,21 @@ public:
 	UPROPERTY(Config, BlueprintGetter = IsStepMode, BlueprintSetter = SetStepMode, Category = "Partida")
 	bool bStepMode = false;
 
+	/**
+	 * El humano juega sus pruebas de habilidad y sus duelos con el anillo (S-026, decisión del autor del 06/11/2026). Valor inicial true
+	 * (Config/DefaultGame.ini). En false, como antes de S-026: un dummy (HumanTrialDecider) responde por el humano al azar y los textos
+	 * dicen "resuelto al azar". Los dummies juegan siempre con su decisor.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Partida")
+	bool bHumanPlaysSkillTrials = true;
+
+	/**
+	 * Segundos del anuncio del anillo (S-026): desde que se abre la prueba hasta que empieza el primer pulso, con el nombre del uso en
+	 * pantalla. Valor inicial 1,5 (Config/DefaultGame.ini). Cero o negativo: sin anuncio.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Partida")
+	float RingAnnounceSeconds = 1.5f;
+
 	/** Cada cuántos segundos reales se avanza la máquina de turnos. Valor inicial 0,1. */
 	UPROPERTY(Config)
 	float AdvanceIntervalSeconds = 0.1f;
@@ -381,11 +453,59 @@ private:
 		/** Si lo que espera es una consulta del Oráculo (S-017), y si la rechazará (Tifón; los dummies nunca). */
 		bool bOracle = false;
 		bool bRefuseOracle = false;
+		/**
+		 * Si responde por el humano con el anillo (S-026): entonces lo de arriba se entrega cuando el anillo se cierra (HumanRing vacío),
+		 * no a su hora. Con un resultado fijado antes de empezar, el anillo no llega a abrirse.
+		 */
+		bool bRing = false;
 	};
+
+	/** La prueba del anillo del humano en curso (S-026): la prueba sin mundo y qué uso es. */
+	struct FHumanRing
+	{
+		FRingTrialRun Run;
+		FRingTrialParams Params;
+		ESkillTrial Trial = ESkillTrial::None;
+		bool bDuel = false;
+		/** Cuántos pulsos resueltos tienen ya su línea en el log (LogRingPulses). */
+		int32 LoggedPulses = 0;
+	};
+
+	/**
+	 * Abre una prueba del anillo del humano (S-026) con Params: sortea su semilla con RingRng, la secuencia empieza tras el anuncio
+	 * (RingAnnounceSeconds) en el reloj real, y avisa (OnRingOpened). Trial: la prueba, o None con bDuel.
+	 */
+	void OpenRing(const FRingTrialParams& Params, ESkillTrial Trial, bool bDuel);
+
+	/** Cierra la prueba del anillo, si la hay, y avisa con Outcome (OnRingClosed); sin Outcome es que se descarta. Why va al log. */
+	void CloseRing(const TOptional<FRingOutcome>& Outcome, const TCHAR* Why);
+
+	/**
+	 * Avanza el anillo del humano en el reloj real y, si ha terminado, pone su resultado en Pending (superada o no, o el rendimiento del
+	 * humano en el duelo) y lo cierra. Devuelve si está cerrado: entonces lo de Pending se puede entregar.
+	 */
+	bool SettleRing();
+
+	/**
+	 * Deja en el log una línea por cada pulso resuelto que aún no la tiene, en orden: "Anillo: pulso k de N, precisión p.", con
+	 * " (vencido sin pulsar)" si venció sin pulsación. Así el registro de una prueba tiene siempre una línea por pulso. bLastPressed: si el
+	 * último pulso resuelto lo resolvió una pulsación; los demás nuevos vencieron.
+	 */
+	void LogRingPulses(bool bLastPressed);
+
+	/** El resultado del anillo según su uso: prueba (bPassed) o duelo (Performance), con las precisiones. */
+	FRingOutcome MakeRingOutcome(bool bForced) const;
 
 	FMatchState State;
 	FRandomStream MatchRng;
 	FRandomStream DeciderRng;
+	/**
+	 * Sorteo de las secuencias del anillo del humano (S-026): semilla de la partida + 5, porque la simulación ya usa + 1 a + 4 (decisión
+	 * del autor del 06/11/2026). No toca los dados, ni los dummies, ni el Warden.
+	 */
+	FRandomStream RingRng;
+	/** La prueba del anillo del humano en curso (S-026). Vacía si no hay. */
+	TOptional<FHumanRing> HumanRing;
 	TArray<TSharedPtr<IDecider>> Deciders;
 	/**
 	 * Responde por el asiento humano lo que aún no tiene interfaz: las pruebas de habilidad (S-008) y el rendimiento en un

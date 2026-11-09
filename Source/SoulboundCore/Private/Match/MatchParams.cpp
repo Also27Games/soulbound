@@ -67,6 +67,145 @@ namespace
 		}
 		return true;
 	}
+
+	/** Lee los tres números de una dificultad del anillo (S-026) del objeto Field de Ring. Devuelve el motivo si falla, o vacío. */
+	FString ReadRingDifficulty(const FJsonObject& Ring, const TCHAR* Field, FRingDifficultyParams& Out)
+	{
+		const TSharedPtr<FJsonObject>* Tier = nullptr;
+		if (!Ring.TryGetObjectField(Field, Tier) || !Tier || !Tier->IsValid())
+		{
+			return FString::Printf(TEXT("El parámetro \"ring.%s\" falta o no es un objeto."), Field);
+		}
+		const TPair<const TCHAR*, double*> Numbers[] = {
+			{TEXT("closeSeconds"), &Out.CloseSeconds},
+			{TEXT("sweetZone"), &Out.SweetZone},
+			{TEXT("passThreshold"), &Out.PassThreshold},
+		};
+		for (const TPair<const TCHAR*, double*>& Number : Numbers)
+		{
+			if (!ReadNumberField(**Tier, Number.Key, *Number.Value))
+			{
+				return FString::Printf(TEXT("El parámetro \"ring.%s.%s\" falta o no es un número."), Field, Number.Key);
+			}
+		}
+		return FString();
+	}
+
+	/** Lee el bloque "ring" del anillo (S-026) de Root. Devuelve el motivo si falta o tiene un campo mal, o vacío si se leyó entero. */
+	FString ReadRing(const FJsonObject& Root, FRingParams& Out)
+	{
+		const TSharedPtr<FJsonObject>* RingObject = nullptr;
+		if (!Root.TryGetObjectField(TEXT("ring"), RingObject) || !RingObject || !RingObject->IsValid())
+		{
+			return TEXT("S-026: el bloque del anillo \"ring\" falta o no es un objeto.");
+		}
+		const FJsonObject& Ring = **RingObject;
+		const TPair<const TCHAR*, double*> Numbers[] = {
+			{TEXT("pulseGapMinSeconds"), &Out.PulseGapMinSeconds},
+			{TEXT("pulseGapMaxSeconds"), &Out.PulseGapMaxSeconds},
+			{TEXT("finalChallengeSweetZone"), &Out.FinalChallengeSweetZone},
+		};
+		for (const TPair<const TCHAR*, double*>& Number : Numbers)
+		{
+			if (!ReadNumberField(Ring, Number.Key, *Number.Value))
+			{
+				return FString::Printf(TEXT("El parámetro \"ring.%s\" falta o no es un número."), Number.Key);
+			}
+		}
+		const TPair<const TCHAR*, int32*> Counts[] = {
+			{TEXT("forgottenSourcePulses"), &Out.ForgottenSourcePulses},
+			{TEXT("wardenTrialPulses"), &Out.WardenTrialPulses},
+			{TEXT("voidEscapePulses"), &Out.VoidEscapePulses},
+			{TEXT("duelPulses"), &Out.DuelPulses},
+			{TEXT("finalChallengePulses"), &Out.FinalChallengePulses},
+		};
+		for (const TPair<const TCHAR*, int32*>& Count : Counts)
+		{
+			if (!ReadIntegerField(Ring, Count.Key, *Count.Value))
+			{
+				return FString::Printf(TEXT("El parámetro \"ring.%s\" falta o no es un entero."), Count.Key);
+			}
+		}
+		const TPair<const TCHAR*, FRingDifficultyParams*> Tiers[] = {
+			{TEXT("easy"), &Out.Easy},
+			{TEXT("normal"), &Out.Normal},
+			{TEXT("hard"), &Out.Hard},
+		};
+		for (const TPair<const TCHAR*, FRingDifficultyParams*>& Tier : Tiers)
+		{
+			const FString Reason = ReadRingDifficulty(Ring, Tier.Key, *Tier.Value);
+			if (!Reason.IsEmpty())
+			{
+				return Reason;
+			}
+		}
+		FString DuelDifficulty;
+		if (!Ring.TryGetStringField(TEXT("duelDifficulty"), DuelDifficulty) || !ParseDifficulty(DuelDifficulty, Out.DuelDifficulty))
+		{
+			return TEXT("El parámetro \"ring.duelDifficulty\" falta o no es \"easy\", \"normal\" o \"hard\".");
+		}
+		return FString();
+	}
+
+	/** Comprueba el bloque del anillo (S-026). Devuelve el motivo del rechazo, o vacío si es válido. */
+	FString ValidateRing(const FRingParams& Ring)
+	{
+		// R-MIN-3 (decisión del autor del 06/11/2026): el hueco mínimo mayor que cero y el máximo no menor que el mínimo.
+		if (!(Ring.PulseGapMinSeconds > 0.0))
+		{
+			return FString::Printf(TEXT("R-MIN-3: el hueco mínimo entre pulsos del anillo debe ser mayor que cero (es %g)."), Ring.PulseGapMinSeconds);
+		}
+		if (!(Ring.PulseGapMaxSeconds >= Ring.PulseGapMinSeconds))
+		{
+			return FString::Printf(TEXT("R-MIN-3: el hueco máximo entre pulsos del anillo (%g) no puede ser menor que el mínimo (%g)."),
+				Ring.PulseGapMaxSeconds, Ring.PulseGapMinSeconds);
+		}
+		// R-MIN-6: por dificultad, cierre positivo, zona buena en (0, 1] y umbral en [0, 1].
+		const TPair<const TCHAR*, const FRingDifficultyParams*> Tiers[] = {
+			{TEXT("fácil"), &Ring.Easy},
+			{TEXT("normal"), &Ring.Normal},
+			{TEXT("difícil"), &Ring.Hard},
+		};
+		for (const TPair<const TCHAR*, const FRingDifficultyParams*>& Tier : Tiers)
+		{
+			if (!(Tier.Value->CloseSeconds > 0.0))
+			{
+				return FString::Printf(TEXT("R-MIN-6: el cierre del anillo en %s debe ser mayor que cero (es %g)."), Tier.Key, Tier.Value->CloseSeconds);
+			}
+			if (!(Tier.Value->SweetZone > 0.0 && Tier.Value->SweetZone <= 1.0))
+			{
+				return FString::Printf(TEXT("R-MIN-6: la zona buena del anillo en %s debe ser mayor que cero y no mayor que 1 (es %g)."), Tier.Key, Tier.Value->SweetZone);
+			}
+			if (!(Tier.Value->PassThreshold >= 0.0 && Tier.Value->PassThreshold <= 1.0))
+			{
+				return FString::Printf(TEXT("R-MIN-4: el umbral del anillo en %s debe estar entre 0 y 1 (es %g)."), Tier.Key, Tier.Value->PassThreshold);
+			}
+		}
+		if (!(Ring.FinalChallengeSweetZone > 0.0 && Ring.FinalChallengeSweetZone <= 1.0))
+		{
+			return FString::Printf(TEXT("R-MIN-12: la zona buena propia del desafío final debe ser mayor que cero y no mayor que 1 (es %g)."), Ring.FinalChallengeSweetZone);
+		}
+		// R-MIN-8: cada uso, al menos un pulso.
+		const TPair<const TCHAR*, int32> Uses[] = {
+			{TEXT("la Fuente de un Dominio Olvidado"), Ring.ForgottenSourcePulses},
+			{TEXT("la Prueba del Warden"), Ring.WardenTrialPulses},
+			{TEXT("el escape del Vacío"), Ring.VoidEscapePulses},
+			{TEXT("el duelo"), Ring.DuelPulses},
+			{TEXT("el desafío final"), Ring.FinalChallengePulses},
+		};
+		for (const TPair<const TCHAR*, int32>& Use : Uses)
+		{
+			if (Use.Value < 1)
+			{
+				return FString::Printf(TEXT("R-MIN-8: el anillo en %s necesita al menos un pulso (son %d)."), Use.Key, Use.Value);
+			}
+		}
+		if (!IsKnownDifficulty(Ring.DuelDifficulty))
+		{
+			return TEXT("R-MIN-8: la dificultad del anillo en el duelo debe ser fácil, normal o difícil.");
+		}
+		return FString();
+	}
 }
 
 namespace Soulbound::Rules
@@ -187,6 +326,12 @@ namespace Soulbound::Rules
 		{
 			return Reject(EMatchParamsError::MalformedData, TEXT("R-VIC-1: la dificultad del desafío final debe ser fácil, normal o difícil."));
 		}
+		// S-026: el anillo.
+		const FString RingReason = ValidateRing(Params.Ring);
+		if (!RingReason.IsEmpty())
+		{
+			return Reject(EMatchParamsError::MalformedData, RingReason);
+		}
 		return FMatchParamsLoadResult();
 	}
 
@@ -265,6 +410,11 @@ namespace Soulbound::Rules
 		if (!Root->TryGetStringField(TEXT("finalChallengeDifficulty"), FinalDifficulty) || !ParseDifficulty(FinalDifficulty, Params.FinalChallengeDifficulty))
 		{
 			return Reject(EMatchParamsError::MalformedData, TEXT("El parámetro \"finalChallengeDifficulty\" falta o no es \"easy\", \"normal\" o \"hard\"."));
+		}
+		const FString RingReason = ReadRing(*Root, Params.Ring);
+		if (!RingReason.IsEmpty())
+		{
+			return Reject(EMatchParamsError::MalformedData, RingReason);
 		}
 
 		FMatchParamsLoadResult Result = ValidateMatchParams(Params);

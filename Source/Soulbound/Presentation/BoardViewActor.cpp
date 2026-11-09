@@ -18,6 +18,7 @@
 #include "Match/VictoryRules.h"
 #include "Match/WardenEventRules.h"
 #include "PresentationShapes.h"
+#include "RingPanel.h"
 #include "Warden/WardenBrain.h"
 #include "SeatTokenActor.h"
 #include "Camera/CameraActor.h"
@@ -35,6 +36,9 @@
 #include "Engine/PostProcessVolume.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Framework/Application/IInputProcessor.h"
+#include "Framework/Application/SlateApplication.h"
+#include "HAL/PlatformTime.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Materials/MaterialInterface.h"
@@ -49,6 +53,57 @@
 
 namespace
 {
+	/**
+	 * Entrada del anillo (S-026): preprocesador de Slate que fecha cada clic izquierdo con el reloj real en cuanto Slate lo recibe, antes
+	 * del fotograma del juego (R-MIN-18; Unreal no da la hora del mensaje del sistema, así que es lo más temprano que se puede fechar), y
+	 * se lo pasa al anfitrión. Nunca consume el clic (condición del autor del 06/11/2026). Con el juego en pausa no pulsa: el menú de
+	 * pausa recibe sus clics y los pulsos del anillo, que corren en tiempo real, se pierden.
+	 */
+	class FRingInputProcessor final : public IInputProcessor
+	{
+	public:
+		explicit FRingInputProcessor(TWeakObjectPtr<UMatchHostSubsystem> InHost) : Host(InHost) {}
+
+		virtual void Tick(const float DeltaTime, FSlateApplication& SlateApp, TSharedRef<ICursor> Cursor) override {}
+
+		virtual bool HandleMouseButtonDownEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) override
+		{
+			Press(MouseEvent);
+			return false;
+		}
+
+		// El segundo clic de dos rápidos llega como doble clic, no como pulsación: también cuenta.
+		virtual bool HandleMouseButtonDoubleClickEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) override
+		{
+			Press(MouseEvent);
+			return false;
+		}
+
+		virtual const TCHAR* GetDebugName() const override { return TEXT("SoulboundRingInput"); }
+
+	private:
+		void Press(const FPointerEvent& MouseEvent) const
+		{
+			if (MouseEvent.GetEffectingButton() != EKeys::LeftMouseButton)
+			{
+				return;
+			}
+			const double PressSeconds = FPlatformTime::Seconds();
+			UMatchHostSubsystem* HostPtr = Host.Get();
+			const UWorld* World = HostPtr ? HostPtr->GetWorld() : nullptr;
+			if (!HostPtr || (World && World->IsPaused()))
+			{
+				return;
+			}
+			HostPtr->PressRing(PressSeconds);
+		}
+
+		TWeakObjectPtr<UMatchHostSubsystem> Host;
+	};
+
+	/** Entradas del anillo registradas en Slate ahora, en todo el proceso: el log lo dice para comprobar que ninguna queda colgada. */
+	int32 LiveRingInputs = 0;
+
 	// Medidas de las formas de respaldo que no son parámetros (de S-005 a S-007), por 6,3/175 desde S-019: la mesa mide lo
 	// que mide el kit. El grosor de la losa es LayoutParams.SlabTop.
 	constexpr float EdgeThickness = 0.15f;
@@ -426,9 +481,13 @@ namespace
 	 * Línea del duelo (S-012): mientras dura, quién reta a quién, de dónde sale el reto y quién ha rendido ya; resuelto, el
 	 * resultado del último duelo del turno en curso, hasta que acabe. Vacía si el turno no tiene duelo. Solo lee el estado.
 	 */
-	FString DuelLine(const FMatchState& State, int32 HumanSeat)
+	FString DuelLine(const FMatchState& State, int32 HumanSeat, bool bHumanRing)
 	{
 		const FDuelState& Duel = State.Duel;
+		// S-026: con el interruptor encendido, el duelo del humano se juega con el anillo; el de dos dummies sigue al azar. Apagado, los
+		// textos de siempre.
+		const bool bRingDuel = bHumanRing && Duel.IsParticipant(HumanSeat);
+		const TCHAR* const How = bRingDuel ? TEXT("con el anillo: clic izquierdo") : bHumanRing ? TEXT("resuelto al azar") : TEXT("resuelto al azar (sin minijuego aún)");
 		auto Who = [HumanSeat](int32 Seat) { return Seat == HumanSeat ? FString::Printf(TEXT("%d (tú)"), Seat) : FString::FromInt(Seat); };
 		if (Duel.IsActive())
 		{
@@ -436,18 +495,18 @@ namespace
 			// S-015: el Duelo contra el Warden (rinde un valor fijo) y el Duelo forzado de un evento, entre turnos.
 			if (Duel.bAgainstWarden)
 			{
-				return FString::Printf(TEXT("DUELO CONTRA EL WARDEN: el asiento %s se bate contra el Warden (rinde %.2f) por %s | %s | resuelto al azar (sin minijuego aún)"),
-					*Who(Duel.Challenged), Duel.ChallengerPerformance, Duel.bAllRunes ? TEXT("todas sus runas") : TEXT("una de sus runas"), Status(Duel.Challenged));
+				return FString::Printf(TEXT("DUELO CONTRA EL WARDEN: el asiento %s se bate contra el Warden (rinde %.2f) por %s | %s | %s"),
+					*Who(Duel.Challenged), Duel.ChallengerPerformance, Duel.bAllRunes ? TEXT("todas sus runas") : TEXT("una de sus runas"), Status(Duel.Challenged), How);
 			}
 			if (State.CurrentEvent.IsActive() && State.CurrentEvent.bWaitsForAction)
 			{
-				return FString::Printf(TEXT("DUELO FORZADO: el asiento %s reta al asiento %s por %s | retador %s, retado %s | resuelto al azar (sin minijuego aún)"),
+				return FString::Printf(TEXT("DUELO FORZADO: el asiento %s reta al asiento %s por %s | retador %s, retado %s | %s"),
 					*Who(Duel.Challenger), *Who(Duel.Challenged), Duel.bAllRunes ? TEXT("todas sus runas") : TEXT("una runa"),
-					Status(Duel.Challenger), Status(Duel.Challenged));
+					Status(Duel.Challenger), Status(Duel.Challenged), How);
 			}
-			return FString::Printf(TEXT("DUELO: el asiento %s reta al asiento %s%s | retador %s, retado %s | resuelto al azar (sin minijuego aún)"),
+			return FString::Printf(TEXT("DUELO: el asiento %s reta al asiento %s%s | retador %s, retado %s | %s"),
 				*Who(Duel.Challenger), *Who(Duel.Challenged), Duel.bFromDuelNode ? TEXT(" desde un Nodo de Duelo") : TEXT(""),
-				Status(Duel.Challenger), Status(Duel.Challenged));
+				Status(Duel.Challenger), Status(Duel.Challenged), How);
 		}
 		if (State.TurnPhase == ETurnPhase::BetweenTurns)
 		{
@@ -463,8 +522,9 @@ namespace
 			}
 			if (Event.Type == EMatchEventType::DuelWon)
 			{
-				return FString::Printf(TEXT("DUELO: gana el asiento %s al asiento %s, siendo el %s (resuelto al azar)"), *Who(Event.Seat), *Who(Event.OtherSeat),
-					Event.Value == 1 ? TEXT("retado") : TEXT("retador"));
+				const bool bRingResult = bHumanRing && (Event.Seat == HumanSeat || Event.OtherSeat == HumanSeat);
+				return FString::Printf(TEXT("DUELO: gana el asiento %s al asiento %s, siendo el %s (%s)"), *Who(Event.Seat), *Who(Event.OtherSeat),
+					Event.Value == 1 ? TEXT("retado") : TEXT("retador"), bRingResult ? TEXT("con el anillo") : TEXT("resuelto al azar"));
 			}
 		}
 		return FString();
@@ -623,6 +683,9 @@ void ABoardViewActor::Initialize(UMatchHostSubsystem* InHost)
 	Refresh();
 
 	ChangedHandle = InHost->OnMatchStateChanged.AddUObject(this, &ABoardViewActor::Refresh);
+	// S-026: el anillo del humano; la entrada se registra al abrirlo y se retira al cerrarlo.
+	RingOpenedHandle = InHost->OnRingOpened.AddUObject(this, &ABoardViewActor::HandleRingOpened);
+	RingClosedHandle = InHost->OnRingClosed.AddUObject(this, &ABoardViewActor::HandleRingClosed);
 	GetWorldTimerManager().SetTimer(HudTimer, this, &ABoardViewActor::TickHud, FMath::Max(HudIntervalSeconds, 0.05f), true, 0.f);
 }
 
@@ -631,7 +694,11 @@ void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	if (UMatchHostSubsystem* HostPtr = Host.Get())
 	{
 		HostPtr->OnMatchStateChanged.Remove(ChangedHandle);
+		HostPtr->OnRingOpened.Remove(RingOpenedHandle);
+		HostPtr->OnRingClosed.Remove(RingClosedHandle);
 	}
+	// S-026: ninguna entrada del anillo sobrevive a la vista (fin de PIE, viaje al menú), haya o no anillo abierto.
+	UnregisterRingInput();
 	GetWorldTimerManager().ClearTimer(HudTimer);
 	if (Overlay.IsValid())
 	{
@@ -665,6 +732,17 @@ void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 			}
 		}
 		ReturnToMenuOverlay.Reset();
+	}
+	if (RingOverlay.IsValid())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UGameViewportClient* Viewport = World->GetGameViewport())
+			{
+				Viewport->RemoveViewportWidgetContent(RingOverlay.ToSharedRef());
+			}
+		}
+		RingOverlay.Reset();
 	}
 	Super::EndPlay(EndPlayReason);
 }
@@ -1348,6 +1426,19 @@ void ABoardViewActor::BuildOverlay()
 			]
 		];
 	Viewport->AddViewportWidgetContent(ReturnToMenuOverlay.ToSharedRef(), 12);
+
+	// S-026: el panel del anillo, centrado en el hueco del tablero como el botón del final. No recibe clics: la entrada va por RingInput.
+	RingOverlay = SNew(SBox)
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		.Padding(FMargin(16.f, 0.f, PanelWidthPixels + 16.f, 0.f))
+		.Visibility_Lambda([this]() { return RingPanelModel().bVisible ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+		[
+			SNew(SRingPanel)
+			.FontSize(RingFontSize)
+			.Model([this]() { return RingPanelModel(); })
+		];
+	Viewport->AddViewportWidgetContent(RingOverlay.ToSharedRef(), 13);
 }
 
 void ABoardViewActor::RefreshChronicle(const FMatchState& State)
@@ -1357,6 +1448,9 @@ void ABoardViewActor::RefreshChronicle(const FMatchState& State)
 		return;
 	}
 	ChronicleLineCount = State.EventLog.Num();
+	// S-026: los resultados del humano dicen "con el anillo" si lo juega (interruptor encendido); los de los dummies, al azar.
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	const int32 RingSeat = HostPtr && HostPtr->HumanPlaysSkillTrials() ? HostPtr->GetHumanSeat() : INDEX_NONE;
 
 	// La más reciente primero; se conservan solo las últimas ChronicleMaxLines.
 	TArray<FChronicleLine> Lines;
@@ -1406,7 +1500,7 @@ void ABoardViewActor::RefreshChronicle(const FMatchState& State)
 		}
 		else
 		{
-			Text = Soulbound::Presentation::DescribeChronicleEvent(State, Index);
+			Text = Soulbound::Presentation::DescribeChronicleEvent(State, Index, RingSeat);
 		}
 		if (!Text.IsEmpty())
 		{
@@ -2036,28 +2130,33 @@ void ABoardViewActor::TickHud()
 		ShowText(0, FColor::Orange, FString::Printf(TEXT("El Warden habla: la mesa espera a que termine | teclas: %s"), *DescribeViewKeys()));
 	}
 
+	// S-026: con el interruptor encendido, la prueba del humano se juega con el anillo; la de un dummy sigue al azar. Apagado, como antes.
+	const bool bHumanRingTrial = HostPtr->HumanPlaysSkillTrials() && State.ActiveSeat == HostPtr->GetHumanSeat();
+	const TCHAR* const RingHow = TEXT("con el anillo: clic izquierdo, o con SbTrial");
 	if (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::FinalChallenge)
 	{
 		// Desafío final (S-018): el minijuego aún no existe; el humano lo resuelve al azar, o como fije SbTrial.
-		ShowText(1, SeatColor(State.ActiveSeat).ToFColor(true), FString::Printf(TEXT("DESAFÍO FINAL: el asiento %d juega en %s en vez de su turno, sin tirada, y espera el resultado (resuelto al azar, o con SbTrial)"),
-			State.ActiveSeat, *Soulbound::Presentation::DifficultyText(static_cast<int32>(State.PendingDifficulty))));
+		ShowText(1, SeatColor(State.ActiveSeat).ToFColor(true), FString::Printf(TEXT("DESAFÍO FINAL: el asiento %d juega en %s en vez de su turno, sin tirada, y espera el resultado (%s)"),
+			State.ActiveSeat, *Soulbound::Presentation::DifficultyText(static_cast<int32>(State.PendingDifficulty)), bHumanRingTrial ? RingHow : TEXT("resuelto al azar, o con SbTrial")));
 	}
 	else if (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::VoidEscape)
 	{
 		// Escape del Vacío (S-013): el minijuego aún no existe; el humano lo resuelve al azar, o como fije SbTrial.
-		ShowText(1, FColor::Yellow, FString::Printf(TEXT("Escape del Vacío: el asiento %d juega en %s (%s) y espera el resultado (resuelto al azar, o con SbTrial)"),
-			State.ActiveSeat, *Soulbound::Presentation::DifficultyText(static_cast<int32>(State.PendingDifficulty)), *VoidText(State, State.ActiveSeat)));
+		ShowText(1, FColor::Yellow, FString::Printf(TEXT("Escape del Vacío: el asiento %d juega en %s (%s) y espera el resultado (%s)"),
+			State.ActiveSeat, *Soulbound::Presentation::DifficultyText(static_cast<int32>(State.PendingDifficulty)), *VoidText(State, State.ActiveSeat),
+			bHumanRingTrial ? RingHow : TEXT("resuelto al azar, o con SbTrial")));
 	}
 	else if (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::WardenTrial)
 	{
 		// Prueba del Warden (S-015): el minijuego aún no existe; el humano lo resuelve al azar, o como fije SbTrial.
-		ShowText(1, FColor::Yellow, FString::Printf(TEXT("PRUEBA DEL WARDEN: el asiento %d juega en %s antes de tirar y espera el resultado (resuelta al azar, o con SbTrial)"),
-			State.ActiveSeat, *Soulbound::Presentation::DifficultyText(static_cast<int32>(State.PendingDifficulty))));
+		ShowText(1, FColor::Yellow, FString::Printf(TEXT("PRUEBA DEL WARDEN: el asiento %d juega en %s antes de tirar y espera el resultado (%s)"),
+			State.ActiveSeat, *Soulbound::Presentation::DifficultyText(static_cast<int32>(State.PendingDifficulty)), bHumanRingTrial ? RingHow : TEXT("resuelta al azar, o con SbTrial")));
 	}
 	else if (State.TurnPhase == ETurnPhase::SkillTrial)
 	{
 		// Minijuego de la Fuente de un Olvidado (S-008): aún no existe; el decisor del asiento responde al azar.
-		ShowText(1, FColor::Yellow, FString::Printf(TEXT("Minijuego de la Fuente: el asiento %d espera el resultado (resuelto al azar, probabilidad 0,5)"), State.ActiveSeat));
+		ShowText(1, FColor::Yellow, FString::Printf(TEXT("Minijuego de la Fuente: el asiento %d espera el resultado (%s)"), State.ActiveSeat,
+			bHumanRingTrial ? RingHow : TEXT("resuelto al azar, probabilidad 0,5")));
 	}
 	else
 	{
@@ -2113,7 +2212,7 @@ void ABoardViewActor::TickHud()
 	}
 
 	// Duelo (S-012): el duelo en curso y, resuelto, su resultado mientras dura el turno.
-	const FString DuelText = State.IsMatchOver() ? FString() : DuelLine(State, HostPtr->GetHumanSeat());
+	const FString DuelText = State.IsMatchOver() ? FString() : DuelLine(State, HostPtr->GetHumanSeat(), HostPtr->HumanPlaysSkillTrials());
 	if (!DuelText.IsEmpty())
 	{
 		ShowText(10, FColor::Orange, DuelText);
@@ -2212,4 +2311,123 @@ void ABoardViewActor::TickHud()
 			+ (Void.IsEmpty() ? FString() : TEXT(", ") + Void) + EffectStatusText(State, Seat));
 	}
 	ShowText(7, FColor::Cyan, FString::Printf(TEXT("Asientos: %s"), *FString::Join(Roles, TEXT(" | "))));
+}
+
+void ABoardViewActor::HandleRingOpened()
+{
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (!HostPtr)
+	{
+		return;
+	}
+	// El título se fija al abrir: al cerrarse, el anfitrión ya no tiene la prueba.
+	LastRingTitle = RingTitle(HostPtr->GetRingTrial(), HostPtr->IsRingDuel(), HostPtr->GetRingDifficulty());
+	LastRingShownUntil = 0.0;
+	if (RingInput.IsValid() || !FSlateApplication::IsInitialized())
+	{
+		return;
+	}
+	RingInput = MakeShared<FRingInputProcessor>(Host);
+	FSlateApplication::Get().RegisterInputPreProcessor(RingInput);
+	++LiveRingInputs;
+	UE_LOG(LogSoulboundView, Log, TEXT("Anillo: entrada registrada (activas: %d)."), LiveRingInputs);
+}
+
+void ABoardViewActor::UnregisterRingInput()
+{
+	if (!RingInput.IsValid())
+	{
+		return;
+	}
+	if (FSlateApplication::IsInitialized())
+	{
+		FSlateApplication::Get().UnregisterInputPreProcessor(RingInput);
+	}
+	RingInput.Reset();
+	--LiveRingInputs;
+	UE_LOG(LogSoulboundView, Log, TEXT("Anillo: entrada retirada (activas: %d)."), LiveRingInputs);
+}
+
+void ABoardViewActor::HandleRingClosed(const TOptional<FRingOutcome>& Outcome)
+{
+	UnregisterRingInput();
+	if (!Outcome.IsSet())
+	{
+		LastRingShownUntil = 0.0; // descartado: no hay resultado que enseñar
+		return;
+	}
+	LastRingPrecisions = Outcome->Precisions;
+	if (Outcome->bDuel)
+	{
+		LastRingResult = FString::Printf(TEXT("RENDIMIENTO %.2f"), Outcome->Performance);
+		LastRingColor = SRingPanel::PrecisionColor(Outcome->Performance);
+		LastRingNote = Outcome->bForced ? TEXT("resultado fijado con SbDuel") : FString();
+	}
+	else
+	{
+		LastRingResult = Outcome->bPassed ? TEXT("SUPERADA") : TEXT("FALLADA");
+		LastRingColor = Outcome->bPassed ? SRingPanel::PrecisionColor(1.0) : SRingPanel::PrecisionColor(0.0);
+		LastRingNote = Outcome->bForced ? TEXT("resultado fijado con SbTrial") : FString();
+	}
+	LastRingShownUntil = FPlatformTime::Seconds() + FMath::Max(RingResultSeconds, 0.f);
+}
+
+FRingPanelModel ABoardViewActor::RingPanelModel() const
+{
+	FRingPanelModel Model;
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (!HostPtr || !HostPtr->HasMatch())
+	{
+		return Model;
+	}
+	const double Now = FPlatformTime::Seconds();
+	if (const FRingTrialRun* Run = HostPtr->GetRingRun())
+	{
+		const int32 Total = Run->NumPulses();
+		const TArray<double>& Done = Run->Precisions();
+		Model.bVisible = true;
+		Model.bShowRing = true;
+		Model.Title = LastRingTitle;
+		// En el anuncio, la instrucción bajo el título; los pulsos que vienen ya se ven en las marcas de abajo.
+		Model.Counter = Run->IsAnnouncing(Now)
+			? FString(TEXT("Haz clic cuando el anillo toque la runa"))
+			: FString::Printf(TEXT("pulso %d de %d"), FMath::Min(Done.Num() + 1, Total), Total);
+		Model.CloseFraction = Run->CloseFraction(Now);
+		Model.ZoneFraction = Run->Sequence.CloseSeconds > 0.0 ? 0.5 * Run->Sequence.SweetZoneSeconds / Run->Sequence.CloseSeconds : 0.0;
+		for (int32 Pulse = 0; Pulse < Total; ++Pulse)
+		{
+			Model.Pulses.Add(Done.IsValidIndex(Pulse) ? TOptional<double>(Done[Pulse]) : TOptional<double>());
+		}
+		// Resuelto un pulso, su precisión se enseña hasta que empieza el siguiente.
+		if (!Done.IsEmpty() && Run->CurrentPulse(Now) == INDEX_NONE)
+		{
+			Model.Big = FString::Printf(TEXT("%.2f"), Done.Last());
+			Model.BigColor = SRingPanel::PrecisionColor(Done.Last());
+		}
+		return Model;
+	}
+	if (Now < LastRingShownUntil)
+	{
+		Model.bVisible = true;
+		Model.Title = LastRingTitle;
+		Model.Counter = LastRingNote;
+		Model.Big = LastRingResult;
+		Model.BigColor = LastRingColor;
+		for (const double Precision : LastRingPrecisions)
+		{
+			Model.Pulses.Add(Precision);
+		}
+	}
+	return Model;
+}
+
+FString ABoardViewActor::RingTitle(ESkillTrial Trial, bool bDuel, ESkillDifficulty Difficulty)
+{
+	const TCHAR* Use = bDuel ? TEXT("DUELO")
+		: Trial == ESkillTrial::ForgottenSource ? TEXT("FUENTE DE UN DOMINIO OLVIDADO")
+		: Trial == ESkillTrial::WardenTrial ? TEXT("PRUEBA DEL WARDEN")
+		: Trial == ESkillTrial::VoidEscape ? TEXT("ESCAPE DEL VACÍO")
+		: Trial == ESkillTrial::FinalChallenge ? TEXT("DESAFÍO FINAL")
+		: TEXT("PRUEBA");
+	return FString::Printf(TEXT("%s · %s"), Use, *Soulbound::Presentation::DifficultyText(static_cast<int32>(Difficulty)));
 }

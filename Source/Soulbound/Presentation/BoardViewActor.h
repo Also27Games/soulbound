@@ -15,8 +15,13 @@ class ABoardTileActor;
 class ACameraActor;
 class APostProcessVolume;
 class ASeatTokenActor;
+class IInputProcessor;
 class SChroniclePanel;
 class SWidget;
+struct FRingOutcome;
+struct FRingPanelModel;
+enum class ESkillTrial : uint8;
+enum class ESkillDifficulty : uint8;
 class UInstancedStaticMeshComponent;
 class UMaterialInterface;
 class UMatchHostSubsystem;
@@ -257,6 +262,17 @@ public:
 	/** Tamaño de la letra de la línea del Warden (S-021). Valor inicial 28. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
 	int32 WardenLineFontSize = 28;
+
+	/**
+	 * Segundos que el panel del anillo enseña el resultado ("superada", "fallada" o el rendimiento del duelo) tras cerrarse la prueba (S-026).
+	 * Valor inicial 2 (Config/DefaultGame.ini). Cero: no se enseña.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	float RingResultSeconds = 2.f;
+
+	/** Tamaño de la letra del título del panel del anillo (S-026); el resto se escala con él. Valor inicial 20. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	int32 RingFontSize = 20;
 
 	/** Margen de la cámara alrededor del tablero (1 = justo al borde). Valor inicial 1,04. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Paneles")
@@ -589,6 +605,24 @@ private:
 	FString WardenLineNow();
 
 	/**
+	 * Se abre una prueba del anillo del humano (S-026): registra la entrada del anillo (RingInput) en Slate. Condición del autor del
+	 * 06/11/2026: solo está registrada mientras hay anillo.
+	 */
+	void HandleRingOpened();
+
+	/** Se cierra (o se descarta) la prueba del anillo (S-026): retira la entrada y guarda el resultado para enseñarlo un momento. */
+	void HandleRingClosed(const TOptional<FRingOutcome>& Outcome);
+
+	/** Retira la entrada del anillo de Slate, si está registrada. La llaman el cierre, el descarte y EndPlay. */
+	void UnregisterRingInput();
+
+	/** Lo que pinta el panel del anillo ahora, con el reloj real (S-026). */
+	FRingPanelModel RingPanelModel() const;
+
+	/** Nombre del uso del anillo para el panel: "PRUEBA DEL WARDEN · normal" (S-026). Los textos son de la vista, como EventText. */
+	static FString RingTitle(ESkillTrial Trial, bool bDuel, ESkillDifficulty Difficulty);
+
+	/**
 	 * Si la vista pinta Olvidado el Dominio DomainId (S-023): fuera del prólogo, lo que dice el estado; en el prólogo, solo si su frase de
 	 * corrupción ya se ha enseñado (ForgottenDomainsShown). Lo calcula Refresh.
 	 */
@@ -636,6 +670,23 @@ private:
 	 * oculta con los paneles (H) ni con el texto de depuración (T).
 	 */
 	TSharedPtr<SWidget> ReturnToMenuOverlay;
+
+	/** El panel del anillo (S-026): una capa aparte, centrada en el hueco del tablero, visible mientras hay prueba o su resultado. */
+	TSharedPtr<SWidget> RingOverlay;
+
+	/** La entrada del anillo (S-026): preprocesador de Slate, registrado solo mientras hay prueba del humano. */
+	TSharedPtr<IInputProcessor> RingInput;
+	FDelegateHandle RingOpenedHandle;
+	FDelegateHandle RingClosedHandle;
+
+	/** Lo que se enseña del último anillo cerrado (S-026): título, resultado y hasta cuándo (reloj real). */
+	FString LastRingTitle;
+	FString LastRingResult;
+	FLinearColor LastRingColor = FLinearColor::White;
+	FString LastRingNote;
+	TArray<double> LastRingPrecisions;
+	double LastRingShownUntil = 0.0;
+
 	Soulbound::Presentation::FWardenLineQueue WardenLineQueue;
 	/** Cuántos eventos del registro se han mirado en busca de frases. */
 	int32 WardenLineScanned = 0;

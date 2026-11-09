@@ -114,7 +114,7 @@ namespace Soulbound::Presentation
 		}
 	}
 
-	FString DescribeChronicleEvent(const FMatchState& State, int32 Index)
+	FString DescribeChronicleEvent(const FMatchState& State, int32 Index, int32 RingSeat)
 	{
 		if (!State.EventLog.IsValidIndex(Index))
 		{
@@ -166,11 +166,17 @@ namespace Soulbound::Presentation
 				}
 			}
 		}
-		return DescribeEvent(Event, State.Board, &State.WardenEvents, &State.WardenLines);
+		return DescribeEvent(Event, State.Board, &State.WardenEvents, &State.WardenLines, RingSeat);
 	}
 
-	FString DescribeEvent(const FMatchEvent& Event, const FBoardState& Board, const FWardenEventTable* WardenEvents, const FWardenLineTable* WardenLines)
+	FString DescribeEvent(const FMatchEvent& Event, const FBoardState& Board, const FWardenEventTable* WardenEvents, const FWardenLineTable* WardenLines, int32 RingSeat)
 	{
+		// S-026: los resultados del asiento que juega con el anillo lo dicen; los de los dummies siguen siendo al azar. En un duelo cuenta
+		// que el anillo esté en cualquiera de los dos lados.
+		const bool bRing = RingSeat != INDEX_NONE
+			&& (Event.Seat == RingSeat || (Event.Type == EMatchEventType::DuelWon && Event.OtherSeat == RingSeat));
+		const TCHAR* const Resolved = bRing ? TEXT("con el anillo") : TEXT("resuelto al azar");
+		const TCHAR* const ResolvedFem = bRing ? TEXT("con el anillo") : TEXT("resuelta al azar");
 		switch (Event.Type)
 		{
 		case EMatchEventType::TurnStarted: return FString::Printf(TEXT("empieza el turno del asiento %d"), Event.Seat);
@@ -193,9 +199,9 @@ namespace Soulbound::Presentation
 				: FString(TEXT("VICTORIA DEL WARDEN: nadie se ha vinculado"));
 		case EMatchEventType::BondRaceEnded: return FString::Printf(TEXT("fin de la carrera: %d Elegidos"), Event.Value);
 		case EMatchEventType::RuneObtained: return FString::Printf(TEXT("el asiento %d obtiene la runa del Dominio %d"), Event.Seat, Event.Value);
-		// El minijuego real no existe aún (su story): el decisor del asiento lo resuelve al azar, y la crónica lo dice.
-		case EMatchEventType::SkillMinigamePassed: return FString::Printf(TEXT("el asiento %d SUPERA el minijuego de la Fuente del Dominio %d (resuelto al azar)"), Event.Seat, Event.Value);
-		case EMatchEventType::SkillMinigameFailed: return FString::Printf(TEXT("el asiento %d FALLA el minijuego de la Fuente del Dominio %d (resuelto al azar)"), Event.Seat, Event.Value);
+		// Desde S-026 el humano lo juega con el anillo (con el interruptor encendido); los dummies, con su decisor al azar. La crónica lo dice.
+		case EMatchEventType::SkillMinigamePassed: return FString::Printf(TEXT("el asiento %d SUPERA el minijuego de la Fuente del Dominio %d (%s)"), Event.Seat, Event.Value, Resolved);
+		case EMatchEventType::SkillMinigameFailed: return FString::Printf(TEXT("el asiento %d FALLA el minijuego de la Fuente del Dominio %d (%s)"), Event.Seat, Event.Value, Resolved);
 		case EMatchEventType::SourceDepleted: return FString::Printf(TEXT("el asiento %d llega a la Fuente del Dominio %d, AGOTADA: sin runa"), Event.Seat, Event.Value);
 		case EMatchEventType::RuneReturned: return FString::Printf(TEXT("el asiento %d devuelve la runa del Dominio %d a su Fuente"), Event.Seat, Event.Value);
 		case EMatchEventType::DiceChosen: return FString::Printf(TEXT("el asiento %d elige tirar %s"), Event.Seat, Event.Value > 1 ? TEXT("DOS dados") : TEXT("un dado"));
@@ -225,24 +231,24 @@ namespace Soulbound::Presentation
 			return FString::Printf(TEXT("el asiento %d intenta robar al asiento %d, que no tiene runas: no hay trilero"), Event.Seat, Event.OtherSeat);
 		case EMatchEventType::StealCancelled:
 			return FString::Printf(TEXT("el asiento %d intenta robar a Koschei (asiento %d), que solo tiene una runa: robo anulado"), Event.Seat, Event.OtherSeat);
-		// S-012: el duelo. El minijuego de duelo no existe aún: el rendimiento de cada uno lo da su decisor al azar.
+		// S-012: el duelo. El rendimiento de cada dummy lo da su decisor al azar; el del humano, desde S-026, el anillo.
 		case EMatchEventType::DuelChallenged:
 			return FString::Printf(TEXT("%s: el asiento %d reta al asiento %d %s"), Event.Value == 2 ? TEXT("DUELO FORZADO") : TEXT("DUELO"), Event.Seat, Event.OtherSeat,
 				Event.Value == 2 ? TEXT("por orden del Warden") : Event.Value == 1 ? TEXT("desde un Nodo de Duelo") : TEXT("con el poder Duelo"));
 		case EMatchEventType::DuelNoRunes:
 			return FString::Printf(TEXT("el asiento %d reta al asiento %d, que no tiene runas: no hay duelo y la acción se pierde"), Event.Seat, Event.OtherSeat);
 		case EMatchEventType::DuelWon:
-			return FString::Printf(TEXT("el asiento %d GANA el duelo al asiento %d, siendo el %s (resuelto al azar)"), Event.Seat, Event.OtherSeat,
-				Event.Value == 1 ? TEXT("retado") : TEXT("retador"));
+			return FString::Printf(TEXT("el asiento %d GANA el duelo al asiento %d, siendo el %s (%s)"), Event.Seat, Event.OtherSeat,
+				Event.Value == 1 ? TEXT("retado") : TEXT("retador"), Resolved);
 		case EMatchEventType::DuelLoserSentHome:
 			return FString::Printf(TEXT("el asiento %d pierde el duelo sin runas y vuelve a su hogar, %s"), Event.OtherSeat, *TileShortName(Board, Event.Value));
-		// S-013: el Vacío y la Vuelta al hogar. El minijuego de escape no existe aún: lo resuelve el decisor al azar.
+		// S-013: el Vacío y la Vuelta al hogar. El escape lo resuelve el decisor al azar o, el del humano desde S-026, el anillo.
 		case EMatchEventType::Banished:
 			return FString::Printf(TEXT("el asiento %d es DESTERRADO al Vacío%s: su ficha sale del tablero"), Event.Seat, Event.Value == 1 ? TEXT(" por la Furia") : TEXT(""));
 		case EMatchEventType::VoidEscapePassed:
 		case EMatchEventType::VoidEscapeFailed:
-			return FString::Printf(TEXT("el asiento %d %s el escape del Vacío en %s (resuelto al azar)"), Event.Seat,
-				Event.Type == EMatchEventType::VoidEscapePassed ? TEXT("SUPERA") : TEXT("FALLA y sigue dentro:"), *DifficultyText(Event.Value));
+			return FString::Printf(TEXT("el asiento %d %s el escape del Vacío en %s (%s)"), Event.Seat,
+				Event.Type == EMatchEventType::VoidEscapePassed ? TEXT("SUPERA") : TEXT("FALLA y sigue dentro:"), *DifficultyText(Event.Value), Resolved);
 		case EMatchEventType::LeftVoid:
 			return FString::Printf(TEXT("el asiento %d SALE del Vacío %s y vuelve a su hogar"), Event.Seat, *VoidExitText(Event.Value));
 		case EMatchEventType::SentHome:
@@ -357,14 +363,14 @@ namespace Soulbound::Presentation
 			return Event.Detail == static_cast<int32>(EEchoNightEnd::ShadowLaw)
 				? FString(TEXT("LEY DE SOMBRAS: termina la Noche de los Ecos"))
 				: FString(TEXT("termina la Noche de los Ecos por el tope de rondas: los Ecos, a casa"));
-		// S-015: la Prueba del Warden, el Duelo forzado y el Duelo contra el Warden, y el Robo decretado. El minijuego real no
-		// existe aún: la prueba y el rendimiento del jugador los resuelve su decisor al azar.
+		// S-015: la Prueba del Warden, el Duelo forzado y el Duelo contra el Warden, y el Robo decretado. La prueba y el rendimiento los
+		// resuelve el decisor al azar o, los del humano desde S-026, el anillo.
 		case EMatchEventType::WardenTrialPending:
 			return FString::Printf(TEXT("PRUEBA DEL WARDEN: el asiento %d la jugará al empezar su próximo turno, antes de tirar"), Event.Seat);
 		case EMatchEventType::WardenTrialPassed:
-			return FString::Printf(TEXT("el asiento %d SUPERA la Prueba del Warden (%s, resuelta al azar): su turno sigue"), Event.Seat, *DifficultyText(Event.Value));
+			return FString::Printf(TEXT("el asiento %d SUPERA la Prueba del Warden (%s, %s): su turno sigue"), Event.Seat, *DifficultyText(Event.Value), ResolvedFem);
 		case EMatchEventType::WardenTrialFailed:
-			return FString::Printf(TEXT("el asiento %d FALLA la Prueba del Warden (%s, resuelta al azar): su turno termina sin tirar"), Event.Seat, *DifficultyText(Event.Value));
+			return FString::Printf(TEXT("el asiento %d FALLA la Prueba del Warden (%s, %s): su turno termina sin tirar"), Event.Seat, *DifficultyText(Event.Value), ResolvedFem);
 		case EMatchEventType::WardenTrialCancelled:
 			return FString::Printf(TEXT("la Prueba del Warden del asiento %d se ANULA: entra en el Vacío"), Event.Seat);
 		case EMatchEventType::RunesSeized:
@@ -378,16 +384,17 @@ namespace Soulbound::Presentation
 			return FString::Printf(TEXT("el asiento %d GANA el duelo al Warden y no pierde nada"), Event.Seat);
 		case EMatchEventType::RuneTakenByWarden:
 			return FString::Printf(TEXT("el WARDEN ROBA al asiento %d: su runa del Dominio %d vuelve a su Fuente"), Event.Seat, Event.Value);
-		// S-018: el aspirante, el desafío final y la victoria de un jugador. El minijuego real no existe aún: el resultado es al azar.
+		// S-018: el aspirante, el desafío final y la victoria de un jugador. El desafío lo resuelve el decisor al azar o, el del humano
+		// desde S-026, el anillo.
 		case EMatchEventType::AspirantAnnounced:
 			return FString::Printf(TEXT("el asiento %d es ASPIRANTE: está en el Altar con las seis runas; en su próximo turno, el desafío final"), Event.Seat);
 		case EMatchEventType::FinalChallengeStarted:
 			return FString::Printf(TEXT("el asiento %d juega el DESAFÍO FINAL (%s) en vez de su turno"), Event.Seat, *DifficultyText(Event.Value));
 		case EMatchEventType::FinalChallengeFailed:
-			return FString::Printf(TEXT("el asiento %d FALLA el desafío final (resuelto al azar): el Warden le arranca la runa del Dominio %d, que vuelve a su Fuente, y lo manda a casa"),
-				Event.Seat, Event.Value);
+			return FString::Printf(TEXT("el asiento %d FALLA el desafío final (%s): el Warden le arranca la runa del Dominio %d, que vuelve a su Fuente, y lo manda a casa"),
+				Event.Seat, Resolved, Event.Value);
 		case EMatchEventType::MatchWon:
-			return FString::Printf(TEXT("VICTORIA DEL ASIENTO %d: supera el desafío final (resuelto al azar)"), Event.Seat);
+			return FString::Printf(TEXT("VICTORIA DEL ASIENTO %d: supera el desafío final (%s)"), Event.Seat, Resolved);
 		case EMatchEventType::DebugEdit:
 			return Event.Seat == INDEX_NONE ? FString::Printf(TEXT("EDICIÓN DE DEPURACIÓN: %s"), *DebugKindName(Event.Value))
 				: FString::Printf(TEXT("EDICIÓN DE DEPURACIÓN: %s (asiento %d)"), *DebugKindName(Event.Value), Event.Seat);

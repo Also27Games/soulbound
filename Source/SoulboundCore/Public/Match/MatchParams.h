@@ -25,6 +25,83 @@ enum class ESkillDifficulty : uint8
 };
 
 /**
+ * Anillo (glosario "Anillo", RingPulse; S-026, R-MIN-6): parámetros de una dificultad. Nombre propuesto en S-026. En datos, dentro del
+ * bloque "ring" de partida.json, uno por dificultad ("easy", "normal", "hard").
+ */
+USTRUCT()
+struct SOULBOUNDCORE_API FRingDifficultyParams
+{
+	GENERATED_BODY()
+
+	/** Segundos que tarda el anillo en cerrarse sobre la runa, desde que empieza el pulso hasta la coincidencia. Mayor que cero. */
+	UPROPERTY()
+	double CloseSeconds = 0.0;
+
+	/** Zona buena (SweetZone): su anchura como fracción del cierre, centrada en la coincidencia. Mayor que cero y hasta 1. */
+	UPROPERTY()
+	double SweetZone = 0.0;
+
+	/** Umbral de la media de precisiones para superar la prueba (R-MIN-4), de 0 a 1. */
+	UPROPERTY()
+	double PassThreshold = 0.0;
+};
+
+/**
+ * Anillo (S-026, R-MIN-3, R-MIN-6, R-MIN-8, R-MIN-12): el bloque "ring" de partida.json. Nombre propuesto en S-026. Lo que el GDD 09
+ * fija como regla (el criterio de cada uso: media, sin fallos o rendimiento) no está aquí: va con la regla, en Match/RingRules.h.
+ */
+USTRUCT()
+struct SOULBOUNDCORE_API FRingParams
+{
+	GENERATED_BODY()
+
+	/**
+	 * Ritmo irregular (R-MIN-3): segundos de hueco entre el final de la zona buena de un pulso y el inicio del siguiente, al azar entre
+	 * el mínimo y el máximo (decisión del autor del 06/11/2026). Mínimo mayor que cero y máximo no menor que el mínimo. Valor inicial
+	 * 0,8 y 2.
+	 */
+	UPROPERTY()
+	double PulseGapMinSeconds = 0.0;
+
+	UPROPERTY()
+	double PulseGapMaxSeconds = 0.0;
+
+	/** Parámetros de cada dificultad (R-MIN-6). Valores iniciales: fácil 1,6 s, 0,25, 0,4; normal 1,2 s, 0,18, 0,55; difícil 0,9 s, 0,12, 0,65. */
+	UPROPERTY()
+	FRingDifficultyParams Easy;
+
+	UPROPERTY()
+	FRingDifficultyParams Normal;
+
+	UPROPERTY()
+	FRingDifficultyParams Hard;
+
+	/** Pulsos de cada uso (R-MIN-8), de 1 en adelante. Valores iniciales: Fuente de un Olvidado 2, Prueba del Warden 3, escape 3, duelo 3. */
+	UPROPERTY()
+	int32 ForgottenSourcePulses = 0;
+
+	UPROPERTY()
+	int32 WardenTrialPulses = 0;
+
+	UPROPERTY()
+	int32 VoidEscapePulses = 0;
+
+	UPROPERTY()
+	int32 DuelPulses = 0;
+
+	/** Dificultad del duelo (R-MIN-8): nueva en S-026, el motor no la fija. Una de las tres. Valor inicial normal. */
+	UPROPERTY()
+	ESkillDifficulty DuelDifficulty = ESkillDifficulty::Normal;
+
+	/** Desafío final (R-MIN-12): pulsos y zona buena propia; el cierre es el de su dificultad. Valores iniciales 6 y 0,20. */
+	UPROPERTY()
+	int32 FinalChallengePulses = 0;
+
+	UPROPERTY()
+	double FinalChallengeSweetZone = 0.0;
+};
+
+/**
  * Parámetros de partida: valores de ajuste que no dependen del tablero. Se cargan de Content/Data/Match/partida.json;
  * ningún valor vive en el código. Lo que el GDD fija como regla (caras del dado, tope de insolencia) no está aquí:
  * son constantes con nombre junto a la regla que las usa.
@@ -176,6 +253,10 @@ struct SOULBOUNDCORE_API FMatchParams
 	 */
 	UPROPERTY()
 	ESkillDifficulty FinalChallengeDifficulty = ESkillDifficulty::Normal;
+
+	/** Anillo, el minijuego de habilidad (S-026, R-MIN-3, R-MIN-6, R-MIN-8, R-MIN-12). En datos (ring), obligatorio. */
+	UPROPERTY()
+	FRingParams Ring;
 };
 
 /** Por qué se rechazaron unos parámetros de partida. */
@@ -212,7 +293,9 @@ namespace Soulbound::Rules
 	 * los de la principal y, desde S-016, la del Vacío de la Furia como la principal, todas con dificultades conocidas; y los de los efectos y eventos del Warden (S-014): rondas de
 	 * Brazal revelado, marca y tope de la Noche de 1 en adelante, reloj base del dilema y reloj corto mayores que cero, e
 	 * incremento por opción del dilema de cero en adelante; y los de S-015: la dificultad de la Prueba del Warden, una de las
-	 * tres, y el rendimiento del Warden en su duelo, de 0 a 1. Params: los parámetros a comprobar. Devuelve None o
+	 * tres, y el rendimiento del Warden en su duelo, de 0 a 1; y los del anillo (S-026): huecos entre pulsos con mínimo mayor que cero
+	 * y máximo no menor, cierre de cada dificultad mayor que cero, zonas buenas mayores que cero y hasta 1, umbrales de 0 a 1, pulsos de
+	 * cada uso de 1 en adelante y la dificultad del duelo, una de las tres. Params: los parámetros a comprobar. Devuelve None o
 	 * MalformedData con el motivo; el campo Params del resultado queda vacío.
 	 */
 	SOULBOUNDCORE_API FMatchParamsLoadResult ValidateMatchParams(const FMatchParams& Params);
