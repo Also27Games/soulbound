@@ -121,6 +121,12 @@ namespace Soulbound::Presentation
 		return Cues;
 	}
 
+	TArray<FInstructionCue> FInstructionTracker::RingOpened(const TArray<int32>& HumanSeats)
+	{
+		// TODO(R-INS-1): esqueleto para ver el test en rojo.
+		return {};
+	}
+
 	bool TeachAndRecord(EHintsMode Mode, TArray<FString>& Seen, EInstructionMoment Moment)
 	{
 		if (Mode == EHintsMode::Never)

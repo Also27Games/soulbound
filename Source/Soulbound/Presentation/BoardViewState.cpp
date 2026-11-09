@@ -44,7 +44,14 @@ FLinearColor Soulbound::Presentation::WedgeFloorTint(const FLinearColor& DomainC
 	return FLinearColor(Mixed.R * ForgottenDim, Mixed.G * ForgottenDim, Mixed.B * ForgottenDim, Mixed.A);
 }
 
-FString Soulbound::Presentation::ViewKeysText(bool bSeated, const FString& ViewKey, const FString& OverlayKey, const FString& PanelsKey, const FString& DebugTextKey)
+FString Soulbound::Presentation::MenuMapPackage(const FString& ReturnToMenuMap, bool bReturnMapExists, const FString& GameDefaultMap)
+{
+	// TODO(R-MEN-1): esqueleto para ver el test en rojo.
+	return FString();
+}
+
+FString Soulbound::Presentation::ViewKeysText(bool bSeated, const FString& ViewKey, const FString& OverlayKey, const FString& PanelsKey, const FString& DebugTextKey,
+	const FString& GrimoireKey, const FString& DebugPanelKey)
 {
 	return FString::Printf(TEXT("vista %s (%s: %s) | %s etiquetas | %s paneles | %s texto de depuración"), bSeated ? TEXT("sentada") : TEXT("cenital"), *ViewKey,
 		bSeated ? TEXT("cenital") : TEXT("sentada"), *OverlayKey, *PanelsKey, *DebugTextKey);

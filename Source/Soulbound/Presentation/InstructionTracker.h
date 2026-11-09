@@ -35,6 +35,12 @@ namespace Soulbound::Presentation
 		 */
 		TArray<FInstructionCue> Observe(const FMatchState& State, const TArray<int32>& HumanSeats);
 
+		/**
+		 * El anfitrión acaba de abrir un anillo para el humano (S-027, R-INS-1): el anillo no es un evento del motor, así que lo avisa la vista.
+		 * Devuelve el momento Ring para el primer asiento humano la primera vez en la partida, y nada después ni sin asientos humanos.
+		 */
+		TArray<FInstructionCue> RingOpened(const TArray<int32>& HumanSeats);
+
 	private:
 		/** Cuántos eventos del registro se han mirado. */
 		int32 Scanned = 0;

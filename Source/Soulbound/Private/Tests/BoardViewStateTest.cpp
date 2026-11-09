@@ -239,11 +239,29 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FViewKeysTextTest, "Soulbound.Game.Presentation
 
 bool FViewKeysTextTest::RunTest(const FString& Parameters)
 {
-	// Texto de S-022 (R-CAM-1): la línea de teclas nombra la vista actual, sentada o cenital, y la tecla que cambia a la otra.
-	TestEqual(TEXT("Sentada"), Soulbound::Presentation::ViewKeysText(true, TEXT("C"), TEXT("L"), TEXT("H"), TEXT("T")),
-		FString(TEXT("vista sentada (C: cenital) | L etiquetas | H paneles | T texto de depuración")));
-	TestEqual(TEXT("Cenital"), Soulbound::Presentation::ViewKeysText(false, TEXT("C"), TEXT("L"), TEXT("H"), TEXT("T")),
-		FString(TEXT("vista cenital (C: sentada) | L etiquetas | H paneles | T texto de depuración")));
+	// Texto de S-022 (R-CAM-1): la línea de teclas nombra la vista actual, sentada o cenital, y la tecla que cambia a la otra. Desde S-027,
+	// T oculta el panel de estado, G abre el Grimorio y D el panel de depuración (decisión del autor del 9/11/2026: D en vez de F1).
+	TestEqual(TEXT("Sentada"), Soulbound::Presentation::ViewKeysText(true, TEXT("C"), TEXT("L"), TEXT("H"), TEXT("T"), TEXT("G"), TEXT("D")),
+		FString(TEXT("vista sentada (C: cenital) | L etiquetas | H paneles | T panel de estado | G Grimorio | D depuración")));
+	TestEqual(TEXT("Cenital"), Soulbound::Presentation::ViewKeysText(false, TEXT("C"), TEXT("L"), TEXT("H"), TEXT("T"), TEXT("G"), TEXT("D")),
+		FString(TEXT("vista cenital (C: sentada) | L etiquetas | H paneles | T panel de estado | G Grimorio | D depuración")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMenuMapTest, "Soulbound.Game.Presentation.Vista.MapaDelMenu", ViewStateTestFlags)
+
+bool FMenuMapTest::RunTest(const FString& Parameters)
+{
+	// CA-MEN-1 (R-MEN-1): la función que elige el mapa devuelve ReturnToMenuMap si tiene valor y, si está vacío, GameDefaultMap. Si tiene valor
+	// pero el mapa no existe, también GameDefaultMap: el juego nunca se queda sin salida.
+	const FString MainMenu = TEXT("/Game/UltraGameTemplate/Maps/UGT_MainMenuMap.UGT_MainMenuMap");
+	const FString Launcher = TEXT("/Game/UltraGameTemplate/Maps/UGT_LauncherMap.UGT_LauncherMap");
+	TestEqual(TEXT("Con valor: el menú principal"), Soulbound::Presentation::MenuMapPackage(MainMenu, true, Launcher),
+		FString(TEXT("/Game/UltraGameTemplate/Maps/UGT_MainMenuMap")));
+	TestEqual(TEXT("Vacío: el de arranque"), Soulbound::Presentation::MenuMapPackage(FString(), false, Launcher),
+		FString(TEXT("/Game/UltraGameTemplate/Maps/UGT_LauncherMap")));
+	TestEqual(TEXT("Con valor que no existe: el de arranque"), Soulbound::Presentation::MenuMapPackage(MainMenu, false, Launcher),
+		FString(TEXT("/Game/UltraGameTemplate/Maps/UGT_LauncherMap")));
 	return true;
 }
 

@@ -68,6 +68,14 @@ enum class EInstructionMoment : uint8
 	SixRunes,
 	/** Primera subida de insolencia. */
 	Insolence,
+	/** S-027 (R-INS-1): el humano queda como Eco al acabar la carrera (BondRaceEnded con su asiento sin vínculo). */
+	Echo,
+	/** S-027 (R-INS-1): la primera elección PlayerAction abierta al humano que incluye robar. */
+	Steal,
+	/** S-027 (R-INS-1): el humano entra en el Vacío por primera vez (Banished sobre su asiento). */
+	Void,
+	/** S-027 (R-INS-1): el anfitrión abre el anillo para el humano por primera vez (lo detecta la vista: el anillo no es un evento del motor). */
+	Ring,
 };
 
 /** Una entrada de frases.json (R-VOZ-5, S-021, nombre propuesto): una situación con una o varias variantes. */
@@ -171,7 +179,7 @@ namespace Soulbound::Rules
 	/** `comentario:<tipo>`, con el tipo en español y en minúsculas con guiones (burla-al-ultimo, cinco-runas...). */
 	SOULBOUNDCORE_API FString WardenRemarkKey(EWardenRemarkKind Kind);
 
-	/** `instruccion:<momento>` (tirar, elegir-casilla, nicho, fuente, dilema, duelo, orbe, voto, seis-runas, insolencia). */
+	/** `instruccion:<momento>` (tirar, elegir-casilla, nicho, fuente, dilema, duelo, orbe, voto, seis-runas, insolencia; desde S-027, eco, robar, vacio, anillo). */
 	SOULBOUNDCORE_API FString InstructionKey(EInstructionMoment Moment);
 
 	/** `programado:orden-n` para la posición Position (de 1 a OrderLineCount) del orden de turno. */

@@ -339,9 +339,23 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey PanelsToggleKey = EKeys::H;
 
-	/** Tecla que oculta y muestra el texto de depuración de arriba a la izquierda (turno, reloj, Warden, semilla, asientos, petición). Valor inicial T. */
+	/**
+	 * Tecla que oculta y muestra el panel de estado de arriba a la izquierda (desde S-027; antes, el texto de depuración). Valor inicial T.
+	 * TODO(R-HUD-1): el nombre viene de cuando era texto de depuración; renombrarlo con Rider (StatusPanelToggleKey) toca DefaultGame.ini.
+	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey DebugTextToggleKey = EKeys::T;
+
+	/** Tecla que abre y cierra el Grimorio (S-027, R-HUD-4). Valor inicial G. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	FKey GrimoireKey = EKeys::G;
+
+	/**
+	 * Tecla que muestra y oculta el panel de depuración (S-027, R-HUD-2). Valor inicial D (decisión del autor del 9/11/2026: F1 es una tecla de
+	 * depuración del propio Unreal).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	FKey DebugPanelKey = EKeys::D;
 
 	/** Color de un Dominio (0 a 5); gris oscuro si no existe. Lo usa también el kit para teñir el suelo de las cuñas. */
 	FLinearColor DomainColor(int32 DomainId) const;

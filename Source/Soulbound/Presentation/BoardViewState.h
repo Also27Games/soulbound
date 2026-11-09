@@ -73,10 +73,23 @@ namespace Soulbound::Presentation
 	 * @param ViewKey Nombre de la tecla que alterna la vista (SeatedViewKey).
 	 * @param OverlayKey Nombre de la tecla de las etiquetas.
 	 * @param PanelsKey Nombre de la tecla de los paneles.
-	 * @param DebugTextKey Nombre de la tecla del texto de depuración.
+	 * @param DebugTextKey Nombre de la tecla que oculta el panel de estado (desde S-027; antes, el texto de depuración).
+	 * @param GrimoireKey Nombre de la tecla del Grimorio (S-027).
+	 * @param DebugPanelKey Nombre de la tecla del panel de depuración (S-027).
 	 * @return La línea de teclas.
 	 */
-	SOULBOUND_API FString ViewKeysText(bool bSeated, const FString& ViewKey, const FString& OverlayKey, const FString& PanelsKey, const FString& DebugTextKey);
+	SOULBOUND_API FString ViewKeysText(bool bSeated, const FString& ViewKey, const FString& OverlayKey, const FString& PanelsKey, const FString& DebugTextKey,
+		const FString& GrimoireKey, const FString& DebugPanelKey);
+
+	/**
+	 * El mapa al que vuelve "Volver al menú" (S-027, R-MEN-1): el de ReturnToMenuMap si tiene valor y existe; si no, el de arranque del juego
+	 * (GameDefaultMap), como en S-022, para que el juego nunca se quede sin salida.
+	 * @param ReturnToMenuMap La ruta de objeto de ReturnToMenuMap ("/Game/.../UGT_MainMenuMap.UGT_MainMenuMap"); vacía si no tiene valor.
+	 * @param bReturnMapExists Si el paquete de ReturnToMenuMap existe.
+	 * @param GameDefaultMap La ruta de objeto de GameDefaultMap.
+	 * @return El nombre del paquete del mapa que se abre ("/Game/.../UGT_MainMenuMap").
+	 */
+	SOULBOUND_API FString MenuMapPackage(const FString& ReturnToMenuMap, bool bReturnMapExists, const FString& GameDefaultMap);
 
 	/**
 	 * La pantalla del resultado (S-018, R-PRO-4; desde S-022, con la vuelta al menú): quién gana y por qué, y en la línea siguiente cómo se

@@ -1949,7 +1949,8 @@ void ABoardViewActor::ToggleDebugText()
 FString ABoardViewActor::DescribeViewKeys() const
 {
 	return Soulbound::Presentation::ViewKeysText(bSeatedView, SeatedViewKey.GetDisplayName().ToString(), OverlayToggleKey.GetDisplayName().ToString(),
-		PanelsToggleKey.GetDisplayName().ToString(), DebugTextToggleKey.GetDisplayName().ToString());
+		PanelsToggleKey.GetDisplayName().ToString(), DebugTextToggleKey.GetDisplayName().ToString(), GrimoireKey.GetDisplayName().ToString(),
+		DebugPanelKey.GetDisplayName().ToString());
 }
 
 bool ABoardViewActor::IsMatchOverShown() const
