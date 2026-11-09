@@ -758,17 +758,9 @@ bool UMatchHostSubsystem::PressRing(double PressSeconds)
 	{
 		return false;
 	}
-	const int32 Before = HumanRing->Run.Precisions().Num();
+	// Press cierra antes los pulsos vencidos; si la pulsación cuenta, el último resuelto es el suyo.
 	const bool bCounted = HumanRing->Run.Press(PressSeconds);
-	if (bCounted)
-	{
-		UE_LOG(LogSoulboundMatch, Log, TEXT("Anillo: pulso %d de %d, precisión %.2f."), HumanRing->Run.Precisions().Num(), HumanRing->Run.NumPulses(),
-			HumanRing->Run.Precisions().Last());
-	}
-	else if (HumanRing->Run.Precisions().Num() > Before)
-	{
-		UE_LOG(LogSoulboundMatch, Log, TEXT("Anillo: la pulsación cae entre pulsos; el pulso vencido queda en 0."));
-	}
+	LogRingPulses(bCounted);
 	return bCounted;
 }
 
@@ -796,6 +788,22 @@ void UMatchHostSubsystem::CloseRing(const TOptional<FRingOutcome>& Outcome, cons
 	HumanRing.Reset();
 	UE_LOG(LogSoulboundMatch, Log, TEXT("Anillo cerrado: %s."), Why);
 	OnRingClosed.Broadcast(Outcome);
+}
+
+void UMatchHostSubsystem::LogRingPulses(bool bLastPressed)
+{
+	if (!HumanRing.IsSet())
+	{
+		return;
+	}
+	const TArray<double>& Precisions = HumanRing->Run.Precisions();
+	for (int32 Pulse = HumanRing->LoggedPulses; Pulse < Precisions.Num(); ++Pulse)
+	{
+		const bool bPressed = bLastPressed && Pulse == Precisions.Num() - 1;
+		UE_LOG(LogSoulboundMatch, Log, TEXT("Anillo: pulso %d de %d, precisión %.2f%s."), Pulse + 1, HumanRing->Run.NumPulses(), Precisions[Pulse],
+			bPressed ? TEXT("") : TEXT(" (vencido sin pulsar)"));
+	}
+	HumanRing->LoggedPulses = Precisions.Num();
 }
 
 FRingOutcome UMatchHostSubsystem::MakeRingOutcome(bool bForced) const
@@ -827,6 +835,7 @@ bool UMatchHostSubsystem::SettleRing()
 		return true;
 	}
 	HumanRing->Run.Advance(FPlatformTime::Seconds());
+	LogRingPulses(false);
 	if (!HumanRing->Run.IsFinished())
 	{
 		return false;

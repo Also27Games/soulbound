@@ -467,6 +467,8 @@ private:
 		FRingTrialParams Params;
 		ESkillTrial Trial = ESkillTrial::None;
 		bool bDuel = false;
+		/** Cuántos pulsos resueltos tienen ya su línea en el log (LogRingPulses). */
+		int32 LoggedPulses = 0;
 	};
 
 	/**
@@ -483,6 +485,13 @@ private:
 	 * humano en el duelo) y lo cierra. Devuelve si está cerrado: entonces lo de Pending se puede entregar.
 	 */
 	bool SettleRing();
+
+	/**
+	 * Deja en el log una línea por cada pulso resuelto que aún no la tiene, en orden: "Anillo: pulso k de N, precisión p.", con
+	 * " (vencido sin pulsar)" si venció sin pulsación. Así el registro de una prueba tiene siempre una línea por pulso. bLastPressed: si el
+	 * último pulso resuelto lo resolvió una pulsación; los demás nuevos vencieron.
+	 */
+	void LogRingPulses(bool bLastPressed);
 
 	/** El resultado del anillo según su uso: prueba (bPassed) o duelo (Performance), con las precisiones. */
 	FRingOutcome MakeRingOutcome(bool bForced) const;
