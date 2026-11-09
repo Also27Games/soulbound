@@ -1060,8 +1060,9 @@ void ABoardViewActor::BuildOverlay()
 		.Visibility(EVisibility::HitTestInvisible)
 		[
 			SNew(SBox)
-			// TODO(R-HUD-3): a 1024x768 la frase se sale por la izquierda (visto en S-027, ya pasaba antes); limitar este ancho al hueco libre no
-			// lo arregló. Hace falta mirar en el editor (Widget Reflector) qué ancho recibe el texto con AutoWrapText dentro de la alineación centrada.
+			// TODO(R-HUD-3): a 1024x768 la frase se sale por la izquierda (visto en S-027, ya pasaba antes). No lo arreglan ni limitar este ancho
+			// al hueco libre ni un WrapTextAt explícito con ese hueco (probados en S-027): en la captura el fondo negro queda más pequeño que el
+			// texto, así que parece que el tamaño deseado no se recalcula al cambiar la frase. Hace falta mirarlo en el editor con el Widget Reflector.
 			.MaxDesiredWidth(1000.f)
 			[
 				SNew(SBorder)

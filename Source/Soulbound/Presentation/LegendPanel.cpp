@@ -53,10 +53,12 @@ void SLegendPanel::Construct(const FArguments& InArgs)
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot().AutoHeight()
 			[
+				// S-027 (R-HUD-3): el título parte en líneas en vez de cortarse por la derecha cuando la columna es estrecha (1024x768).
 				SNew(STextBlock)
 				.Text(FText::FromString(Row.Title))
 				.Font_Lambda([Font]() { return Font("Bold"); })
 				.ColorAndOpacity(FLinearColor(1.f, 0.85f, 0.4f))
+				.AutoWrapText(true)
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(8.f, 0.f, 0.f, 0.f)
 			[
