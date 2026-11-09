@@ -20,9 +20,9 @@ struct FChronicleLine
 class SChroniclePanel : public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SChroniclePanel) {}
-		/** Tamaño de la letra. */
-		SLATE_ARGUMENT(int32, FontSize)
+	SLATE_BEGIN_ARGS(SChroniclePanel) : _FontSize(11) {}
+		/** Tamaño de la letra, en unidades de Slate; se lee cada vez que se pinta (S-027: escala con la pantalla). */
+		SLATE_ATTRIBUTE(int32, FontSize)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -35,5 +35,5 @@ public:
 
 private:
 	TSharedPtr<SScrollBox> ScrollBox;
-	int32 FontSize = 11;
+	TAttribute<int32> FontSize = 11;
 };

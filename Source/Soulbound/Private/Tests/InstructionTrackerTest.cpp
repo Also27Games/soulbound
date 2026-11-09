@@ -416,6 +416,12 @@ bool FInstructionHintsTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Siempre con las diez: visible"), Soulbound::Presentation::ShowsRequestHints(EHintsMode::Always, Seen));
 		Seen.RemoveAt(9);
 		TestTrue(TEXT("Automático con nueve: visible"), Soulbound::Presentation::ShowsRequestHints(EHintsMode::Automatic, Seen));
+		// S-027 (decisión del autor del 9/11/2026): las cuatro Ayudas nuevas no cuentan; nueve de S-021 y las cuatro nuevas siguen siendo nueve.
+		for (const EInstructionMoment Moment : {EInstructionMoment::Echo, EInstructionMoment::Steal, EInstructionMoment::Void, EInstructionMoment::Ring})
+		{
+			Seen.Add(Soulbound::Rules::InstructionKey(Moment));
+		}
+		TestTrue(TEXT("Automático con nueve y las cuatro Ayudas nuevas: visible"), Soulbound::Presentation::ShowsRequestHints(EHintsMode::Automatic, Seen));
 	}
 	return true;
 }

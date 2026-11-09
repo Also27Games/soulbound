@@ -6,6 +6,7 @@
 #include "BoardKit.h"
 #include "BoardLayout.h"
 #include "InstructionTracker.h"
+#include "StatusText.h"
 #include "WardenLineQueue.h"
 #include "BoardViewActor.generated.h"
 
@@ -17,6 +18,8 @@ class APostProcessVolume;
 class ASeatTokenActor;
 class IInputProcessor;
 class SChroniclePanel;
+class SGrimoirePanel;
+class SStatusPanel;
 class SWidget;
 struct FRingOutcome;
 struct FRingPanelModel;
@@ -52,6 +55,8 @@ class UTextRenderComponent;
  * [/Script/Soulbound.BoardViewActor]): vacía, no hay pieza; puesta pero inexistente, la forma básica de hoy como respaldo y
  * un aviso en el registro. Formas básicas, texto del motor y Slate siguen encima. Nada se coloca a mano en el mapa: el
  * decorado del autor vive en el nivel, fuera de esta vista.
+ * Desde S-027 el texto del turno ya no son mensajes de pantalla del motor: es el panel de estado (SStatusPanel) arriba a la izquierda,
+ * con el de depuración debajo (tecla D), y el Grimorio (tecla G); los paneles escalan con la altura de la pantalla (R-HUD-3).
  */
 UCLASS(NotBlueprintable, Config = Game)
 class SOULBOUND_API ABoardViewActor : public AActor
@@ -71,6 +76,9 @@ public:
 	 * ficha (decisión del autor del 26/10/2026). Un clic en él consulta; el clic derecho, el rechazo de Tifón.
 	 */
 	bool IsOracleOrb(const UPrimitiveComponent* Component) const;
+
+	/** Si el Grimorio está abierto (S-027, R-HUD-4): mientras lo está, los clics sobre el tablero no cuentan (el controlador los ignora). */
+	bool IsGrimoireOpen() const { return bGrimoireOpen; }
 
 	// ---- Mesa (S-019) ----
 
@@ -240,13 +248,30 @@ public:
 
 	// ---- Paneles ----
 
-	/** Ancho de la columna de la derecha (leyenda y crónica), en píxeles. La cámara deja ese hueco al tablero. Valor inicial 460. */
+	/**
+	 * Ancho de la columna de la derecha (leyenda y crónica) a 1080 píxeles de alto; con otra altura, en proporción (S-027, R-HUD-3). La cámara
+	 * deja ese hueco al tablero, en píxeles de pantalla. Valor inicial 460.
+	 */
 	UPROPERTY(EditAnywhere, Category = "Vista|Paneles")
 	float PanelWidthPixels = 460.f;
 
-	/** Tamaño de la letra de los paneles. Valor inicial 13 (se lee a 1280x800). */
+	/**
+	 * Tamaño de la letra de los paneles (estado, depuración, leyenda, crónica y Grimorio) a 1080 píxeles de alto; con otra altura, en
+	 * proporción y nunca menos de PanelMinFontSize (S-027, R-HUD-3). Valor inicial 13.
+	 */
 	UPROPERTY(EditAnywhere, Category = "Vista|Paneles")
 	int32 PanelFontSize = 13;
+
+	/** Tamaño mínimo de la letra de los paneles, en píxeles de pantalla (S-027, R-HUD-3). Valor inicial 9 (Config/DefaultGame.ini). */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	int32 PanelMinFontSize = 9;
+
+	/**
+	 * Cuánto más grande va, en el panel de estado, la petición al jugador y el resultado de la partida (S-027, R-HUD-1: "con el tamaño mayor del
+	 * panel"). Valor inicial 1,5 (Config/DefaultGame.ini).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	float StatusLargeFontScale = 1.5f;
 
 	/** Líneas de crónica que se conservan; al pasarse se recortan las más viejas. Valor inicial 300. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Paneles")
@@ -321,11 +346,19 @@ public:
 
 	/**
 	 * Tecla que, con la partida terminada, hace lo mismo que el botón "Volver al menú": cierra la sesión en línea si la hay y vuelve al mapa
-	 * del menú (GameDefaultMap) (S-022; nombre aprobado). Es la alternativa al botón. Valor inicial Intro: no Escape, que es la pausa de UGT
-	 * (R-FLU-5) y en PIE lo captura el editor (decisión del autor del 29/10/2026). Antes del final no hace nada y no se la queda.
+	 * del menú (ReturnToMenuMap desde S-027) (S-022; nombre aprobado). Es la alternativa al botón. Valor inicial Intro: no Escape, que es la
+	 * pausa de UGT (R-FLU-5) y en PIE lo captura el editor (decisión del autor del 29/10/2026). Antes del final no hace nada y no se la queda.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey ReturnToMenuKey = EKeys::Enter;
+
+	/**
+	 * El mapa al que llevan "Volver al menú" e Intro al acabar la partida (S-027, R-MEN-1; nombre propuesto): el menú principal de UGT, el mismo
+	 * que abre su menú de pausa. Valor inicial /Game/UltraGameTemplate/Maps/UGT_MainMenuMap (Config/DefaultGame.ini). Vacío o inexistente, se
+	 * vuelve a GameDefaultMap (el lanzador, con los logos) y se dice en el registro.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara", meta = (AllowedClasses = "/Script/Engine.World"))
+	FSoftObjectPath ReturnToMenuMap;
 
 	/** Tamaño de la letra del botón "Volver al menú" (S-022). Valor inicial 28, como la línea del Warden. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
@@ -335,7 +368,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey OverlayToggleKey = EKeys::L;
 
-	/** Tecla que oculta y muestra los paneles de Slate (leyenda y crónica); ocultos, la cenital usa todo el ancho. Valor inicial H. */
+	/**
+	 * Tecla que oculta y muestra los paneles de Slate (leyenda, crónica y, desde S-027, estado y depuración; también cierra el Grimorio);
+	 * ocultos, la cenital usa todo el ancho. Valor inicial H.
+	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey PanelsToggleKey = EKeys::H;
 
@@ -568,8 +604,23 @@ private:
 	void ToggleOverlay();
 	/** Oculta o enseña la leyenda y la crónica, y recoloca la cenital en el hueco que queda. */
 	void TogglePanels();
-	/** Oculta o enseña el texto de depuración de pantalla; al ocultarlo, lo quita ya. */
+	/**
+	 * Oculta o enseña el panel de estado (desde S-027; antes, el texto de depuración de pantalla).
+	 * TODO(R-HUD-1): el nombre viene de cuando era texto de depuración; renombrarlo con Rider (ToggleStatusPanel).
+	 */
 	void ToggleDebugText();
+	/** Muestra u oculta el panel de depuración (S-027, R-HUD-2). Al empezar, oculto. */
+	void ToggleDebugPanel();
+	/** Abre o cierra el Grimorio (S-027, R-HUD-4); abierto, se rellena en el acto. */
+	void ToggleGrimoire();
+	/**
+	 * Recalcula la letra y el ancho de los paneles para un viewport de ViewportSize (S-027, R-HUD-3): el tamaño en píxeles de pantalla
+	 * (ScaledPanelFontSize, ScaledPanelWidth) entre la escala de DPI que Unreal ya aplica a la interfaz. Lo escribe en el registro al
+	 * arrancar y cada vez que cambia.
+	 */
+	void UpdatePanelScale(const FVector2D& ViewportSize);
+	/** Enseña en la línea del Warden las instrucciones de Cues que el perfil deje (S-021, A3), y las anota para la crónica. */
+	void TeachInstructions(const FMatchState& State, const TArray<Soulbound::Presentation::FInstructionCue>& Cues);
 	/** Pone como vista del jugador local la cámara que toca, y le engancha las teclas de la vista la primera vez. */
 	void ApplyViewTarget();
 	/** Si la partida ha terminado: entonces existe el botón "Volver al menú" y vale la tecla (S-022). */
@@ -582,7 +633,10 @@ private:
 	/** Cerrada (o no) la sesión en línea, viaja al menú (S-022): un cierre fallido se anota y se viaja igual. */
 	UFUNCTION()
 	void HandleSessionLeftForMenu(bool bWasSuccessful);
-	/** Abre el mapa del menú, el GameDefaultMap de DefaultEngine.ini, leído de UGameMapsSettings (S-022). */
+	/**
+	 * Abre el mapa del menú (S-022): desde S-027, ReturnToMenuMap; vacío o inexistente, el GameDefaultMap de DefaultEngine.ini, leído de
+	 * UGameMapsSettings, y lo dice en el registro (MenuMapPackage).
+	 */
 	void TravelToMenu();
 	/** Lado de la losa de respaldo: el de la pieza. */
 	float SlabSize() const { return LayoutParams.SlabHalfSize * 2.f; }
@@ -641,9 +695,13 @@ private:
 	 * corrupción ya se ha enseñado (ForgottenDomainsShown). Lo calcula Refresh.
 	 */
 	bool IsDomainShownForgotten(int32 DomainId) const { return DomainsShownForgotten.IsValidIndex(DomainId) && DomainsShownForgotten[DomainId]; }
-	/** Texto de depuración del turno; y pone la cámara como vista del jugador local si aún no lo es. */
+	/**
+	 * Rellena los paneles de estado y de depuración y, abierto, el Grimorio (S-027); y pone la cámara como vista del jugador local si aún no lo
+	 * es. Se llama a intervalo corto porque el reloj cambia sin que cambie el estado.
+	 */
 	void TickHud();
-	void ShowText(int32 Line, const FColor& Color, const FString& Text, float Scale = 1.f) const;
+	/** Lo que los paneles de estado y de depuración necesitan y no está en el estado (S-027, FStatusContext). */
+	Soulbound::Presentation::FStatusContext MakeStatusContext() const;
 
 	FLinearColor SeatColor(int32 Seat) const;
 
@@ -662,7 +720,12 @@ private:
 	bool bSeatedView = false;
 	bool bOverlayHidden = false;
 	bool bPanelsHidden = false;
+	/** Si el panel de estado está oculto (tecla T). TODO(R-HUD-1): renombrarlo con Rider (bStatusPanelHidden). */
 	bool bDebugTextHidden = false;
+	/** Si el panel de depuración se ve (tecla D, S-027). Al empezar, no. */
+	bool bDebugPanelShown = false;
+	/** Si el Grimorio está abierto (tecla G, S-027). H lo cierra. */
+	bool bGrimoireOpen = false;
 	bool bInputBound = false;
 	/** Si ya se pidió volver al menú (S-022): un segundo clic o Intro mientras se cierra la sesión no hace nada. */
 	bool bReturningToMenu = false;
@@ -675,6 +738,28 @@ private:
 
 	TSharedPtr<SChroniclePanel> ChroniclePanel;
 	TSharedPtr<SWidget> Overlay;
+
+	/** Los paneles de estado y de depuración (S-027): una capa arriba a la izquierda, que se oculta con los paneles (H) y con el telón. */
+	TSharedPtr<SStatusPanel> StatusPanel;
+	TSharedPtr<SStatusPanel> DebugPanel;
+	TSharedPtr<SWidget> StatusOverlay;
+
+	/** El Grimorio (S-027): una capa centrada, por encima de las demás. */
+	TSharedPtr<SGrimoirePanel> GrimoirePanel;
+	TSharedPtr<SWidget> GrimoireOverlay;
+	/** Los textos de grimorio.json, leídos al construir los paneles. */
+	Soulbound::Presentation::FGrimoireTexts GrimoireTexts;
+
+	/**
+	 * La escala de los paneles (S-027, R-HUD-3), calculada por UpdatePanelScale: letra y ancho de la columna de la derecha en unidades de Slate
+	 * (lo que se le da a los widgets) y el ancho en píxeles de pantalla (lo que la cámara deja al tablero).
+	 */
+	int32 PanelSlateFontSize = 13;
+	float PanelSlateWidth = 460.f;
+	float PanelScreenWidth = 460.f;
+	float PanelDpiScale = 1.f;
+	/** Si ya se escribió la escala en el registro (al arrancar se escribe siempre; después, solo si cambia). */
+	bool bPanelScaleLogged = false;
 
 	/** La línea del Warden en pantalla (S-021): una capa aparte, que no se oculta con los paneles (H). */
 	TSharedPtr<SWidget> WardenLineOverlay;

@@ -10,13 +10,15 @@
 
 void SLegendPanel::Construct(const FArguments& InArgs)
 {
-	const int32 FontSize = InArgs._FontSize;
+	// S-027 (R-HUD-3): la letra se lee del atributo cada vez que se pinta, para que cambie con la resolución sin rehacer el panel.
+	const TAttribute<int32> FontSize = InArgs._FontSize;
+	const auto Font = [FontSize](const ANSICHAR* Style) { return FCoreStyle::GetDefaultFontStyle(Style, FMath::Max(FontSize.Get(), 1)); };
 	TSharedRef<SVerticalBox> Column = SNew(SVerticalBox);
 	Column->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 3.f)
 	[
 		SNew(STextBlock)
 		.Text(FText::FromString(TEXT("LEYENDA")))
-		.Font(FCoreStyle::GetDefaultFontStyle("Bold", FontSize))
+		.Font_Lambda([Font]() { return Font("Bold"); })
 		.ColorAndOpacity(FLinearColor::White)
 	];
 
@@ -30,7 +32,9 @@ void SLegendPanel::Construct(const FArguments& InArgs)
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 3.f, 0.f)
 				[
-					SNew(SBox).WidthOverride(FontSize + 2.f).HeightOverride(FontSize + 2.f)
+					SNew(SBox)
+					.WidthOverride_Lambda([FontSize]() { return FOptionalSize(FontSize.Get() + 2.f); })
+					.HeightOverride_Lambda([FontSize]() { return FOptionalSize(FontSize.Get() + 2.f); })
 					[
 						SNew(SColorBlock).Color(Chip.Color)
 					]
@@ -39,7 +43,7 @@ void SLegendPanel::Construct(const FArguments& InArgs)
 				[
 					SNew(STextBlock)
 					.Text_Lambda([Chip]() { return FText::FromString(Chip.TextGetter ? Chip.TextGetter() : Chip.Text); })
-					.Font(FCoreStyle::GetDefaultFontStyle("Regular", FontSize))
+					.Font_Lambda([Font]() { return Font("Regular"); })
 					.ColorAndOpacity(FLinearColor(0.9f, 0.9f, 0.9f))
 				]
 			];
@@ -51,7 +55,7 @@ void SLegendPanel::Construct(const FArguments& InArgs)
 			[
 				SNew(STextBlock)
 				.Text(FText::FromString(Row.Title))
-				.Font(FCoreStyle::GetDefaultFontStyle("Bold", FontSize))
+				.Font_Lambda([Font]() { return Font("Bold"); })
 				.ColorAndOpacity(FLinearColor(1.f, 0.85f, 0.4f))
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(8.f, 0.f, 0.f, 0.f)

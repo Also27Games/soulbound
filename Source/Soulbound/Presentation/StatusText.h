@@ -97,6 +97,35 @@ namespace Soulbound::Presentation
 	 */
 	float ScaledPanelWidth(float ViewportHeight, float WidthAt1080);
 
+	// ---- Textos de asiento que comparten los paneles y la leyenda (de S-006 a S-016; en BoardViewActor.cpp hasta S-027) ----
+
+	/** Nombre del Elegido del Dominio, de elegidos.json (S-008); vacío si el Dominio no tiene Elegido. */
+	FString ElectName(const FMatchState& State, int32 DomainId);
+
+	/** "El Banquete · Shuten-dōji": el nombre del Dominio (del tablero) y el de su Elegido (de elegidos.json). */
+	FString DomainTitle(const FMatchState& State, int32 DomainId);
+
+	/**
+	 * Estado del Vacío del asiento Seat para la vista (S-013): "EN EL VACÍO, turno n", con n el turno dentro que juega o, si no lo está jugando,
+	 * el siguiente. Vacío si no está en el Vacío. Solo lee el estado.
+	 */
+	FString VoidText(const FMatchState& State, int32 Seat);
+
+	/**
+	 * Estados del asiento Seat que dejan los efectos del Warden (S-014): insolencia, castigos pendientes, Prueba del Warden, Marcado y Brazal
+	 * revelado. Solo lee el estado.
+	 */
+	FString EffectStatusText(const FMatchState& State, int32 Seat);
+
+	/**
+	 * Brazal de un asiento (S-008, solo lectura): sus runas por tipo (D<n>×cantidad, solo las que tiene) y sus poderes activos. Paso Libre por
+	 * afinidad (Fenrir) se marca aparte, porque no depende de ninguna runa.
+	 */
+	FString BracerText(const FMatchState& State, int32 Seat);
+
+	/** Nombre de un poder (glosario): "Duelo", "Celeridad", "Paso Libre", "Expulsión", "Vuelo Planar", "Desvío". */
+	const TCHAR* PowerName(EPower Power);
+
 	// ---- El Grimorio (R-HUD-4) ----
 
 	/** Ruta de los textos del Grimorio, relativa a Content/ (se empaqueta con el resto de Data/). */

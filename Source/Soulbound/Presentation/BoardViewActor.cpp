@@ -11,8 +11,11 @@
 #include "BoardViewState.h"
 #include "ChroniclePanel.h"
 #include "EventText.h"
+#include "GrimoirePanel.h"
 #include "InstructionTracker.h"
 #include "LegendPanel.h"
+#include "StatusPanel.h"
+#include "StatusText.h"
 #include "Match/BondRaceRules.h"
 #include "Match/RuneRules.h"
 #include "Match/VictoryRules.h"
@@ -35,7 +38,9 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/PostProcessVolume.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/UserInterfaceSettings.h"
 #include "Engine/World.h"
+#include "Misc/Paths.h"
 #include "Framework/Application/IInputProcessor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/PlatformTime.h"
@@ -50,6 +55,13 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/SBoxPanel.h"
+
+// S-027: los textos de asiento que usan la leyenda y las etiquetas viven en StatusText (antes, en el espacio anónimo de este archivo).
+using Soulbound::Presentation::BracerText;
+using Soulbound::Presentation::DomainTitle;
+using Soulbound::Presentation::EffectStatusText;
+using Soulbound::Presentation::ElectName;
+using Soulbound::Presentation::VoidText;
 
 namespace
 {
@@ -125,37 +137,10 @@ namespace
 		return FSoftObjectPath(FString::Printf(TEXT("/Game/Art/Tablero/%s.%s"), Name, Name));
 	}
 
-	/** Clave base de los mensajes de pantalla de esta vista: una línea por clave, se sustituyen al refrescar. */
-	constexpr uint64 TextKeyBase = 0x53420500;
-	/**
-	 * Líneas de texto de pantalla de esta vista (claves TextKeyBase + 0 a + 19), para quitarlas todas a la vez. Desde S-018, 20: las del
-	 * Oráculo y la votación (13 y 14, de S-017), las de los aspirantes (15 a 18) y la del resultado (19).
-	 */
-	constexpr int32 DebugTextLineCount = 20;
-
 	/** Atenuado de una casilla de un Dominio Olvidado: mismo tono, más oscuro. */
 	FLinearColor Dimmed(const FLinearColor& Color, float Factor)
 	{
 		return FLinearColor(Color.R * Factor, Color.G * Factor, Color.B * Factor);
-	}
-
-	const TCHAR* PhaseName(ETurnPhase Phase)
-	{
-		switch (Phase)
-		{
-		case ETurnPhase::BetweenTurns: return TEXT("entre turnos");
-		case ETurnPhase::Start: return TEXT("inicio");
-		case ETurnPhase::PreRoll: return TEXT("antes de tirar");
-		case ETurnPhase::RollAndChoose: return TEXT("tirada y destino");
-		case ETurnPhase::Moving: return TEXT("movimiento, por el camino");
-		case ETurnPhase::MoveAndResolve: return TEXT("llegada y casilla");
-		case ETurnPhase::SkillTrial: return TEXT("minijuego (Fuente, escape del Vacío o Prueba del Warden)");
-		case ETurnPhase::ShellGame: return TEXT("trilero");
-		case ETurnPhase::Duel: return TEXT("duelo");
-		case ETurnPhase::End: return TEXT("fin de turno");
-		case ETurnPhase::OracleConsult: return TEXT("consulta del Oráculo");
-		}
-		return TEXT("?");
 	}
 
 	/** Marca de tiempo de la crónica: minutos y segundos del reloj de partida. */
@@ -199,392 +184,6 @@ namespace
 		}
 	}
 
-	/** Tecla de la opción en la posición Index (S-010): 1 a 9, y 0 para la décima si la elección no admite "no". Vacía si no tiene. */
-	FString OptionKey(const FPendingChoice& Choice, int32 Index)
-	{
-		if (Index < 9)
-		{
-			return FString::Printf(TEXT("[%d]"), Index + 1);
-		}
-		return Index == 9 && !Choice.CanDecline() ? FString(TEXT("[0]")) : FString(TEXT("[sin tecla]"));
-	}
-
-	/** Texto de la opción en la posición Index de la elección pendiente, para la línea de petición (S-009, S-010). */
-	FString OptionText(const FMatchState& State, int32 Index)
-	{
-		const FPendingChoice& Choice = State.PendingChoice;
-		switch (Choice.Kind)
-		{
-		case EChoiceKind::DiceCount: return Choice.Options[Index] > 1 ? TEXT("dos dados") : TEXT("un dado");
-		case EChoiceKind::PlanarJump: return Soulbound::Presentation::TileShortName(State.Board, Choice.Options[Index]);
-		case EChoiceKind::PlayerAction:
-		{
-			const FPlayerActionOption& Action = Choice.ActionOptions[Index];
-			if (Action.Action == EPlayerAction::Duel)
-			{
-				// S-012: con quien comparte casilla, duelo; con alguien de otra casilla, solo desde un Nodo de Duelo.
-				const bool bSameTile = State.Seats.IsValidIndex(Choice.Seat) && State.Seats.IsValidIndex(Action.TargetSeat)
-					&& State.Seats[Choice.Seat].TileId == State.Seats[Action.TargetSeat].TileId;
-				return bSameTile ? FString::Printf(TEXT("Duelo con el asiento %d"), Action.TargetSeat) : FString::Printf(TEXT("Retar al asiento %d (Nodo)"), Action.TargetSeat);
-			}
-			return FString::Printf(TEXT("%s al asiento %d"), Action.Action == EPlayerAction::Steal ? TEXT("Robar") : TEXT("Expulsar"), Action.TargetSeat);
-		}
-		case EChoiceKind::SafeRune: return FString::Printf(TEXT("D%d"), Choice.Options[Index]);
-		case EChoiceKind::ShellPick: return FString::Printf(TEXT("esfera %d"), Index + 1);
-		case EChoiceKind::Deflection: return TEXT("usar Desvío");
-		// S-014: las de los eventos del Warden. El dilema enseña lo que hace cada opción.
-		case EChoiceKind::Dilemma:
-		{
-			const int32 EventIndex = State.CurrentEvent.EventIndex;
-			const FWardenEventDef* Def = State.WardenEvents.Events.IsValidIndex(EventIndex) ? &State.WardenEvents.Events[EventIndex] : nullptr;
-			return Def && Def->Options.IsValidIndex(Choice.Options[Index]) ? Soulbound::Presentation::DescribeOption(Def->Options[Choice.Options[Index]])
-				: FString::Printf(TEXT("opción %d"), Index + 1);
-		}
-		case EChoiceKind::ChosenRival: return FString::Printf(TEXT("asiento %d"), Choice.Options[Index]);
-		case EChoiceKind::GiftRune:
-		case EChoiceKind::LoseRune: return FString::Printf(TEXT("D%d"), Choice.Options[Index]);
-		default: return FString::FromInt(Choice.AnswerAt(Index));
-		}
-	}
-
-	/**
-	 * Efecto del evento del Warden que espera ahora a su duelo o a su trilero (S-015): la aplicación en curso de la opción que
-	 * se aplica. Falso si no hay evento esperando una acción. Solo lee el estado.
-	 */
-	bool EventActionEffect(const FMatchState& State, EEffect& OutEffect)
-	{
-		const FCurrentWardenEvent& Event = State.CurrentEvent;
-		if (!Event.IsActive() || !Event.bWaitsForAction || !State.WardenEvents.Events.IsValidIndex(Event.EventIndex))
-		{
-			return false;
-		}
-		const FWardenEventDef& Def = State.WardenEvents.Events[Event.EventIndex];
-		if (!Def.Options.IsValidIndex(Event.Option) || !Def.Options[Event.Option].Applications.IsValidIndex(Event.NextApplication - 1))
-		{
-			return false;
-		}
-		OutEffect = Def.Options[Event.Option].Applications[Event.NextApplication - 1].Effect;
-		return true;
-	}
-
-	/**
-	 * Qué se elige al señalar a un rival en el evento en curso (S-015), para la línea de petición: a quién se pone a prueba, a
-	 * quién se roba, con quién se bate o, con dos rivales, quién reta y a quién. Solo lee el estado.
-	 */
-	FString ChosenRivalText(const FMatchState& State)
-	{
-		const FCurrentWardenEvent& Event = State.CurrentEvent;
-		const FWardenEventDef* Def = State.WardenEvents.Events.IsValidIndex(Event.EventIndex) ? &State.WardenEvents.Events[Event.EventIndex] : nullptr;
-		if (Def && Def->Options.IsValidIndex(Event.Option) && Def->Options[Event.Option].Applications.IsValidIndex(Event.NextApplication - 1))
-		{
-			const FEffectApplication& Application = Def->Options[Event.Option].Applications[Event.NextApplication - 1];
-			if (Application.Target == EEffectTarget::TwoChosenRivals)
-			{
-				return Event.FirstRival == INDEX_NONE ? FString(TEXT("el primer rival, que reta al segundo"))
-					: FString::Printf(TEXT("el segundo rival, al que reta el asiento %d"), Event.FirstRival);
-			}
-			switch (Application.Effect)
-			{
-			case EEffect::WardenTrial: return TEXT("a quién pones a prueba");
-			case EEffect::DecreedTheft: return TEXT("a quién robas");
-			case EEffect::ForcedDuel: return TEXT("con quién te bates");
-			default: break;
-			}
-		}
-		return TEXT("a quién señalas");
-	}
-
-	/**
-	 * Estados del asiento Seat que dejan los efectos del Warden (S-014): Marcado y Brazal revelado, con la ronda en que
-	 * caducan, para la leyenda de asientos. Vacío si no tiene ninguno. Solo lee el estado.
-	 */
-	FString EffectStatusText(const FMatchState& State, int32 Seat)
-	{
-		FString Text;
-		if (State.Seats.IsValidIndex(Seat))
-		{
-			// S-016 (B), decisión del autor del 05/10/2026: la insolencia de cada uno, a la vista, y los castigos que esperan.
-			const FSeatState& SeatState = State.Seats[Seat];
-			const int32 Waiting = SeatState.PendingPunishments.Num() + SeatState.VoidPunishments.Num();
-			Text += FString::Printf(TEXT(" | insolencia %d de %d"), SeatState.Insolence, Soulbound::Match::MaxInsolence);
-			if (Waiting > 0)
-			{
-				Text += FString::Printf(TEXT(" | %d castigo%s pendiente%s"), Waiting, Waiting > 1 ? TEXT("s") : TEXT(""), Waiting > 1 ? TEXT("s") : TEXT(""));
-			}
-		}
-		if (State.Seats.IsValidIndex(Seat) && State.Seats[Seat].bWardenTrialPending)
-		{
-			// S-015: la Prueba del Warden pendiente, hasta que la juegue al empezar su siguiente turno.
-			Text += TEXT(" | PRUEBA DEL WARDEN");
-		}
-		if (Soulbound::Rules::IsMarked(State, Seat))
-		{
-			Text += FString::Printf(TEXT(" | MARCADO hasta la ronda %d"), State.Seats[Seat].MarkedUntilRound);
-		}
-		if (Soulbound::Rules::IsBracerRevealed(State, Seat))
-		{
-			Text += FString::Printf(TEXT(" | BRAZAL REVELADO hasta la ronda %d"), State.Seats[Seat].RevealedUntilRound);
-		}
-		return Text;
-	}
-
-	/**
-	 * Línea del evento del Warden en curso (S-014): su texto y quién lo dirige; si es un dilema que espera, lo dice (las
-	 * opciones, numeradas, van en la línea de petición). Vacía sin evento. Solo lee el estado.
-	 */
-	FString WardenEventLine(const FMatchState& State)
-	{
-		const FCurrentWardenEvent& Event = State.CurrentEvent;
-		if (!Event.IsActive() || !State.WardenEvents.Events.IsValidIndex(Event.EventIndex))
-		{
-			return FString();
-		}
-		const FWardenEventDef& Def = State.WardenEvents.Events[Event.EventIndex];
-		// S-017 (R-VOT-1): en una votación no dirige nadie; lo que se vota va en su propia línea.
-		if (Def.bVote)
-		{
-			return FString::Printf(TEXT("EL WARDEN (VOTACIÓN): \"%s\""), *Def.Text);
-		}
-		const TCHAR* Kind = Def.IsDilemma() ? (Event.Option == INDEX_NONE ? TEXT("DILEMA, elige una opción") : TEXT("DILEMA")) : TEXT("DECRETO");
-		const FString Against = Event.bAgainst ? FString(TEXT(" | resuelto EN SU CONTRA")) : FString();
-		return FString::Printf(TEXT("EL WARDEN (%s): \"%s\" | dirige el asiento %d%s"), Kind, *Def.Text, Event.Director, *Against);
-	}
-
-	/**
-	 * Línea de la votación abierta (S-017, R-VOT-1 a 6): qué se vota, quién ha votado ya (a quién, no: los votos se cuentan al
-	 * resolverse, decisión del autor) y el tiempo que queda. Al humano, si aún no ha votado y tiene a quién, le dice cómo votar.
-	 * Vacía sin votación. Solo lee el estado.
-	 */
-	FString VoteLine(const FMatchState& State, int32 HumanSeat, bool bHints)
-	{
-		const FVoteState& Vote = State.Vote;
-		if (!Vote.IsOpen())
-		{
-			return FString();
-		}
-		TArray<FString> Voted;
-		for (int32 Seat = 0; Seat < Vote.Votes.Num(); ++Seat)
-		{
-			if (Vote.Votes[Seat] != INDEX_NONE)
-			{
-				Voted.Add(FString::FromInt(Seat));
-			}
-		}
-		const bool bHumanPending = Vote.Votes.IsValidIndex(HumanSeat) && Vote.Votes[HumanSeat] == INDEX_NONE
-			&& !Soulbound::Rules::VoteOptions(State, HumanSeat).IsEmpty();
-		return FString::Printf(TEXT("VOTACIÓN: %d se pueden votar | han votado: %s | quedan %.0f s%s"), Vote.Votables.Num(),
-			Voted.IsEmpty() ? TEXT("nadie") : *FString::Join(Voted, TEXT(", ")), FMath::Max(0.0, Vote.DeadlineSeconds - State.ClockSeconds),
-			bHumanPending && bHints ? TEXT("  <- clic en la ficha del asiento al que votas") : TEXT(""));
-	}
-
-	/**
-	 * Estado del Vacío del asiento Seat para la vista (S-013): "EN EL VACÍO, turno n", con n el turno dentro que juega o, si
-	 * no lo está jugando, el siguiente. Vacío si no está en el Vacío. Solo lee el estado.
-	 */
-	FString VoidText(const FMatchState& State, int32 Seat)
-	{
-		if (!State.Seats.IsValidIndex(Seat) || !State.Seats[Seat].IsInVoid())
-		{
-			return FString();
-		}
-		const bool bPlayingVoidTurn = Seat == State.ActiveSeat && (State.TurnPhase == ETurnPhase::Start || State.TurnPhase == ETurnPhase::SkillTrial)
-			&& State.Seats[Seat].VoidTurns > 0;
-		// S-016 (B): el Vacío de la Furia, donde no funcionan Desvío ni Liberación.
-		return FString::Printf(TEXT("%s, turno %d"), State.Seats[Seat].bFuryVoid ? TEXT("EN EL VACÍO DE LA FURIA (sin Desvío ni Liberación)") : TEXT("EN EL VACÍO"),
-			State.Seats[Seat].VoidTurns + (bPlayingVoidTurn ? 0 : 1));
-	}
-
-	/**
-	 * Línea de petición de la elección pendiente (S-009): qué se elige, las opciones numeradas como las contestan las
-	 * teclas (1 a 9, y 0 para "no" o, si no se admite, la décima) y el tiempo que queda. Para el humano, en imperativo y con
-	 * sus teclas; para un dummy, qué está decidiendo. Desde S-010 la elección puede ser de un asiento sin turno (Koschei
-	 * víctima): bHuman es si se le pide al humano, tenga o no el turno. Solo lee el estado.
-	 */
-	FString ChoicePrompt(const FMatchState& State, bool bHuman, bool bHints)
-	{
-		const FPendingChoice& Choice = State.PendingChoice;
-		const FString Left = FString::Printf(TEXT("quedan %.0f s"), FMath::Max(0.0, Choice.DeadlineSeconds - State.ClockSeconds));
-		if (Choice.Kind == EChoiceKind::Reroll)
-		{
-			// S-021 (A3): lo que ofrece (la tecla R) y el tiempo se muestran siempre; "o clic en una casilla blanca" es explicación y sigue el ajuste.
-			return bHuman ? FString::Printf(TEXT("REPETIR: [R] repite la tirada (una vez por turno)%s | %s"), bHints ? TEXT(", o clic en una casilla blanca") : TEXT(""), *Left)
-				: FString::Printf(TEXT("el asiento %d decide si repite la tirada | %s"), Choice.Seat, *Left);
-		}
-		const FString RivalWhat = Choice.Kind == EChoiceKind::ChosenRival ? ChosenRivalText(State) : FString();
-		const TCHAR* What = Choice.Kind == EChoiceKind::Dilemma ? TEXT("una opción del dilema")
-			: Choice.Kind == EChoiceKind::ChosenRival ? *RivalWhat
-			: Choice.Kind == EChoiceKind::GiftRune ? TEXT("qué runa te regala el Warden")
-			: Choice.Kind == EChoiceKind::LoseRune ? TEXT("qué runa pierdes")
-			: Choice.Kind == EChoiceKind::DiceCount ? TEXT("dados")
-			: Choice.Kind == EChoiceKind::PlanarJump ? TEXT("salto planar")
-			: Choice.Kind == EChoiceKind::SafeRune ? TEXT("la runa que Koschei pone a salvo del trilero")
-			: Choice.Kind == EChoiceKind::ShellPick ? TEXT("esfera")
-			: Choice.Kind == EChoiceKind::Deflection ? TEXT("si sales del Vacío con Desvío (la runa vuelve a su Fuente y juegas el turno)")
-			: TEXT("accion contra un jugador");
-		const TCHAR* No = Choice.Kind == EChoiceKind::PlanarJump ? TEXT("no saltar") : Choice.Kind == EChoiceKind::Deflection ? TEXT("no") : TEXT("nada");
-		TArray<FString> Parts;
-		for (int32 Index = 0; Index < Choice.AnswerCount(); ++Index)
-		{
-			Parts.Add(FString::Printf(TEXT("%s %s"), *OptionKey(Choice, Index), *OptionText(State, Index)));
-		}
-		if (Choice.CanDecline())
-		{
-			Parts.Add(FString::Printf(TEXT("[0] %s"), No));
-		}
-		const FString Hint = bHints && bHuman && Choice.Kind == EChoiceKind::PlanarJump ? TEXT(" (o clic en un Nodo con halo)") : TEXT("");
-		return bHuman ? FString::Printf(TEXT("ELIGE %s: %s%s | %s"), What, *FString::Join(Parts, TEXT(" ")), *Hint, *Left)
-			: FString::Printf(TEXT("el asiento %d elige %s: %s | %s"), Choice.Seat, What, *FString::Join(Parts, TEXT(" ")), *Left);
-	}
-
-	/**
-	 * Línea del trilero en curso (S-010), sin animación (decisión del autor del 05/10/2026): quién roba a quién; durante la
-	 * muestra, las runas de la víctima a la vista (y la que apartó Koschei); durante la mezcla, solo cuántas esferas; en la
-	 * elección, las esferas numeradas. Con el tiempo de cada etapa. Vacía si no hay trilero. Solo lee el estado.
-	 */
-	FString ShellGameLine(const FMatchState& State)
-	{
-		const FShellGameState& Game = State.ShellGame;
-		// S-015: el de un evento del Warden lo dice: el Robo decretado, o el botín de un Duelo forzado.
-		EEffect EventEffect = EEffect::Halt;
-		const bool bFromEvent = EventActionEffect(State, EventEffect);
-		const TCHAR* Header = !bFromEvent ? TEXT("TRILERO") : EventEffect == EEffect::DecreedTheft ? TEXT("ROBO DECRETADO") : TEXT("DUELO FORZADO (botín: trilero)");
-		const FString Who = FString::Printf(TEXT("%s: el asiento %d roba al asiento %d"), Header, Game.Thief, Game.Victim);
-		const double StageLeft = FMath::Max(0.0, Game.StageDeadlineSeconds - State.ClockSeconds);
-		switch (Game.Stage)
-		{
-		case EShellGameStage::SafeRune:
-			return Who + TEXT(" (Koschei): antes aparta una runa, que no entra en la mezcla");
-		case EShellGameStage::Reveal:
-		{
-			const FString Runes = FString::JoinBy(Game.Orbs, TEXT(" "), [](int32 Rune) { return FString::Printf(TEXT("D%d"), Rune); });
-			const FString Aside = Game.SetAsideRune != INDEX_NONE ? FString::Printf(TEXT(" (a salvo: D%d)"), Game.SetAsideRune) : FString();
-			return FString::Printf(TEXT("%s | runas a la vista: %s%s | muestra: quedan %.0f s"), *Who, *Runes, *Aside, StageLeft);
-		}
-		case EShellGameStage::Shuffle:
-			return FString::Printf(TEXT("%s | mezclando %d esferas | quedan %.0f s"), *Who, Game.Orbs.Num(), StageLeft);
-		case EShellGameStage::Pick:
-		{
-			TArray<FString> Orbs;
-			for (int32 Index = 0; Index < Game.Orbs.Num(); ++Index)
-			{
-				Orbs.Add(FString::Printf(TEXT("(%d)"), Index + 1));
-			}
-			return FString::Printf(TEXT("%s | esferas: %s | el ladron elige a ciegas"), *Who, *FString::Join(Orbs, TEXT(" ")));
-		}
-		case EShellGameStage::None:
-		default:
-			return FString();
-		}
-	}
-
-	/**
-	 * Línea del duelo (S-012): mientras dura, quién reta a quién, de dónde sale el reto y quién ha rendido ya; resuelto, el
-	 * resultado del último duelo del turno en curso, hasta que acabe. Vacía si el turno no tiene duelo. Solo lee el estado.
-	 */
-	FString DuelLine(const FMatchState& State, int32 HumanSeat, bool bHumanRing)
-	{
-		const FDuelState& Duel = State.Duel;
-		// S-026: con el interruptor encendido, el duelo del humano se juega con el anillo; el de dos dummies sigue al azar. Apagado, los
-		// textos de siempre.
-		const bool bRingDuel = bHumanRing && Duel.IsParticipant(HumanSeat);
-		const TCHAR* const How = bRingDuel ? TEXT("con el anillo: clic izquierdo") : bHumanRing ? TEXT("resuelto al azar") : TEXT("resuelto al azar (sin minijuego aún)");
-		auto Who = [HumanSeat](int32 Seat) { return Seat == HumanSeat ? FString::Printf(TEXT("%d (tú)"), Seat) : FString::FromInt(Seat); };
-		if (Duel.IsActive())
-		{
-			auto Status = [&Duel](int32 Seat) { return Duel.HasPerformed(Seat) ? TEXT("ha rendido") : TEXT("rindiendo"); };
-			// S-015: el Duelo contra el Warden (rinde un valor fijo) y el Duelo forzado de un evento, entre turnos.
-			if (Duel.bAgainstWarden)
-			{
-				return FString::Printf(TEXT("DUELO CONTRA EL WARDEN: el asiento %s se bate contra el Warden (rinde %.2f) por %s | %s | %s"),
-					*Who(Duel.Challenged), Duel.ChallengerPerformance, Duel.bAllRunes ? TEXT("todas sus runas") : TEXT("una de sus runas"), Status(Duel.Challenged), How);
-			}
-			if (State.CurrentEvent.IsActive() && State.CurrentEvent.bWaitsForAction)
-			{
-				return FString::Printf(TEXT("DUELO FORZADO: el asiento %s reta al asiento %s por %s | retador %s, retado %s | %s"),
-					*Who(Duel.Challenger), *Who(Duel.Challenged), Duel.bAllRunes ? TEXT("todas sus runas") : TEXT("una runa"),
-					Status(Duel.Challenger), Status(Duel.Challenged), How);
-			}
-			return FString::Printf(TEXT("DUELO: el asiento %s reta al asiento %s%s | retador %s, retado %s | %s"),
-				*Who(Duel.Challenger), *Who(Duel.Challenged), Duel.bFromDuelNode ? TEXT(" desde un Nodo de Duelo") : TEXT(""),
-				Status(Duel.Challenger), Status(Duel.Challenged), How);
-		}
-		if (State.TurnPhase == ETurnPhase::BetweenTurns)
-		{
-			return FString();
-		}
-		// El último resultado, si es de este turno: nada desde el último TurnStarted.
-		for (int32 Index = State.EventLog.Num() - 1; Index >= 0; --Index)
-		{
-			const FMatchEvent& Event = State.EventLog[Index];
-			if (Event.Type == EMatchEventType::TurnStarted)
-			{
-				break;
-			}
-			if (Event.Type == EMatchEventType::DuelWon)
-			{
-				const bool bRingResult = bHumanRing && (Event.Seat == HumanSeat || Event.OtherSeat == HumanSeat);
-				return FString::Printf(TEXT("DUELO: gana el asiento %s al asiento %s, siendo el %s (%s)"), *Who(Event.Seat), *Who(Event.OtherSeat),
-					Event.Value == 1 ? TEXT("retado") : TEXT("retador"), bRingResult ? TEXT("con el anillo") : TEXT("resuelto al azar"));
-			}
-		}
-		return FString();
-	}
-
-	/** Nombre del Elegido del Dominio, de elegidos.json (S-008); vacío si el Dominio no tiene Elegido. */
-	FString ElectName(const FMatchState& State, int32 DomainId)
-	{
-		return State.Elects.IsValidDomain(DomainId) ? State.Elects.Elects[DomainId].Name : FString();
-	}
-
-	/** "El Banquete · Shuten-dōji": el nombre del Dominio (del tablero) y el de su Elegido (de elegidos.json). */
-	FString DomainTitle(const FMatchState& State, int32 DomainId)
-	{
-		const FString Domain = State.Board.Domains.IsValidIndex(DomainId) ? State.Board.Domains[DomainId].Name : FString();
-		const FString Elect = ElectName(State, DomainId);
-		return Elect.IsEmpty() ? Domain : FString::Printf(TEXT("%s · %s"), *Domain, *Elect);
-	}
-
-	const TCHAR* PowerName(EPower Power)
-	{
-		switch (Power)
-		{
-		case EPower::Duel: return TEXT("Duelo");
-		case EPower::Haste: return TEXT("Celeridad");
-		case EPower::FreePassage: return TEXT("Paso Libre");
-		case EPower::Expel: return TEXT("Expulsión");
-		case EPower::PlanarFlight: return TEXT("Vuelo Planar");
-		case EPower::Deflection: return TEXT("Desvío");
-		}
-		return TEXT("?");
-	}
-
-	/**
-	 * Brazal de un asiento (S-008, solo lectura): sus runas por tipo (D<n>×cantidad, solo las que tiene) y sus poderes
-	 * activos. Paso Libre por afinidad (Fenrir) se marca aparte, porque no depende de ninguna runa.
-	 */
-	FString BracerText(const FMatchState& State, int32 Seat)
-	{
-		const FSeatState& SeatState = State.Seats[Seat];
-		TArray<FString> Runes;
-		for (int32 RuneType = 0; RuneType < SeatState.Runes.Num(); ++RuneType)
-		{
-			if (SeatState.Runes[RuneType] > 0)
-			{
-				Runes.Add(FString::Printf(TEXT("D%d×%d"), RuneType, SeatState.Runes[RuneType]));
-			}
-		}
-		TArray<FString> Powers;
-		for (const EPower Power : Soulbound::Rules::GetActivePowers(State, Seat))
-		{
-			Powers.Add(PowerName(Power));
-		}
-		if (Soulbound::Rules::MakeMoverTraits(State, Seat).bFreePassage && !Soulbound::Rules::IsPowerActive(State, Seat, EPower::FreePassage))
-		{
-			Powers.Add(TEXT("Paso Libre (afinidad)"));
-		}
-		return FString::Printf(TEXT("%d: runas %s | poderes %s"), Seat,
-			Runes.IsEmpty() ? TEXT("-") : *FString::Join(Runes, TEXT(" ")), Powers.IsEmpty() ? TEXT("-") : *FString::Join(Powers, TEXT(", ")));
-	}
 }
 
 ABoardViewActor::ABoardViewActor()
@@ -743,6 +342,16 @@ void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 			}
 		}
 		RingOverlay.Reset();
+	}
+	// S-027: el panel de estado (con el de depuración) y el Grimorio.
+	for (TSharedPtr<SWidget>* Layer : {&StatusOverlay, &GrimoireOverlay})
+	{
+		UGameViewportClient* Viewport = GetWorld() ? GetWorld()->GetGameViewport() : nullptr;
+		if (Layer->IsValid() && Viewport)
+		{
+			Viewport->RemoveViewportWidgetContent(Layer->ToSharedRef());
+		}
+		Layer->Reset();
 	}
 	Super::EndPlay(EndPlayReason);
 }
@@ -1174,14 +783,16 @@ void ABoardViewActor::UpdateCamera()
 		return;
 	}
 	LastViewportSize = Viewport;
+	// S-027 (R-HUD-3): la letra y el ancho de los paneles siguen a la altura de la pantalla.
+	UpdatePanelScale(Viewport);
 
 	// Cámara cenital fija: el tablero entero, con el margen CameraMargin, en el hueco que dejan los paneles a la derecha.
 	// Con FOV horizontal de 60 grados, a la altura H se ve media anchura H*tan(30); la media altura es esa entre el aspecto.
 	constexpr float Fov = 60.f;
 	const float Aspect = Viewport.X / Viewport.Y;
 	const float HalfTan = FMath::Tan(FMath::DegreesToRadians(Fov * 0.5f));
-	// Con los paneles ocultos (tecla H), el tablero usa todo el ancho.
-	const float PanelPixels = bPanelsHidden ? 0.f : PanelWidthPixels;
+	// Con los paneles ocultos (tecla H), el tablero usa todo el ancho. S-027: el ancho que ocupa de verdad la columna, en píxeles de pantalla.
+	const float PanelPixels = bPanelsHidden ? 0.f : PanelScreenWidth;
 	const float FreeFraction = 1.f - FMath::Clamp(PanelPixels / static_cast<float>(Viewport.X), 0.f, 0.6f);
 	const float Height = CameraMargin * FMath::Max(BoardHalf.Y / (FreeFraction * HalfTan), BoardHalf.X * Aspect / HalfTan);
 	// La pantalla crece hacia +Y a la derecha: para que el tablero quede a la izquierda, la cámara se corre hacia +Y.
@@ -1345,7 +956,9 @@ void ABoardViewActor::BuildOverlay()
 	}
 	Rows.Add(Bracers);
 
-	ChroniclePanel = SNew(SChroniclePanel).FontSize(PanelFontSize);
+	// S-027 (R-HUD-3): la letra y el ancho de todos los paneles se leen en cada pintado, para que sigan a la resolución sin rehacerlos.
+	const TAttribute<int32> PanelFont = TAttribute<int32>::CreateLambda([this]() { return PanelSlateFontSize; });
+	ChroniclePanel = SNew(SChroniclePanel).FontSize(PanelFont);
 	Overlay = SNew(SBox)
 		.HAlign(HAlign_Right)
 		.VAlign(VAlign_Fill)
@@ -1359,12 +972,12 @@ void ABoardViewActor::BuildOverlay()
 		})
 		[
 			SNew(SBox)
-			.WidthOverride(PanelWidthPixels)
+			.WidthOverride_Lambda([this]() { return FOptionalSize(PanelSlateWidth); })
 			[
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot().AutoHeight()
 				[
-					SNew(SLegendPanel).FontSize(PanelFontSize).Rows(Rows)
+					SNew(SLegendPanel).FontSize(PanelFont).Rows(Rows)
 				]
 				+ SVerticalBox::Slot().FillHeight(1.f).Padding(0.f, 6.f, 0.f, 0.f)
 				[
@@ -1374,14 +987,78 @@ void ABoardViewActor::BuildOverlay()
 		];
 	Viewport->AddViewportWidgetContent(Overlay.ToSharedRef(), 10);
 
+	// S-027 (R-HUD-1, R-HUD-2): el panel de estado arriba a la izquierda, en el hueco del tablero, y el de depuración debajo (decisión del autor
+	// del 9/11/2026). Sustituyen a los mensajes de pantalla del motor. No reciben clics: el tablero de debajo sigue respondiendo. Se ocultan con
+	// los paneles (H) y con el telón, como la leyenda; el de estado, también con T; el de depuración solo se ve con D.
+	StatusOverlay = SNew(SBox)
+		.HAlign(HAlign_Left)
+		.VAlign(VAlign_Top)
+		.Padding_Lambda([this]() { return FMargin(8.f, 8.f, PanelSlateWidth + 16.f, 8.f); })
+		.Visibility_Lambda([this]()
+		{
+			const UMatchHostSubsystem* HostPtr = Host.Get();
+			return bPanelsHidden || (HostPtr && HostPtr->IsCurtainDown()) ? EVisibility::Collapsed : EVisibility::HitTestInvisible;
+		})
+		[
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot().AutoHeight()
+			[
+				SAssignNew(StatusPanel, SStatusPanel)
+				.FontSize(PanelFont)
+				.LargeScale(StatusLargeFontScale)
+				.Visibility_Lambda([this]() { return bDebugTextHidden ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 6.f, 0.f, 0.f)
+			[
+				SAssignNew(DebugPanel, SStatusPanel)
+				.FontSize(PanelFont)
+				.Title(FString::Printf(TEXT("DEPURACIÓN (%s)"), *DebugPanelKey.GetDisplayName().ToString()))
+				.Visibility_Lambda([this]() { return bDebugPanelShown ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+			]
+		];
+	Viewport->AddViewportWidgetContent(StatusOverlay.ToSharedRef(), 10);
+
+	// S-027 (R-HUD-4): el Grimorio, centrado y por encima de todo. No es pausa; los clics del tablero los ignora el controlador mientras está
+	// abierto. Los textos de afinidades y poderes salen de grimorio.json; lo que falte se enseña con el nombre del enumerado y se dice aquí.
+	const Soulbound::Presentation::FGrimoireTextsLoadResult Texts =
+		Soulbound::Presentation::LoadGrimoireTexts(FPaths::Combine(FPaths::ProjectContentDir(), Soulbound::Presentation::GrimoireRelativePath));
+	GrimoireTexts = Texts.Texts;
+	if (!Texts.IsComplete())
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Grimorio: %s"), *Texts.Message);
+	}
+	TArray<FLinearColor> RuneChipColors;
+	for (int32 Id = 0; Id < Soulbound::Board::DomainCount; ++Id)
+	{
+		RuneChipColors.Add(DomainColor(Id));
+	}
+	GrimoireOverlay = SNew(SBox)
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		.Padding(FMargin(16.f))
+		.Visibility_Lambda([this]()
+		{
+			const UMatchHostSubsystem* HostPtr = Host.Get();
+			return bGrimoireOpen && !(HostPtr && HostPtr->IsCurtainDown()) ? EVisibility::HitTestInvisible : EVisibility::Collapsed;
+		})
+		[
+			SAssignNew(GrimoirePanel, SGrimoirePanel)
+			.FontSize(PanelFont)
+			.DomainColors(RuneChipColors)
+			.CloseKeys(FString::Printf(TEXT("%s o %s"), *GrimoireKey.GetDisplayName().ToString(), *PanelsToggleKey.GetDisplayName().ToString()))
+		];
+	Viewport->AddViewportWidgetContent(GrimoireOverlay.ToSharedRef(), 14);
+
 	// S-021: la línea del Warden, grande y abajo, a la izquierda de la columna de paneles. Solo texto: ni assets ni widgets del juego.
 	WardenLineOverlay = SNew(SBox)
 		.HAlign(HAlign_Center)
 		.VAlign(VAlign_Bottom)
-		.Padding(FMargin(16.f, 0.f, PanelWidthPixels + 16.f, 36.f))
+		.Padding_Lambda([this]() { return FMargin(16.f, 0.f, PanelSlateWidth + 16.f, 36.f); })
 		.Visibility(EVisibility::HitTestInvisible)
 		[
 			SNew(SBox)
+			// TODO(R-HUD-3): a 1024x768 la frase se sale por la izquierda (visto en S-027, ya pasaba antes); limitar este ancho al hueco libre no
+			// lo arregló. Hace falta mirar en el editor (Widget Reflector) qué ancho recibe el texto con AutoWrapText dentro de la alineación centrada.
 			.MaxDesiredWidth(1000.f)
 			[
 				SNew(SBorder)
@@ -1407,7 +1084,7 @@ void ABoardViewActor::BuildOverlay()
 	ReturnToMenuOverlay = SNew(SBox)
 		.HAlign(HAlign_Center)
 		.VAlign(VAlign_Center)
-		.Padding(FMargin(16.f, 0.f, PanelWidthPixels + 16.f, 0.f))
+		.Padding_Lambda([this]() { return FMargin(16.f, 0.f, PanelSlateWidth + 16.f, 0.f); })
 		.Visibility_Lambda([this]() { return IsMatchOverShown() ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed; })
 		[
 			SNew(SButton)
@@ -1431,7 +1108,7 @@ void ABoardViewActor::BuildOverlay()
 	RingOverlay = SNew(SBox)
 		.HAlign(HAlign_Center)
 		.VAlign(VAlign_Center)
-		.Padding(FMargin(16.f, 0.f, PanelWidthPixels + 16.f, 0.f))
+		.Padding_Lambda([this]() { return FMargin(16.f, 0.f, PanelSlateWidth + 16.f, 0.f); })
 		.Visibility_Lambda([this]() { return RingPanelModel().bVisible ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
 		[
 			SNew(SRingPanel)
@@ -1663,17 +1340,23 @@ void ABoardViewActor::RefreshWardenLine(const FMatchState& State)
 	}
 
 	// S-021 (A3): las instrucciones, después de las frases del registro. El seguimiento dice qué momento acaba de darse; el perfil, si se enseña.
-	UPlayerProfileSubsystem* Profile = GetWorld() && GetWorld()->GetGameInstance() ? GetWorld()->GetGameInstance()->GetSubsystem<UPlayerProfileSubsystem>() : nullptr;
-	if (!Profile)
-	{
-		return;
-	}
 	TArray<int32> HumanSeats;
 	if (HumanSeat != INDEX_NONE)
 	{
 		HumanSeats.Add(HumanSeat);
 	}
-	for (const Soulbound::Presentation::FInstructionCue& Cue : InstructionTracker.Observe(State, HumanSeats))
+	TeachInstructions(State, InstructionTracker.Observe(State, HumanSeats));
+}
+
+void ABoardViewActor::TeachInstructions(const FMatchState& State, const TArray<Soulbound::Presentation::FInstructionCue>& Cues)
+{
+	UPlayerProfileSubsystem* Profile = GetWorld() && GetWorld()->GetGameInstance() ? GetWorld()->GetGameInstance()->GetSubsystem<UPlayerProfileSubsystem>() : nullptr;
+	if (!Profile)
+	{
+		return;
+	}
+	const int32 HumanSeat = Host.IsValid() ? Host->GetHumanSeat() : INDEX_NONE;
+	for (const Soulbound::Presentation::FInstructionCue& Cue : Cues)
 	{
 		const FString Text = Soulbound::Presentation::InstructionText(State.WardenLines, Cue.Moment);
 		// El momento ya está consumido. Sin frase en la tabla no se enseña ni se anota en el perfil; con ella, el perfil decide (y lo anota).
@@ -1922,28 +1605,18 @@ void ABoardViewActor::ToggleOverlay()
 
 void ABoardViewActor::TogglePanels()
 {
-	// La visibilidad de los paneles la calcula su capa (bPanelsHidden y el telón, S-024); aquí solo se recoloca el tablero.
+	// La visibilidad de los paneles la calcula su capa (bPanelsHidden y el telón, S-024); aquí solo se recoloca el tablero. S-027 (R-HUD-4): H
+	// también cierra el Grimorio, para que uno invisible no siga bloqueando los clics (decisión aceptada por el autor el 9/11/2026).
 	bPanelsHidden = !bPanelsHidden;
+	bGrimoireOpen = false;
 	UpdateCamera();
 }
 
 void ABoardViewActor::ToggleDebugText()
 {
+	// S-027: el panel de estado se oculta en su capa; al volver, se rellena en el acto.
 	bDebugTextHidden = !bDebugTextHidden;
-	if (bDebugTextHidden && GEngine)
-	{
-		// Sin esperar a que caduquen: solo las líneas de esta vista, no los mensajes del controlador. De la última a la primera:
-		// el motor reutiliza los huecos liberados en orden inverso, y así, al volver, cada línea ocupa el suyo y el orden se
-		// conserva (de la primera a la última, volvían del revés).
-		for (int32 Line = DebugTextLineCount - 1; Line >= 0; --Line)
-		{
-			GEngine->RemoveOnScreenDebugMessage(TextKeyBase + Line);
-		}
-	}
-	else
-	{
-		TickHud();
-	}
+	TickHud();
 }
 
 FString ABoardViewActor::DescribeViewKeys() const
@@ -1994,8 +1667,16 @@ void ABoardViewActor::HandleSessionLeftForMenu(bool bWasSuccessful)
 
 void ABoardViewActor::TravelToMenu()
 {
-	// El mapa del menú es el de arranque del juego (GameDefaultMap, hoy el lanzador de UGT); se lee, no se copia la ruta.
-	const FString Map = FPackageName::ObjectPathToPackageName(UGameMapsSettings::GetGameDefaultMap());
+	// S-027 (R-MEN-1): el mapa del menú es ReturnToMenuMap (el menú principal de UGT); vacío o inexistente, el de arranque del juego
+	// (GameDefaultMap, el lanzador con los logos), para no quedarse nunca sin salida. Los dos se leen; ninguna ruta va en el código.
+	const bool bReturnMapExists = !ReturnToMenuMap.IsNull() && FPackageName::DoesPackageExist(ReturnToMenuMap.GetLongPackageName());
+	const FString Map = Soulbound::Presentation::MenuMapPackage(ReturnToMenuMap.IsNull() ? FString() : ReturnToMenuMap.ToString(), bReturnMapExists,
+		UGameMapsSettings::GetGameDefaultMap());
+	if (!bReturnMapExists)
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Volver al menú: ReturnToMenuMap %s; se vuelve al mapa de arranque (GameDefaultMap)."),
+			ReturnToMenuMap.IsNull() ? TEXT("está vacío") : *FString::Printf(TEXT("(%s) no existe"), *ReturnToMenuMap.ToString()));
+	}
 	UE_LOG(LogSoulboundView, Log, TEXT("Volver al menú: %s."), *Map);
 	UGameplayStatics::OpenLevel(this, FName(*Map));
 }
@@ -2036,6 +1717,9 @@ void ABoardViewActor::ApplyViewTarget()
 				InputComponent->BindKey(OverlayToggleKey, IE_Pressed, this, &ABoardViewActor::ToggleOverlay);
 				InputComponent->BindKey(PanelsToggleKey, IE_Pressed, this, &ABoardViewActor::TogglePanels);
 				InputComponent->BindKey(DebugTextToggleKey, IE_Pressed, this, &ABoardViewActor::ToggleDebugText);
+				// S-027: el Grimorio (G) y el panel de depuración (D).
+				InputComponent->BindKey(GrimoireKey, IE_Pressed, this, &ABoardViewActor::ToggleGrimoire);
+				InputComponent->BindKey(DebugPanelKey, IE_Pressed, this, &ABoardViewActor::ToggleDebugPanel);
 				// S-022: la tecla de volver al menú, alternativa al botón, no se consume: antes del final sigue llegando a quien la use.
 				InputComponent->BindKey(ReturnToMenuKey, IE_Pressed, this, &ABoardViewActor::ReturnToMenu).bConsumeInput = false;
 				bInputBound = true;
@@ -2044,15 +1728,65 @@ void ABoardViewActor::ApplyViewTarget()
 	}
 }
 
-void ABoardViewActor::ShowText(int32 Line, const FColor& Color, const FString& Text, float Scale) const
+void ABoardViewActor::UpdatePanelScale(const FVector2D& ViewportSize)
 {
-	// S-019: la tecla del texto de depuración lo oculta todo, la línea de petición incluida.
-	if (GEngine && !bDebugTextHidden)
+	// S-027 (R-HUD-3): el tamaño se calcula en píxeles de pantalla y se pasa a Slate dividido por la escala de DPI que Unreal ya aplica a toda
+	// la interfaz del viewport (la regla de UUserInterfaceSettings, por defecto según el lado corto), para no escalar dos veces.
+	const FIntPoint Size(FMath::RoundToInt(ViewportSize.X), FMath::RoundToInt(ViewportSize.Y));
+	const UUserInterfaceSettings* Settings = GetDefault<UUserInterfaceSettings>();
+	const float Dpi = Settings ? Settings->GetDPIScaleBasedOnSize(Size) : 1.f;
+	PanelDpiScale = Dpi > KINDA_SMALL_NUMBER ? Dpi : 1.f;
+	const int32 ScreenFont = Soulbound::Presentation::ScaledPanelFontSize(ViewportSize.Y, PanelFontSize, PanelMinFontSize);
+	const int32 SlateFont = FMath::Max(1, FMath::RoundToInt(ScreenFont / PanelDpiScale));
+	const float ScreenWidth = Soulbound::Presentation::ScaledPanelWidth(ViewportSize.Y, PanelWidthPixels);
+	const bool bChanged = SlateFont != PanelSlateFontSize || !FMath::IsNearlyEqual(ScreenWidth, PanelScreenWidth, 0.5f) || !bPanelScaleLogged;
+	PanelSlateFontSize = SlateFont;
+	PanelScreenWidth = ScreenWidth;
+	PanelSlateWidth = ScreenWidth / PanelDpiScale;
+	if (bChanged)
 	{
-		// Se sustituye por clave en cada refresco; si la vista deja de refrescar, el mensaje caduca a los dos intervalos. S-018: Scale
-		// agranda una línea (el resultado de la partida).
-		GEngine->AddOnScreenDebugMessage(TextKeyBase + Line, HudIntervalSeconds * 2.f + 0.1f, Color, Text, true, FVector2D(Scale, Scale));
+		bPanelScaleLogged = true;
+		UE_LOG(LogSoulboundView, Log, TEXT("Paneles: viewport %dx%d, escala DPI de Unreal %.3f; letra %d px en pantalla (%d en Slate, mínimo %d); columna %.0f px en pantalla (%.0f en Slate)."),
+			Size.X, Size.Y, PanelDpiScale, ScreenFont, PanelSlateFontSize, PanelMinFontSize, PanelScreenWidth, PanelSlateWidth);
 	}
+}
+
+void ABoardViewActor::ToggleDebugPanel()
+{
+	bDebugPanelShown = !bDebugPanelShown;
+	TickHud();
+}
+
+void ABoardViewActor::ToggleGrimoire()
+{
+	bGrimoireOpen = !bGrimoireOpen;
+	TickHud();
+}
+
+Soulbound::Presentation::FStatusContext ABoardViewActor::MakeStatusContext() const
+{
+	Soulbound::Presentation::FStatusContext Context;
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (!HostPtr)
+	{
+		return Context;
+	}
+	// S-021 (A3): el texto que explica qué hacer ("<- tu turno: ...") sigue el ajuste de ayudas; las opciones numeradas y el tiempo, nunca.
+	const UPlayerProfileSubsystem* Profile = GetWorld() && GetWorld()->GetGameInstance() ? GetWorld()->GetGameInstance()->GetSubsystem<UPlayerProfileSubsystem>() : nullptr;
+	const UWardenHostSubsystem* WardenHost = GetWorld() ? GetWorld()->GetSubsystem<UWardenHostSubsystem>() : nullptr;
+	Context.HumanSeat = HostPtr->GetHumanSeat();
+	Context.bHints = !Profile || Profile->ShowsRequestHints();
+	Context.bPrologue = HostPtr->IsInPrologue();
+	Context.bWardenSpeaking = HostPtr->IsWardenSpeaking();
+	Context.bHumanRing = HostPtr->HumanPlaysSkillTrials();
+	Context.bStepWait = HostPtr->IsWaitingForStep();
+	Context.bStepMode = HostPtr->IsStepMode();
+	Context.bWardenOn = WardenHost && WardenHost->GetMode() == EWardenHostMode::Auto;
+	Context.Seed = HostPtr->GetSeed();
+	Context.ViewKeys = DescribeViewKeys();
+	Context.ReturnKey = ReturnToMenuKey.GetDisplayName().ToString();
+	Context.SeatColors = SeatColors;
+	return Context;
 }
 
 void ABoardViewActor::TickHud()
@@ -2077,7 +1811,7 @@ void ABoardViewActor::TickHud()
 	if (Camera)
 	{
 		ApplyViewTarget();
-		// Si la ventana cambia de tamaño, el tablero se recoloca en el hueco de los paneles.
+		// Si la ventana cambia de tamaño, el tablero se recoloca en el hueco de los paneles; desde S-027, los paneles también cambian de tamaño.
 		if (const UGameViewportClient* Client = GetWorld()->GetGameViewport())
 		{
 			FVector2D Viewport;
@@ -2089,229 +1823,27 @@ void ABoardViewActor::TickHud()
 		}
 	}
 
-	// S-024 (decisión del autor del 4/11): con el telón bajado, o en su margen, el HUD de depuración no dibuja nada: se vería a través de la
-	// pantalla de carga. Los paneles y la línea del Warden lo respetan en sus propias capas.
+	// S-024 (decisión del autor del 4/11): con el telón bajado, o en su margen, no se rellena nada: los paneles se ocultan en su capa.
 	if (HostPtr->IsCurtainDown())
 	{
 		return;
 	}
 
-	const bool bWaiting = State.TurnPhase == ETurnPhase::RollAndChoose;
-	const bool bHumanTurn = bWaiting && State.ActiveSeat == HostPtr->GetHumanSeat();
-	// S-021 (A3): el texto que explica qué hacer ("<- tu turno: ...") sigue el ajuste de ayudas; las opciones numeradas y el tiempo, nunca.
-	const UPlayerProfileSubsystem* Profile = GetWorld() && GetWorld()->GetGameInstance() ? GetWorld()->GetGameInstance()->GetSubsystem<UPlayerProfileSubsystem>() : nullptr;
-	const bool bHints = !Profile || Profile->ShowsRequestHints();
-	const bool bStepWait = HostPtr->IsWaitingForStep();
-	const int32 TurnNumber = State.TurnPhase == ETurnPhase::BetweenTurns ? State.TurnCount : State.TurnCount + 1;
-
-	// La línea del turno lleva el color del asiento que juega; entre turnos, blanca (no juega nadie).
-	const bool bSomeoneActive = !State.IsMatchOver() && State.TurnPhase != ETurnPhase::BetweenTurns;
-	if (HostPtr->IsInPrologue())
+	// S-027 (R-HUD-1, R-HUD-2, R-HUD-4): lo que antes eran mensajes de pantalla del motor, en los paneles; el texto lo construye StatusText.
+	const Soulbound::Presentation::FStatusContext Context = MakeStatusContext();
+	if (StatusPanel.IsValid())
 	{
-		// S-022 (R-PRO-1): el Warden abre la partida; aún no hay turno.
-		ShowText(0, FColor::Orange, FString::Printf(TEXT("Prólogo: el Warden abre la partida; el primer turno empieza cuando termine | teclas: %s"), *DescribeViewKeys()));
+		StatusPanel->SetLines(Soulbound::Presentation::StatusLines(State, Context));
 	}
-	else
+	if (DebugPanel.IsValid())
 	{
-		ShowText(0, bSomeoneActive ? SeatColor(State.ActiveSeat).ToFColor(true) : FColor::White,
-			FString::Printf(TEXT("Turno %d | juega: asiento %d (%s) | fase: %s"), TurnNumber, State.ActiveSeat,
-				State.ActiveSeat == HostPtr->GetHumanSeat() ? TEXT("humano") : TEXT("dummy"), PhaseName(State.TurnPhase)));
+		DebugPanel->SetLines(bDebugPanelShown ? Soulbound::Presentation::DebugLines(State, Context) : TArray<Soulbound::Presentation::FPanelLine>());
 	}
-
-	// S-015: un duelo o un trilero de un evento se juega entre turnos; el asiento activo es a quien le toca después.
-	if (State.CurrentEvent.IsActive() && State.CurrentEvent.bWaitsForAction && !State.IsMatchOver())
+	if (GrimoirePanel.IsValid() && bGrimoireOpen)
 	{
-		ShowText(0, FColor::Orange, FString::Printf(TEXT("Entre turnos | evento del Warden en curso | fase: %s | el siguiente turno es del asiento %d"),
-			PhaseName(State.TurnPhase), State.ActiveSeat));
+		GrimoirePanel->SetContent(Soulbound::Presentation::GrimoireRows(State, Context.HumanSeat, GrimoireTexts, SeatColors),
+			Soulbound::Presentation::GrimoirePowerLines(GrimoireTexts));
 	}
-
-	// S-023: la mesa espera al Warden; el reloj de partida sigue, el de turno no.
-	if (HostPtr->IsWardenSpeaking() && !State.IsMatchOver())
-	{
-		ShowText(0, FColor::Orange, FString::Printf(TEXT("El Warden habla: la mesa espera a que termine | teclas: %s"), *DescribeViewKeys()));
-	}
-
-	// S-026: con el interruptor encendido, la prueba del humano se juega con el anillo; la de un dummy sigue al azar. Apagado, como antes.
-	const bool bHumanRingTrial = HostPtr->HumanPlaysSkillTrials() && State.ActiveSeat == HostPtr->GetHumanSeat();
-	const TCHAR* const RingHow = TEXT("con el anillo: clic izquierdo, o con SbTrial");
-	if (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::FinalChallenge)
-	{
-		// Desafío final (S-018): el minijuego aún no existe; el humano lo resuelve al azar, o como fije SbTrial.
-		ShowText(1, SeatColor(State.ActiveSeat).ToFColor(true), FString::Printf(TEXT("DESAFÍO FINAL: el asiento %d juega en %s en vez de su turno, sin tirada, y espera el resultado (%s)"),
-			State.ActiveSeat, *Soulbound::Presentation::DifficultyText(static_cast<int32>(State.PendingDifficulty)), bHumanRingTrial ? RingHow : TEXT("resuelto al azar, o con SbTrial")));
-	}
-	else if (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::VoidEscape)
-	{
-		// Escape del Vacío (S-013): el minijuego aún no existe; el humano lo resuelve al azar, o como fije SbTrial.
-		ShowText(1, FColor::Yellow, FString::Printf(TEXT("Escape del Vacío: el asiento %d juega en %s (%s) y espera el resultado (%s)"),
-			State.ActiveSeat, *Soulbound::Presentation::DifficultyText(static_cast<int32>(State.PendingDifficulty)), *VoidText(State, State.ActiveSeat),
-			bHumanRingTrial ? RingHow : TEXT("resuelto al azar, o con SbTrial")));
-	}
-	else if (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::WardenTrial)
-	{
-		// Prueba del Warden (S-015): el minijuego aún no existe; el humano lo resuelve al azar, o como fije SbTrial.
-		ShowText(1, FColor::Yellow, FString::Printf(TEXT("PRUEBA DEL WARDEN: el asiento %d juega en %s antes de tirar y espera el resultado (%s)"),
-			State.ActiveSeat, *Soulbound::Presentation::DifficultyText(static_cast<int32>(State.PendingDifficulty)), bHumanRingTrial ? RingHow : TEXT("resuelta al azar, o con SbTrial")));
-	}
-	else if (State.TurnPhase == ETurnPhase::SkillTrial)
-	{
-		// Minijuego de la Fuente de un Olvidado (S-008): aún no existe; el decisor del asiento responde al azar.
-		ShowText(1, FColor::Yellow, FString::Printf(TEXT("Minijuego de la Fuente: el asiento %d espera el resultado (%s)"), State.ActiveSeat,
-			bHumanRingTrial ? RingHow : TEXT("resuelto al azar, probabilidad 0,5")));
-	}
-	else
-	{
-	const FString Clock = bWaiting ? FString::Printf(TEXT("%.0f s"), FMath::Max(0.0, State.TurnDeadlineSeconds - State.ClockSeconds)) : FString(TEXT("-"));
-	ShowText(1, bHumanTurn ? FColor::Green : FColor::White, FString::Printf(TEXT("Tirada: %d%s | reloj de turno: %s%s"),
-		State.Roll, State.DiceCount > 1 ? TEXT(" (dos dados)") : TEXT(""), *Clock, bHumanTurn && bHints ? TEXT("  <- tu turno: clic en una casilla blanca") : TEXT("")));
-	}
-
-	// Elección pendiente (S-009): la línea de petición, en verde si es del humano (teclas 1 a 9 y 0; R para repetir). Desde
-	// S-010, también cuando se le pide al humano sin tener el turno (Koschei víctima).
-	if (State.PendingChoice.IsOpen() && !State.IsMatchOver())
-	{
-		const bool bHumanChoice = State.PendingChoice.Seat == HostPtr->GetHumanSeat();
-		ShowText(8, bHumanChoice ? FColor::Green : FColor(190, 190, 190), ChoicePrompt(State, bHumanChoice, bHints));
-	}
-
-	// Trilero (S-010): quién roba a quién y qué se ve en cada etapa; las esferas, numeradas y sin animación.
-	if (State.ShellGame.IsActive() && !State.IsMatchOver())
-	{
-		ShowText(9, FColor::Magenta, ShellGameLine(State));
-	}
-
-	// Evento del Warden (S-014): su texto mientras se resuelve, entre turnos; las opciones del dilema van en la petición.
-	const FString EventText = State.IsMatchOver() ? FString() : WardenEventLine(State);
-	if (!EventText.IsEmpty())
-	{
-		ShowText(11, FColor::Orange, EventText);
-	}
-
-	// Oráculo (S-017): a quién le toca consultar, de dónde viene y cuánto le queda; el humano, con lo que tiene que hacer.
-	if (State.Oracle.IsWaiting() && !State.IsMatchOver())
-	{
-		const int32 Consultant = State.Oracle.Consultant;
-		const bool bHumanOracle = Consultant == HostPtr->GetHumanSeat();
-		const FString Action = bHumanOracle ? (!bHints ? FString() : FString::Printf(TEXT("  <- clic en el orbe sobre tu ficha para consultar%s"), State.Oracle.bRefusable ? TEXT(", clic derecho para rechazar (Tifón)") : TEXT("")))
-			: FString(TEXT(" | el orbe sobre su ficha"));
-		ShowText(13, bHumanOracle ? FColor::Green : FColor::Orange, FString::Printf(TEXT("ORÁCULO: consulta el asiento %d (%s) | quedan %.0f s%s"), Consultant,
-			*Soulbound::Presentation::OracleOriginText(static_cast<int32>(State.Oracle.Origin)), FMath::Max(0.0, State.Oracle.DeadlineSeconds - State.ClockSeconds), *Action));
-	}
-
-	// Votación (S-017, R-VOT-1 a 6): qué se vota, quién ha votado ya (a quién, no: eso se sabe al resolverse) y cuánto queda; el
-	// humano, con lo que tiene que hacer.
-	if (State.Vote.IsOpen() && !State.IsMatchOver())
-	{
-		ShowText(14, FColor::Orange, VoteLine(State, HostPtr->GetHumanSeat(), bHints));
-	}
-
-	// Noche de los Ecos (S-014): mientras dura, bien visible.
-	if (State.IsEchoNight() && !State.IsMatchOver())
-	{
-		ShowText(12, FColor(150, 120, 255), FString::Printf(TEXT("NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio (como mucho hasta la ronda %d)"),
-			State.EchoNightUntilRound));
-	}
-
-	// Duelo (S-012): el duelo en curso y, resuelto, su resultado mientras dura el turno.
-	const FString DuelText = State.IsMatchOver() ? FString() : DuelLine(State, HostPtr->GetHumanSeat(), HostPtr->HumanPlaysSkillTrials());
-	if (!DuelText.IsEmpty())
-	{
-		ShowText(10, FColor::Orange, DuelText);
-	}
-
-	// Paso a paso (S-007): lo que espera, bien visible. En el prólogo (S-022) el reloj también espera, pero no al paso.
-	if (bStepWait && !HostPtr->IsInPrologue())
-	{
-		ShowText(2, FColor::Yellow, FString::Printf(TEXT("PASO A PASO: espacio para el siguiente turno | teclas: %s"), *DescribeViewKeys()));
-	}
-	else if (HostPtr->IsStepMode())
-	{
-		ShowText(2, FColor(200, 200, 90), FString::Printf(TEXT("PASO A PASO activo: la partida se detendra al acabar este turno | teclas: %s"), *DescribeViewKeys()));
-	}
-
-	const FString Sealed = State.Board.SealedTiles.IsEmpty()
-		? FString(TEXT("ninguno"))
-		: FString::JoinBy(State.Board.SealedTiles, TEXT(", "), [](int32 Id) { return FString::FromInt(Id); });
-	ShowText(3, FColor::Red, FString::Printf(TEXT("Sellos activos: %d (casillas: %s)"), State.Board.SealedTiles.Num(), *Sealed));
-
-	// S-016: el Warden, en una línea: acto, segundos hasta la siguiente evaluación y desde la última intervención, y su modo.
-	const UWardenHostSubsystem* WardenHost = GetWorld() ? GetWorld()->GetSubsystem<UWardenHostSubsystem>() : nullptr;
-	const bool bWardenOn = WardenHost && WardenHost->GetMode() == EWardenHostMode::Auto;
-	static const TCHAR* const ActNames[] = {TEXT("I"), TEXT("II"), TEXT("III")};
-	const int32 Act = static_cast<int32>(Soulbound::Rules::CurrentAct(State, State.ClockSeconds));
-	const FString Next = !State.WardenParams.HasWarden() ? FString(TEXT("sin Warden"))
-		: !bWardenOn ? FString(TEXT("apagado (SbWardenMode auto)"))
-		: State.Warden.bDeferred ? FString(TEXT("evaluación aplazada hasta que acabe lo que está en curso"))
-		// Vencida (la partida detenida en el paso a paso, que no evalúa): evaluará en cuanto siga.
-		: State.Warden.NextEvaluationSeconds <= State.ClockSeconds ? FString(TEXT("siguiente evaluación: pendiente"))
-		: FString::Printf(TEXT("siguiente evaluación en %.0f s"), State.Warden.NextEvaluationSeconds - State.ClockSeconds);
-	ShowText(4, FColor::Orange, FString::Printf(TEXT("Warden: Acto %s | %s | última intervención hace %.0f s%s"), ActNames[FMath::Clamp(Act, 0, 2)], *Next,
-		State.ClockSeconds - State.Warden.LastEffectSeconds, State.Warden.PendingScene != INDEX_NONE ? TEXT(" | una escena espera al hueco") : TEXT("")));
-
-	ShowText(5, FColor::Silver, FString::Printf(TEXT("Semilla: %d (fijala con FixedSeed para repetir la partida) | t=%.0f s | ronda %d"), HostPtr->GetSeed(), State.ClockSeconds,
-		State.Round));
-
-	// Carrera por el vínculo (S-006): tiempo que queda, fin, o victoria del Warden; y el rol y el hogar de cada asiento. Desde S-018, los
-	// tres finales, y tras la carrera el tiempo que queda de partida: el reloj se ve y es igual para todos.
-	FString Race;
-	FColor RaceColor = FColor::Cyan;
-	if (State.Outcome == EMatchOutcome::PlayerVictory)
-	{
-		Race = FString::Printf(TEXT("VICTORIA DEL ASIENTO %d: supera el desafío final. La partida ha terminado."), State.WinnerSeat);
-		RaceColor = SeatColor(State.WinnerSeat).ToFColor(true);
-	}
-	else if (State.Outcome == EMatchOutcome::WardenVictory)
-	{
-		Race = State.EndReason == EMatchEndReason::TimeOut ? TEXT("VICTORIA DEL WARDEN: se acaba el tiempo. La partida ha terminado.")
-			: TEXT("VICTORIA DEL WARDEN: nadie se ha vinculado. La partida ha terminado.");
-		RaceColor = FColor::Red;
-	}
-	else if (State.MatchPhase == EMatchPhase::BondRace)
-	{
-		const double Left = State.Params.RaceDurationSeconds - State.ClockSeconds;
-		Race = Left > 0.0
-			? FString::Printf(TEXT("Carrera por el vinculo: quedan %.0f s"), Left)
-			: FString(TEXT("Carrera por el vinculo: tiempo agotado, termina al acabar este turno"));
-	}
-	else
-	{
-		const int32 Elects = State.Seats.FilterByPredicate([](const FSeatState& Seat) { return Seat.Role == ESeatRole::Elect; }).Num();
-		Race = FString::Printf(TEXT("FIN DE LA CARRERA: %d Elegidos. Los Ecos quedan confinados a los Dominios Olvidados."), Elects);
-		if (State.WardenParams.HasWarden())
-		{
-			const int32 Left = FMath::Max(0, FMath::CeilToInt32(State.WardenParams.MatchEndSeconds - State.ClockSeconds));
-			Race += FString::Printf(TEXT(" | fin de la partida en %02d:%02d"), Left / 60, Left % 60);
-		}
-	}
-	ShowText(6, RaceColor, Race);
-
-	// S-018 (R-PRO-4): los aspirantes, para la mesa; y al terminar la partida, el resultado en grande.
-	for (int32 Seat = 0; Seat < State.Seats.Num() && !State.IsMatchOver(); ++Seat)
-	{
-		if (Soulbound::Rules::IsAspirant(State, Seat))
-		{
-			ShowText(15 + Seat, SeatColor(Seat).ToFColor(true), FString::Printf(TEXT("ASPIRANTE: el asiento %d está en el Altar con las seis runas; en su próximo turno, el desafío final"), Seat));
-		}
-	}
-	if (State.IsMatchOver())
-	{
-		// S-022: con la tecla y el botón que vuelven al menú, en la línea de debajo.
-		ShowText(19, RaceColor, Soulbound::Presentation::MatchResultText(State, ReturnToMenuKey.GetDisplayName().ToString()), 2.5f);
-	}
-
-	TArray<FString> Roles;
-	for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
-	{
-		const FSeatState& SeatState = State.Seats[Seat];
-		const FString Void = VoidText(State, Seat);
-		Roles.Add((SeatState.Role == ESeatRole::Elect
-			? FString::Printf(TEXT("%d Elegido (Dominio %d)"), Seat, SeatState.DomainId)
-			: SeatState.DomainId == INDEX_NONE
-				? FString::Printf(TEXT("%d Eco"), Seat)
-				: FString::Printf(TEXT("%d Eco, hogar: Nicho del Dominio %d"), Seat, SeatState.DomainId))
-			+ (Void.IsEmpty() ? FString() : TEXT(", ") + Void) + EffectStatusText(State, Seat));
-	}
-	ShowText(7, FColor::Cyan, FString::Printf(TEXT("Asientos: %s"), *FString::Join(Roles, TEXT(" | "))));
 }
 
 void ABoardViewActor::HandleRingOpened()
@@ -2324,6 +1856,12 @@ void ABoardViewActor::HandleRingOpened()
 	// El título se fija al abrir: al cerrarse, el anfitrión ya no tiene la prueba.
 	LastRingTitle = RingTitle(HostPtr->GetRingTrial(), HostPtr->IsRingDuel(), HostPtr->GetRingDifficulty());
 	LastRingShownUntil = 0.0;
+	// S-027 (R-INS-1): la primera vez que se abre el anillo para el humano, el Warden lo explica. El anillo no es un evento del motor: lo avisa
+	// la vista al seguimiento.
+	if (HostPtr->HasMatch() && HostPtr->GetHumanSeat() != INDEX_NONE)
+	{
+		TeachInstructions(HostPtr->GetState(), InstructionTracker.RingOpened({HostPtr->GetHumanSeat()}));
+	}
 	if (RingInput.IsValid() || !FSlateApplication::IsInitialized())
 	{
 		return;

@@ -1,0 +1,18 @@
+{
+  "afinidades": {
+    "duelAdvantage": {"nombre": "Ventaja en el duelo", "frase": "En un duelo, su rendimiento cuenta con un margen a favor frente al del rival."},
+    "freePassage": {"nombre": "Paso Libre siempre", "frase": "Atraviesa y pisa casillas selladas aunque no tenga la runa que da Paso Libre."},
+    "rerollOnce": {"nombre": "Repetir la tirada", "frase": "Una vez por turno puede repetir la tirada antes de elegir casilla."},
+    "voidEscape": {"nombre": "Escape fácil del Vacío", "frase": "En el Vacío empieza el escape en fácil y sale como mucho en su segundo turno dentro."},
+    "refuseOracle": {"nombre": "Rechazar el Oráculo", "frase": "Puede rechazar la sentencia del Oráculo que tiene delante (clic derecho en el orbe)."},
+    "safeRune": {"nombre": "Una runa a salvo", "frase": "Cuando le roban, aparta una runa que no entra en el trilero; si solo tiene una, el robo se anula."}
+  },
+  "poderes": {
+    "duel": "Retar a duelo a quien comparte casilla al acabar el movimiento; quien gana roba una runa al otro con el trilero.",
+    "haste": "Elegir tirar uno o dos dados; sin él, se tira uno. Lo da la runa del propio Dominio.",
+    "freePassage": "Atravesar y pisar casillas selladas.",
+    "expel": "Mandar a su hogar, sin minijuego, a quien comparte casilla al acabar el movimiento.",
+    "planarFlight": "Usar los Nodos Planares para saltar de uno a otro.",
+    "deflection": "Al empezar el turno en el Vacío, sacrificar la runa (vuelve a su Fuente) para salir sin minijuego, volver al hogar y jugar el turno."
+  }
+}

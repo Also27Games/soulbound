@@ -42,8 +42,9 @@ enum class EWardenRemarkKind : uint8
 
 /**
  * Momento de instrucción (decisión del autor del 22/10/2026, S-021, nombre propuesto): los diez momentos en que el Warden enseña a
- * jugar. Su frase es `instruccion:<momento>` (InstructionKey). El enum vive en el motor porque el cargador exige sus claves; quien
- * decide cuándo se da cada uno es la presentación (`FInstructionTracker`, corte A3).
+ * jugar, y desde S-027 (R-INS-1) cuatro Ayudas más: Eco, robar, Vacío y anillo. Su frase es `instruccion:<momento>` (InstructionKey). El
+ * enum vive en el motor porque el cargador exige sus claves; quien decide cuándo se da cada uno es la presentación (`FInstructionTracker`,
+ * corte A3). Los nuevos van al final: el perfil guarda las claves, no los valores, pero así nada cambia de posición.
  */
 UENUM()
 enum class EInstructionMoment : uint8

@@ -98,6 +98,10 @@
   {"id": "instruccion:voto", "lines": ["Señalad a uno. El más votado recibirá un regalo… [risa]"]},
   {"id": "instruccion:seis-runas", "lines": ["Seis runas… Ven al Altar y demuéstrame lo que vales."]},
   {"id": "instruccion:insolencia", "lines": ["Me has hecho esperar, escoria. Yo no olvido nada…"]},
+  {"id": "instruccion:eco", "lines": ["(pendiente)"]},
+  {"id": "instruccion:robar", "lines": ["(pendiente)"]},
+  {"id": "instruccion:vacio", "lines": ["(pendiente)"]},
+  {"id": "instruccion:anillo", "lines": ["(pendiente)"]},
   {"id": "insolencia:leve", "lines": [
     "Me has hecho esperar… Considéralo un pequeño recordatorio de quién manda aquí.",
     "Tu tardanza me irrita… Procura no convertir mi paciencia en un recuerdo.",
