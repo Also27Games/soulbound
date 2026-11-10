@@ -90,6 +90,11 @@ void ASpikeOnlinePlayerController::OnPrimaryClick()
 	{
 		return;
 	}
+	// S-027 (R-HUD-4): con el Grimorio abierto, los clics sobre el tablero no cuentan; la partida sigue.
+	if (const ABoardViewActor* View = FindBoardView(); View && View->IsGrimoireOpen())
+	{
+		return;
+	}
 	FHitResult Hit;
 	if (GetHitResultUnderCursor(ECC_Visibility, false, Hit))
 	{
@@ -127,6 +132,12 @@ void ASpikeOnlinePlayerController::OnSecondaryClick()
 	UWorld* World = GetWorld();
 	UMatchHostSubsystem* Match = World ? World->GetSubsystem<UMatchHostSubsystem>() : nullptr;
 	FHitResult Hit;
+	// S-027 (R-HUD-4): con el Grimorio abierto, tampoco el clic derecho.
+	const ABoardViewActor* OpenView = FindBoardView();
+	if (OpenView && OpenView->IsGrimoireOpen())
+	{
+		return;
+	}
 	if (Match && Match->HasMatch() && GetHitResultUnderCursor(ECC_Visibility, false, Hit))
 	{
 		if (const ABoardViewActor* View = Cast<ABoardViewActor>(Hit.GetActor()); View && View->IsOracleOrb(Hit.GetComponent()))

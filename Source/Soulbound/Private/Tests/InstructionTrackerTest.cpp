@@ -258,6 +258,124 @@ bool FInstructionTableMomentsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInstructionEchoTest, "Soulbound.Game.Presentation.Instrucciones.Eco", InstructionTestFlags)
+
+bool FInstructionEchoTest::RunTest(const FString& Parameters)
+{
+	// S-027 CA-INS-1 (R-INS-1): con un registro donde la carrera acaba y el asiento humano queda sin vínculo, `eco` para ese asiento, una sola
+	// vez; si el humano se vinculó, no. Decisión del autor del 9/11/2026: si la carrera acaba con cero Elegidos (gana el Warden), tampoco.
+	{
+		FMatchState State = InsMakeState();
+		FInstructionTracker Tracker;
+		State.Seats[InsDummy].Role = ESeatRole::Elect;
+		InsAdd(State, EMatchEventType::BondRaceEnded, INDEX_NONE, 1);
+		const TArray<FInstructionCue> Cues = Tracker.Observe(State, InsHumans());
+		TestEqual(TEXT("El humano sin vínculo al acabar la carrera: eco"), InsMoments(Cues), TArray<EInstructionMoment>{EInstructionMoment::Echo});
+		if (Cues.Num() == 1)
+		{
+			TestEqual(TEXT("Para su asiento"), Cues[0].Seat, InsHuman);
+		}
+		InsAdd(State, EMatchEventType::BondRaceEnded, INDEX_NONE, 1);
+		TestEqual(TEXT("Una sola vez"), Tracker.Observe(State, InsHumans()).Num(), 0);
+	}
+	{
+		FMatchState State = InsMakeState();
+		FInstructionTracker Tracker;
+		State.Seats[InsHuman].Role = ESeatRole::Elect;
+		InsAdd(State, EMatchEventType::BondRaceEnded, INDEX_NONE, 1);
+		TestEqual(TEXT("El humano vinculado: nada"), Tracker.Observe(State, InsHumans()).Num(), 0);
+	}
+	{
+		FMatchState State = InsMakeState();
+		FInstructionTracker Tracker;
+		InsAdd(State, EMatchEventType::BondRaceEnded, INDEX_NONE, 0);
+		TestEqual(TEXT("Cero Elegidos (gana el Warden): nada"), Tracker.Observe(State, InsHumans()).Num(), 0);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInstructionStealTest, "Soulbound.Game.Presentation.Instrucciones.Robar", InstructionTestFlags)
+
+bool FInstructionStealTest::RunTest(const FString& Parameters)
+{
+	// S-027 CA-INS-2 (R-INS-1): la primera elección PlayerAction ofrecida al humano que incluye robar da `robar`; la segunda, no. Una que no
+	// incluye robar, o la de un dummy, no da nada.
+	FMatchState State = InsMakeState();
+	FInstructionTracker Tracker;
+	State.PendingChoice.Kind = EChoiceKind::PlayerAction;
+	State.PendingChoice.Seat = InsHuman;
+	State.PendingChoice.ActionOptions = {{EPlayerAction::Expel, InsDummy}};
+	TestEqual(TEXT("Una acción sin robo: nada"), Tracker.Observe(State, InsHumans()).Num(), 0);
+	State.PendingChoice.Seat = InsDummy;
+	State.PendingChoice.ActionOptions = {{EPlayerAction::Steal, InsHuman}};
+	TestEqual(TEXT("El robo ofrecido a un dummy: nada"), Tracker.Observe(State, InsHumans()).Num(), 0);
+	State.PendingChoice.Seat = InsHuman;
+	State.PendingChoice.ActionOptions = {{EPlayerAction::Expel, InsDummy}, {EPlayerAction::Steal, InsDummy}};
+	const TArray<FInstructionCue> Cues = Tracker.Observe(State, InsHumans());
+	TestEqual(TEXT("La primera con robo ofrecida al humano: robar"), InsMoments(Cues), TArray<EInstructionMoment>{EInstructionMoment::Steal});
+	if (Cues.Num() == 1)
+	{
+		TestEqual(TEXT("Para su asiento"), Cues[0].Seat, InsHuman);
+	}
+	State.PendingChoice = FPendingChoice();
+	Tracker.Observe(State, InsHumans());
+	State.PendingChoice.Kind = EChoiceKind::PlayerAction;
+	State.PendingChoice.Seat = InsHuman;
+	State.PendingChoice.ActionOptions = {{EPlayerAction::Steal, InsDummy}};
+	TestEqual(TEXT("La segunda ya no"), Tracker.Observe(State, InsHumans()).Num(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInstructionVoidTest, "Soulbound.Game.Presentation.Instrucciones.Vacio", InstructionTestFlags)
+
+bool FInstructionVoidTest::RunTest(const FString& Parameters)
+{
+	// S-027 CA-INS-3 (R-INS-1): el primer Banished sobre el humano da `vacio`; el de un dummy, no; el segundo del humano, tampoco.
+	FMatchState State = InsMakeState();
+	FInstructionTracker Tracker;
+	InsAdd(State, EMatchEventType::Banished, InsDummy);
+	TestEqual(TEXT("El destierro de un dummy: nada"), Tracker.Observe(State, InsHumans()).Num(), 0);
+	InsAdd(State, EMatchEventType::Banished, InsHuman);
+	const TArray<FInstructionCue> Cues = Tracker.Observe(State, InsHumans());
+	TestEqual(TEXT("El primero del humano: vacio"), InsMoments(Cues), TArray<EInstructionMoment>{EInstructionMoment::Void});
+	if (Cues.Num() == 1)
+	{
+		TestEqual(TEXT("Para su asiento"), Cues[0].Seat, InsHuman);
+	}
+	InsAdd(State, EMatchEventType::Banished, InsHuman, 1);
+	TestEqual(TEXT("El segundo ya no"), Tracker.Observe(State, InsHumans()).Num(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInstructionRingTest, "Soulbound.Game.Presentation.Instrucciones.Anillo", InstructionTestFlags)
+
+bool FInstructionRingTest::RunTest(const FString& Parameters)
+{
+	// S-027 CA-INS-4 (R-INS-1): la primera apertura de un anillo para el humano da `anillo`; la segunda, no. Sin humanos, nada. En una partida
+	// nueva (registro más corto que lo recorrido), vuelve a darse.
+	FMatchState State = InsMakeState();
+	FInstructionTracker Tracker;
+	TestEqual(TEXT("Sin humanos: nada"), Tracker.RingOpened({}).Num(), 0);
+	const TArray<FInstructionCue> Cues = Tracker.RingOpened(InsHumans());
+	TestEqual(TEXT("La primera apertura: anillo"), InsMoments(Cues), TArray<EInstructionMoment>{EInstructionMoment::Ring});
+	if (Cues.Num() == 1)
+	{
+		TestEqual(TEXT("Para el humano"), Cues[0].Seat, InsHuman);
+	}
+	TestEqual(TEXT("La segunda ya no"), Tracker.RingOpened(InsHumans()).Num(), 0);
+	TestEqual(TEXT("Y Observe no la repite"), Tracker.Observe(State, InsHumans()).Num(), 0);
+
+	FInstructionTracker Fresh;
+	InsAdd(State, EMatchEventType::TurnStarted, InsDummy);
+	InsAdd(State, EMatchEventType::TurnStarted, InsDummy);
+	Fresh.Observe(State, InsHumans());
+	Fresh.RingOpened(InsHumans());
+	FMatchState Next = InsMakeState();
+	Fresh.Observe(Next, InsHumans());
+	TestEqual(TEXT("En la partida nueva vuelve a darse"), InsMoments(Fresh.RingOpened(InsHumans())), TArray<EInstructionMoment>{EInstructionMoment::Ring});
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInstructionHintsTest, "Soulbound.Game.Presentation.Instrucciones.Ayudas", InstructionTestFlags)
 
 bool FInstructionHintsTest::RunTest(const FString& Parameters)
@@ -298,6 +416,12 @@ bool FInstructionHintsTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Siempre con las diez: visible"), Soulbound::Presentation::ShowsRequestHints(EHintsMode::Always, Seen));
 		Seen.RemoveAt(9);
 		TestTrue(TEXT("Automático con nueve: visible"), Soulbound::Presentation::ShowsRequestHints(EHintsMode::Automatic, Seen));
+		// S-027 (decisión del autor del 9/11/2026): las cuatro Ayudas nuevas no cuentan; nueve de S-021 y las cuatro nuevas siguen siendo nueve.
+		for (const EInstructionMoment Moment : {EInstructionMoment::Echo, EInstructionMoment::Steal, EInstructionMoment::Void, EInstructionMoment::Ring})
+		{
+			Seen.Add(Soulbound::Rules::InstructionKey(Moment));
+		}
+		TestTrue(TEXT("Automático con nueve y las cuatro Ayudas nuevas: visible"), Soulbound::Presentation::ShowsRequestHints(EHintsMode::Automatic, Seen));
 	}
 	return true;
 }

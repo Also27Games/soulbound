@@ -60,7 +60,7 @@ bool FVoiceLinesLoaderTest::RunTest(const FString& Parameters)
 	// vinculado) y una presentación por Elegido. S-023 (R-PRO-1): programado:comienzo es la decimoquinta.
 	// Los eventos que no están en ningún saco pueden tener frase, pero no se exige (decisión del autor del 28/10/2026).
 	const int32 RemarkCount = static_cast<int32>(EWardenRemarkKind::NotThisTime) + 1;
-	const int32 InstructionCount = static_cast<int32>(EInstructionMoment::Insolence) + 1;
+	const int32 InstructionCount = static_cast<int32>(EInstructionMoment::Ring) + 1;
 	const int32 InBag = Events.Events.FilterByPredicate([](const FWardenEventDef& Event) { return Event.bInBag; }).Num();
 	TestEqual(TEXT("Once tipos de comentario"), RemarkCount, 11);
 	TestTrue(TEXT("Hay eventos fuera de los sacos (los de S-014) y dentro"), InBag > 0 && InBag < Events.Events.Num());
@@ -154,6 +154,48 @@ bool FVoiceLinesLoaderTest::RunTest(const FString& Parameters)
 		static_cast<int32>(EWardenLinesError::FileNotFound));
 	TestTrue(TEXT("Una lista válida con las claves que se piden carga"),
 		Soulbound::Rules::LoadWardenLinesFromJsonString(TEXT("[{\"id\": \"a\", \"lines\": [\"uno\", \"dos\"]}]"), {TEXT("a")}).IsSuccess());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceNewHintsTest, "Soulbound.Core.Voice.CuatroAyudasNuevas",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FVoiceNewHintsTest::RunTest(const FString& Parameters)
+{
+	// S-027 CA-INS-5 (R-INS-1): el cargador exige las claves de las cuatro Ayudas nuevas (eco, robar, vacio, anillo) como las demás
+	// instrucciones: rechaza un archivo sin cualquiera de ellas, nombrándola, y acepta el de Content/Data/Warden/, que las trae con "(pendiente)"
+	// hasta que el autor escriba las suyas.
+	FWardenEventTable Events;
+	FElectsTable Elects;
+	if (!Soulbound::Tests::LoadTestWardenEvents(*this, Events) || !Soulbound::Tests::LoadTestElects(*this, Elects))
+	{
+		return false;
+	}
+	const TArray<FString> Required = Soulbound::Rules::RequiredWardenLineKeys(Events, Elects);
+	const TArray<FString> NewKeys = {TEXT("instruccion:eco"), TEXT("instruccion:robar"), TEXT("instruccion:vacio"), TEXT("instruccion:anillo")};
+	const EInstructionMoment NewMoments[] = {EInstructionMoment::Echo, EInstructionMoment::Steal, EInstructionMoment::Void, EInstructionMoment::Ring};
+	for (int32 Index = 0; Index < NewKeys.Num(); ++Index)
+	{
+		TestEqual(FString::Printf(TEXT("La clave del momento %d"), Index), Soulbound::Rules::InstructionKey(NewMoments[Index]), NewKeys[Index]);
+		TestTrue(FString::Printf(TEXT("Se exige %s"), *NewKeys[Index]), Required.Contains(NewKeys[Index]));
+	}
+
+	const FWardenLinesLoadResult Loaded = Soulbound::Rules::LoadWardenLinesFromFile(Soulbound::Tests::WardenLinesPath(), Required);
+	if (!TestTrue(FString::Printf(TEXT("frases.json del repositorio carga con las cuatro (%s)"), *Loaded.Message), Loaded.IsSuccess()))
+	{
+		return false;
+	}
+	for (const FString& Key : NewKeys)
+	{
+		const FWardenLineEntry* Entry = Loaded.Table.Entries.FindByPredicate([&Key](const FWardenLineEntry& Candidate) { return Candidate.Id == Key; });
+		TestTrue(FString::Printf(TEXT("%s está en el archivo con una variante"), *Key), Entry && Entry->Lines.Num() >= 1);
+
+		FWardenLineTable Without = Loaded.Table;
+		Without.Entries.RemoveAll([&Key](const FWardenLineEntry& Candidate) { return Candidate.Id == Key; });
+		const FWardenLinesLoadResult Result = Soulbound::Rules::ValidateWardenLines(Without, Required);
+		TestEqual(FString::Printf(TEXT("Sin %s: falta una clave"), *Key), static_cast<int32>(Result.Error), static_cast<int32>(EWardenLinesError::MissingKey));
+		TestTrue(FString::Printf(TEXT("Sin %s: el motivo la nombra"), *Key), Result.Message.Contains(Key));
+	}
 	return true;
 }
 

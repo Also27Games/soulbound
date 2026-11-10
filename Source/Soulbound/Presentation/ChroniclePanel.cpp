@@ -21,7 +21,7 @@ void SChroniclePanel::Construct(const FArguments& InArgs)
 			[
 				SNew(STextBlock)
 				.Text(FText::FromString(TEXT("CRONICA (la ultima arriba; rueda para ir al inicio)")))
-				.Font(FCoreStyle::GetDefaultFontStyle("Bold", FontSize))
+				.Font_Lambda([this]() { return FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(FontSize.Get(), 1)); })
 				.ColorAndOpacity(FLinearColor::White)
 			]
 			+ SVerticalBox::Slot().FillHeight(1.f)
@@ -46,7 +46,7 @@ void SChroniclePanel::SetLines(const TArray<FChronicleLine>& NewestFirst)
 		[
 			SNew(STextBlock)
 			.Text(FText::FromString(Line.Text))
-			.Font(FCoreStyle::GetDefaultFontStyle("Regular", FontSize))
+			.Font_Lambda([this]() { return FCoreStyle::GetDefaultFontStyle("Regular", FMath::Max(FontSize.Get(), 1)); })
 			.ColorAndOpacity(Line.Color)
 			.AutoWrapText(true)
 		];

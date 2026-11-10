@@ -5,7 +5,15 @@
 
 namespace
 {
-	constexpr int32 InstructionMomentCount = static_cast<int32>(EInstructionMoment::Insolence) + 1;
+	/**
+	 * Los diez momentos de S-021 que deciden si se enseña el texto de petición en automático (ShowsRequestHints). Las Ayudas de S-027 (Eco,
+	 * robar, Vacío, anillo) no cuentan: son raras y el texto no se iría en muchas partidas (decisión del autor del 9/11/2026).
+	 */
+	constexpr EInstructionMoment RequestHintMoments[] = {
+		EInstructionMoment::Roll, EInstructionMoment::ChooseTile, EInstructionMoment::Niche, EInstructionMoment::Source, EInstructionMoment::Dilemma,
+		EInstructionMoment::Duel, EInstructionMoment::Orb, EInstructionMoment::Vote, EInstructionMoment::SixRunes, EInstructionMoment::Insolence,
+	};
+	static_assert(static_cast<int32>(EInstructionMoment::Ring) < 32, "Un bit por momento en FInstructionTracker::Given");
 
 	uint32 Bit(EInstructionMoment Moment)
 	{
@@ -96,6 +104,27 @@ namespace Soulbound::Presentation
 					Give(EInstructionMoment::Insolence, Event.Seat);
 				}
 				break;
+			case EMatchEventType::BondRaceEnded:
+				// S-027 (R-INS-1): el primer humano que queda sin vínculo. Tras la carrera el papel ya no cambia, así que vale el de ahora. Con cero
+				// Elegidos gana el Warden y la partida termina: no hay nada que enseñar (decisión del autor del 9/11/2026).
+				if (Event.Value > 0)
+				{
+					for (const int32 Human : HumanSeats)
+					{
+						if (State.Seats.IsValidIndex(Human) && State.Seats[Human].Role != ESeatRole::Elect)
+						{
+							Give(EInstructionMoment::Echo, Human);
+							break;
+						}
+					}
+				}
+				break;
+			case EMatchEventType::Banished:
+				if (IsHuman(Event.Seat))
+				{
+					Give(EInstructionMoment::Void, Event.Seat);
+				}
+				break;
 			default:
 				break;
 			}
@@ -110,6 +139,12 @@ namespace Soulbound::Presentation
 		{
 			Give(EInstructionMoment::Dilemma, State.PendingChoice.Seat);
 		}
+		// S-027 (R-INS-1): la primera acción contra un jugador ofrecida al humano que incluye robar.
+		if (State.PendingChoice.Kind == EChoiceKind::PlayerAction && IsHuman(State.PendingChoice.Seat)
+			&& State.PendingChoice.ActionOptions.ContainsByPredicate([](const FPlayerActionOption& Option) { return Option.Action == EPlayerAction::Steal; }))
+		{
+			Give(EInstructionMoment::Steal, State.PendingChoice.Seat);
+		}
 		for (const FSeatState& Seat : State.Seats)
 		{
 			if (Soulbound::Rules::RuneTypeCount(Seat) == Soulbound::Board::DomainCount)
@@ -119,6 +154,17 @@ namespace Soulbound::Presentation
 			}
 		}
 		return Cues;
+	}
+
+	TArray<FInstructionCue> FInstructionTracker::RingOpened(const TArray<int32>& HumanSeats)
+	{
+		// S-027 (R-INS-1): el anillo solo se abre para el humano (S-026); se da al primero, una vez por partida, como los demás momentos.
+		if (HumanSeats.IsEmpty() || (Given & Bit(EInstructionMoment::Ring)) != 0)
+		{
+			return {};
+		}
+		Given |= Bit(EInstructionMoment::Ring);
+		return {{EInstructionMoment::Ring, HumanSeats[0]}};
 	}
 
 	bool TeachAndRecord(EHintsMode Mode, TArray<FString>& Seen, EInstructionMoment Moment)
@@ -142,9 +188,9 @@ namespace Soulbound::Presentation
 		{
 			return Mode == EHintsMode::Always;
 		}
-		for (int32 Moment = 0; Moment < InstructionMomentCount; ++Moment)
+		for (const EInstructionMoment Moment : RequestHintMoments)
 		{
-			if (!Seen.Contains(Soulbound::Rules::InstructionKey(static_cast<EInstructionMoment>(Moment))))
+			if (!Seen.Contains(Soulbound::Rules::InstructionKey(Moment)))
 			{
 				return true;
 			}

@@ -27,9 +27,9 @@ struct FLegendRow
 class SLegendPanel : public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SLegendPanel) {}
-		/** Tamaño de la letra. */
-		SLATE_ARGUMENT(int32, FontSize)
+	SLATE_BEGIN_ARGS(SLegendPanel) : _FontSize(13) {}
+		/** Tamaño de la letra, en unidades de Slate; se lee cada vez que se pinta (S-027: escala con la pantalla). */
+		SLATE_ATTRIBUTE(int32, FontSize)
 		/** Las filas, de arriba abajo. */
 		SLATE_ARGUMENT(TArray<FLegendRow>, Rows)
 	SLATE_END_ARGS()

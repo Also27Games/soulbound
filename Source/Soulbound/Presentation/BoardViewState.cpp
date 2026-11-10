@@ -1,6 +1,7 @@
 #include "BoardViewState.h"
 
 #include "Match/MatchState.h"
+#include "Misc/PackageName.h"
 #include "Warden/WardenLines.h"
 
 FBoardViewState Soulbound::Presentation::ComputeBoardViewState(const FMatchState& State, bool bNicheThroneConfigured)
@@ -44,10 +45,19 @@ FLinearColor Soulbound::Presentation::WedgeFloorTint(const FLinearColor& DomainC
 	return FLinearColor(Mixed.R * ForgottenDim, Mixed.G * ForgottenDim, Mixed.B * ForgottenDim, Mixed.A);
 }
 
-FString Soulbound::Presentation::ViewKeysText(bool bSeated, const FString& ViewKey, const FString& OverlayKey, const FString& PanelsKey, const FString& DebugTextKey)
+FString Soulbound::Presentation::MenuMapPackage(const FString& ReturnToMenuMap, bool bReturnMapExists, const FString& GameDefaultMap)
 {
-	return FString::Printf(TEXT("vista %s (%s: %s) | %s etiquetas | %s paneles | %s texto de depuración"), bSeated ? TEXT("sentada") : TEXT("cenital"), *ViewKey,
-		bSeated ? TEXT("cenital") : TEXT("sentada"), *OverlayKey, *PanelsKey, *DebugTextKey);
+	// R-MEN-1: el menú principal si está configurado y existe; si no, el de arranque, como en S-022.
+	const FString& Map = !ReturnToMenuMap.IsEmpty() && bReturnMapExists ? ReturnToMenuMap : GameDefaultMap;
+	return FPackageName::ObjectPathToPackageName(Map);
+}
+
+FString Soulbound::Presentation::ViewKeysText(bool bSeated, const FString& ViewKey, const FString& OverlayKey, const FString& PanelsKey, const FString& DebugTextKey,
+	const FString& GrimoireKey, const FString& DebugPanelKey)
+{
+	// S-027: T oculta el panel de estado; G abre el Grimorio y D el panel de depuración.
+	return FString::Printf(TEXT("vista %s (%s: %s) | %s etiquetas | %s paneles | %s panel de estado | %s Grimorio | %s depuración"), bSeated ? TEXT("sentada") : TEXT("cenital"),
+		*ViewKey, bSeated ? TEXT("cenital") : TEXT("sentada"), *OverlayKey, *PanelsKey, *DebugTextKey, *GrimoireKey, *DebugPanelKey);
 }
 
 FString Soulbound::Presentation::MatchResultText(const FMatchState& State, const FString& ReturnKey)

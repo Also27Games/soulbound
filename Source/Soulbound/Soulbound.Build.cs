@@ -18,7 +18,10 @@ public class Soulbound : ModuleRules
 
 		// EngineSettings: UGameMapsSettings, para volver al mapa del menú (GameDefaultMap) al acabar la partida (S-022).
 		PrivateDependencyModuleNames.AddRange(new string[] { "EngineSettings" });
-		
+
+		// Json: los textos del Grimorio (Content/Data/Textos/grimorio.json), que son de la presentación y no del motor (S-027).
+		PrivateDependencyModuleNames.AddRange(new string[] { "Json" });
+
 		// Uncomment if you are using online features
 		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
 
