@@ -159,6 +159,16 @@ void ASpikeOnlinePlayerController::OnChoiceKey(int32 Number)
 	// y la décima opción en las que no (la esfera del trilero, S-010). Una posición que no existe se ignora: el humano no ha
 	// elegido ninguna opción. El tipo de elección es el pendiente; si cambia antes de llegar, el motor rechaza la respuesta
 	// por fase, y si no es suya, por asiento.
+	// S-028 (R-DEC-2): la opción del panel de decisión con ese número, si la hay: la tecla entrega lo mismo que su botón, y así también
+	// votan (1 a n, en el orden de los asientos votables) y consultan o rechazan el Oráculo (1 y 2). Si el panel no la lleva (las casillas del
+	// salto planar, la tirada repetible), sigue lo de siempre.
+	const TOptional<Soulbound::Presentation::FDecisionView> View =
+		Soulbound::Presentation::DecisionView(Match->GetState(), Match->GetHumanSeat(), Match->IsWardenSpeaking());
+	if (const Soulbound::Presentation::FDecisionOption* Option = View.IsSet() ? Soulbound::Presentation::FindDecisionOption(*View, FString::FromInt(Number)) : nullptr)
+	{
+		AnswerDecisionOption(*Option);
+		return;
+	}
 	const FPendingChoice& Choice = Match->GetState().PendingChoice;
 	const int32 Position = Number == 0 ? (Choice.CanDecline() ? INDEX_NONE : 9) : Number - 1;
 	if (Position == INDEX_NONE)
@@ -168,6 +178,32 @@ void ASpikeOnlinePlayerController::OnChoiceKey(int32 Number)
 	else if (Position < Choice.AnswerCount())
 	{
 		Match->SubmitHumanChoice(Choice.Kind, Choice.AnswerAt(Position));
+	}
+}
+
+void ASpikeOnlinePlayerController::AnswerDecisionOption(const Soulbound::Presentation::FDecisionOption& Option)
+{
+	UWorld* World = GetWorld();
+	UMatchHostSubsystem* Match = World ? World->GetSubsystem<UMatchHostSubsystem>() : nullptr;
+	// Como las teclas: con el juego en pausa (el menú de UGT) no se contesta.
+	if (IsPaused() || !Match || !Match->HasMatch())
+	{
+		return;
+	}
+	switch (Option.Answer)
+	{
+	case Soulbound::Presentation::EDecisionAnswer::Choice:
+		Match->SubmitHumanChoice(Option.ChoiceKind, Option.Value);
+		break;
+	case Soulbound::Presentation::EDecisionAnswer::Vote:
+		Match->SubmitHumanVote(Option.Value);
+		break;
+	case Soulbound::Presentation::EDecisionAnswer::OracleConsult:
+		Match->SubmitHumanOracleConsult();
+		break;
+	case Soulbound::Presentation::EDecisionAnswer::OracleRefuse:
+		Match->SubmitHumanOracleRefuse();
+		break;
 	}
 }
 
