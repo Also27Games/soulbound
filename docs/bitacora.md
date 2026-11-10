@@ -36,6 +36,7 @@ La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar
   - Además, `TeclasNombranLaVista` y `Ayudas` ampliados.
   - En total, 407 superados. En el rojo cayeron también 12 tests de voz del motor que cargan `frases.json`, porque se exigían las claves nuevas antes de añadirlas.
 - **Comprobado por el agente**: el juego, lanzado con `-game` a 1024x768 y capturado. El panel de estado no se monta, no sale el aviso "DisableAllScreenMessages", D y G funcionan, T oculta el panel de estado y la petición sale primera y grande en el turno del humano.
+- **Fallo del anillo en PIE, sin reproducir** (10/11/2026): el autor no acertaba el anillo en PIE. Pasó el 9/11 de 22:00 a 22:51 (en parte a 3 fps durante minutos, en parte a 60 fps con pulsaciones de 0,22 a 0,35 s antes de la coincidencia) y en un anillo del 10/11 a las 08:37. Se descartaron por bisección todos los commits de la rama y el tamaño de la ventana (funciona a 1920 y a 2560); la causa de los 3 fps no se determinó. La medida de pulsaciones y fotogramas durante el anillo pasa a S-030 como regla.
 - **Pendiente**:
   - Los criterios manuales que faltan: 1920x1080, cambio de resolución en Opciones, Ayudas de Eco y anillo, vuelta al menú y comandos `Sb*`.
   - Los textos de las cuatro Ayudas (siguen en "(pendiente)") y la revisión de `grimorio.json`.
