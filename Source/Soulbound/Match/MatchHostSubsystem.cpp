@@ -434,8 +434,25 @@ void UMatchHostSubsystem::Advance()
 	bool bChanged = false;
 
 	// Las reglas son del motor: aquí solo se pregunta al decisor, se entrega su intención y se avanza el turno.
+	// S-032 (R-ANF-2): el bucle tiene tope. Una llamada normal da menos de diez vueltas; si se pasa, algo no avanza y se deja constancia.
+	// TODO(R-ANF-1): el bucle entero sigue aquí, en el anfitrión, y solo se prueba a mano con el acta; sacarlo al motor para probarlo sin mundo
+	// (S-032 solo extrae la decisión de repetir y el tope) es una refactorización grande que se deja para otra story.
+	FAdvanceGuard Guard;
 	while (true)
 	{
+		if (!Guard.Allow())
+		{
+			int32 Trips = 0;
+			if (AdvanceTripNotice.NoteTrip(GetWorld()->GetTimeSeconds(), Trips))
+			{
+				Note(ELogVerbosity::Error, FString::Printf(TEXT("Advance: el bucle ha superado las %d vueltas y se corta hasta el siguiente tick (%d %s desde el aviso anterior). Fase del turno %d, asiento activo %d, elección %s, votación %s, Oráculo %s, reloj %.1f s."),
+					Guard.Limit, Trips, Trips == 1 ? TEXT("vez") : TEXT("veces"), static_cast<int32>(State.TurnPhase), State.ActiveSeat,
+					State.PendingChoice.IsOpen() ? TEXT("abierta") : TEXT("no"), State.Vote.IsOpen() ? TEXT("abierta") : TEXT("no"),
+					State.Oracle.IsBusy() ? TEXT("abierto") : TEXT("no"), Now));
+			}
+			bChanged = true;
+			break;
+		}
 		// S-023: lo que acaba de pasar puede traer una frase que detiene la mesa (un golpe, una presentación): se para aquí, sin seguir.
 		if (NoteWardenLines())
 		{
@@ -479,7 +496,7 @@ void UMatchHostSubsystem::Advance()
 				}
 				if (Now >= PendingVotes[Voter]->Key)
 				{
-					bVoted |= Soulbound::Rules::SubmitVote(State, Voter, PendingVotes[Voter]->Value, Now) == EIntentResult::Accepted;
+					bVoted |= Soulbound::Match::AfterAnswer(Soulbound::Rules::SubmitVote(State, Voter, PendingVotes[Voter]->Value, Now)) == Soulbound::Match::EAfterAnswer::Repeat;
 					PendingVotes[Voter].Reset();
 				}
 			}
@@ -527,9 +544,14 @@ void UMatchHostSubsystem::Advance()
 			}
 			if (Now >= Pending.ReadyAtSeconds)
 			{
-				bChanged |= Soulbound::Rules::SubmitChoiceIntent(State, ChoiceSeat, Pending.ChoiceKind, Pending.Option, Now, MatchRng) == EIntentResult::Accepted;
+				const EIntentResult Result = Soulbound::Rules::SubmitChoiceIntent(State, ChoiceSeat, Pending.ChoiceKind, Pending.Option, Now, MatchRng);
+				bChanged |= Result == EIntentResult::Accepted;
 				Pending.bPending = false;
-				continue;
+				// S-032 (R-ANF-1): solo se repite la vuelta si el motor aceptó; si no, sigue hasta AdvanceTurn, que caduca la elección vencida.
+				if (Soulbound::Match::AfterAnswer(Result) == Soulbound::Match::EAfterAnswer::Repeat)
+				{
+					continue;
+				}
 			}
 		}
 		else if (bOracleWaiting && bChoiceDummy)
@@ -553,7 +575,10 @@ void UMatchHostSubsystem::Advance()
 				bChanged |= Result == EIntentResult::Accepted;
 				Pending.bPending = false;
 				Pending.bOracle = false;
-				continue;
+				if (Soulbound::Match::AfterAnswer(Result) == Soulbound::Match::EAfterAnswer::Repeat)
+				{
+					continue; // S-032 (R-ANF-1): si no la aceptó, sigue hasta AdvanceTurn
+				}
 			}
 		}
 		else if (State.TurnPhase == ETurnPhase::RollAndChoose && bDummy)
@@ -610,10 +635,15 @@ void UMatchHostSubsystem::Advance()
 			}
 			if (SettleRing())
 			{
-				bChanged |= Soulbound::Rules::SubmitSkillTrialResult(State, Seat, Pending.bPassedTrial, Now) == EIntentResult::Accepted;
+				const EIntentResult Result = Soulbound::Rules::SubmitSkillTrialResult(State, Seat, Pending.bPassedTrial, Now);
+				bChanged |= Result == EIntentResult::Accepted;
 				Pending.bPending = false;
-				// Tras el minijuego puede quedar abierta una elección (S-009, R-INT-1): se atiende en la vuelta siguiente.
-				continue;
+				// Tras el minijuego puede quedar abierta una elección (S-009, R-INT-1): se atiende en la vuelta siguiente. S-032 (R-ANF-1): solo si
+				// el motor aceptó; si no, la vuelta sigue hasta AdvanceTurn.
+				if (Soulbound::Match::AfterAnswer(Result) == Soulbound::Match::EAfterAnswer::Repeat)
+				{
+					continue;
+				}
 			}
 		}
 		else if (State.TurnPhase == ETurnPhase::SkillTrial)
@@ -641,10 +671,15 @@ void UMatchHostSubsystem::Advance()
 			}
 			if (Now >= Pending.ReadyAtSeconds)
 			{
-				bChanged |= Soulbound::Rules::SubmitSkillTrialResult(State, Seat, Pending.bPassedTrial, Now) == EIntentResult::Accepted;
+				const EIntentResult Result = Soulbound::Rules::SubmitSkillTrialResult(State, Seat, Pending.bPassedTrial, Now);
+				bChanged |= Result == EIntentResult::Accepted;
 				Pending.bPending = false;
-				// Tras el minijuego puede quedar abierta una elección (S-009, R-INT-1): se atiende en la vuelta siguiente.
-				continue;
+				// Tras el minijuego puede quedar abierta una elección (S-009, R-INT-1): se atiende en la vuelta siguiente. S-032 (R-ANF-1): solo si
+				// el motor aceptó; si no, la vuelta sigue hasta AdvanceTurn.
+				if (Soulbound::Match::AfterAnswer(Result) == Soulbound::Match::EAfterAnswer::Repeat)
+				{
+					continue;
+				}
 			}
 		}
 		else if (State.TurnPhase == ETurnPhase::Duel && State.Duel.IsActive())
@@ -704,14 +739,22 @@ void UMatchHostSubsystem::Advance()
 			{
 				const int32 Challenger = State.Duel.Challenger;
 				const int32 Challenged = State.Duel.Challenged;
+				// Contra el Warden no hay entrega del retador: cuenta como no aceptada.
+				EIntentResult ChallengerResult = EIntentResult::WrongSeat;
 				if (!State.Duel.bAgainstWarden)
 				{
-					bChanged |= Soulbound::Rules::SubmitDuelPerformance(State, Challenger, Pending.ChallengerPerformance, Now) == EIntentResult::Accepted;
+					ChallengerResult = Soulbound::Rules::SubmitDuelPerformance(State, Challenger, Pending.ChallengerPerformance, Now);
 				}
-				bChanged |= Soulbound::Rules::SubmitDuelPerformance(State, Challenged, Pending.ChallengedPerformance, Now) == EIntentResult::Accepted;
+				const EIntentResult ChallengedResult = Soulbound::Rules::SubmitDuelPerformance(State, Challenged, Pending.ChallengedPerformance, Now);
+				bChanged |= ChallengerResult == EIntentResult::Accepted || ChallengedResult == EIntentResult::Accepted;
 				Pending.bPending = false;
-				// Tras el duelo puede abrirse el trilero del botín, con sus elecciones: se atienden en la vuelta siguiente.
-				continue;
+				// Tras el duelo puede abrirse el trilero del botín, con sus elecciones: se atienden en la vuelta siguiente. S-032 (R-ANF-1): se repite
+				// si alguna de las dos entregas fue aceptada (decisión del autor); si ninguna, la vuelta sigue hasta AdvanceTurn.
+				if (Soulbound::Match::AfterAnswer(ChallengerResult) == Soulbound::Match::EAfterAnswer::Repeat
+					|| Soulbound::Match::AfterAnswer(ChallengedResult) == Soulbound::Match::EAfterAnswer::Repeat)
+				{
+					continue;
+				}
 			}
 		}
 		else

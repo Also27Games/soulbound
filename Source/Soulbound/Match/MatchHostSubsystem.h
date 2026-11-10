@@ -4,6 +4,7 @@
 #include "Decider/Decider.h"
 #include "Match/MatchState.h"
 #include "Match/TurnRules.h"
+#include "AdvanceGuard.h"
 #include "StepClock.h"
 #include "Curtain.h"
 #include "RingTrialRun.h"
@@ -588,6 +589,8 @@ private:
 	double PrologueEndsWorldSeconds = 0.0;
 	/** El telón (S-024): bajado, el prólogo no ha empezado. */
 	FCurtain Curtain;
+	/** Cuándo avisa Advance de que su bucle superó el tope (S-032, R-ANF-2): el primero, y después uno cada 5 s como mucho. */
+	FAdvanceTripNotice AdvanceTripNotice;
 	/** Lo que dura el prólogo (OpeningSeconds), anotado al iniciar para fijar su final cuando suba el telón. */
 	double PrologueSeconds = 0.0;
 	/** Si la mesa espera al Warden (S-023). El reloj de partida sigue: no es una espera de FStepClock. */
