@@ -9,15 +9,16 @@
 using Soulbound::Match::AfterAnswer;
 using Soulbound::Match::EAfterAnswer;
 
-// CA-ANF-1 (R-ANF-1): solo Accepted repite la vuelta. Recorre todos los valores del enum, de Accepted a NotNextTile, para que uno nuevo
-// no quede sin decidir: si se añade un valor, hay que ampliar la lista y el test avisa de ello.
+// CA-ANF-1 (R-ANF-1): solo Accepted repite la vuelta. Comprueba los siete valores de EIntentResult de hoy, de Accepted a NotNextTile, cada uno
+// en su sitio. Un valor nuevo queda decidido por construcción, no por este test: AfterAnswer solo repite con Accepted, así que cualquier otro
+// valor sigue. (El test solo se rompe si se inserta un valor en medio y cambia los números; añadido al final, pasa sin enterarse.)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAdvanceAfterAnswerTest, "Soulbound.Game.Match.Anfitrion.RepiteSoloSiAcepta",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
 bool FAdvanceAfterAnswerTest::RunTest(const FString& Parameters)
 {
 	const EIntentResult All[] = {EIntentResult::Accepted, EIntentResult::WrongSeat, EIntentResult::WrongPhase, EIntentResult::Unreachable,
 		EIntentResult::ClockExpired, EIntentResult::InvalidOption, EIntentResult::NotNextTile};
-	// El último valor del enum más uno tiene que ser el tamaño de la lista: un valor nuevo rompe esta igualdad.
+	// El último valor conocido más uno tiene que ser el tamaño de la lista: solo cuida que la lista siga alineada con los números del enum.
 	TestEqual(TEXT("La lista cubre todo el enum (NotNextTile es el último valor)"), static_cast<int32>(EIntentResult::NotNextTile) + 1, static_cast<int32>(UE_ARRAY_COUNT(All)));
 	for (int32 Index = 0; Index < UE_ARRAY_COUNT(All); ++Index)
 	{
