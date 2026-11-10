@@ -1056,7 +1056,7 @@ void ABoardViewActor::BuildOverlay()
 
 	// S-021: la línea del Warden, grande y abajo, a la izquierda de la columna de paneles. Solo texto: ni assets ni widgets del juego.
 	// S-028 (R-DEC-2 a R-DEC-4): encima, en la misma columna, el panel de decisión, centrado y con la letra de los paneles; va siempre por
-	// encima de la frase. Solo sus botones reciben clics: la capa y la frase siguen sin recibirlos.
+	// encima de la frase. El panel se queda los clics que le caen encima (SDecisionPanel); la capa y la frase siguen sin recibirlos.
 	WardenLineOverlay = SNew(SBox)
 		.HAlign(HAlign_Center)
 		.VAlign(VAlign_Bottom)

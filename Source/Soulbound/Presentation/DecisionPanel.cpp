@@ -30,8 +30,10 @@ void SDecisionPanel::Construct(const FArguments& InArgs)
 		.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
 		.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.72f))
 		.Padding(FMargin(12.f, 8.f))
-		// Solo los botones reciben clics; el fondo no, para que no se coma el clic de lo que tenga detrás fuera de los botones.
-		.Visibility_Lambda([this]() { return View.IsSet() ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed; })
+		// El panel se queda el clic: el que cae en el fondo, en un texto o en un botón desactivado (la mesa espera al Warden) no llega a la casilla
+		// ni a la ficha de detrás. Sin esto, un clic sin manejar sube hasta el viewport y el controlador lo toma como clic en el tablero.
+		.Visibility_Lambda([this]() { return View.IsSet() ? EVisibility::Visible : EVisibility::Collapsed; })
+		.OnMouseButtonDown_Lambda([](const FGeometry&, const FPointerEvent&) { return FReply::Handled(); })
 		[
 			SAssignNew(Content, SVerticalBox)
 		]
