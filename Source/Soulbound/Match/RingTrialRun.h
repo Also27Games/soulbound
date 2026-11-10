@@ -3,6 +3,29 @@
 #include "CoreMinimal.h"
 #include "Match/RingRules.h"
 
+/** Qué pasaría con una pulsación en un instante (S-030, R-ACT-10): si cuenta, o por qué no. */
+enum class ERingPressKind : uint8
+{
+	/** Cuenta: cae dentro de un pulso sin resolver. */
+	Counts,
+	/** Antes del primer pulso: el anuncio. */
+	Announcement,
+	/** Entre dos pulsos: ninguno la admite (R-MIN-2). */
+	BetweenPulses,
+	/** Todos los pulsos están resueltos o vencidos. */
+	Finished,
+};
+
+/** Respuesta de FRingTrialRun::QueryPress: qué sería una pulsación en Now. Nombre propuesto en S-030. */
+struct FRingPressQuery
+{
+	ERingPressKind Kind = ERingPressKind::Finished;
+	/** Con Counts, el pulso (de 0 en adelante) al que iría; INDEX_NONE en otro caso. */
+	int32 Pulse = INDEX_NONE;
+	/** Con Counts, Now menos la coincidencia del pulso, en segundos: negativo si es antes. 0 en otro caso. */
+	double OffsetSeconds = 0.0;
+};
+
 /**
  * Una prueba del anillo en curso (S-026; nombre propuesto en el PR, aún no está en el glosario). Regla sin mundo, como FCurtain y
  * FStepClock: recibe el tiempo como dato y no sabe de UWorld ni de timers. El anfitrión la crea con una secuencia (MakeRingSequence),
@@ -30,6 +53,12 @@ struct FRingTrialRun
 	 * precisión. Devuelve si contó; una segunda pulsación en el mismo pulso, una entre pulsos, antes del primero o tras el último, no.
 	 */
 	bool Press(double Now);
+
+	/**
+	 * Qué sería una pulsación en Now (S-030, R-ACT-10), sin mutar nada: cuenta (con su pulso y su desfase respecto a la coincidencia, con
+	 * signo) o por qué no. Es lo que decide Press, que la usa; los pulsos vencidos sin pulsar se saltan como lo hace Advance.
+	 */
+	FRingPressQuery QueryPress(double Now) const;
 
 	/** Cierra con precisión 0 los pulsos sin resolver que han vencido en Now. */
 	void Advance(double Now);

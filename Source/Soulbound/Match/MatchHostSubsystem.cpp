@@ -2,6 +2,7 @@
 
 #include "../Presentation/BoardViewActor.h"
 #include "../Presentation/EventText.h"
+#include "../Presentation/MatchRecord.h"
 #include "../Presentation/WardenLineQueue.h"
 #include "../Spike/SpikeOnlineGameMode.h"
 #include "Board/BoardLoader.h"
@@ -14,8 +15,11 @@
 #include "Match/MatchStart.h"
 #include "Match/WardenEventRules.h"
 #include "Match/WardenEvents.h"
+#include "HAL/FileManager.h"
 #include "HAL/PlatformTime.h"
+#include "Misc/App.h"
 #include "Misc/DateTime.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "TimerManager.h"
 #include "Warden/WardenLines.h"
@@ -54,6 +58,8 @@ void UMatchHostSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	{
 		return;
 	}
+	// S-030: cada aviso de cambio del estado vuelca al acta los eventos nuevos. Se engancha antes que la vista: el acta no depende de ella.
+	OnMatchStateChanged.AddUObject(this, &UMatchHostSubsystem::FlushRecordEvents);
 
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -71,6 +77,13 @@ void UMatchHostSubsystem::Deinitialize()
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(AdvanceTimer);
+	}
+	// S-030 (R-ACT-6): el acta llega hasta el último evento y se cierra, abandonada si la partida estaba a medias. Una partida ya terminada
+	// ya la cerró: el cierre se escribe una sola vez.
+	if (bRecordOpen)
+	{
+		FlushRecordEvents();
+		WriteRecordClosing();
 	}
 	OnMatchStateChanged.Clear();
 	// S-026: el anillo no sobrevive al mundo; la vista retira su entrada en su EndPlay.
@@ -134,6 +147,9 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 	StepClock.OriginWorldSeconds = World.GetTimeSeconds();
 	State.ClockSeconds = 0.0;
 	bHasMatch = true;
+	// S-030: el acta se abre ya, con la cabecera, para que lo que sigue (telón, prólogo) quede en ella.
+	RecordEventsWritten = 0;
+	OpenRecord();
 
 	// S-022 (R-PRO-1, decisión del autor del 29/10/2026): el prólogo. La partida no empieza hasta que el Warden termina la apertura; los
 	// segundos de línea son los de la vista, que es quien la enseña. Sin frases no hay apertura ni prólogo.
@@ -149,11 +165,119 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 		// final del prólogo se fija entonces (LiftCurtain), no aquí.
 		StepClock.Hold(World.GetTimeSeconds());
 		Curtain.Lower(World.GetTimeSeconds(), CurtainTimeoutSeconds, CurtainGraceSeconds);
-		UE_LOG(LogSoulboundMatch, Log, TEXT("Telón bajado: el prólogo empieza cuando la presentación lo suba o, como tarde, a los %.0f s."), CurtainTimeoutSeconds);
+		Note(ELogVerbosity::Log, FString::Printf(TEXT("Telón bajado: el prólogo empieza cuando la presentación lo suba o, como tarde, a los %.0f s."), CurtainTimeoutSeconds));
 	}
 
-	UE_LOG(LogSoulboundMatch, Log, TEXT("Partida iniciada: %d casillas, semilla %d, humano en el asiento %d."), State.Board.Tiles.Num(), UsedSeed, HumanSeat);
+	Note(ELogVerbosity::Log, FString::Printf(TEXT("Partida iniciada: %d casillas, semilla %d, humano en el asiento %d."), State.Board.Tiles.Num(), UsedSeed, HumanSeat));
 	return true;
+}
+
+void UMatchHostSubsystem::Note(ELogVerbosity::Type Verbosity, const FString& Text, const FString& RecordText)
+{
+	// El texto del log es el de siempre, letra por letra; la verbosidad se decide aquí porque UE_LOG la quiere en tiempo de compilación.
+	switch (Verbosity)
+	{
+	case ELogVerbosity::Warning:
+		UE_LOG(LogSoulboundMatch, Warning, TEXT("%s"), *Text);
+		break;
+	case ELogVerbosity::Error:
+		UE_LOG(LogSoulboundMatch, Error, TEXT("%s"), *Text);
+		break;
+	default:
+		UE_LOG(LogSoulboundMatch, Log, TEXT("%s"), *Text);
+		break;
+	}
+	RecordLine(TEXT("host"), RecordText.IsEmpty() ? Text : RecordText);
+}
+
+void UMatchHostSubsystem::OpenRecord()
+{
+	bRecordOpen = false;
+	if (!bWriteMatchRecord)
+	{
+		return;
+	}
+	const FDateTime StartedAt = FDateTime::Now();
+	const FString Directory = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectSavedDir(), MatchRecordDirectory));
+	RecordPath = FPaths::Combine(Directory, Soulbound::Presentation::MatchRecordFileName(StartedAt, UsedSeed));
+	IFileManager::Get().MakeDirectory(*Directory, true);
+	const FString BuildText = FString::Printf(TEXT("%s %s"), FApp::GetBuildVersion(), LexToString(FApp::GetBuildConfiguration()));
+	bRecordOpen = true;
+	AppendToRecord(FString::Join(Soulbound::Presentation::MatchRecordHeader(State, UsedSeed, HumanSeat, BuildText, BoardRelativePath, StartedAt), LINE_TERMINATOR));
+	if (bRecordOpen)
+	{
+		UE_LOG(LogSoulboundMatch, Log, TEXT("Acta de partida: %s"), *RecordPath);
+	}
+}
+
+void UMatchHostSubsystem::AppendToRecord(const FString& Text)
+{
+	if (!bRecordOpen)
+	{
+		return;
+	}
+	// Cada escritura abre, añade y cierra el archivo: el cierre lo vuelca al disco, y si el jugador cierra la ventana a mitad, el acta llega
+	// hasta la última línea escrita.
+	if (!FFileHelper::SaveStringToFile(Text + LINE_TERMINATOR, *RecordPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM, &IFileManager::Get(), FILEWRITE_Append))
+	{
+		UE_LOG(LogSoulboundMatch, Warning, TEXT("Acta de partida: no se puede escribir en %s; la partida sigue sin acta."), *RecordPath);
+		bRecordOpen = false;
+	}
+}
+
+void UMatchHostSubsystem::FlushRecordEvents()
+{
+	if (!bRecordOpen || !bHasMatch)
+	{
+		return;
+	}
+	if (RecordEventsWritten < State.EventLog.Num())
+	{
+		TArray<FString> Lines;
+		const int32 RingSeat = bHumanPlaysSkillTrials ? HumanSeat : INDEX_NONE;
+		for (int32 Index = RecordEventsWritten; Index < State.EventLog.Num(); ++Index)
+		{
+			Lines.Add(Soulbound::Presentation::MatchRecordLine(State, Index, HumanSeat, RingSeat));
+		}
+		RecordEventsWritten = State.EventLog.Num();
+		AppendToRecord(FString::Join(Lines, LINE_TERMINATOR));
+	}
+	if (State.IsMatchOver())
+	{
+		WriteRecordClosing();
+	}
+}
+
+void UMatchHostSubsystem::RecordLine(const TCHAR* Prefix, const FString& Text)
+{
+	if (!bRecordOpen)
+	{
+		return;
+	}
+	// Primero lo que el registro ya tiene, y luego esta línea: el archivo se lee siempre en orden cronológico.
+	FlushRecordEvents();
+	if (bRecordOpen)
+	{
+		AppendToRecord(Soulbound::Presentation::MatchRecordHostLine(MatchSeconds(), Prefix, Text));
+	}
+}
+
+void UMatchHostSubsystem::RecordWardenNote(const FString& Text)
+{
+	RecordLine(TEXT("warden"), Text);
+}
+
+void UMatchHostSubsystem::WriteRecordClosing()
+{
+	if (!bRecordOpen)
+	{
+		return;
+	}
+	TArray<FString> Lines;
+	Lines.Add(TEXT("# --- cierre ---"));
+	Lines.Append(Soulbound::Presentation::MatchRecordSummary(State));
+	AppendToRecord(FString::Join(Lines, LINE_TERMINATOR));
+	bRecordOpen = false;
 }
 
 double UMatchHostSubsystem::MatchSeconds() const
@@ -171,13 +295,13 @@ void UMatchHostSubsystem::EndPrologue(const TCHAR* Why)
 	// S-024: las herramientas de depuración (SbEvent, SbStrike, SbClock) acaban el prólogo con el telón aún bajado: se sube antes.
 	if (Curtain.Raise(GetWorld()->GetTimeSeconds()))
 	{
-		UE_LOG(LogSoulboundMatch, Log, TEXT("Telón subido (%s)."), Why);
+		Note(ELogVerbosity::Log, FString::Printf(TEXT("Telón subido (%s)."), Why));
 	}
 	// Sin margen: las herramientas de depuración no esperan, y la vista no debe seguir con el telón bajado tras acabar el prólogo.
 	Curtain = FCurtain();
 	bInPrologue = false;
 	StepClock.Resume(GetWorld()->GetTimeSeconds());
-	UE_LOG(LogSoulboundMatch, Log, TEXT("Prólogo terminado (%s): empieza la partida."), Why);
+	Note(ELogVerbosity::Log, FString::Printf(TEXT("Prólogo terminado (%s): empieza la partida."), Why));
 	OnMatchStateChanged.Broadcast();
 }
 
@@ -201,8 +325,8 @@ void UMatchHostSubsystem::LiftCurtain(const TCHAR* Why)
 	}
 	// El prólogo dura lo mismo (OpeningSeconds); solo cambia desde cuándo se cuenta: desde la subida más el margen.
 	PrologueEndsWorldSeconds = World->GetTimeSeconds() + Curtain.GraceSeconds + PrologueSeconds;
-	UE_LOG(LogSoulboundMatch, Log, TEXT("Telón subido (%s)."), Why);
-	UE_LOG(LogSoulboundMatch, Log, TEXT("Prólogo: la partida empieza dentro de %.1f s (margen %.1f s y apertura), cuando el Warden termine la apertura."), Curtain.GraceSeconds + PrologueSeconds, Curtain.GraceSeconds);
+	Note(ELogVerbosity::Log, FString::Printf(TEXT("Telón subido (%s)."), Why));
+	Note(ELogVerbosity::Log, FString::Printf(TEXT("Prólogo: la partida empieza dentro de %.1f s (margen %.1f s y apertura), cuando el Warden termine la apertura."), Curtain.GraceSeconds + PrologueSeconds, Curtain.GraceSeconds));
 }
 
 bool UMatchHostSubsystem::NoteWardenLines()
@@ -219,13 +343,13 @@ bool UMatchHostSubsystem::NoteWardenLines()
 		bWardenSpeaking = true;
 		WardenWaitStartedWorldSeconds = WorldNow;
 		WardenWaitEndsWorldSeconds = WorldNow + Extra;
-		UE_LOG(LogSoulboundMatch, Log, TEXT("El Warden habla: la mesa espera %.0f s (t=%.1f s; el reloj de partida sigue)."), Extra, MatchSeconds());
+		Note(ELogVerbosity::Log, FString::Printf(TEXT("El Warden habla: la mesa espera %.0f s (t=%.1f s; el reloj de partida sigue)."), Extra, MatchSeconds()));
 	}
 	else
 	{
 		// Decisión del autor del 29/10/2026: una frase dicha más tarde sustituye en pantalla a las que quedaban; la espera acaba con ella.
 		WardenWaitEndsWorldSeconds = FMath::Max(WardenWaitEndsWorldSeconds, WorldNow + Extra);
-		UE_LOG(LogSoulboundMatch, Log, TEXT("El Warden sigue hablando: la mesa espera hasta dentro de %.0f s."), WardenWaitEndsWorldSeconds - WorldNow);
+		Note(ELogVerbosity::Log, FString::Printf(TEXT("El Warden sigue hablando: la mesa espera hasta dentro de %.0f s."), WardenWaitEndsWorldSeconds - WorldNow));
 	}
 	return true;
 }
@@ -257,7 +381,7 @@ void UMatchHostSubsystem::EndWardenWait()
 			Vote->Key += Waited;
 		}
 	}
-	UE_LOG(LogSoulboundMatch, Log, TEXT("El Warden ha terminado: la mesa ha esperado %.1f s; %d plazos desplazados (t=%.1f s)."), Waited, Shifted, MatchSeconds());
+	Note(ELogVerbosity::Log, FString::Printf(TEXT("El Warden ha terminado: la mesa ha esperado %.1f s; %d plazos desplazados (t=%.1f s)."), Waited, Shifted, MatchSeconds()));
 	OnMatchStateChanged.Broadcast();
 }
 
@@ -325,7 +449,7 @@ void UMatchHostSubsystem::Advance()
 		if (StepClock.ShouldHold(bStepMode, State.TurnPhase, State.MatchPhase, State.CurrentEvent.IsActive() || State.Oracle.IsBusy()))
 		{
 			StepClock.Hold(GetWorld()->GetTimeSeconds());
-			UE_LOG(LogSoulboundMatch, Log, TEXT("Paso a paso: partida detenida en t=%.1f s, esperando el siguiente turno."), StepClock.FrozenMatchSeconds);
+			Note(ELogVerbosity::Log, FString::Printf(TEXT("Paso a paso: partida detenida en t=%.1f s, esperando el siguiente turno."), StepClock.FrozenMatchSeconds));
 			bChanged = true;
 			break;
 		}
@@ -472,7 +596,7 @@ void UMatchHostSubsystem::Advance()
 				{
 					Pending.bPassedTrial = ForcedTrialResult.GetValue();
 					ForcedTrialResult.Reset();
-					UE_LOG(LogSoulboundMatch, Log, TEXT("Anillo: no se abre; SbTrial fija la prueba como %s."), Pending.bPassedTrial ? TEXT("superada") : TEXT("fallada"));
+					Note(ELogVerbosity::Log, FString::Printf(TEXT("Anillo: no se abre; SbTrial fija la prueba como %s."), Pending.bPassedTrial ? TEXT("superada") : TEXT("fallada")));
 				}
 				else
 #endif
@@ -610,6 +734,8 @@ void UMatchHostSubsystem::Advance()
 	{
 		OnMatchStateChanged.Broadcast();
 	}
+	// S-030: lo que no avisó de un cambio también queda en el acta antes del siguiente tick.
+	FlushRecordEvents();
 }
 
 void UMatchHostSubsystem::SetStepMode(bool bEnabled)
@@ -622,18 +748,18 @@ void UMatchHostSubsystem::SetStepMode(bool bEnabled)
 	if (!bEnabled && bInPrologue)
 	{
 		// S-022: el prólogo no es una espera del paso a paso; salir del modo no lo acorta.
-		UE_LOG(LogSoulboundMatch, Log, TEXT("Paso a paso desactivado: el prólogo sigue hasta que el Warden termine la apertura."));
+		Note(ELogVerbosity::Log, TEXT("Paso a paso desactivado: el prólogo sigue hasta que el Warden termine la apertura."));
 		return;
 	}
 	if (!bEnabled)
 	{
 		StepClock.Disable(GetWorld()->GetTimeSeconds());
-		UE_LOG(LogSoulboundMatch, Log, TEXT("Paso a paso desactivado: la partida sigue sola."));
+		Note(ELogVerbosity::Log, TEXT("Paso a paso desactivado: la partida sigue sola."));
 		OnMatchStateChanged.Broadcast();
 	}
 	else
 	{
-		UE_LOG(LogSoulboundMatch, Log, TEXT("Paso a paso activado: la partida se detendra al acabar el turno en curso."));
+		Note(ELogVerbosity::Log, TEXT("Paso a paso activado: la partida se detendra al acabar el turno en curso."));
 	}
 	Advance();
 }
@@ -645,7 +771,7 @@ bool UMatchHostSubsystem::StepOnce()
 	{
 		return false;
 	}
-	UE_LOG(LogSoulboundMatch, Log, TEXT("Paso a paso: se juega un turno."));
+	Note(ELogVerbosity::Log, TEXT("Paso a paso: se juega un turno."));
 	OnMatchStateChanged.Broadcast();
 	Advance();
 	return true;
@@ -653,13 +779,21 @@ bool UMatchHostSubsystem::StepOnce()
 
 EIntentResult UMatchHostSubsystem::SubmitHumanIntent(int32 TileId)
 {
-	if (!bHasMatch || RejectWhileWardenSpeaks(TEXT("intención de destino")))
+	if (!bHasMatch)
 	{
+		return EIntentResult::WrongPhase;
+	}
+	// S-030 (R-ACT-8): cada entrada del humano deja su línea, con lo que devolvió el motor o con que la mesa esperaba al Warden.
+	const FString What = FString::Printf(TEXT("destino: casilla %d (%s)"), TileId, *Soulbound::Presentation::TileShortName(State.Board, TileId));
+	if (RejectWhileWardenSpeaks(TEXT("intención de destino")))
+	{
+		RecordHuman(What + TEXT(" -> la mesa espera al Warden"));
 		return EIntentResult::WrongPhase;
 	}
 	const double Now = MatchSeconds();
 	State.ClockSeconds = Now;
 	const EIntentResult Result = Soulbound::Rules::SubmitDestinationIntent(State, HumanSeat, TileId, Now);
+	RecordHuman(FString::Printf(TEXT("%s -> %s"), *What, *Soulbound::Presentation::IntentResultText(Result)));
 	if (Result == EIntentResult::Accepted)
 	{
 		OnMatchStateChanged.Broadcast();
@@ -669,8 +803,15 @@ EIntentResult UMatchHostSubsystem::SubmitHumanIntent(int32 TileId)
 
 EIntentResult UMatchHostSubsystem::SubmitMoveProgress(int32 Seat, int32 TileId)
 {
-	if (!bHasMatch || RejectWhileWardenSpeaks(TEXT("avance de ficha")))
+	if (!bHasMatch)
 	{
+		return EIntentResult::WrongPhase;
+	}
+	if (RejectWhileWardenSpeaks(TEXT("avance de ficha")))
+	{
+		// El avance es de la vista, no una entrada del humano (R-ACT-8): no tiene línea "humano". El rechazo sí deja la suya, para que el acta
+		// no pierda un avance que no llegó.
+		RecordLine(TEXT("host"), FString::Printf(TEXT("Rechazado (avance de ficha, asiento %d, casilla %d): la mesa espera a que el Warden termine de hablar."), Seat, TileId));
 		return EIntentResult::WrongPhase;
 	}
 	const double Now = MatchSeconds();
@@ -685,13 +826,21 @@ EIntentResult UMatchHostSubsystem::SubmitMoveProgress(int32 Seat, int32 TileId)
 
 EIntentResult UMatchHostSubsystem::SubmitHumanChoice(EChoiceKind Kind, int32 Option)
 {
-	if (!bHasMatch || RejectWhileWardenSpeaks(TEXT("elección")))
+	if (!bHasMatch)
 	{
+		return EIntentResult::WrongPhase;
+	}
+	const FString What = FString::Printf(TEXT("elección %s: opción %s"), *StaticEnum<EChoiceKind>()->GetNameStringByValue(static_cast<int64>(Kind)),
+		Option == INDEX_NONE ? TEXT("no") : *FString::FromInt(Option));
+	if (RejectWhileWardenSpeaks(TEXT("elección")))
+	{
+		RecordHuman(What + TEXT(" -> la mesa espera al Warden"));
 		return EIntentResult::WrongPhase;
 	}
 	const double Now = MatchSeconds();
 	State.ClockSeconds = Now;
 	const EIntentResult Result = Soulbound::Rules::SubmitChoiceIntent(State, HumanSeat, Kind, Option, Now, MatchRng);
+	RecordHuman(FString::Printf(TEXT("%s -> %s"), *What, *Soulbound::Presentation::IntentResultText(Result)));
 	if (Result == EIntentResult::Accepted)
 	{
 		OnMatchStateChanged.Broadcast();
@@ -701,13 +850,19 @@ EIntentResult UMatchHostSubsystem::SubmitHumanChoice(EChoiceKind Kind, int32 Opt
 
 EIntentResult UMatchHostSubsystem::SubmitHumanOracleConsult()
 {
-	if (!bHasMatch || RejectWhileWardenSpeaks(TEXT("consulta del Oráculo")))
+	if (!bHasMatch)
 	{
+		return EIntentResult::WrongPhase;
+	}
+	if (RejectWhileWardenSpeaks(TEXT("consulta del Oráculo")))
+	{
+		RecordHuman(TEXT("consulta del Oráculo -> la mesa espera al Warden"));
 		return EIntentResult::WrongPhase;
 	}
 	const double Now = MatchSeconds();
 	State.ClockSeconds = Now;
 	const EIntentResult Result = Soulbound::Rules::SubmitOracleConsult(State, HumanSeat, Now);
+	RecordHuman(FString::Printf(TEXT("consulta del Oráculo -> %s"), *Soulbound::Presentation::IntentResultText(Result)));
 	if (Result == EIntentResult::Accepted)
 	{
 		OnMatchStateChanged.Broadcast();
@@ -719,13 +874,20 @@ EIntentResult UMatchHostSubsystem::SubmitHumanOracleConsult()
 
 EIntentResult UMatchHostSubsystem::SubmitHumanVote(int32 Voted)
 {
-	if (!bHasMatch || RejectWhileWardenSpeaks(TEXT("voto")))
+	if (!bHasMatch)
 	{
+		return EIntentResult::WrongPhase;
+	}
+	const FString What = FString::Printf(TEXT("voto por el asiento %d"), Voted);
+	if (RejectWhileWardenSpeaks(TEXT("voto")))
+	{
+		RecordHuman(What + TEXT(" -> la mesa espera al Warden"));
 		return EIntentResult::WrongPhase;
 	}
 	const double Now = MatchSeconds();
 	State.ClockSeconds = Now;
 	const EIntentResult Result = Soulbound::Rules::SubmitVote(State, HumanSeat, Voted, Now);
+	RecordHuman(FString::Printf(TEXT("%s -> %s"), *What, *Soulbound::Presentation::IntentResultText(Result)));
 	if (Result == EIntentResult::Accepted)
 	{
 		OnMatchStateChanged.Broadcast();
@@ -737,13 +899,19 @@ EIntentResult UMatchHostSubsystem::SubmitHumanVote(int32 Voted)
 
 EIntentResult UMatchHostSubsystem::SubmitHumanOracleRefuse()
 {
-	if (!bHasMatch || RejectWhileWardenSpeaks(TEXT("rechazo de la sentencia")))
+	if (!bHasMatch)
 	{
+		return EIntentResult::WrongPhase;
+	}
+	if (RejectWhileWardenSpeaks(TEXT("rechazo de la sentencia")))
+	{
+		RecordHuman(TEXT("rechazo de la sentencia del Oráculo -> la mesa espera al Warden"));
 		return EIntentResult::WrongPhase;
 	}
 	const double Now = MatchSeconds();
 	State.ClockSeconds = Now;
 	const EIntentResult Result = Soulbound::Rules::SubmitOracleRefuse(State, HumanSeat, Now);
+	RecordHuman(FString::Printf(TEXT("rechazo de la sentencia del Oráculo -> %s"), *Soulbound::Presentation::IntentResultText(Result)));
 	if (Result == EIntentResult::Accepted)
 	{
 		OnMatchStateChanged.Broadcast();
@@ -758,7 +926,12 @@ bool UMatchHostSubsystem::PressRing(double PressSeconds)
 	{
 		return false;
 	}
-	// Press cierra antes los pulsos vencidos; si la pulsación cuenta, el último resuelto es el suyo.
+	// S-030 (R-ACT-10): se avanza (los pulsos vencidos antes de la pulsación se resuelven y dejan su línea), se consulta qué sería esta
+	// pulsación (cuente o no, deja su línea en el acta) y luego se pulsa. Press repite lo que decidió la consulta.
+	HumanRing->Run.Advance(PressSeconds);
+	LogRingPulses(false);
+	RecordHuman(Soulbound::Presentation::RingPressLine(HumanRing->Run.QueryPress(PressSeconds)));
+	// Si la pulsación cuenta, el último pulso resuelto es el suyo.
 	const bool bCounted = HumanRing->Run.Press(PressSeconds);
 	LogRingPulses(bCounted);
 	return bCounted;
@@ -772,10 +945,13 @@ void UMatchHostSubsystem::OpenRing(const FRingTrialParams& Params, ESkillTrial T
 	Ring.Params = Params;
 	Ring.Trial = Trial;
 	Ring.bDuel = bDuel;
+	// S-030 (R-ACT-10): los fotogramas del motor y los segundos reales desde ahora, para medir los fotogramas por segundo al cerrarse.
+	Ring.OpenFrame = GFrameCounter;
+	Ring.OpenRealSeconds = FPlatformTime::Seconds();
 	Ring.Run.Begin(Soulbound::Rules::MakeRingSequence(State.Params.Ring, Params, RingSeed), FPlatformTime::Seconds() + FMath::Max(RingAnnounceSeconds, 0.f));
 	HumanRing = MoveTemp(Ring);
-	UE_LOG(LogSoulboundMatch, Log, TEXT("Anillo abierto (%s): %d pulsos, cierre %.2f s, zona %.2f, semilla %d."),
-		bDuel ? TEXT("duelo") : *UEnum::GetValueAsString(Trial), Params.Pulses, Params.CloseSeconds, Params.SweetZone, RingSeed);
+	Note(ELogVerbosity::Log, FString::Printf(TEXT("Anillo abierto (%s): %d pulsos, cierre %.2f s, zona %.2f, semilla %d."),
+		bDuel ? TEXT("duelo") : *UEnum::GetValueAsString(Trial), Params.Pulses, Params.CloseSeconds, Params.SweetZone, RingSeed));
 	OnRingOpened.Broadcast();
 }
 
@@ -785,8 +961,12 @@ void UMatchHostSubsystem::CloseRing(const TOptional<FRingOutcome>& Outcome, cons
 	{
 		return;
 	}
+	// S-030 (R-ACT-10): el acta añade los fotogramas por segundo durante la prueba; el texto del log sigue siendo el de siempre.
+	const uint64 Frames = GFrameCounter - HumanRing->OpenFrame;
+	const double RealSeconds = FPlatformTime::Seconds() - HumanRing->OpenRealSeconds;
 	HumanRing.Reset();
-	UE_LOG(LogSoulboundMatch, Log, TEXT("Anillo cerrado: %s."), Why);
+	Note(ELogVerbosity::Log, FString::Printf(TEXT("Anillo cerrado: %s."), Why),
+		Soulbound::Presentation::RingClosedRecordText(Why, static_cast<int64>(Frames), RealSeconds));
 	OnRingClosed.Broadcast(Outcome);
 }
 
@@ -800,8 +980,8 @@ void UMatchHostSubsystem::LogRingPulses(bool bLastPressed)
 	for (int32 Pulse = HumanRing->LoggedPulses; Pulse < Precisions.Num(); ++Pulse)
 	{
 		const bool bPressed = bLastPressed && Pulse == Precisions.Num() - 1;
-		UE_LOG(LogSoulboundMatch, Log, TEXT("Anillo: pulso %d de %d, precisión %.2f%s."), Pulse + 1, HumanRing->Run.NumPulses(), Precisions[Pulse],
-			bPressed ? TEXT("") : TEXT(" (vencido sin pulsar)"));
+		Note(ELogVerbosity::Log, FString::Printf(TEXT("Anillo: pulso %d de %d, precisión %.2f%s."), Pulse + 1, HumanRing->Run.NumPulses(), Precisions[Pulse],
+			bPressed ? TEXT("") : TEXT(" (vencido sin pulsar)")));
 	}
 	HumanRing->LoggedPulses = Precisions.Num();
 }
@@ -871,7 +1051,7 @@ FWardenDecision UMatchHostSubsystem::EvaluateWarden()
 #if !UE_BUILD_SHIPPING
 FDebugEditOutcome UMatchHostSubsystem::FinishDebugEdit(bool bApplied, const FString& Message)
 {
-	UE_LOG(LogSoulboundMatch, Log, TEXT("Depuración: %s%s"), bApplied ? TEXT("") : TEXT("RECHAZADA, "), *Message);
+	Note(ELogVerbosity::Log, FString::Printf(TEXT("Depuración: %s%s"), bApplied ? TEXT("") : TEXT("RECHAZADA, "), *Message));
 	if (bApplied)
 	{
 		OnMatchStateChanged.Broadcast();

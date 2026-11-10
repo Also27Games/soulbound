@@ -84,7 +84,10 @@ void UWardenHostSubsystem::Poll()
 	++EvaluationCount;
 	const FWardenDecision Decision = Match->EvaluateWarden();
 	const FMatchState& State = Match->GetState();
-	UE_LOG(LogSoulboundWarden, Log, TEXT("Warden (eval %d, t=%.1f s, acto %d): decisión %d, evento %d%s; siguiente en %.1f s"), EvaluationCount, State.ClockSeconds,
+	const FString EvaluationText = FString::Printf(TEXT("Warden (eval %d, t=%.1f s, acto %d): decisión %d, evento %d%s; siguiente en %.1f s"), EvaluationCount, State.ClockSeconds,
 		static_cast<int32>(Decision.Act) + 1, static_cast<int32>(Decision.Kind), Decision.EventIndex, Decision.bForcedByGuarantee ? TEXT(", forzada por la garantía") : TEXT(""),
 		State.Warden.NextEvaluationSeconds);
+	UE_LOG(LogSoulboundWarden, Log, TEXT("%s"), *EvaluationText);
+	// S-030 (R-ACT-7): la línea de cada evaluación también va al acta, con el prefijo "warden". El acta no depende de UE_LOG.
+	Match->RecordWardenNote(EvaluationText);
 }

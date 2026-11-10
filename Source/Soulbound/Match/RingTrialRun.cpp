@@ -10,13 +10,39 @@ void FRingTrialRun::Begin(const FRingSequence& InSequence, double InStartSeconds
 bool FRingTrialRun::Press(double Now)
 {
 	Advance(Now);
-	const int32 Pulse = CurrentPulse(Now);
-	if (Pulse == INDEX_NONE)
+	const FRingPressQuery Query = QueryPress(Now);
+	if (Query.Kind != ERingPressKind::Counts)
 	{
 		return false; // anuncio, entre pulsos, pulso ya resuelto o prueba terminada (R-MIN-2)
 	}
-	Resolved.Add(Soulbound::Rules::PulsePrecision(StartSeconds + Sequence.CoincidenceAt(Pulse), Now, Sequence.SweetZoneSeconds));
+	Resolved.Add(Soulbound::Rules::PulsePrecision(StartSeconds + Sequence.CoincidenceAt(Query.Pulse), Now, Sequence.SweetZoneSeconds));
 	return true;
+}
+
+FRingPressQuery FRingTrialRun::QueryPress(double Now) const
+{
+	FRingPressQuery Query;
+	// Los pulsos vencidos sin pulsar se saltan como lo hace Advance, pero sin resolverlos: la consulta no muta.
+	int32 Pulse = Resolved.Num();
+	while (Pulse < Sequence.Num() && Now >= StartSeconds + Sequence.ExpiryAt(Pulse))
+	{
+		++Pulse;
+	}
+	if (Pulse >= Sequence.Num())
+	{
+		Query.Kind = ERingPressKind::Finished;
+		return Query;
+	}
+	if (Now < StartSeconds + Sequence.PulseStarts[Pulse])
+	{
+		// Antes del primer pulso es el anuncio; antes de cualquier otro, el hueco entre dos.
+		Query.Kind = Pulse == 0 ? ERingPressKind::Announcement : ERingPressKind::BetweenPulses;
+		return Query;
+	}
+	Query.Kind = ERingPressKind::Counts;
+	Query.Pulse = Pulse;
+	Query.OffsetSeconds = Now - (StartSeconds + Sequence.CoincidenceAt(Pulse));
+	return Query;
 }
 
 void FRingTrialRun::Advance(double Now)
