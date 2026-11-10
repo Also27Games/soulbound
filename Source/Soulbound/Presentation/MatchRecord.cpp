@@ -76,6 +76,16 @@ namespace Soulbound::Presentation
 			Phrase = bKnown ? WardenLinePrefix(Event.Seat, HumanSeat) + TEXT(" ") + SpokenText(State.WardenLines, Event)
 				: FString::Printf(TEXT("frase desconocida (entrada %d, variante %d)"), Event.Value, Event.Detail);
 		}
+		else if (Event.Type == EMatchEventType::TileEntered)
+		{
+			// La crónica no los dice (DescribeEvent no tiene texto para ellos); el acta, que lleva todos los eventos, sí.
+			Phrase = FString::Printf(TEXT("el asiento %d entra en %s"), Event.Seat, *TileShortName(State.Board, Event.Value));
+		}
+		else if (Event.Type == EMatchEventType::WardenTriggered)
+		{
+			Phrase = Event.Seat == INDEX_NONE ? FString::Printf(TEXT("disparador %s"), *TriggerName(Event.Value))
+				: FString::Printf(TEXT("disparador %s (asiento %d)"), *TriggerName(Event.Value), Event.Seat);
+		}
 		else
 		{
 			Phrase = DescribeEvent(Event, State.Board, &State.WardenEvents, &State.WardenLines, RingSeat);

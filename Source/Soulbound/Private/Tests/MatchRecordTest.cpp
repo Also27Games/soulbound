@@ -65,8 +65,18 @@ bool FActaEventLineTest::RunTest(const FString& Parameters)
 		Soulbound::Presentation::DescribeEvent(State.EventLog[0], State.Board, &State.WardenEvents, &State.WardenLines, INDEX_NONE));
 
 	// El panel de crónica se salta estos dos; el acta no.
-	TestTrue(TEXT("TileEntered tiene línea"), Soulbound::Presentation::MatchRecordLine(State, 1, 0, INDEX_NONE).Contains(TEXT("TileEntered")));
-	TestTrue(TEXT("WardenTriggered tiene línea"), Soulbound::Presentation::MatchRecordLine(State, 2, 0, INDEX_NONE).Contains(TEXT("WardenTriggered")));
+	const FString Entered = Soulbound::Presentation::MatchRecordLine(State, 1, 0, INDEX_NONE);
+	const FString Triggered = Soulbound::Presentation::MatchRecordLine(State, 2, 0, INDEX_NONE);
+	TestTrue(TEXT("TileEntered tiene línea"), Entered.Contains(TEXT("TileEntered")));
+	TestTrue(TEXT("WardenTriggered tiene línea"), Triggered.Contains(TEXT("WardenTriggered")));
+	// Con texto propio, no "(sin frase)": el del acta, sin tocar DescribeEvent ni la crónica.
+	TestTrue(TEXT("TileEntered dice quién entra y dónde"),
+		Entered.EndsWith(FString::Printf(TEXT("| el asiento 2 entra en %s"), *Soulbound::Presentation::TileShortName(State.Board, 0))));
+	TestTrue(TEXT("WardenTriggered dice el disparador y su asiento"),
+		Triggered.EndsWith(FString::Printf(TEXT("| disparador %s (asiento 1)"), *Soulbound::Presentation::TriggerName(0))));
+	TestFalse(TEXT("Ninguno de los dos queda sin frase"), Entered.Contains(TEXT("sin frase")) || Triggered.Contains(TEXT("sin frase")));
+	// La crónica y DescribeEvent siguen como estaban.
+	TestTrue(TEXT("DescribeEvent de TileEntered no cambia"), Soulbound::Presentation::DescribeEvent(State.EventLog[1], State.Board).IsEmpty());
 	TestTrue(TEXT("Un índice fuera del registro no da línea"), Soulbound::Presentation::MatchRecordLine(State, 3, 0, INDEX_NONE).IsEmpty());
 	return true;
 }
