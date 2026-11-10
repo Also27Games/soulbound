@@ -39,6 +39,8 @@ namespace Soulbound::Presentation
 		bool bWardenSpeaking = false;
 		/** El interruptor del anillo encendido: el humano juega sus pruebas y sus duelos con el anillo (S-026). */
 		bool bHumanRing = false;
+		/** El panel de decisión está a la vista (S-028, R-DEC-3): la línea de petición del humano no se repite aquí. */
+		bool bDecisionPanelShown = false;
 		/** El paso a paso espera a la tecla (S-007). */
 		bool bStepWait = false;
 		/** El paso a paso activado. */
