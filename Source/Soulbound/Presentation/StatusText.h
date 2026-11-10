@@ -4,6 +4,7 @@
 #include "Elects/Elects.h"
 
 struct FMatchState;
+struct FPendingChoice;
 
 /**
  * Lo que enseñan los paneles del HUD (S-027, R-HUD-5): el de estado, el de depuración y el Grimorio, como texto y color, y la escala de los
@@ -98,6 +99,26 @@ namespace Soulbound::Presentation
 	 * @return El ancho; 0 si alguno de los dos no es positivo.
 	 */
 	float ScaledPanelWidth(float ViewportHeight, float WidthAt1080);
+
+	// ---- Textos de la elección pendiente, que comparten el panel de estado y el de decisión (S-028; en el .cpp desde S-027) ----
+
+	/**
+	 * Tecla de la opción en la posición Index de Choice (S-010), como la contestan las teclas: "1" a "9" y, si la elección no admite "no", "0"
+	 * para la décima. Vacía si no tiene tecla. La línea de petición la enseña entre corchetes (OptionKey).
+	 */
+	FString ChoiceOptionKey(const FPendingChoice& Choice, int32 Index);
+
+	/** Texto de la opción en la posición Index de la elección pendiente de State (S-009, S-010): "dos dados", "Robar al asiento 2"... */
+	FString OptionText(const FMatchState& State, int32 Index);
+
+	/**
+	 * Qué se elige al señalar a un rival en el evento en curso (S-015): a quién se pone a prueba, a quién se roba, con quién se bate o, con dos
+	 * rivales, quién reta y a quién. Solo lee el estado.
+	 */
+	FString ChosenRivalText(const FMatchState& State);
+
+	/** Qué se elige en la elección pendiente de State, como lo dice la línea de petición tras "ELIGE": "dados", "salto planar", "esfera"... */
+	FString ChoiceWhat(const FMatchState& State);
 
 	// ---- Textos de asiento que comparten los paneles y la leyenda (de S-006 a S-016; en BoardViewActor.cpp hasta S-027) ----
 

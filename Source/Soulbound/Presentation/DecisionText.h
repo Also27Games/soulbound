@@ -69,7 +69,7 @@ namespace Soulbound::Presentation
 		double ClockSeconds = 0.0;
 		/** La mesa espera al Warden (R-DEC-3): se enseña con los botones desactivados y "El Warden habla" en vez del reloj. */
 		bool bBlocked = false;
-		/** Qué decisión es, para saber si la que se ve es la misma que antes (el reloj de la barra): entrada, tipo de elección y título. */
+		/** Qué decisión es, para saber si la que se ve es la misma que antes (el reloj de la barra): la entrada y, con botones, el tipo de elección. */
 		FString Identity;
 	};
 
@@ -119,4 +119,14 @@ namespace Soulbound::Presentation
 	 * @return La fracción que queda, de 0 a 1; 0 sin vista o con el plazo vencido.
 	 */
 	double AdvanceDecisionClock(FDecisionClock& Clock, const TOptional<FDecisionView>& View);
+
+	/**
+	 * Qué parte del plazo queda: lo que falta hasta DeadlineSeconds entre TotalSeconds, de 0 a 1. La usan AdvanceDecisionClock y la barra del
+	 * panel en cada pintado, con el reloj de partida del momento.
+	 * @param TotalSeconds El total del reloj de la barra.
+	 * @param DeadlineSeconds Fin del plazo, en segundos del reloj de partida.
+	 * @param NowSeconds El reloj de partida ahora.
+	 * @return La fracción; 0 si el total no es positivo.
+	 */
+	double DecisionTimeFraction(double TotalSeconds, double DeadlineSeconds, double NowSeconds);
 }
