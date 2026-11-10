@@ -217,6 +217,13 @@ public:
 	 */
 	bool PressRing(double PressSeconds);
 
+	/**
+	 * Deja en el acta (S-030, R-ACT-7) una línea con el prefijo "warden" y la marca de tiempo de la partida: la usa el anfitrión del Warden para
+	 * la línea de cada evaluación del cerebro. Antes vuelca los eventos pendientes del registro, para que el archivo vaya en orden cronológico.
+	 * Sin acta abierta (apagada o sin partida) no hace nada.
+	 */
+	void RecordWardenNote(const FString& Text);
+
 	/** Se lanza al abrir una prueba del anillo del humano (S-026). */
 	FOnRingOpened OnRingOpened;
 
@@ -392,6 +399,18 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Partida")
 	float RingAnnounceSeconds = 1.5f;
 
+	/**
+	 * Si cada partida deja su acta en un archivo de texto (S-030, R-ACT-9; glosario propuesto "Acta de partida"). Valor inicial true
+	 * (Config/DefaultGame.ini). Apagado, no se crea ni la carpeta. Si el archivo no se puede crear o escribir, un aviso en el log y la partida
+	 * sigue: el acta nunca para una partida.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Partida")
+	bool bWriteMatchRecord = true;
+
+	/** Carpeta de las actas, relativa a Saved/ (FPaths::ProjectSavedDir, S-030, R-ACT-9). Valor inicial "Partidas". */
+	UPROPERTY(Config, EditAnywhere, Category = "Partida")
+	FString MatchRecordDirectory = TEXT("Partidas");
+
 	/** Cada cuántos segundos reales se avanza la máquina de turnos. Valor inicial 0,1. */
 	UPROPERTY(Config)
 	float AdvanceIntervalSeconds = 0.1f;
@@ -469,7 +488,38 @@ private:
 		bool bDuel = false;
 		/** Cuántos pulsos resueltos tienen ya su línea en el log (LogRingPulses). */
 		int32 LoggedPulses = 0;
+		/** Fotogramas del motor (GFrameCounter) y segundos reales (FPlatformTime::Seconds) al abrirse, para medir los fotogramas por segundo (S-030, R-ACT-10). */
+		uint64 OpenFrame = 0;
+		double OpenRealSeconds = 0.0;
 	};
+
+	/**
+	 * Escribe Text en el log del motor con la verbosidad dada (Log, Warning o Error) y, si el acta está abierta, también en ella con el
+	 * prefijo "host" (S-030, R-ACT-7): el texto del log no cambia y el acta no depende de que UE_LOG esté activo. RecordText, si no está vacío,
+	 * es lo que va al acta en vez de Text (el cierre del anillo añade los fotogramas por segundo).
+	 */
+	void Note(ELogVerbosity::Type Verbosity, const FString& Text, const FString& RecordText = FString());
+
+	/** Abre el acta (S-030, R-ACT-6): crea el archivo en Saved/<MatchRecordDirectory>/ con la cabecera. Sin efecto con bWriteMatchRecord apagado. */
+	void OpenRecord();
+
+	/** Añade Text (una o varias líneas, sin salto final) al archivo del acta y lo vuelca al disco. Si falla, un aviso y el acta se cierra: la partida sigue. */
+	void AppendToRecord(const FString& Text);
+
+	/**
+	 * Vuelca al acta los eventos del registro que aún no están (lectura incremental, como la crónica y la espera del Warden), en orden, y escribe
+	 * el cierre si la partida ha terminado. Se llama tras cada aviso de cambio del estado y antes de escribir cualquier otra línea del acta.
+	 */
+	void FlushRecordEvents();
+
+	/** Una línea del acta con Prefix ("host", "humano" o "warden") y la marca de tiempo de la partida; antes vuelca los eventos pendientes. */
+	void RecordLine(const TCHAR* Prefix, const FString& Text);
+
+	/** Una línea "humano" del acta (S-030, R-ACT-8): lo que el humano hizo y lo que devolvió el motor. */
+	void RecordHuman(const FString& Text) { RecordLine(TEXT("humano"), Text); }
+
+	/** Escribe el cierre del acta (R-ACT-4, R-ACT-6) y la deja cerrada: se escribe una sola vez, termine la partida o se abandone. */
+	void WriteRecordClosing();
 
 	/**
 	 * Abre una prueba del anillo del humano (S-026) con Params: sortea su semilla con RingRng, la secuencia empieza tras el anuncio
@@ -549,6 +599,12 @@ private:
 	int32 WardenLinesScanned = 0;
 	int32 UsedSeed = 0;
 	bool bHasMatch = false;
+	/** Ruta completa del archivo del acta (S-030); vacía si no se abrió. */
+	FString RecordPath;
+	/** Si el acta está abierta: se escribe hasta que se cierra (el cierre, o un fallo de escritura). */
+	bool bRecordOpen = false;
+	/** Primera posición del registro que el acta aún no ha escrito (su propia lectura incremental). */
+	int32 RecordEventsWritten = 0;
 
 	UPROPERTY()
 	TObjectPtr<ABoardViewActor> View;
