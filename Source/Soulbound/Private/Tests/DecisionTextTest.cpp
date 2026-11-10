@@ -386,18 +386,23 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionNoneTest, "Soulbound.Game.Presentation
 
 bool FDecisionNoneTest::RunTest(const FString& Parameters)
 {
-	// CA-DEC-6 (R-DEC-1): sin decisión abierta para el humano, o con la decisión abierta para un dummy, no hay vista.
+	// CA-DEC-6 (R-DEC-1): sin decisión abierta para el humano, o con la decisión abierta para un dummy, no hay vista. Cada caso lleva su
+	// control: la misma decisión, abierta para el humano, sí tiene vista; sin él, el test pasaría con una función que nunca devuelve nada.
 	TestFalse(TEXT("Sin decisión, no hay vista"), Soulbound::Presentation::DecisionView(DtMakeState(), DtHuman, false).IsSet());
 	{
 		FMatchState State = DtMakeState();
 		DtOpenDice(State, 2);
 		TestFalse(TEXT("Elección de un dummy"), Soulbound::Presentation::DecisionView(State, DtHuman, false).IsSet());
+		DtOpenDice(State, DtHuman);
+		TestTrue(TEXT("Control: la misma elección del humano sí tiene vista"), Soulbound::Presentation::DecisionView(State, DtHuman, false).IsSet());
 	}
 	{
 		FMatchState State = DtMakeState();
 		DtOpenTile(State);
 		State.ActiveSeat = 3;
 		TestFalse(TEXT("Destino de un dummy"), Soulbound::Presentation::DecisionView(State, DtHuman, false).IsSet());
+		State.ActiveSeat = DtHuman;
+		TestTrue(TEXT("Control: el destino del humano sí tiene vista"), Soulbound::Presentation::DecisionView(State, DtHuman, false).IsSet());
 	}
 	{
 		FMatchState State = DtMakeState();
@@ -405,6 +410,9 @@ bool FDecisionNoneTest::RunTest(const FString& Parameters)
 		State.MatchPhase = EMatchPhase::MatchOver;
 		State.Outcome = EMatchOutcome::WardenVictory;
 		TestFalse(TEXT("Con la partida terminada"), Soulbound::Presentation::DecisionView(State, DtHuman, false).IsSet());
+		State.MatchPhase = EMatchPhase::RuneHunt;
+		State.Outcome = EMatchOutcome::Undecided;
+		TestTrue(TEXT("Control: sin terminar, sí tiene vista"), Soulbound::Presentation::DecisionView(State, DtHuman, false).IsSet());
 	}
 	return true;
 }
