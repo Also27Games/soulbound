@@ -136,4 +136,37 @@ bool FRingRunCloseFractionTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// CA-ACT-7 (consulta del anillo), R-ACT-10: qué sería una pulsación en Now, sin mutar: pulso y desfase con signo, o el motivo. Y coincide
+// con lo que decide Press.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingRunQueryPressTest, "Soulbound.Game.Match.Anillo.ConsultaDePulsacion",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+bool FRingRunQueryPressTest::RunTest(const FString& Parameters)
+{
+	const FRingTrialRun Run = MakeRun();
+	const FRingPressQuery Announcement = Run.QueryPress(9.5);
+	TestTrue(TEXT("Antes de empezar, el anuncio"), Announcement.Kind == ERingPressKind::Announcement);
+
+	const FRingPressQuery Early = Run.QueryPress(10.969);
+	TestTrue(TEXT("Dentro del pulso 0, cuenta"), Early.Kind == ERingPressKind::Counts && Early.Pulse == 0);
+	TestEqual(TEXT("Su desfase es negativo: antes de la coincidencia (11)"), Early.OffsetSeconds, -0.031, 1e-9);
+
+	const FRingPressQuery Late = Run.QueryPress(13.05);
+	TestTrue(TEXT("En el 13,05 el pulso 0 ha vencido sin pulsar; la consulta ve ya el 1"), Late.Kind == ERingPressKind::Counts && Late.Pulse == 1);
+	TestEqual(TEXT("Su desfase es positivo: después de la coincidencia (13)"), Late.OffsetSeconds, 0.05, 1e-9);
+	TestEqual(TEXT("Consultar no resuelve nada"), Run.Precisions().Num(), 0);
+
+	TestTrue(TEXT("En el 11,5, vencido el 0 y antes del 1, entre pulsos"), Run.QueryPress(11.5).Kind == ERingPressKind::BetweenPulses);
+	TestTrue(TEXT("Pasado el último, terminada"), Run.QueryPress(16.0).Kind == ERingPressKind::Finished);
+
+	// Lo que dice la consulta es lo que hace Press: cuenta si y solo si la consulta dice Counts.
+	const double Times[] = {9.5, 10.5, 11.5, 12.5, 13.5, 15.5, 16.0};
+	for (const double Now : Times)
+	{
+		FRingTrialRun Pressed = MakeRun();
+		const bool bQueryCounts = Pressed.QueryPress(Now).Kind == ERingPressKind::Counts;
+		TestEqual(*FString::Printf(TEXT("Press en %.1f coincide con la consulta"), Now), Pressed.Press(Now), bQueryCounts);
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS
