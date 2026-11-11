@@ -291,6 +291,20 @@ public:
 	int32 WardenLineFontSize = 28;
 
 	/**
+	 * Cuántas líneas de la frase del Warden se reservan siempre bajo el panel de decisión (S-033, R-DEC-9), haya frase o no, para que el panel no
+	 * se mueva cuando la frase aparece, cambia o se va. Valor inicial 2 (Config/DefaultGame.ini).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
+	int32 WardenLineReservedLines = 2;
+
+	/**
+	 * Segundos del reloj de partida que el panel de decisión enseña el resultado de una votación al cerrarse (S-033, R-DEC-8). Valor inicial 5
+	 * (Config/DefaultGame.ini). Cero: no se enseña.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
+	float VoteResultSeconds = 5.f;
+
+	/**
 	 * Segundos que el panel del anillo enseña el resultado ("superada", "fallada" o el rendimiento del duelo) tras cerrarse la prueba (S-026).
 	 * Valor inicial 2 (Config/DefaultGame.ini). Cero: no se enseña.
 	 */
@@ -705,8 +719,14 @@ private:
 	/** Lo que los paneles de estado y de depuración necesitan y no está en el estado (S-027, FStatusContext). */
 	Soulbound::Presentation::FStatusContext MakeStatusContext() const;
 
-	/** La decisión abierta para el humano ahora (S-028, DecisionView), con la espera del Warden del anfitrión; nada sin partida. */
-	TOptional<Soulbound::Presentation::FDecisionView> DecisionViewNow() const;
+	/**
+	 * Lo que enseña el panel ahora (S-028, DecisionView; S-033, PanelView): la decisión del humano, el resultado de una votación reciente o la
+	 * espera a otro asiento, con la espera del Warden del anfitrión; nada sin partida.
+	 */
+	TOptional<Soulbound::Presentation::FDecisionView> PanelViewNow() const;
+
+	/** El alto del hueco que se reserva siempre a la frase del Warden (S-033, R-DEC-9): WardenLineReservedLines líneas de su letra más sus márgenes. */
+	float WardenLineReservedHeight() const;
 
 	/** Si la capa del panel de decisión se enseña (S-028, R-DEC-3): la regla de DecisionText, la tecla de los paneles (H) y el telón. */
 	bool IsDecisionPanelVisible() const;

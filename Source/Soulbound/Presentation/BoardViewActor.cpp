@@ -44,7 +44,9 @@
 #include "Engine/World.h"
 #include "Misc/Paths.h"
 #include "Framework/Application/IInputProcessor.h"
+#include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Rendering/SlateRenderer.h"
 #include "HAL/PlatformTime.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -1086,27 +1088,37 @@ void ABoardViewActor::BuildOverlay()
 					.OnOption_Lambda([this](const Soulbound::Presentation::FDecisionOption& Option) { AnswerDecision(Option); })
 				]
 			]
+			// S-033 (R-DEC-9): el hueco de la frase, siempre reservado, haya frase o no: el panel de encima no se mueve cuando la frase aparece,
+			// cambia de largo o se va. Su alto sale de la letra de la frase y de sus márgenes, no de un número a mano (WardenLineReservedHeight);
+			// una frase más larga se sale por arriba (el TODO(R-HUD-3) de abajo). No recibe clics: el hueco vacío deja pasar los del tablero.
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
 			[
 				SNew(SBox)
 				.Visibility(EVisibility::HitTestInvisible)
-				// TODO(R-HUD-3): a 1024x768 la frase se sale por la izquierda (visto en S-027, ya pasaba antes). No lo arreglan ni limitar este ancho
-				// al hueco libre ni un WrapTextAt explícito con ese hueco (probados en S-027): en la captura el fondo negro queda más pequeño que el
-				// texto, así que parece que el tamaño deseado no se recalcula al cambiar la frase. Hace falta mirarlo en el editor con el Widget Reflector.
-				.MaxDesiredWidth(1000.f)
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Bottom)
+				.HeightOverride_Lambda([this]() { return FOptionalSize(WardenLineReservedHeight()); })
 				[
-					SNew(SBorder)
-					.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-					.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.65f))
-					.Padding(FMargin(20.f, 10.f))
-					.Visibility_Lambda([this]() { return WardenLineNow().IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+					SNew(SBox)
+					.Visibility(EVisibility::HitTestInvisible)
+					// TODO(R-HUD-3): a 1024x768 la frase se sale por la izquierda (visto en S-027, ya pasaba antes). No lo arreglan ni limitar este ancho
+					// al hueco libre ni un WrapTextAt explícito con ese hueco (probados en S-027): en la captura el fondo negro queda más pequeño que el
+					// texto, así que parece que el tamaño deseado no se recalcula al cambiar la frase. Hace falta mirarlo en el editor con el Widget Reflector.
+					.MaxDesiredWidth(1000.f)
 					[
-						SNew(STextBlock)
-						.Text_Lambda([this]() { return FText::FromString(WardenLineNow()); })
-						.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(WardenLineFontSize, 8)))
-						.ColorAndOpacity(WardenLineColor)
-						.Justification(ETextJustify::Center)
-						.AutoWrapText(true)
+						SNew(SBorder)
+						.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+						.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.65f))
+						.Padding(FMargin(20.f, 10.f))
+						.Visibility_Lambda([this]() { return WardenLineNow().IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+						[
+							SNew(STextBlock)
+							.Text_Lambda([this]() { return FText::FromString(WardenLineNow()); })
+							.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(WardenLineFontSize, 8)))
+							.ColorAndOpacity(WardenLineColor)
+							.Justification(ETextJustify::Center)
+							.AutoWrapText(true)
+						]
 					]
 				]
 			]
@@ -1866,18 +1878,20 @@ void ABoardViewActor::TickHud()
 
 	// S-027 (R-HUD-1, R-HUD-2, R-HUD-4): lo que antes eran mensajes de pantalla del motor, en los paneles; el texto lo construye StatusText.
 	// S-028 (R-DEC-1 a R-DEC-3): la decisión del humano, en su panel, con el reloj de la barra; con el panel a la vista, el de estado no repite
-	// la petición.
-	const TOptional<Soulbound::Presentation::FDecisionView> Decision = DecisionViewNow();
-	Soulbound::Presentation::AdvanceDecisionClock(DecisionClock, Decision);
-	DecisionDeadlineSeconds = Decision.IsSet() ? Decision->DeadlineSeconds : 0.0;
-	bDecisionShown = Soulbound::Presentation::IsDecisionPanelShown(Decision, HostPtr->GetRingRun() != nullptr);
+	// la petición. S-033 (R-DEC-6): el mismo panel enseña, si el humano no tiene nada que decidir, el resultado de una votación reciente o a quién
+	// espera la mesa; el panel de estado solo deja de repetir la petición cuando lo que se ve es una decisión propia.
+	const TOptional<Soulbound::Presentation::FDecisionView> Panel = PanelViewNow();
+	Soulbound::Presentation::AdvanceDecisionClock(DecisionClock, Panel);
+	DecisionDeadlineSeconds = Panel.IsSet() ? Panel->DeadlineSeconds : 0.0;
+	const bool bRingOpen = HostPtr->GetRingRun() != nullptr;
+	bDecisionShown = Soulbound::Presentation::IsDecisionPanelShown(Panel, bRingOpen);
 	if (DecisionPanel.IsValid())
 	{
-		DecisionPanel->SetView(bDecisionShown ? Decision : TOptional<Soulbound::Presentation::FDecisionView>());
+		DecisionPanel->SetView(bDecisionShown ? Panel : TOptional<Soulbound::Presentation::FDecisionView>());
 	}
 
 	Soulbound::Presentation::FStatusContext Context = MakeStatusContext();
-	Context.bDecisionPanelShown = bDecisionShown;
+	Context.bDecisionPanelShown = Soulbound::Presentation::IsOwnDecisionShown(Panel, bRingOpen);
 	if (StatusPanel.IsValid())
 	{
 		StatusPanel->SetLines(Soulbound::Presentation::StatusLines(State, Context));
@@ -1958,14 +1972,26 @@ void ABoardViewActor::HandleRingClosed(const TOptional<FRingOutcome>& Outcome)
 	LastRingShownUntil = FPlatformTime::Seconds() + FMath::Max(RingResultSeconds, 0.f);
 }
 
-TOptional<Soulbound::Presentation::FDecisionView> ABoardViewActor::DecisionViewNow() const
+TOptional<Soulbound::Presentation::FDecisionView> ABoardViewActor::PanelViewNow() const
 {
 	const UMatchHostSubsystem* HostPtr = Host.Get();
 	if (!HostPtr || !HostPtr->HasMatch())
 	{
 		return {};
 	}
-	return Soulbound::Presentation::DecisionView(HostPtr->GetState(), HostPtr->GetHumanSeat(), HostPtr->IsWardenSpeaking());
+	return Soulbound::Presentation::PanelView(HostPtr->GetState(), HostPtr->GetHumanSeat(), HostPtr->IsWardenSpeaking(), VoteResultSeconds);
+}
+
+float ABoardViewActor::WardenLineReservedHeight() const
+{
+	// R-DEC-9: WardenLineReservedLines líneas de la letra de la frase, más el margen de arriba y de abajo de su fondo (los 10 del SBorder).
+	const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(WardenLineFontSize, 8));
+	float LineHeight = static_cast<float>(FMath::Max(WardenLineFontSize, 8));
+	if (FSlateApplication::IsInitialized() && FSlateApplication::Get().GetRenderer())
+	{
+		LineHeight = static_cast<float>(FSlateApplication::Get().GetRenderer()->GetFontMeasureService()->GetMaxCharacterHeight(Font, 1.f));
+	}
+	return FMath::Max(WardenLineReservedLines, 0) * LineHeight + 2.f * 10.f;
 }
 
 bool ABoardViewActor::IsDecisionPanelVisible() const

@@ -15,6 +15,8 @@ DECLARE_DELEGATE_OneParam(FOnDecisionOption, const Soulbound::Presentation::FDec
  * delante y el reloj de la elección como barra que se vacía, sin números. Bloqueada (la mesa espera al Warden), los botones salen desactivados y
  * en el sitio de la barra va "El Warden habla". Solo pinta lo que le dan (DecisionView): al pulsar un botón avisa con OnOption y no contesta a
  * nadie; la vista se lo pasa al controlador, que llama a la misma entrada del anfitrión que la tecla.
+ * Desde S-033 (R-DEC-7) pinta también, en el mismo sitio, la espera a otro asiento y el resultado de una votación: título en gris, sin botones y
+ * con la barra en gris (la espera de una prueba o un duelo y el resultado no llevan barra); el resultado añade una línea por voto.
  */
 class SDecisionPanel : public SCompoundWidget
 {
