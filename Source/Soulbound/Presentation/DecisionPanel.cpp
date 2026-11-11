@@ -241,6 +241,9 @@ void SDecisionPanel::Rebuild()
 			[
 				SNew(SProgressBar)
 				.Percent_Lambda([this]() { return TOptional<float>(FMath::Clamp(TimeFraction.Get(), 0.f, 1.f)); })
+				// El relleno por defecto de SProgressBar ya es azul y el color solo lo tiñe: con un pincel blanco el color es el que se pide
+				// (corrección del autor del 11/11/2026, R-DEC-7).
+				.FillImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
 				.FillColorAndOpacity(Accent)
 			]
 		];

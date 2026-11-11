@@ -160,6 +160,20 @@ namespace
 		View.Identity = FString::Printf(TEXT("W|T|%d"), State.ActiveSeat);
 	}
 
+	/** Qué hace quien elige, en tercera persona, para la línea de título de la espera (R-DEC-5, caso 1). */
+	const TCHAR* WaitChoiceVerb(EChoiceKind Kind)
+	{
+		switch (Kind)
+		{
+		case EChoiceKind::DiceCount: return TEXT("decide cuántos dados tira");
+		case EChoiceKind::PlanarJump: return TEXT("decide si hace un salto planar");
+		case EChoiceKind::SafeRune: return TEXT("pone una runa a salvo del trilero");
+		case EChoiceKind::ShellPick: return TEXT("elige una esfera del trilero");
+		case EChoiceKind::Deflection: return TEXT("decide si sale del Vacío con Desvío");
+		default: return TEXT("decide si actúa contra un jugador");
+		}
+	}
+
 	/** La elección pendiente de otro asiento: quién elige y qué; en las de un evento del Warden, su nombre y su texto (R-DEC-5, caso 1). */
 	void FillChoiceWait(const FMatchState& State, FDecisionView& View)
 	{
@@ -184,11 +198,11 @@ namespace
 			{
 				View.Title = TEXT("El Warden");
 			}
-			View.Instruction = TEXT("Elige ") + Who;
+			View.Instruction = TEXT("Le toca a ") + Who;
 			return;
 		}
-		View.Title = FString::Printf(TEXT("%s elige"), *Who);
-		View.Context = UpperFirst(Soulbound::Presentation::ChoiceWhat(State));
+		// Corrección del autor del 11/11/2026: una línea, en tercera persona (ChoiceWhat está en segunda y lo usan las decisiones del humano).
+		View.Title = Who + TEXT(" ") + WaitChoiceVerb(Choice.Kind);
 	}
 
 	/** Qué prueba de habilidad espera el motor, para la espera de los demás. */
@@ -478,5 +492,10 @@ namespace Soulbound::Presentation
 	bool DecisionButtonsInRow(int32 Count, float WidestButton, float SlotGap, float AvailableWidth)
 	{
 		return Count <= 0 || Count * (WidestButton + SlotGap) <= AvailableWidth;
+	}
+
+	float BoardFreeWidth(float ViewportSlateWidth, float PanelColumnWidth, float Cap)
+	{
+		return FMath::Clamp(ViewportSlateWidth - PanelColumnWidth - 32.f, 0.f, FMath::Max(Cap, 0.f));
 	}
 }

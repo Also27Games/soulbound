@@ -187,4 +187,15 @@ namespace Soulbound::Presentation
 	 * @return Verdadero si van en fila: Count por (WidestButton más SlotGap) no pasa de AvailableWidth. Sin botones, en fila.
 	 */
 	bool DecisionButtonsInRow(int32 Count, float WidestButton, float SlotGap, float AvailableWidth);
+
+	/**
+	 * El hueco libre del tablero en horizontal (corrección del autor del 11/11/2026, R-HUD-3): lo que queda del ancho de la ventana, en unidades de
+	 * Slate, a la izquierda de la columna de paneles, con 16 de margen a cada lado. Con él se decide el ancho máximo del panel de decisión y el
+	 * ancho en que se parte la frase del Warden.
+	 * @param ViewportSlateWidth El ancho de la ventana, ya dividido por la escala de DPI.
+	 * @param PanelColumnWidth El ancho de la columna de paneles.
+	 * @param Cap El tope del ancho.
+	 * @return El ancho libre, entre 0 y Cap.
+	 */
+	float BoardFreeWidth(float ViewportSlateWidth, float PanelColumnWidth, float Cap);
 }

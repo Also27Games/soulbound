@@ -652,8 +652,10 @@ bool FDecisionWaitChoiceTest::RunTest(const FString& Parameters)
 		{
 			TestTrue(TEXT("Es de tipo espera"), View->Input == EDecisionInput::Wait);
 			TestTrue(TEXT("Sin opciones"), View->Options.IsEmpty());
-			TestEqual(TEXT("Nombra al asiento 2"), View->Title, FString(TEXT("Asiento 2 (Eco) elige")));
-			TestEqual(TEXT("Y qué elige"), View->Context, FString(TEXT("Dados")));
+			// Corrección del autor del 11/11/2026: una sola línea de título, en tercera persona, sin contexto.
+			TestEqual(TEXT("Nombra al asiento 2 y qué decide, en tercera persona"), View->Title, FString(TEXT("Asiento 2 (Eco) decide cuántos dados tira")));
+			TestTrue(TEXT("Sin línea de contexto"), View->Context.IsEmpty());
+			TestTrue(TEXT("Ni instrucción"), View->Instruction.IsEmpty());
 			TestEqual(TEXT("Plazo de la elección"), View->DeadlineSeconds, DtNow + 12.0);
 			TestTrue(TEXT("Con barra"), View->bHasDeadline);
 			TestFalse(TEXT("Nunca bloqueada: no hay nada que pulsar"), View->bBlocked);
@@ -668,7 +670,31 @@ bool FDecisionWaitChoiceTest::RunTest(const FString& Parameters)
 		const TOptional<FDecisionView> Elect = Soulbound::Presentation::WaitView(State, DtHuman);
 		if (TestTrue(TEXT("Hay vista con Elegido"), Elect.IsSet()))
 		{
-			TestEqual(TEXT("Con el nombre del Elegido"), Elect->Title, FString(TEXT("Asiento 2 · Fenrir elige")));
+			TestEqual(TEXT("Con el nombre del Elegido"), Elect->Title, FString(TEXT("Asiento 2 · Fenrir decide cuántos dados tira")));
+		}
+		// Un texto por clase de elección, todos en tercera persona (ChoiceWhat, en segunda, no se usa aquí).
+		struct FKindCase { EChoiceKind Kind; const TCHAR* Text; };
+		const FKindCase Cases[] = {
+			{EChoiceKind::PlanarJump, TEXT("Asiento 2 (Eco) decide si hace un salto planar")},
+			{EChoiceKind::SafeRune, TEXT("Asiento 2 (Eco) pone una runa a salvo del trilero")},
+			{EChoiceKind::ShellPick, TEXT("Asiento 2 (Eco) elige una esfera del trilero")},
+			{EChoiceKind::Deflection, TEXT("Asiento 2 (Eco) decide si sale del Vacío con Desvío")},
+			{EChoiceKind::PlayerAction, TEXT("Asiento 2 (Eco) decide si actúa contra un jugador")},
+		};
+		for (const FKindCase& Case : Cases)
+		{
+			FMatchState Other = DtMakeState();
+			Other.ActiveSeat = 2;
+			Other.PendingChoice.Kind = Case.Kind;
+			Other.PendingChoice.Seat = 2;
+			Other.PendingChoice.Options = {0, 1};
+			Other.PendingChoice.DeadlineSeconds = DtNow + 12.0;
+			const TOptional<FDecisionView> CaseView = Soulbound::Presentation::WaitView(Other, DtHuman);
+			if (TestTrue(*FString::Printf(TEXT("Hay vista para la clase %d"), static_cast<int32>(Case.Kind)), CaseView.IsSet()))
+			{
+				TestEqual(*FString::Printf(TEXT("Texto de la clase %d"), static_cast<int32>(Case.Kind)), CaseView->Title, FString(Case.Text));
+				TestTrue(TEXT("Sin contexto"), CaseView->Context.IsEmpty());
+			}
 		}
 	}
 	{
@@ -685,10 +711,24 @@ bool FDecisionWaitChoiceTest::RunTest(const FString& Parameters)
 		{
 			TestEqual(TEXT("El título es el evento"), View->Title, FString(TEXT("La balanza")));
 			TestEqual(TEXT("El contexto, su texto"), View->Context, FString(TEXT("Elige tu castigo, o tu premio.")));
-			TestEqual(TEXT("Y la instrucción dice quién elige"), View->Instruction, FString(TEXT("Elige Asiento 2 (Eco)")));
+			TestEqual(TEXT("Y la instrucción dice quién elige"), View->Instruction, FString(TEXT("Le toca a Asiento 2 (Eco)")));
 			TestTrue(TEXT("Sin opciones"), View->Options.IsEmpty());
 		}
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionFreeWidthTest, "Soulbound.Game.Presentation.Decision.AnchoLibreDelTablero", DecisionTestFlags)
+
+bool FDecisionFreeWidthTest::RunTest(const FString& Parameters)
+{
+	// R-HUD-3 (corrección del autor del 11/11/2026): el ancho en que se parte la frase del Warden y el máximo del panel de decisión salen del mismo
+	// cálculo: el hueco del tablero (el ancho de la ventana menos la columna de paneles y los 16 de cada lado), con un tope.
+	using Soulbound::Presentation::BoardFreeWidth;
+	TestEqual(TEXT("1920 de ventana, columna de 420: sobran 1468, topados en 1000"), BoardFreeWidth(1920.f, 420.f, 1000.f), 1000.f);
+	TestEqual(TEXT("Topado en 900 para el panel de decisión"), BoardFreeWidth(1920.f, 420.f, 900.f), 900.f);
+	TestEqual(TEXT("1024 de ventana: 1024 menos 420 menos 32"), BoardFreeWidth(1024.f, 420.f, 1000.f), 572.f);
+	TestEqual(TEXT("Nunca negativo"), BoardFreeWidth(300.f, 420.f, 1000.f), 0.f);
 	return true;
 }
 

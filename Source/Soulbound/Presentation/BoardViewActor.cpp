@@ -57,6 +57,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/SBoxPanel.h"
 
@@ -1062,10 +1063,14 @@ void ABoardViewActor::BuildOverlay()
 	// S-028 (R-DEC-2 a R-DEC-4): encima, en la misma columna, el panel de decisión, centrado y con la letra de los paneles; va siempre por
 	// encima de la frase. El panel se queda los clics que le caen encima (SDecisionPanel); la capa y la frase siguen sin recibirlos.
 	WardenLineOverlay = SNew(SBox)
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Bottom)
-		.Padding_Lambda([this]() { return FMargin(16.f, 0.f, PanelSlateWidth + 16.f, 36.f); })
-		.Visibility(EVisibility::SelfHitTestInvisible)
+	.HAlign(HAlign_Center)
+	.VAlign(VAlign_Bottom)
+	.Padding_Lambda([this]() { return FMargin(16.f, 0.f, PanelSlateWidth + 16.f, 36.f); })
+	.Visibility(EVisibility::SelfHitTestInvisible)
+	[
+		SNew(SOverlay)
+		// Capa de abajo: la columna del panel de decisión y, debajo, el hueco de la frase.
+		+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Bottom)
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, 8.f)
@@ -1082,47 +1087,44 @@ void ABoardViewActor::BuildOverlay()
 					// tope de la caja. Con él decide si sus botones caben en fila (corrección del autor del 11/11/2026).
 					.MaxWidth_Lambda([this]()
 					{
-						const float SlateViewportWidth = static_cast<float>(LastViewportSize.X) / PanelDpiScale;
-						return FMath::Clamp(SlateViewportWidth - PanelSlateWidth - 32.f, 0.f, DecisionPanelMaxWidth);
+						return Soulbound::Presentation::BoardFreeWidth(static_cast<float>(LastViewportSize.X) / PanelDpiScale, PanelSlateWidth, DecisionPanelMaxWidth);
 					})
 					.OnOption_Lambda([this](const Soulbound::Presentation::FDecisionOption& Option) { AnswerDecision(Option); })
 				]
 			]
-			// S-033 (R-DEC-9): el hueco de la frase, siempre reservado, haya frase o no: el panel de encima no se mueve cuando la frase aparece,
-			// cambia de largo o se va. Su alto sale de la letra de la frase y de sus márgenes, no de un número a mano (WardenLineReservedHeight);
-			// una frase más larga se sale por arriba (el TODO(R-HUD-3) de abajo). No recibe clics: el hueco vacío deja pasar los del tablero.
-			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+			// S-033 (R-DEC-9): el hueco de la frase, siempre reservado, haya frase o no, como espacio vacío de alto fijo: el panel de encima no se
+			// mueve cuando la frase aparece, cambia de largo o se va. Su alto sale de la letra de la frase y de sus márgenes (WardenLineReservedHeight).
+			+ SVerticalBox::Slot().AutoHeight()
 			[
-				SNew(SBox)
-				.Visibility(EVisibility::HitTestInvisible)
-				.HAlign(HAlign_Center)
-				.VAlign(VAlign_Bottom)
-				.HeightOverride_Lambda([this]() { return FOptionalSize(WardenLineReservedHeight()); })
-				[
-					SNew(SBox)
-					.Visibility(EVisibility::HitTestInvisible)
-					// TODO(R-HUD-3): a 1024x768 la frase se sale por la izquierda (visto en S-027, ya pasaba antes). No lo arreglan ni limitar este ancho
-					// al hueco libre ni un WrapTextAt explícito con ese hueco (probados en S-027): en la captura el fondo negro queda más pequeño que el
-					// texto, así que parece que el tamaño deseado no se recalcula al cambiar la frase. Hace falta mirarlo en el editor con el Widget Reflector.
-					.MaxDesiredWidth(1000.f)
-					[
-						SNew(SBorder)
-						.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-						.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.65f))
-						.Padding(FMargin(20.f, 10.f))
-						.Visibility_Lambda([this]() { return WardenLineNow().IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
-						[
-							SNew(STextBlock)
-							.Text_Lambda([this]() { return FText::FromString(WardenLineNow()); })
-							.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(WardenLineFontSize, 8)))
-							.ColorAndOpacity(WardenLineColor)
-							.Justification(ETextJustify::Center)
-							.AutoWrapText(true)
-						]
-					]
-				]
+				SNew(SBox).HeightOverride_Lambda([this]() { return FOptionalSize(WardenLineReservedHeight()); })
 			]
-		];
+		]
+		// Capa de arriba: la frase, anclada abajo con el mismo margen que el hueco. Crece hacia arriba, por encima del panel si hace falta (corrección
+		// del autor del 11/11/2026: en una caja de alto fijo se recortaba lo que sobraba). No recibe clics: el hueco vacío deja pasar los del tablero.
+		+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Bottom)
+		[
+			SNew(SBorder)
+			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+			.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.65f))
+			.Padding(FMargin(20.f, 10.f))
+			.Visibility_Lambda([this]() { return WardenLineNow().IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+			[
+				SNew(STextBlock)
+				.Text_Lambda([this]() { return FText::FromString(WardenLineNow()); })
+				.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(WardenLineFontSize, 8)))
+				.ColorAndOpacity(WardenLineColor)
+				.Justification(ETextJustify::Center)
+				// R-HUD-3 (corrección del autor del 11/11/2026): con AutoWrapText el texto se parte al ancho con que se pintó la frase anterior
+				// (FSlateTextBlockLayout::CalculateWrappingWidth usa CachedSize, el de la última pasada de pintado), así que tras una frase corta
+				// todas salían estrechas. Con WrapTextAt solo y el hueco libre (el tope de 1000 menos los 40 de margen del fondo), el ancho no
+				// depende de lo pintado antes. Nunca los dos a la vez: manda el menor.
+				.WrapTextAt_Lambda([this]()
+				{
+					return FMath::Max(Soulbound::Presentation::BoardFreeWidth(static_cast<float>(LastViewportSize.X) / PanelDpiScale, PanelSlateWidth, 1000.f) - 40.f, 1.f);
+				})
+			]
+		]
+	];
 	Viewport->AddViewportWidgetContent(WardenLineOverlay.ToSharedRef(), 11);
 
 	// S-022 (decisión del autor del 29/10/2026): con la partida terminada, un botón grande para volver al menú, con el ratón (el controlador
