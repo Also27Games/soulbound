@@ -1981,7 +1981,7 @@ TOptional<Soulbound::Presentation::FDecisionView> ABoardViewActor::PanelViewNow(
 	{
 		return {};
 	}
-	return Soulbound::Presentation::PanelView(HostPtr->GetState(), HostPtr->GetHumanSeat(), HostPtr->IsWardenSpeaking(), VoteResultSeconds);
+	return Soulbound::Presentation::PanelView(HostPtr->GetState(), HostPtr->GetHumanSeat(), HostPtr->IsWardenSpeaking(), VoteResultSeconds, OutcomeSeconds);
 }
 
 float ABoardViewActor::WardenLineReservedHeight() const

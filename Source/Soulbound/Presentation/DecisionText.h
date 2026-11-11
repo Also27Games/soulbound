@@ -114,15 +114,27 @@ namespace Soulbound::Presentation
 	TOptional<FDecisionView> VoteResultView(const FMatchState& State, double ResultSeconds);
 
 	/**
+	 * El desenlace de lo que no se ve en el tablero (S-033, R-DEC-10, añadido del autor; nombre propuesto): quién gana un duelo, qué opción de un
+	 * dilema sale, qué roba el trilero y si otro asiento supera su prueba. Es el último suceso de esa lista en el registro, con su edad medida
+	 * con ClockSeconds; título y una línea (Context), sin botones ni barra. No inventa nada: quién, a quién y qué lo dice el registro.
+	 * @param State El estado de la partida.
+	 * @param HumanSeat El asiento humano: su elección de dilema y sus pruebas no se enseñan (ya las ve él).
+	 * @param OutcomeSeconds Cuánto se enseña, en segundos del reloj de partida (OutcomeSeconds).
+	 * @return La vista de tipo Result, o nada si el último suceso de la lista es del humano, hace OutcomeSeconds o más, o no hay ninguno.
+	 */
+	TOptional<FDecisionView> OutcomeView(const FMatchState& State, int32 HumanSeat, double OutcomeSeconds);
+
+	/**
 	 * Lo que enseña el panel en cada momento (S-033, R-DEC-6, nombre propuesto): la decisión del humano si existe; si no, el resultado de una
-	 * votación reciente; si no, la espera a otro asiento, salvo mientras la mesa espera al Warden (su frase ya está en pantalla); si no, nada.
+	 * votación o el desenlace recientes (el más nuevo del registro, R-DEC-10); si no, la espera a otro asiento, salvo mientras la mesa espera al Warden (su frase ya está en pantalla); si no, nada.
 	 * @param State El estado de la partida.
 	 * @param HumanSeat El asiento humano de esta máquina.
 	 * @param bWardenSpeaking Si la mesa espera al Warden (UMatchHostSubsystem::IsWardenSpeaking).
 	 * @param VoteResultSeconds Cuánto dura el resultado de una votación.
+	 * @param OutcomeSeconds Cuánto dura un desenlace.
 	 * @return La vista, o nada.
 	 */
-	TOptional<FDecisionView> PanelView(const FMatchState& State, int32 HumanSeat, bool bWardenSpeaking, double VoteResultSeconds);
+	TOptional<FDecisionView> PanelView(const FMatchState& State, int32 HumanSeat, bool bWardenSpeaking, double VoteResultSeconds, double OutcomeSeconds);
 
 	/**
 	 * Si el panel enseña una decisión propia del humano (S-033, adición a del autor): lo que hace que el panel de estado no repita la petición.

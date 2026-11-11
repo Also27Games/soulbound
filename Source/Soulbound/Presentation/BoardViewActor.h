@@ -305,6 +305,13 @@ public:
 	float VoteResultSeconds = 5.f;
 
 	/**
+	 * Segundos del reloj de partida que el panel de decisión enseña el desenlace de un duelo, un dilema, un trilero o la prueba de otro asiento
+	 * (S-033, R-DEC-10). Valor inicial 4 (Config/DefaultGame.ini). Cero: no se enseña.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
+	float OutcomeSeconds = 4.f;
+
+	/**
 	 * Segundos que el panel del anillo enseña el resultado ("superada", "fallada" o el rendimiento del duelo) tras cerrarse la prueba (S-026).
 	 * Valor inicial 2 (Config/DefaultGame.ini). Cero: no se enseña.
 	 */

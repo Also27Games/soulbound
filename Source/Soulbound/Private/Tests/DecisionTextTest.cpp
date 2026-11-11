@@ -594,6 +594,8 @@ namespace
 {
 	/** Cuánto se enseña el resultado de una votación en los tests (VoteResultSeconds, valor inicial 5). */
 	constexpr double DtResultSeconds = 5.0;
+	/** Cuánto se enseña un desenlace en los tests (OutcomeSeconds, valor inicial 4). */
+	constexpr double DtOutcomeSeconds = 4.0;
 
 	/** Añade un evento al registro a mano. */
 	void DtLog(FMatchState& State, EMatchEventType Type, double Clock, int32 Seat, int32 OtherSeat = INDEX_NONE, int32 Value = INDEX_NONE, int32 Detail = INDEX_NONE)
@@ -919,7 +921,7 @@ bool FDecisionPanelOwnTest::RunTest(const FString& Parameters)
 			FMatchState State = DtMakeState();
 			Setups[Index](State);
 			const TOptional<FDecisionView> Own = Soulbound::Presentation::DecisionView(State, DtHuman, bSpeaking);
-			const TOptional<FDecisionView> Panel = Soulbound::Presentation::PanelView(State, DtHuman, bSpeaking, DtResultSeconds);
+			const TOptional<FDecisionView> Panel = Soulbound::Presentation::PanelView(State, DtHuman, bSpeaking, DtResultSeconds, DtOutcomeSeconds);
 			if (TestTrue(*FString::Printf(TEXT("Caso %d: hay decisión propia"), Index), Own.IsSet()) && TestTrue(*FString::Printf(TEXT("Caso %d: el panel la enseña"), Index), Panel.IsSet()))
 			{
 				TestTrue(*FString::Printf(TEXT("Caso %d: es la misma vista"), Index), DtSameView(*Own, *Panel));
@@ -931,7 +933,7 @@ bool FDecisionPanelOwnTest::RunTest(const FString& Parameters)
 	FMatchState Both = DtMakeState();
 	DtOpenVote(Both);
 	DtOpenDice(Both, 2);
-	const TOptional<FDecisionView> Vote = Soulbound::Presentation::PanelView(Both, DtHuman, false, DtResultSeconds);
+	const TOptional<FDecisionView> Vote = Soulbound::Presentation::PanelView(Both, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
 	if (TestTrue(TEXT("Hay vista con votación y elección ajena"), Vote.IsSet()))
 	{
 		TestTrue(TEXT("Es su voto, no la espera"), Vote->Input == EDecisionInput::Token);
@@ -939,7 +941,7 @@ bool FDecisionPanelOwnTest::RunTest(const FString& Parameters)
 	// Control que puede fallar: sin decisión propia, el mismo estado ajeno sí es una espera (si PanelView solo devolviera DecisionView, no lo sería).
 	FMatchState Others = DtMakeState();
 	DtOpenDice(Others, 2);
-	const TOptional<FDecisionView> Wait = Soulbound::Presentation::PanelView(Others, DtHuman, false, DtResultSeconds);
+	const TOptional<FDecisionView> Wait = Soulbound::Presentation::PanelView(Others, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
 	if (TestTrue(TEXT("Control: sin decisión propia hay espera"), Wait.IsSet()))
 	{
 		TestTrue(TEXT("Y es de tipo espera"), Wait->Input == EDecisionInput::Wait);
@@ -955,15 +957,15 @@ bool FDecisionPanelWardenTest::RunTest(const FString& Parameters)
 	// devuelve la vista de espera. La decisión propia sí se sigue enseñando, bloqueada.
 	FMatchState State = DtMakeState();
 	DtOpenDice(State, 2);
-	TestFalse(TEXT("Con el Warden hablando, nada"), Soulbound::Presentation::PanelView(State, DtHuman, true, DtResultSeconds).IsSet());
-	const TOptional<FDecisionView> Free = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds);
+	TestFalse(TEXT("Con el Warden hablando, nada"), Soulbound::Presentation::PanelView(State, DtHuman, true, DtResultSeconds, DtOutcomeSeconds).IsSet());
+	const TOptional<FDecisionView> Free = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
 	if (TestTrue(TEXT("Sin la espera del Warden, la vista de espera"), Free.IsSet()))
 	{
 		TestTrue(TEXT("Es de tipo espera"), Free->Input == EDecisionInput::Wait);
 	}
 	FMatchState Own = DtMakeState();
 	DtOpenDice(Own, DtHuman);
-	const TOptional<FDecisionView> Blocked = Soulbound::Presentation::PanelView(Own, DtHuman, true, DtResultSeconds);
+	const TOptional<FDecisionView> Blocked = Soulbound::Presentation::PanelView(Own, DtHuman, true, DtResultSeconds, DtOutcomeSeconds);
 	if (TestTrue(TEXT("La decisión propia se enseña con el Warden hablando"), Blocked.IsSet()))
 	{
 		TestTrue(TEXT("Bloqueada"), Blocked->bBlocked);
@@ -977,17 +979,17 @@ bool FDecisionPanelNothingTest::RunTest(const FString& Parameters)
 {
 	// CA-DEC-16 (R-DEC-6): entre turnos sin nada abierto, con una ficha moviéndose y con la partida terminada, PanelView no devuelve nada.
 	FMatchState Between = DtMakeState();
-	TestFalse(TEXT("Entre turnos sin nada abierto"), Soulbound::Presentation::PanelView(Between, DtHuman, false, DtResultSeconds).IsSet());
+	TestFalse(TEXT("Entre turnos sin nada abierto"), Soulbound::Presentation::PanelView(Between, DtHuman, false, DtResultSeconds, DtOutcomeSeconds).IsSet());
 	FMatchState Moving = DtMakeState();
 	Moving.ActiveSeat = 1;
 	Moving.TurnPhase = ETurnPhase::Moving;
-	TestFalse(TEXT("Con una ficha moviéndose"), Soulbound::Presentation::PanelView(Moving, DtHuman, false, DtResultSeconds).IsSet());
+	TestFalse(TEXT("Con una ficha moviéndose"), Soulbound::Presentation::PanelView(Moving, DtHuman, false, DtResultSeconds, DtOutcomeSeconds).IsSet());
 	FMatchState Over = DtMakeState();
 	DtOpenDice(Over, 2);
-	TestTrue(TEXT("Control: con la elección ajena abierta, hay espera"), Soulbound::Presentation::PanelView(Over, DtHuman, false, DtResultSeconds).IsSet());
+	TestTrue(TEXT("Control: con la elección ajena abierta, hay espera"), Soulbound::Presentation::PanelView(Over, DtHuman, false, DtResultSeconds, DtOutcomeSeconds).IsSet());
 	Over.MatchPhase = EMatchPhase::MatchOver;
 	DtLogVoteOutcome(Over, DtNow - 1.0);
-	TestFalse(TEXT("Con la partida terminada, ni espera ni resultado"), Soulbound::Presentation::PanelView(Over, DtHuman, false, DtResultSeconds).IsSet());
+	TestFalse(TEXT("Con la partida terminada, ni espera ni resultado"), Soulbound::Presentation::PanelView(Over, DtHuman, false, DtResultSeconds, DtOutcomeSeconds).IsSet());
 	return true;
 }
 
@@ -1071,7 +1073,7 @@ bool FDecisionPanelOrderTest::RunTest(const FString& Parameters)
 		FMatchState State = DtMakeState();
 		DtLogVoteOutcome(State, DtNow - 1.0);
 		DtOpenDice(State, DtHuman);
-		const TOptional<FDecisionView> View = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds);
+		const TOptional<FDecisionView> View = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
 		if (TestTrue(TEXT("Hay vista con decisión propia y resultado"), View.IsSet()))
 		{
 			TestTrue(TEXT("Es la decisión propia"), View->Input == EDecisionInput::Buttons);
@@ -1081,12 +1083,12 @@ bool FDecisionPanelOrderTest::RunTest(const FString& Parameters)
 		FMatchState State = DtMakeState();
 		DtLogVoteOutcome(State, DtNow - 1.0);
 		DtOpenDice(State, 2);
-		const TOptional<FDecisionView> View = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds);
+		const TOptional<FDecisionView> View = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
 		if (TestTrue(TEXT("Hay vista con elección ajena y resultado"), View.IsSet()))
 		{
 			TestTrue(TEXT("Es el resultado, no la espera"), View->Input == EDecisionInput::Result);
 		}
-		const TOptional<FDecisionView> Speaking = Soulbound::Presentation::PanelView(State, DtHuman, true, DtResultSeconds);
+		const TOptional<FDecisionView> Speaking = Soulbound::Presentation::PanelView(State, DtHuman, true, DtResultSeconds, DtOutcomeSeconds);
 		if (TestTrue(TEXT("Con el Warden hablando, el resultado se sigue enseñando"), Speaking.IsSet()))
 		{
 			TestTrue(TEXT("Sigue siendo el resultado"), Speaking->Input == EDecisionInput::Result);
@@ -1097,7 +1099,7 @@ bool FDecisionPanelOrderTest::RunTest(const FString& Parameters)
 		FMatchState State = DtMakeState();
 		DtLogVoteOutcome(State, DtNow - 10.0);
 		DtOpenDice(State, 2);
-		const TOptional<FDecisionView> View = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds);
+		const TOptional<FDecisionView> View = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
 		if (TestTrue(TEXT("Hay vista con el resultado caducado"), View.IsSet()))
 		{
 			TestTrue(TEXT("Es la espera"), View->Input == EDecisionInput::Wait);
@@ -1114,13 +1116,13 @@ bool FDecisionOwnShownTest::RunTest(const FString& Parameters)
 	// con la espera ni con el resultado ni con el anillo abierto; si no, el panel de estado dejaría de decir lo que el panel no dice.
 	FMatchState Own = DtMakeState();
 	DtOpenDice(Own, DtHuman);
-	const TOptional<FDecisionView> OwnView = Soulbound::Presentation::PanelView(Own, DtHuman, false, DtResultSeconds);
+	const TOptional<FDecisionView> OwnView = Soulbound::Presentation::PanelView(Own, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
 	TestTrue(TEXT("Con una decisión propia, sí"), Soulbound::Presentation::IsOwnDecisionShown(OwnView, false));
 	TestFalse(TEXT("Con el anillo abierto, no"), Soulbound::Presentation::IsOwnDecisionShown(OwnView, true));
 
 	FMatchState Wait = DtMakeState();
 	DtOpenDice(Wait, 2);
-	const TOptional<FDecisionView> WaitPanel = Soulbound::Presentation::PanelView(Wait, DtHuman, false, DtResultSeconds);
+	const TOptional<FDecisionView> WaitPanel = Soulbound::Presentation::PanelView(Wait, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
 	if (TestTrue(TEXT("Hay espera"), WaitPanel.IsSet()))
 	{
 		TestFalse(TEXT("Con la espera, no"), Soulbound::Presentation::IsOwnDecisionShown(WaitPanel, false));
@@ -1128,13 +1130,233 @@ bool FDecisionOwnShownTest::RunTest(const FString& Parameters)
 	}
 	FMatchState Result = DtMakeState();
 	DtLogVoteOutcome(Result, DtNow - 1.0);
-	const TOptional<FDecisionView> ResultPanel = Soulbound::Presentation::PanelView(Result, DtHuman, false, DtResultSeconds);
+	const TOptional<FDecisionView> ResultPanel = Soulbound::Presentation::PanelView(Result, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
 	if (TestTrue(TEXT("Hay resultado"), ResultPanel.IsSet()))
 	{
 		TestFalse(TEXT("Con el resultado, no"), Soulbound::Presentation::IsOwnDecisionShown(ResultPanel, false));
 		TestTrue(TEXT("Pero el panel sí se enseña"), Soulbound::Presentation::IsDecisionPanelShown(ResultPanel, false));
 	}
 	TestFalse(TEXT("Sin vista, no"), Soulbound::Presentation::IsOwnDecisionShown(TOptional<FDecisionView>(), false));
+	return true;
+}
+
+// ---- S-033, R-DEC-10: el desenlace (añadido del autor tras la prueba en PIE) ----
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionOutcomeDuelTest, "Soulbound.Game.Presentation.Decision.DesenlaceDuelo", DecisionTestFlags)
+
+bool FDecisionOutcomeDuelTest::RunTest(const FString& Parameters)
+{
+	// CA-DEC-19 (R-DEC-10, caso 1): un DuelWon del 2 sobre el 0 en el segundo 100, con el humano en el 0.
+	FMatchState State = DtMakeState();
+	DtLog(State, EMatchEventType::DuelWon, 100.0, 2, 0, INDEX_NONE, INDEX_NONE);
+	State.ClockSeconds = 101.0;
+	const TOptional<FDecisionView> View = Soulbound::Presentation::OutcomeView(State, DtHuman, DtOutcomeSeconds);
+	if (TestTrue(TEXT("Hay vista, aunque el humano sea el perdedor"), View.IsSet()))
+	{
+		TestTrue(TEXT("Es de tipo resultado"), View->Input == EDecisionInput::Result);
+		TestTrue(TEXT("Sin opciones"), View->Options.IsEmpty());
+		TestFalse(TEXT("Sin barra"), View->bHasDeadline);
+		TestEqual(TEXT("Título"), View->Title, FString(TEXT("Duelo")));
+		TestEqual(TEXT("Gana el 2 al 0"), View->Context, FString(TEXT("Gana Asiento 2 (Eco) a Asiento 0 (Eco)")));
+	}
+	State.ClockSeconds = 103.9;
+	TestTrue(TEXT("Justo antes de caducar, sigue"), Soulbound::Presentation::OutcomeView(State, DtHuman, DtOutcomeSeconds).IsSet());
+	State.ClockSeconds = 104.0;
+	TestFalse(TEXT("Pasado OutcomeSeconds, no hay vista"), Soulbound::Presentation::OutcomeView(State, DtHuman, DtOutcomeSeconds).IsSet());
+	TestFalse(TEXT("Control: sin nada en el registro, no hay vista"), Soulbound::Presentation::OutcomeView(DtMakeState(), DtHuman, DtOutcomeSeconds).IsSet());
+
+	// Contra el Warden.
+	FMatchState Won = DtMakeState();
+	DtLog(Won, EMatchEventType::WardenDuelWon, 100.0, 1);
+	const TOptional<FDecisionView> WonView = Soulbound::Presentation::OutcomeView(Won, DtHuman, DtOutcomeSeconds);
+	if (TestTrue(TEXT("Hay vista si gana el Warden"), WonView.IsSet()))
+	{
+		TestEqual(TEXT("Título"), WonView->Title, FString(TEXT("Duelo contra el Warden")));
+		TestEqual(TEXT("Gana el Warden"), WonView->Context, FString(TEXT("Gana el Warden: Asiento 1 (Eco) pierde lo que estaba en juego")));
+	}
+	FMatchState Lost = DtMakeState();
+	DtLog(Lost, EMatchEventType::WardenDuelLost, 100.0, 1);
+	const TOptional<FDecisionView> LostView = Soulbound::Presentation::OutcomeView(Lost, DtHuman, DtOutcomeSeconds);
+	if (TestTrue(TEXT("Hay vista si pierde el Warden"), LostView.IsSet()))
+	{
+		TestEqual(TEXT("Título"), LostView->Title, FString(TEXT("Duelo contra el Warden")));
+		TestEqual(TEXT("Gana el jugador"), LostView->Context, FString(TEXT("Gana Asiento 1 (Eco): no pierde nada")));
+	}
+	// Con el humano como jugador, también.
+	FMatchState Own = DtMakeState();
+	DtLog(Own, EMatchEventType::WardenDuelLost, 100.0, DtHuman);
+	TestTrue(TEXT("Se enseña también si el humano es el jugador"), Soulbound::Presentation::OutcomeView(Own, DtHuman, DtOutcomeSeconds).IsSet());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionOutcomeDilemmaTest, "Soulbound.Game.Presentation.Decision.DesenlaceDilema", DecisionTestFlags)
+
+bool FDecisionOutcomeDilemmaTest::RunTest(const FString& Parameters)
+{
+	// CA-DEC-20 (R-DEC-10, caso 2): un DilemmaChosen del asiento 2, opción 1, tras el WardenEventStarted del dilema.
+	const FMatchState Table = DtMakeState();
+	FString OptionText = Soulbound::Presentation::DescribeOption(Table.WardenEvents.Events[DtDilemma].Options[1]);
+	TestFalse(TEXT("Control del test: la opción tiene texto"), OptionText.IsEmpty());
+	OptionText = OptionText.Left(1).ToUpper() + OptionText.Mid(1);
+
+	FMatchState State = DtMakeState();
+	DtLog(State, EMatchEventType::WardenEventStarted, 90.0, 2, INDEX_NONE, DtDilemma, 2);
+	DtLog(State, EMatchEventType::DilemmaChosen, 100.0, 2, INDEX_NONE, 1, 0);
+	const TOptional<FDecisionView> View = Soulbound::Presentation::OutcomeView(State, DtHuman, DtOutcomeSeconds);
+	if (TestTrue(TEXT("Hay vista"), View.IsSet()))
+	{
+		TestEqual(TEXT("El título es el evento"), View->Title, FString(TEXT("La balanza")));
+		TestEqual(TEXT("La línea lleva el texto de la opción"), View->Context, FString::Printf(TEXT("Asiento 2 (Eco) elige: %s"), *OptionText));
+	}
+	// Sorteada por el Warden al agotarse el reloj.
+	FMatchState Drawn = DtMakeState();
+	DtLog(Drawn, EMatchEventType::WardenEventStarted, 90.0, 2, INDEX_NONE, DtDilemma, 2);
+	DtLog(Drawn, EMatchEventType::DilemmaChosen, 100.0, 2, INDEX_NONE, 1, 1);
+	const TOptional<FDecisionView> DrawnView = Soulbound::Presentation::OutcomeView(Drawn, DtHuman, DtOutcomeSeconds);
+	if (TestTrue(TEXT("Hay vista con la opción sorteada"), DrawnView.IsSet()))
+	{
+		TestEqual(TEXT("Elige el Warden"), DrawnView->Context, FString::Printf(TEXT("El Warden elige por Asiento 2 (Eco): %s"), *OptionText));
+	}
+	// El humano que eligió: nada. Al humano al que se le sorteó: sí.
+	FMatchState Human = DtMakeState();
+	DtLog(Human, EMatchEventType::WardenEventStarted, 90.0, DtHuman, INDEX_NONE, DtDilemma, 2);
+	DtLog(Human, EMatchEventType::DilemmaChosen, 100.0, DtHuman, INDEX_NONE, 1, 0);
+	TestFalse(TEXT("La opción que eligió el humano no se enseña"), Soulbound::Presentation::OutcomeView(Human, DtHuman, DtOutcomeSeconds).IsSet());
+	FMatchState HumanDrawn = DtMakeState();
+	DtLog(HumanDrawn, EMatchEventType::WardenEventStarted, 90.0, DtHuman, INDEX_NONE, DtDilemma, 2);
+	DtLog(HumanDrawn, EMatchEventType::DilemmaChosen, 100.0, DtHuman, INDEX_NONE, 1, 1);
+	const TOptional<FDecisionView> HumanDrawnView = Soulbound::Presentation::OutcomeView(HumanDrawn, DtHuman, DtOutcomeSeconds);
+	if (TestTrue(TEXT("Si se le sorteó al humano, sí"), HumanDrawnView.IsSet()))
+	{
+		TestEqual(TEXT("Elige el Warden por el asiento 0"), HumanDrawnView->Context, FString::Printf(TEXT("El Warden elige por Asiento 0 (Eco): %s"), *OptionText));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionOutcomeShellTest, "Soulbound.Game.Presentation.Decision.DesenlaceTrilero", DecisionTestFlags)
+
+bool FDecisionOutcomeShellTest::RunTest(const FString& Parameters)
+{
+	// CA-DEC-21 (R-DEC-10, caso 3): un RuneStolen del asiento 1 al 3 con la runa de tipo 2 (decisión del autor: "la runa D2", como los botones).
+	FMatchState State = DtMakeState();
+	DtLog(State, EMatchEventType::RuneStolen, 100.0, 1, 3, 2);
+	const TOptional<FDecisionView> View = Soulbound::Presentation::OutcomeView(State, DtHuman, DtOutcomeSeconds);
+	if (TestTrue(TEXT("Hay vista"), View.IsSet()))
+	{
+		TestEqual(TEXT("Título"), View->Title, FString(TEXT("Trilero")));
+		TestEqual(TEXT("Ladrón, víctima y runa"), View->Context, FString(TEXT("Asiento 1 (Eco) roba a Asiento 3 (Eco) la runa D2")));
+	}
+	FMatchState Expired = DtMakeState();
+	DtLog(Expired, EMatchEventType::ShellGameExpired, 100.0, 1, 3);
+	const TOptional<FDecisionView> ExpiredView = Soulbound::Presentation::OutcomeView(Expired, DtHuman, DtOutcomeSeconds);
+	if (TestTrue(TEXT("Hay vista si no elige a tiempo"), ExpiredView.IsSet()))
+	{
+		TestEqual(TEXT("Título"), ExpiredView->Title, FString(TEXT("Trilero")));
+		TestEqual(TEXT("No roba nada"), ExpiredView->Context, FString(TEXT("Asiento 1 (Eco) no elige a tiempo y no roba nada")));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionOutcomeTrialTest, "Soulbound.Game.Presentation.Decision.DesenlacePrueba", DecisionTestFlags)
+
+bool FDecisionOutcomeTrialTest::RunTest(const FString& Parameters)
+{
+	// CA-DEC-22 (R-DEC-10, caso 4): la prueba de otro asiento, con el nombre de la prueba (el de la espera) y si la supera o falla.
+	struct FTrialCase { EMatchEventType Type; const TCHAR* Title; const TCHAR* Line; };
+	const FTrialCase Cases[] = {
+		{EMatchEventType::SkillMinigamePassed, TEXT("Prueba de la Fuente"), TEXT("Asiento 2 (Eco) la supera")},
+		{EMatchEventType::SkillMinigameFailed, TEXT("Prueba de la Fuente"), TEXT("Asiento 2 (Eco) falla")},
+		{EMatchEventType::WardenTrialPassed, TEXT("Prueba del Warden"), TEXT("Asiento 2 (Eco) la supera")},
+		{EMatchEventType::WardenTrialFailed, TEXT("Prueba del Warden"), TEXT("Asiento 2 (Eco) falla")},
+		{EMatchEventType::VoidEscapePassed, TEXT("Escape del Vacío"), TEXT("Asiento 2 (Eco) la supera")},
+		{EMatchEventType::VoidEscapeFailed, TEXT("Escape del Vacío"), TEXT("Asiento 2 (Eco) falla")},
+		{EMatchEventType::FinalChallengeFailed, TEXT("Desafío final"), TEXT("Asiento 2 (Eco) falla")},
+	};
+	for (const FTrialCase& Case : Cases)
+	{
+		FMatchState State = DtMakeState();
+		DtLog(State, Case.Type, 100.0, 2, INDEX_NONE, 1);
+		const TOptional<FDecisionView> View = Soulbound::Presentation::OutcomeView(State, DtHuman, DtOutcomeSeconds);
+		if (TestTrue(*FString::Printf(TEXT("Hay vista para %s"), Case.Line), View.IsSet()))
+		{
+			TestEqual(TEXT("Nombre de la prueba"), View->Title, FString(Case.Title));
+			TestEqual(TEXT("Resultado"), View->Context, FString(Case.Line));
+		}
+		// Lo mismo del humano: su resultado ya lo enseña el anillo.
+		FMatchState Own = DtMakeState();
+		DtLog(Own, Case.Type, 100.0, DtHuman, INDEX_NONE, 1);
+		TestFalse(TEXT("Las pruebas del humano no"), Soulbound::Presentation::OutcomeView(Own, DtHuman, DtOutcomeSeconds).IsSet());
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionOutcomeOrderTest, "Soulbound.Game.Presentation.Decision.DesenlaceOrden", DecisionTestFlags)
+
+bool FDecisionOutcomeOrderTest::RunTest(const FString& Parameters)
+{
+	// CA-DEC-23 (R-DEC-6 y R-DEC-10): el desenlace va después de lo propio y antes de la espera, también con el Warden hablando; entre una
+	// votación y un desenlace manda el suceso más reciente; lo que no está en la lista no da vista.
+	{
+		FMatchState State = DtMakeState();
+		DtLog(State, EMatchEventType::DuelWon, DtNow - 1.0, 2, 3);
+		DtOpenDice(State, DtHuman);
+		const TOptional<FDecisionView> View = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
+		const TOptional<FDecisionView> Own = Soulbound::Presentation::DecisionView(State, DtHuman, false);
+		if (TestTrue(TEXT("Con una decisión propia, hay panel"), View.IsSet() && Own.IsSet()))
+		{
+			TestTrue(TEXT("Y es la decisión propia, no el desenlace"), DtSameView(*View, *Own));
+		}
+	}
+	{
+		FMatchState State = DtMakeState();
+		DtLog(State, EMatchEventType::DuelWon, DtNow - 1.0, 2, 3);
+		DtOpenDice(State, 1);
+		const TOptional<FDecisionView> View = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
+		if (TestTrue(TEXT("Con la elección de un dummy y un desenlace, hay panel"), View.IsSet()))
+		{
+			TestTrue(TEXT("Es el desenlace, no la espera"), View->Input == EDecisionInput::Result && View->Title == TEXT("Duelo"));
+		}
+		const TOptional<FDecisionView> Speaking = Soulbound::Presentation::PanelView(State, DtHuman, true, DtResultSeconds, DtOutcomeSeconds);
+		if (TestTrue(TEXT("Con el Warden hablando, el desenlace se sigue enseñando"), Speaking.IsSet()))
+		{
+			TestTrue(TEXT("Es el desenlace"), Speaking->Input == EDecisionInput::Result);
+		}
+		// Control: sin el desenlace (caducado), vuelve la espera.
+		State.ClockSeconds = DtNow + 10.0;
+		const TOptional<FDecisionView> Later = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
+		if (TestTrue(TEXT("Caducado el desenlace, hay espera"), Later.IsSet()))
+		{
+			TestTrue(TEXT("Es la espera"), Later->Input == EDecisionInput::Wait);
+		}
+	}
+	{
+		// El más nuevo gana: un desenlace posterior a la votación, y al revés.
+		FMatchState NewerOutcome = DtMakeState();
+		DtLogVoteOutcome(NewerOutcome, DtNow - 2.0);
+		DtLog(NewerOutcome, EMatchEventType::DuelWon, DtNow - 1.0, 2, 3);
+		const TOptional<FDecisionView> A = Soulbound::Presentation::PanelView(NewerOutcome, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
+		if (TestTrue(TEXT("Hay panel con votación y desenlace"), A.IsSet()))
+		{
+			TestEqual(TEXT("Manda el desenlace, más nuevo"), A->Title, FString(TEXT("Duelo")));
+		}
+		FMatchState NewerVote = DtMakeState();
+		DtLog(NewerVote, EMatchEventType::DuelWon, DtNow - 2.0, 2, 3);
+		DtLogVoteOutcome(NewerVote, DtNow - 1.0);
+		const TOptional<FDecisionView> B = Soulbound::Presentation::PanelView(NewerVote, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
+		if (TestTrue(TEXT("Hay panel con desenlace y votación"), B.IsSet()))
+		{
+			TestEqual(TEXT("Manda la votación, más nueva"), B->Title, FString(TEXT("El juicio")));
+		}
+	}
+	{
+		// Sucesos fuera de la lista: nada.
+		FMatchState State = DtMakeState();
+		DtLog(State, EMatchEventType::DiceChosen, DtNow - 1.0, 2, INDEX_NONE, 1);
+		DtLog(State, EMatchEventType::PlanarJumped, DtNow - 1.0, 2);
+		DtLog(State, EMatchEventType::Expelled, DtNow - 1.0, 2, 3);
+		TestFalse(TEXT("DiceChosen, PlanarJumped y Expelled no dan vista"), Soulbound::Presentation::OutcomeView(State, DtHuman, DtOutcomeSeconds).IsSet());
+		TestFalse(TEXT("Ni panel"), Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds).IsSet());
+	}
 	return true;
 }
 
