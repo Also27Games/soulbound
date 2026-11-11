@@ -151,6 +151,59 @@ namespace
 		return Elect.IsEmpty() ? FString::Printf(TEXT("Asiento %d (Eco)"), Seat) : FString::Printf(TEXT("Asiento %d · %s"), Seat, *Elect);
 	}
 
+	/** El turno de otro asiento en su fase de tirada: de quién es y su tirada (R-DEC-5, caso 2). */
+	void FillTurnWait(const FMatchState& State, FDecisionView& View, double DeadlineSeconds)
+	{
+		View.Title = FString::Printf(TEXT("Turno de %s"), *SeatLabel(State, State.ActiveSeat));
+		View.Context = FString::Printf(TEXT("Tirada %d: elige casilla"), State.Roll);
+		View.DeadlineSeconds = DeadlineSeconds;
+		View.Identity = FString::Printf(TEXT("W|T|%d"), State.ActiveSeat);
+	}
+
+	/** La elección pendiente de otro asiento: quién elige y qué; en las de un evento del Warden, su nombre y su texto (R-DEC-5, caso 1). */
+	void FillChoiceWait(const FMatchState& State, FDecisionView& View)
+	{
+		const FPendingChoice& Choice = State.PendingChoice;
+		const FString Who = SeatLabel(State, Choice.Seat);
+		View.DeadlineSeconds = Choice.DeadlineSeconds;
+		View.Identity = FString::Printf(TEXT("W|C|%d|%d"), Choice.Seat, static_cast<int32>(Choice.Kind));
+		if (Choice.Kind == EChoiceKind::Reroll)
+		{
+			// Repetir la tirada es parte de su destino: se enseña como su turno, con el plazo de la elección.
+			FillTurnWait(State, View, Choice.DeadlineSeconds);
+			return;
+		}
+		if (Choice.IsWardenEventChoice())
+		{
+			if (const FWardenEventDef* Def = CurrentEventDef(State))
+			{
+				View.Title = Def->DisplayName();
+				View.Context = Def->Text;
+			}
+			else
+			{
+				View.Title = TEXT("El Warden");
+			}
+			View.Instruction = TEXT("Elige ") + Who;
+			return;
+		}
+		View.Title = FString::Printf(TEXT("%s elige"), *Who);
+		View.Context = UpperFirst(Soulbound::Presentation::ChoiceWhat(State));
+	}
+
+	/** Qué prueba de habilidad espera el motor, para la espera de los demás. */
+	FString SkillTrialName(ESkillTrial Trial)
+	{
+		switch (Trial)
+		{
+		case ESkillTrial::ForgottenSource: return TEXT("Prueba de la Fuente");
+		case ESkillTrial::WardenTrial: return TEXT("Prueba del Warden");
+		case ESkillTrial::VoidEscape: return TEXT("Escape del Vacío");
+		case ESkillTrial::FinalChallenge: return TEXT("Desafío final");
+		default: return TEXT("Prueba de habilidad");
+		}
+	}
+
 	/** La vista del voto del humano: un botón por asiento que puede votar (VoteOptions, del motor), con las teclas 1 a n (decisión 1 del autor). */
 	FDecisionView VoteView(const FMatchState& State, const TArray<int32>& Votables)
 	{
@@ -225,6 +278,155 @@ namespace Soulbound::Presentation
 			View->Identity = FString::Printf(TEXT("%d|%d"), static_cast<int32>(View->Input), static_cast<int32>(Kind));
 		}
 		return View;
+	}
+
+	TOptional<FDecisionView> WaitView(const FMatchState& State, int32 HumanSeat)
+	{
+		if (State.IsMatchOver() || !State.Seats.IsValidIndex(HumanSeat))
+		{
+			return {};
+		}
+		// Los casos, en el orden del panel de estado (R-DEC-5): elección de otro, destino de otro, Oráculo de otro, votación y, al final, la prueba
+		// de habilidad o el duelo de otros. Cada uno se mira solo si no es del humano: lo propio lo enseña DecisionView.
+		FDecisionView View;
+		View.Input = EDecisionInput::Wait;
+		bool bFound = false;
+		if (State.PendingChoice.IsOpen() && State.PendingChoice.Seat != HumanSeat)
+		{
+			FillChoiceWait(State, View);
+			bFound = true;
+		}
+		else if (State.TurnPhase == ETurnPhase::RollAndChoose && State.ActiveSeat != HumanSeat)
+		{
+			FillTurnWait(State, View, State.TurnDeadlineSeconds);
+			bFound = true;
+		}
+		else if (State.Oracle.IsWaiting() && State.Oracle.Consultant != HumanSeat)
+		{
+			View.Title = FString::Printf(TEXT("%s ante el Oráculo"), *SeatLabel(State, State.Oracle.Consultant));
+			View.DeadlineSeconds = State.Oracle.DeadlineSeconds;
+			View.Identity = FString::Printf(TEXT("W|O|%d"), State.Oracle.Consultant);
+			bFound = true;
+		}
+		else if (State.Vote.IsOpen())
+		{
+			// Faltan los que pueden votar y aún no lo han hecho. Si el humano es uno de ellos, ese voto es su decisión, no una espera.
+			const bool bHumanPending = State.Vote.Votes.IsValidIndex(HumanSeat) && State.Vote.Votes[HumanSeat] == INDEX_NONE
+				&& !Soulbound::Rules::VoteOptions(State, HumanSeat).IsEmpty();
+			TArray<FString> Missing;
+			for (int32 Seat = 0; Seat < State.Vote.Votes.Num(); ++Seat)
+			{
+				if (State.Vote.Votes[Seat] == INDEX_NONE && !Soulbound::Rules::VoteOptions(State, Seat).IsEmpty())
+				{
+					Missing.Add(SeatLabel(State, Seat));
+				}
+			}
+			if (!bHumanPending && !Missing.IsEmpty())
+			{
+				const FWardenEventDef* Def = CurrentEventDef(State);
+				View.Title = Def ? Def->DisplayName() : FString(TEXT("Votación"));
+				View.Context = TEXT("Faltan por votar: ") + FString::Join(Missing, TEXT(", "));
+				View.DeadlineSeconds = State.Vote.DeadlineSeconds;
+				View.Identity = TEXT("W|V");
+				bFound = true;
+			}
+		}
+		if (!bFound && State.TurnPhase == ETurnPhase::SkillTrial && State.ActiveSeat != HumanSeat && State.Seats.IsValidIndex(State.ActiveSeat))
+		{
+			View.Title = FString::Printf(TEXT("%s juega"), *SeatLabel(State, State.ActiveSeat));
+			View.Context = SkillTrialName(State.PendingTrial);
+			View.bHasDeadline = false;
+			View.Identity = FString::Printf(TEXT("W|S|%d|%d"), State.ActiveSeat, static_cast<int32>(State.PendingTrial));
+			bFound = true;
+		}
+		if (!bFound && State.TurnPhase == ETurnPhase::Duel && State.Duel.IsActive() && !State.Duel.IsParticipant(HumanSeat))
+		{
+			const FString Challenger = State.Duel.bAgainstWarden ? FString(TEXT("El Warden")) : SeatLabel(State, State.Duel.Challenger);
+			View.Title = FString::Printf(TEXT("Duelo: %s contra %s"), *Challenger, *SeatLabel(State, State.Duel.Challenged));
+			View.bHasDeadline = false;
+			View.Identity = FString::Printf(TEXT("W|D|%d|%d"), State.Duel.Challenger, State.Duel.Challenged);
+			bFound = true;
+		}
+		if (!bFound)
+		{
+			return {};
+		}
+		View.ClockSeconds = State.ClockSeconds;
+		return View;
+	}
+
+	TOptional<FDecisionView> VoteResultView(const FMatchState& State, double ResultSeconds)
+	{
+		int32 Resolved = INDEX_NONE;
+		for (int32 Index = State.EventLog.Num() - 1; Index >= 0; --Index)
+		{
+			if (State.EventLog[Index].Type == EMatchEventType::VoteResolved)
+			{
+				Resolved = Index;
+				break;
+			}
+		}
+		if (Resolved == INDEX_NONE || State.ClockSeconds - State.EventLog[Resolved].ClockSeconds >= ResultSeconds)
+		{
+			return {};
+		}
+		const FMatchEvent& Outcome = State.EventLog[Resolved];
+
+		// Los votos de esa votación: los VoteCast justo antes de su VoteResolved, hasta el VoteStarted (que dice de qué evento) o la votación anterior.
+		FDecisionView View;
+		View.Input = EDecisionInput::Result;
+		View.Title = TEXT("Votación");
+		for (int32 Index = Resolved - 1; Index >= 0; --Index)
+		{
+			const FMatchEvent& Event = State.EventLog[Index];
+			if (Event.Type == EMatchEventType::VoteResolved)
+			{
+				break;
+			}
+			if (Event.Type == EMatchEventType::VoteStarted)
+			{
+				if (State.WardenEvents.Events.IsValidIndex(Event.Value))
+				{
+					View.Title = State.WardenEvents.Events[Event.Value].DisplayName();
+				}
+				break;
+			}
+			if (Event.Type == EMatchEventType::VoteCast)
+			{
+				View.Lines.Insert(FString::Printf(TEXT("%s votó a %s%s"), *SeatLabel(State, Event.Seat), *SeatLabel(State, Event.OtherSeat),
+					Event.Detail == 1 ? TEXT(" (al azar: no votó a tiempo)") : TEXT("")), 0);
+			}
+		}
+		View.Context = FString::Printf(TEXT("El más votado: %s, con %d %s%s"), *SeatLabel(State, Outcome.Seat), Outcome.Value, Outcome.Value == 1 ? TEXT("voto") : TEXT("votos"),
+			Outcome.Detail == 1 ? TEXT(" (desempate del Warden)") : TEXT(""));
+		View.bHasDeadline = false;
+		View.ClockSeconds = State.ClockSeconds;
+		View.Identity = FString::Printf(TEXT("R|%.3f"), Outcome.ClockSeconds);
+		return View;
+	}
+
+	TOptional<FDecisionView> PanelView(const FMatchState& State, int32 HumanSeat, bool bWardenSpeaking, double VoteResultSeconds)
+	{
+		if (State.IsMatchOver() || !State.Seats.IsValidIndex(HumanSeat))
+		{
+			return {};
+		}
+		// R-DEC-6 y R-DEC-8: lo propio manda; después el resultado de una votación (también mientras habla el Warden); después la espera, que
+		// calla mientras habla el Warden porque su frase ya está en pantalla.
+		if (TOptional<FDecisionView> Own = DecisionView(State, HumanSeat, bWardenSpeaking))
+		{
+			return Own;
+		}
+		if (TOptional<FDecisionView> Result = VoteResultView(State, VoteResultSeconds))
+		{
+			return Result;
+		}
+		return bWardenSpeaking ? TOptional<FDecisionView>() : WaitView(State, HumanSeat);
+	}
+
+	bool IsOwnDecisionShown(const TOptional<FDecisionView>& View, bool bRingOpen)
+	{
+		return View.IsSet() && !bRingOpen && View->Input != EDecisionInput::Wait && View->Input != EDecisionInput::Result;
 	}
 
 	bool IsDecisionPanelShown(const TOptional<FDecisionView>& View, bool bRingOpen)
