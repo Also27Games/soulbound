@@ -18,6 +18,10 @@ Añadido por el autor el 11/11/2026, al cerrar la prueba de S-028:
 - **El resultado de la votación se ve**: al cerrarse, el panel enseña unos segundos quién ha sido el más votado y qué votó cada uno. Hoy solo lo cuenta la crónica y no queda claro quién se lo lleva.
 - **El panel no se mueve**: en S-028 va apilado sobre la frase del Warden y sube y baja cuando la frase aparece, crece o se va. Queda fijo abajo, con el hueco de la frase siempre reservado. En el centro de la pantalla no: taparía el Altar y las fichas justo cuando hay que elegir casilla o votar con un clic.
 
+Añadido por el autor el 11/11/2026, tras probar el PR en PIE:
+
+- **El desenlace también se ve**: tras un duelo el autor tuvo que mirar el log para saber quién había ganado, y de las decisiones de los dummies se ve que deciden pero no qué. El panel enseña unos segundos cómo acaba lo que no se ve en el tablero: quién gana un duelo, qué opción de un dilema sale, qué roba el trilero y si otro asiento supera su prueba. Lo que el tablero ya enseña (dados, salto, expulsión) no se repite.
+
 ## Reglas a implementar (`Soulbound`, `Presentation/`)
 
 - **R-DEC-5 (precisión). Qué se enseña mientras esperas.** Una función pura junto a `DecisionView` (`WaitView`, nombre propuesto) recibe el estado y el asiento humano y devuelve, si la mesa espera a otro asiento, un `FDecisionView` con un tipo de entrada nuevo (`EDecisionInput::Wait`, nombre propuesto), sin opciones. No inventa nada: quién decide y qué lo dice el estado, y los textos salen de los que ya existen (`ChoiceWhat`, los nombres de asiento de S-028, el nombre y el texto del evento del Warden). Casos, en el mismo orden en que el panel de estado los enseña:
@@ -28,6 +32,12 @@ Añadido por el autor el 11/11/2026, al cerrar la prueba de S-028:
   5. **Prueba de habilidad o duelo de otros asientos** (Fuente, Prueba del Warden, escape del Vacío, desafío final, duelo): quién juega y qué; en el duelo, los dos asientos. Sin plazo: no lleva barra.
 - **R-DEC-6 (precisión). Una sola vista para el panel.** Una función pura (`PanelView`, nombre propuesto) decide qué enseña el panel: la decisión del humano (`DecisionView`) si existe; si no, la espera (`WaitView`); si no hay ninguna, nada. Mientras la mesa espera al Warden no se enseña la espera de otros: lo que pasa es la frase del Warden, que ya está en pantalla. La decisión propia sí se sigue enseñando bloqueada, como en S-028.
 - **R-DEC-8 (precisión). El resultado de la votación.** Al resolverse una votación (`VoteResolved` en el registro), el panel enseña el resultado durante `VoteResultSeconds` (Config, valor inicial 5, en segundos del reloj de partida): de título, el nombre del evento; después, el más votado con sus votos, y si desempató el Warden; debajo, una línea por voto (quién votó a quién, de los `VoteCast` de esa votación, marcando el que salió al azar por no votar a tiempo). Sin botones ni barra. Una función pura (`VoteResultView`, nombre propuesto) lo saca del registro y del reloj: hay vista si el último `VoteResolved` tiene menos de `VoteResultSeconds`. En `PanelView` va después de la decisión propia y antes de la espera, y a diferencia de la espera se enseña también mientras habla el Warden. No dice qué le pasa al más votado: eso lo dicen el Warden y la crónica.
+- **R-DEC-10 (precisión). El desenlace.** Una función pura (`OutcomeView`, nombre propuesto) saca del registro el último suceso de una lista cerrada y, si tiene menos de `OutcomeSeconds` (Config, valor inicial 4, en segundos del reloj de partida), devuelve una vista de resultado (`EDecisionInput::Result`): título y una línea, sin botones ni barra. Los asientos se nombran como en el resto del panel. La lista:
+  1. **Duelo** (`DuelWon`): título "Duelo"; línea "Gana <ganador> a <perdedor>". Contra el Warden, título "Duelo contra el Warden": con `WardenDuelWon`, "Gana el Warden: <asiento> pierde lo que estaba en juego"; con `WardenDuelLost`, "Gana <asiento>: no pierde nada". Se enseña también cuando el humano es uno de los dos.
+  2. **Dilema** (`DilemmaChosen`): título, el nombre del evento; línea "<asiento> elige: <texto de la opción>" o, si la sorteó el Warden por no contestar a tiempo (`Detail` 1), "El Warden elige por <asiento>: <texto de la opción>". El texto de la opción es el del botón de S-028. No se enseña la opción que el propio humano eligió.
+  3. **Trilero** (`RuneStolen`, `ShellGameExpired`): título "Trilero"; línea "<ladrón> roba a <víctima> la runa de <Dominio>" o "<ladrón> no elige a tiempo y no roba nada". La runa se nombra como en los botones de S-028.
+  4. **Prueba de otro asiento** (`SkillMinigamePassed`/`Failed`, `WardenTrialPassed`/`Failed`, `VoidEscapePassed`/`Failed`, `FinalChallengeFailed`): título, el nombre de la prueba (el de la espera, R-DEC-5); línea "<asiento> la supera" o "<asiento> falla". Las del humano no: su resultado ya lo enseña el anillo.
+  En `PanelView` va donde el resultado de la votación: después de la decisión propia y antes de la espera, también mientras habla el Warden. Entre el resultado de una votación y un desenlace, manda el suceso más reciente. No inventa nada: quién, a quién y qué lo dice el registro.
 - **R-DEC-7 (precisión). Cómo se pinta.** `SDecisionPanel` pinta la vista de espera con el título en el gris de lo secundario, sin botones y con la barra en gris; la primera línea nombra al asiento ("Asiento 2 · nombre del Elegido", "Asiento 2 (Eco)", como en los botones de voto de S-028). Las reglas de visibilidad son las de R-DEC-3: no se enseña con el anillo del humano abierto, con el telón bajado ni con los paneles ocultos (`H`). El panel de estado no cambia: sigue llevando sus líneas con el detalle.
 - **R-DEC-9 (precisión). Posición fija.** El borde inferior del panel queda a una altura fija sobre el borde de la pantalla: la que ocupa una frase del Warden de `WardenLineReservedLines` líneas (Config, valor inicial 2) con su fondo y sus márgenes. Ese hueco se reserva siempre, haya frase o no, y la frase se pinta dentro de él, pegada abajo como hoy. El panel no cambia de sitio cuando la frase aparece, cambia de largo o desaparece; sí crece hacia arriba si la decisión tiene más botones. Si una frase ocupa más líneas de las reservadas, se sale del hueco por arriba y el panel sigue quieto: se anota en el PR, no se arregla aquí (es el `TODO(R-HUD-3)` de la frase a 1024x768).
 
@@ -47,6 +57,12 @@ Automáticos, en `Soulbound`, sin mundo (`Private/Tests/DecisionTextTest.cpp`, n
 - **CA-DEC-17** (resultado, R-DEC-8). Con un registro en que el 0 y el 1 votan al 2, el 3 vota al 1 al azar y `VoteResolved` da al 2 con 2 votos en el segundo 100: en el segundo 102 hay vista, nombra al asiento 2 con sus 2 votos, lleva tres líneas de voto y marca la del 3 como al azar; pasado `VoteResultSeconds`, no hay vista. Con desempate del Warden, la vista lo dice. Con dos votaciones en el registro, solo cuentan los votos de la última.
 - **CA-DEC-18** (orden, R-DEC-6 y R-DEC-8). Con un resultado reciente y una decisión abierta para el humano, `PanelView` es su decisión; con un resultado reciente y una elección abierta para un dummy, es el resultado; con la mesa esperando al Warden, el resultado se sigue enseñando.
 
+- **CA-DEC-19** (duelo, R-DEC-10). Con un `DuelWon` del asiento 2 sobre el 0 en el segundo 100 y el humano en el 0: en el segundo 101 hay vista de resultado que nombra al 2 como ganador y al 0 como perdedor; pasado `OutcomeSeconds`, no hay vista. Con `WardenDuelWon` y con `WardenDuelLost`, cada una con su línea.
+- **CA-DEC-20** (dilema, R-DEC-10). Con un `DilemmaChosen` del asiento 2, opción 1: el título es el nombre del evento y la línea lleva el texto de esa opción. Con `Detail` 1, la línea dice que elige el Warden. Si quien eligió es el humano, no hay vista; si al humano se la sorteó el Warden, sí.
+- **CA-DEC-21** (trilero, R-DEC-10). Con un `RuneStolen` del asiento 1 al 3, la línea nombra al ladrón, a la víctima y la runa; con `ShellGameExpired`, dice que no roba nada.
+- **CA-DEC-22** (prueba de otro, R-DEC-10). Con un `SkillMinigamePassed` del asiento 2, la vista lleva el nombre de la prueba y dice que la supera; con `SkillMinigameFailed`, que falla; con el mismo suceso del asiento humano, no hay vista.
+- **CA-DEC-23** (orden, R-DEC-6 y R-DEC-10). Con un desenlace reciente y una decisión abierta para el humano, `PanelView` es su decisión; con una elección abierta para un dummy, es el desenlace; con la mesa esperando al Warden, el desenlace se sigue enseñando. Con un resultado de votación y un desenlace recientes, `PanelView` es el del suceso más nuevo. Un suceso que no está en la lista (`DiceChosen`, `PlanarJumped`, `Expelled`) no da vista.
+
 Manuales, por el autor, en PIE, a 1024x768 y a 1920x1080, con captura:
 
 - En el turno de cada dummy el panel dice de quién es el turno; si elige algo, qué.
@@ -56,6 +72,9 @@ Manuales, por el autor, en PIE, a 1024x768 y a 1920x1080, con captura:
 - La espera no se confunde con una decisión propia: sin verde y sin botones.
 - Con una decisión abierta, el panel no se mueve cuando la frase del Warden aparece, pasa de una línea a dos o desaparece. A 1024x768 no tapa las casillas iluminadas de abajo más que en S-028; si lo hace, se dice en el PR.
 - Si el panel aparece y desaparece tan deprisa que molesta, se dice en el PR: no se arregla en esta story.
+- Tras un duelo contra un dummy, al cerrarse el anillo el panel dice quién gana y a quién.
+- Con el dilema de un dummy (`SbEvent elige-tu-veneno` hasta que le toque a uno), el panel dice qué opción sale; con un robo entre dummies, qué roba el trilero.
+- Si los desenlaces tapan la espera siguiente o se pisan unos a otros hasta no leerse, se dice en el PR.
 
 ## Notas para quien lo implemente
 
@@ -66,11 +85,13 @@ Manuales, por el autor, en PIE, a 1024x768 y a 1920x1080, con captura:
 - La posición fija se hace en la capa de la vista (`WardenLineOverlay`, `BuildOverlay`): hoy el panel y la frase van en un `SVerticalBox` de alto automático; la frase pasa a ir dentro de una caja de alto fijo. El alto sale del tamaño de letra de la frase (`WardenLineFontSize`) y de sus márgenes, no de un número a mano.
 - Tests primero, en rojo. El pintado y la posición solo tienen criterio manual.
 - El resultado sale del registro (`FMatchState::EventLog`): `VoteCast` lleva quién vota (`Seat`), a quién (`OtherSeat`) y si fue al azar (`Detail`); `VoteResolved`, el más votado (`Seat`), sus votos (`Value`) y si hubo desempate (`Detail`). La edad se mide con `ClockSeconds` del evento y del estado, sin reloj real.
-- Nombres propuestos para el glosario, en el PR: `WaitView`, `PanelView`, `VoteResultView`, `EDecisionInput::Wait`.
+- El desenlace (R-DEC-10) sigue el patrón de `VoteResultView`: el último suceso de la lista en `FMatchState::EventLog` y su edad con `ClockSeconds`. En el dilema, el evento es el del `WardenEventStarted` anterior en el registro. Lo que lleva cada suceso (`Seat`, `OtherSeat`, `Value`, `Detail`) está en su comentario de `MatchState.h`.
+- Nombres propuestos para el glosario, en el PR: `WaitView`, `PanelView`, `VoteResultView`, `OutcomeView`, `EDecisionInput::Wait`.
 
 ## Fuera de esta story
 
 - Un tiempo mínimo en pantalla para que la espera no parpadee (el resultado de la votación sí tiene el suyo, R-DEC-8), y cambiar lo que tardan los dummies en contestar (`DummyResponseSeconds`, datos del autor).
 - Resaltar en el tablero la ficha de quien decide: es el aro de S-029.
-- Enseñar qué ha elegido cada dummy: eso lo cuenta la crónica.
+- Enseñar los dados que elige un dummy, su salto planar o a quién expulsa: se ve en el tablero y lo cuenta la crónica.
+- El rendimiento de cada uno en el duelo, en cifras: el panel dice quién gana, no por cuánto. La palabra "rendimiento" sale del anillo en S-031.
 - Quitar del panel de estado las líneas de los demás.
