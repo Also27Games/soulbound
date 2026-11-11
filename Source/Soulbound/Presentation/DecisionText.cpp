@@ -98,7 +98,8 @@ namespace
 		}
 		else
 		{
-			View.Title = TEXT("Elige ") + Soulbound::Presentation::ChoiceWhat(State);
+			// Corrección del autor del 11/11/2026: la de dados pregunta; la línea del panel de estado sigue diciendo "ELIGE dados".
+			View.Title = Choice.Kind == EChoiceKind::DiceCount ? FString(TEXT("¿Cuántos dados tiras?")) : TEXT("Elige ") + Soulbound::Presentation::ChoiceWhat(State);
 			if (Choice.Kind == EChoiceKind::ShellPick && State.ShellGame.IsActive())
 			{
 				View.Context = FString::Printf(TEXT("Robas al asiento %d: una esfera, a ciegas"), State.ShellGame.Victim);
@@ -274,7 +275,6 @@ namespace Soulbound::Presentation
 
 	bool DecisionButtonsInRow(int32 Count, float WidestButton, float SlotGap, float AvailableWidth)
 	{
-		// TODO(R-DEC-2): esqueleto para ver el test en rojo.
-		return false;
+		return Count <= 0 || Count * (WidestButton + SlotGap) <= AvailableWidth;
 	}
 }

@@ -4,7 +4,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
-#include "Widgets/Layout/SWrapBox.h"
+#include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/Notifications/SProgressBar.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
@@ -15,6 +15,12 @@ namespace
 	const FLinearColor DecisionGreen = FLinearColor(FColor::Green);
 	const FLinearColor DecisionOrange = FLinearColor(FColor::Orange);
 	const FLinearColor DecisionGray = FLinearColor(FColor(190, 190, 190));
+
+	/** Margen de cada botón en su celda, por cada lado: entre dos botones queda el doble. */
+	constexpr float ButtonSlotMargin = 3.f;
+
+	/** El margen del fondo del panel, por cada lado, en horizontal: lo que el panel le quita al ancho de los botones. */
+	constexpr float PanelPaddingX = 12.f;
 }
 
 void SDecisionPanel::Construct(const FArguments& InArgs)
@@ -22,6 +28,7 @@ void SDecisionPanel::Construct(const FArguments& InArgs)
 	FontSize = InArgs._FontSize;
 	LargeScale = FMath::Max(InArgs._LargeScale, 1.f);
 	TimeFraction = InArgs._TimeFraction;
+	MaxWidth = InArgs._MaxWidth;
 	OnOption = InArgs._OnOption;
 
 	ChildSlot
@@ -29,7 +36,7 @@ void SDecisionPanel::Construct(const FArguments& InArgs)
 		SNew(SBorder)
 		.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
 		.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.72f))
-		.Padding(FMargin(12.f, 8.f))
+		.Padding(FMargin(PanelPaddingX, 8.f))
 		// El panel se queda el clic: el que cae en el fondo, en un texto o en un botón desactivado (la mesa espera al Warden) no llega a la casilla
 		// ni a la ficha de detrás. Sin esto, un clic sin manejar sube hasta el viewport y el controlador lo toma como clic en el tablero.
 		.Visibility_Lambda([this]() { return View.IsSet() ? EVisibility::Visible : EVisibility::Collapsed; })
@@ -49,6 +56,44 @@ void SDecisionPanel::SetView(const TOptional<Soulbound::Presentation::FDecisionV
 	}
 	View = NewView;
 	Rebuild();
+}
+
+void SDecisionPanel::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+	// El ancho de los botones no depende de cómo van colocados, así que la decisión no oscila: solo cambia con los botones o con el hueco.
+	const bool bFits = ButtonsFitInRow();
+	if (ButtonGrid.IsValid() && bFits != bButtonsInRow)
+	{
+		bButtonsInRow = bFits;
+		LayoutButtons(bButtonsInRow);
+	}
+}
+
+bool SDecisionPanel::ButtonsFitInRow() const
+{
+	float Widest = 0.f;
+	for (const TSharedRef<SWidget>& Button : Buttons)
+	{
+		Widest = FMath::Max(Widest, static_cast<float>(Button->GetDesiredSize().X));
+	}
+	return Soulbound::Presentation::DecisionButtonsInRow(Buttons.Num(), Widest, 2.f * ButtonSlotMargin, MaxWidth.Get() - 2.f * PanelPaddingX);
+}
+
+void SDecisionPanel::LayoutButtons(bool bInRow)
+{
+	if (!ButtonGrid.IsValid())
+	{
+		return;
+	}
+	ButtonGrid->ClearChildren();
+	for (int32 Index = 0; Index < Buttons.Num(); ++Index)
+	{
+		ButtonGrid->AddSlot(bInRow ? Index : 0, bInRow ? 0 : Index)
+		[
+			Buttons[Index]
+		];
+	}
 }
 
 bool SDecisionPanel::SameLook(const TOptional<Soulbound::Presentation::FDecisionView>& A, const TOptional<Soulbound::Presentation::FDecisionView>& B)
@@ -115,10 +160,12 @@ void SDecisionPanel::Rebuild()
 		];
 	}
 
-	// Un botón por opción, con su tecla en negrita delante. No toman el foco: las teclas siguen llegando al controlador.
+	// Un botón por opción, con su tecla en negrita delante. No toman el foco: las teclas siguen llegando al controlador. Todos del ancho del más
+	// largo, en fila si caben y si no en columna (corrección del autor del 11/11/2026): una rejilla uniforme, que Tick recoloca.
+	Buttons.Reset();
+	ButtonGrid.Reset();
 	if (!Shown.Options.IsEmpty())
 	{
-		TSharedRef<SWrapBox> Buttons = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(6.f, 6.f));
 		const bool bEnabled = !Shown.bBlocked;
 		for (const Soulbound::Presentation::FDecisionOption& Option : Shown.Options)
 		{
@@ -134,9 +181,7 @@ void SDecisionPanel::Rebuild()
 			[
 				SNew(STextBlock).Text(FText::FromString(Option.Text)).Font(Font("Regular", Large))
 			];
-			Buttons->AddSlot()
-			[
-				SNew(SButton)
+			Buttons.Add(SNew(SButton)
 				.IsFocusable(false)
 				.IsEnabled(bEnabled)
 				.ContentPadding(FMargin(10.f, 4.f))
@@ -147,13 +192,15 @@ void SDecisionPanel::Rebuild()
 				})
 				[
 					Label
-				]
-			];
+				]);
 		}
-		Content->AddSlot().AutoHeight().Padding(0.f, 6.f, 0.f, 2.f)
+		Content->AddSlot().AutoHeight().HAlign(HAlign_Left).Padding(0.f, 3.f, 0.f, 0.f)
 		[
-			Buttons
+			SAssignNew(ButtonGrid, SUniformGridPanel).SlotPadding(FMargin(ButtonSlotMargin))
 		];
+		// Hasta el primer tick no se sabe lo que mide cada botón: se empieza en fila y Tick lo corrige si no cabe.
+		bButtonsInRow = true;
+		LayoutButtons(bButtonsInRow);
 	}
 
 	// El reloj: una barra que se vacía, sin números; mientras la mesa espera al Warden, el texto en su sitio (R-DEC-3).
