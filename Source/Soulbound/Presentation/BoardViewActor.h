@@ -5,6 +5,7 @@
 #include "InputCoreTypes.h"
 #include "BoardKit.h"
 #include "BoardLayout.h"
+#include "DecisionText.h"
 #include "InstructionTracker.h"
 #include "StatusText.h"
 #include "WardenLineQueue.h"
@@ -18,6 +19,7 @@ class APostProcessVolume;
 class ASeatTokenActor;
 class IInputProcessor;
 class SChroniclePanel;
+class SDecisionPanel;
 class SGrimoirePanel;
 class SStatusPanel;
 class SWidget;
@@ -703,6 +705,21 @@ private:
 	/** Lo que los paneles de estado y de depuración necesitan y no está en el estado (S-027, FStatusContext). */
 	Soulbound::Presentation::FStatusContext MakeStatusContext() const;
 
+	/** La decisión abierta para el humano ahora (S-028, DecisionView), con la espera del Warden del anfitrión; nada sin partida. */
+	TOptional<Soulbound::Presentation::FDecisionView> DecisionViewNow() const;
+
+	/** Si la capa del panel de decisión se enseña (S-028, R-DEC-3): la regla de DecisionText, la tecla de los paneles (H) y el telón. */
+	bool IsDecisionPanelVisible() const;
+
+	/** Qué parte del plazo de la decisión que se enseña queda ahora, para la barra del panel (S-028), con el reloj de partida del momento. */
+	float DecisionTimeFractionNow() const;
+
+	/**
+	 * Un botón del panel de decisión (S-028, R-DEC-2): lo entrega el controlador del jugador local, con la misma entrada del anfitrión que la
+	 * tecla. La vista no contesta a nadie por su cuenta.
+	 */
+	void AnswerDecision(const Soulbound::Presentation::FDecisionOption& Option);
+
 	FLinearColor SeatColor(int32 Seat) const;
 
 	TWeakObjectPtr<UMatchHostSubsystem> Host;
@@ -761,8 +778,20 @@ private:
 	/** Si ya se escribió la escala en el registro (al arrancar se escribe siempre; después, solo si cambia). */
 	bool bPanelScaleLogged = false;
 
-	/** La línea del Warden en pantalla (S-021): una capa aparte, que no se oculta con los paneles (H). */
+	/**
+	 * La línea del Warden en pantalla (S-021): una capa aparte, que no se oculta con los paneles (H). Desde S-028 lleva encima, en la misma
+	 * columna, el panel de decisión, que sí se oculta con H: así va siempre por encima de la frase, sea cual sea su alto.
+	 */
 	TSharedPtr<SWidget> WardenLineOverlay;
+
+	/** El panel de decisión (S-028, R-DEC-2), sobre la línea del Warden. */
+	TSharedPtr<SDecisionPanel> DecisionPanel;
+	/** El reloj de su barra: qué decisión mide y su total (AdvanceDecisionClock, en cada TickHud). */
+	Soulbound::Presentation::FDecisionClock DecisionClock;
+	/** Fin del plazo de la decisión que se enseña, para pintar la barra entre dos TickHud. */
+	double DecisionDeadlineSeconds = 0.0;
+	/** Si la regla de DecisionText enseña el panel (IsDecisionPanelShown), calculado en TickHud. */
+	bool bDecisionShown = false;
 
 	/**
 	 * El botón "Volver al menú" (S-022): una capa aparte, centrada en el hueco del tablero, que solo existe con la partida terminada y no se

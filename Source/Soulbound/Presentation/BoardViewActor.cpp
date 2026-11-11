@@ -2,6 +2,7 @@
 
 #include "../Match/MatchHostSubsystem.h"
 #include "../Profile/PlayerProfileSubsystem.h"
+#include "../Spike/SpikeOnlinePlayerController.h"
 #include "../Warden/WardenHostSubsystem.h"
 #include "GameMapsSettings.h"
 #include "Kismet/GameplayStatics.h"
@@ -10,6 +11,7 @@
 #include "BoardTileActor.h"
 #include "BoardViewState.h"
 #include "ChroniclePanel.h"
+#include "DecisionPanel.h"
 #include "EventText.h"
 #include "GrimoirePanel.h"
 #include "InstructionTracker.h"
@@ -1052,31 +1054,60 @@ void ABoardViewActor::BuildOverlay()
 		];
 	Viewport->AddViewportWidgetContent(GrimoireOverlay.ToSharedRef(), 14);
 
+	// S-028 (R-DEC-4): el ancho máximo del panel de decisión, en unidades de Slate; dentro, sus botones van en fila si caben.
+	static constexpr float DecisionPanelMaxWidth = 900.f;
 	// S-021: la línea del Warden, grande y abajo, a la izquierda de la columna de paneles. Solo texto: ni assets ni widgets del juego.
+	// S-028 (R-DEC-2 a R-DEC-4): encima, en la misma columna, el panel de decisión, centrado y con la letra de los paneles; va siempre por
+	// encima de la frase. El panel se queda los clics que le caen encima (SDecisionPanel); la capa y la frase siguen sin recibirlos.
 	WardenLineOverlay = SNew(SBox)
 		.HAlign(HAlign_Center)
 		.VAlign(VAlign_Bottom)
 		.Padding_Lambda([this]() { return FMargin(16.f, 0.f, PanelSlateWidth + 16.f, 36.f); })
-		.Visibility(EVisibility::HitTestInvisible)
+		.Visibility(EVisibility::SelfHitTestInvisible)
 		[
-			SNew(SBox)
-			// TODO(R-HUD-3): a 1024x768 la frase se sale por la izquierda (visto en S-027, ya pasaba antes). No lo arreglan ni limitar este ancho
-			// al hueco libre ni un WrapTextAt explícito con ese hueco (probados en S-027): en la captura el fondo negro queda más pequeño que el
-			// texto, así que parece que el tamaño deseado no se recalcula al cambiar la frase. Hace falta mirarlo en el editor con el Widget Reflector.
-			.MaxDesiredWidth(1000.f)
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, 8.f)
 			[
-				SNew(SBorder)
-				.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-				.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.65f))
-				.Padding(FMargin(20.f, 10.f))
-				.Visibility_Lambda([this]() { return WardenLineNow().IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+				SNew(SBox)
+				.MaxDesiredWidth(DecisionPanelMaxWidth)
+				.Visibility_Lambda([this]() { return IsDecisionPanelVisible() ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed; })
 				[
-					SNew(STextBlock)
-					.Text_Lambda([this]() { return FText::FromString(WardenLineNow()); })
-					.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(WardenLineFontSize, 8)))
-					.ColorAndOpacity(WardenLineColor)
-					.Justification(ETextJustify::Center)
-					.AutoWrapText(true)
+					SAssignNew(DecisionPanel, SDecisionPanel)
+					.FontSize(PanelFont)
+					.LargeScale(StatusLargeFontScale)
+					.TimeFraction_Lambda([this]() { return DecisionTimeFractionNow(); })
+					// Lo más ancho que puede ser el panel: el hueco del tablero (la capa deja 16 a la izquierda y la columna más 16 a la derecha), con el
+					// tope de la caja. Con él decide si sus botones caben en fila (corrección del autor del 11/11/2026).
+					.MaxWidth_Lambda([this]()
+					{
+						const float SlateViewportWidth = static_cast<float>(LastViewportSize.X) / PanelDpiScale;
+						return FMath::Clamp(SlateViewportWidth - PanelSlateWidth - 32.f, 0.f, DecisionPanelMaxWidth);
+					})
+					.OnOption_Lambda([this](const Soulbound::Presentation::FDecisionOption& Option) { AnswerDecision(Option); })
+				]
+			]
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+			[
+				SNew(SBox)
+				.Visibility(EVisibility::HitTestInvisible)
+				// TODO(R-HUD-3): a 1024x768 la frase se sale por la izquierda (visto en S-027, ya pasaba antes). No lo arreglan ni limitar este ancho
+				// al hueco libre ni un WrapTextAt explícito con ese hueco (probados en S-027): en la captura el fondo negro queda más pequeño que el
+				// texto, así que parece que el tamaño deseado no se recalcula al cambiar la frase. Hace falta mirarlo en el editor con el Widget Reflector.
+				.MaxDesiredWidth(1000.f)
+				[
+					SNew(SBorder)
+					.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+					.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.65f))
+					.Padding(FMargin(20.f, 10.f))
+					.Visibility_Lambda([this]() { return WardenLineNow().IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+					[
+						SNew(STextBlock)
+						.Text_Lambda([this]() { return FText::FromString(WardenLineNow()); })
+						.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(WardenLineFontSize, 8)))
+						.ColorAndOpacity(WardenLineColor)
+						.Justification(ETextJustify::Center)
+						.AutoWrapText(true)
+					]
 				]
 			]
 		];
@@ -1834,7 +1865,19 @@ void ABoardViewActor::TickHud()
 	}
 
 	// S-027 (R-HUD-1, R-HUD-2, R-HUD-4): lo que antes eran mensajes de pantalla del motor, en los paneles; el texto lo construye StatusText.
-	const Soulbound::Presentation::FStatusContext Context = MakeStatusContext();
+	// S-028 (R-DEC-1 a R-DEC-3): la decisión del humano, en su panel, con el reloj de la barra; con el panel a la vista, el de estado no repite
+	// la petición.
+	const TOptional<Soulbound::Presentation::FDecisionView> Decision = DecisionViewNow();
+	Soulbound::Presentation::AdvanceDecisionClock(DecisionClock, Decision);
+	DecisionDeadlineSeconds = Decision.IsSet() ? Decision->DeadlineSeconds : 0.0;
+	bDecisionShown = Soulbound::Presentation::IsDecisionPanelShown(Decision, HostPtr->GetRingRun() != nullptr);
+	if (DecisionPanel.IsValid())
+	{
+		DecisionPanel->SetView(bDecisionShown ? Decision : TOptional<Soulbound::Presentation::FDecisionView>());
+	}
+
+	Soulbound::Presentation::FStatusContext Context = MakeStatusContext();
+	Context.bDecisionPanelShown = bDecisionShown;
 	if (StatusPanel.IsValid())
 	{
 		StatusPanel->SetLines(Soulbound::Presentation::StatusLines(State, Context));
@@ -1913,6 +1956,42 @@ void ABoardViewActor::HandleRingClosed(const TOptional<FRingOutcome>& Outcome)
 		LastRingNote = Outcome->bForced ? TEXT("resultado fijado con SbTrial") : FString();
 	}
 	LastRingShownUntil = FPlatformTime::Seconds() + FMath::Max(RingResultSeconds, 0.f);
+}
+
+TOptional<Soulbound::Presentation::FDecisionView> ABoardViewActor::DecisionViewNow() const
+{
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (!HostPtr || !HostPtr->HasMatch())
+	{
+		return {};
+	}
+	return Soulbound::Presentation::DecisionView(HostPtr->GetState(), HostPtr->GetHumanSeat(), HostPtr->IsWardenSpeaking());
+}
+
+bool ABoardViewActor::IsDecisionPanelVisible() const
+{
+	// La regla (decisión abierta, sin anillo) la calcula TickHud; la tecla de los paneles y el telón mandan en el acto, como en las demás capas.
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	return bDecisionShown && !bPanelsHidden && HostPtr && !HostPtr->IsCurtainDown() && !HostPtr->GetRingRun();
+}
+
+float ABoardViewActor::DecisionTimeFractionNow() const
+{
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (!HostPtr || !HostPtr->HasMatch())
+	{
+		return 0.f;
+	}
+	return static_cast<float>(Soulbound::Presentation::DecisionTimeFraction(DecisionClock.TotalSeconds, DecisionDeadlineSeconds, HostPtr->GetState().ClockSeconds));
+}
+
+void ABoardViewActor::AnswerDecision(const Soulbound::Presentation::FDecisionOption& Option)
+{
+	// R-DEC-2: el botón entrega lo mismo que la tecla, por el controlador del jugador local; nunca al motor directamente.
+	if (ASpikeOnlinePlayerController* Controller = GetWorld() ? Cast<ASpikeOnlinePlayerController>(GetWorld()->GetFirstPlayerController()) : nullptr)
+	{
+		Controller->AnswerDecisionOption(Option);
+	}
 }
 
 FRingPanelModel ABoardViewActor::RingPanelModel() const

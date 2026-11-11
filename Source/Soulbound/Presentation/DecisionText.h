@@ -1,0 +1,143 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Match/MatchState.h"
+
+/**
+ * Lo que enseña el panel de decisión (S-028, R-DEC-1; nombres propuestos): la decisión abierta para el asiento humano, descompuesta en título,
+ * contexto, instrucción y opciones con su tecla, y el reloj de su barra. Funciones puras sobre el estado de la partida, sin actor ni mundo, como
+ * StatusText. No deciden nada: las opciones son exactamente las que el motor tiene abiertas (FPendingChoice, votación, Oráculo, destino), y si
+ * la mesa espera al Warden es un dato que reciben. El panel (SDecisionPanel) solo pinta lo que esto devuelve.
+ */
+namespace Soulbound::Presentation
+{
+	/** Cómo se contesta la decisión (R-DEC-2): con botones, con clic en una ficha (y botones), en el orbe (y botones) o en una casilla. */
+	enum class EDecisionInput : uint8
+	{
+		Buttons,
+		Token,
+		Orb,
+		Tile,
+	};
+
+	/** A qué entrada del anfitrión va una opción del panel: la misma que su tecla o su clic. */
+	enum class EDecisionAnswer : uint8
+	{
+		/** UMatchHostSubsystem::SubmitHumanChoice(ChoiceKind, Value); Value INDEX_NONE es "no". */
+		Choice,
+		/** UMatchHostSubsystem::SubmitHumanVote(Value), con Value el asiento votado. */
+		Vote,
+		/** UMatchHostSubsystem::SubmitHumanOracleConsult. */
+		OracleConsult,
+		/** UMatchHostSubsystem::SubmitHumanOracleRefuse. */
+		OracleRefuse,
+	};
+
+	/** Una opción del panel de decisión (S-028, nombre propuesto): su texto, su tecla y la respuesta que entrega. */
+	struct FDecisionOption
+	{
+		FString Text;
+		/** La tecla que la contesta, como se enseña delante del texto: "1" a "9", "0" o "R"; vacía si no tiene. */
+		FString Key;
+		EDecisionAnswer Answer = EDecisionAnswer::Choice;
+		/** El tipo de la elección que contesta, con Answer Choice. */
+		EChoiceKind ChoiceKind = EChoiceKind::None;
+		/** La respuesta: la de FPendingChoice::AnswerAt, INDEX_NONE para "no", o el asiento votado. */
+		int32 Value = INDEX_NONE;
+
+		bool operator==(const FDecisionOption& Other) const
+		{
+			return Text == Other.Text && Key == Other.Key && Answer == Other.Answer && ChoiceKind == Other.ChoiceKind && Value == Other.Value;
+		}
+	};
+
+	/** La decisión abierta para el humano, tal como la enseña el panel (S-028, R-DEC-1, nombre propuesto). */
+	struct FDecisionView
+	{
+		EDecisionInput Input = EDecisionInput::Buttons;
+		/** Qué se decide: el nombre del evento del Warden en las suyas. */
+		FString Title;
+		/** Una línea de contexto: el texto del evento en las del Warden; vacía si no hay nada que añadir. */
+		FString Context;
+		/** Cómo se contesta, cuando no basta con los botones: "Elige una casilla iluminada", "o haz clic en su ficha". */
+		FString Instruction;
+		/** Un botón por opción, en el orden del motor; el "0  No" al final en las que admiten "no". */
+		TArray<FDecisionOption> Options;
+		/** Fin del plazo, en segundos del reloj de partida (DeadlineSeconds de la elección, de la votación o del Oráculo, o TurnDeadlineSeconds). */
+		double DeadlineSeconds = 0.0;
+		/** El reloj de partida del estado con que se calculó. */
+		double ClockSeconds = 0.0;
+		/** La mesa espera al Warden (R-DEC-3): se enseña con los botones desactivados y "El Warden habla" en vez del reloj. */
+		bool bBlocked = false;
+		/** Qué decisión es, para saber si la que se ve es la misma que antes (el reloj de la barra): la entrada y, con botones, el tipo de elección. */
+		FString Identity;
+	};
+
+	/** El texto que sustituye al reloj mientras la mesa espera al Warden (R-DEC-3). */
+	inline const TCHAR* const DecisionBlockedText = TEXT("El Warden habla");
+
+	/**
+	 * La decisión abierta para el asiento humano (R-DEC-1). Si hay más de una, la que el panel de estado pone primero (decisión del autor del
+	 * 10/11/2026): su elección pendiente, después su destino (en su turno de tirada), después su consulta del Oráculo y, al final, su voto.
+	 * @param State El estado de la partida.
+	 * @param HumanSeat El asiento humano de esta máquina.
+	 * @param bWardenSpeaking Si la mesa espera al Warden (UMatchHostSubsystem::IsWardenSpeaking): la vista sale bloqueada, con las mismas opciones.
+	 * @return La vista, o nada si no hay decisión abierta para el humano, si ya votó o si la partida ha terminado.
+	 */
+	TOptional<FDecisionView> DecisionView(const FMatchState& State, int32 HumanSeat, bool bWardenSpeaking);
+
+	/**
+	 * Si el panel de decisión se enseña (R-DEC-3): hay vista y el anillo del humano no está abierto. Bloqueada o no, se enseña. La tecla de los
+	 * paneles y el telón los mira la capa del panel, como en los demás.
+	 * @param View Lo que devolvió DecisionView.
+	 * @param bRingOpen Si el anillo del humano está abierto (UMatchHostSubsystem::GetRingRun).
+	 * @return Si se enseña.
+	 */
+	bool IsDecisionPanelShown(const TOptional<FDecisionView>& View, bool bRingOpen);
+
+	/**
+	 * La opción de la vista que contesta la tecla Key, para que la tecla y el botón entreguen lo mismo.
+	 * @param View La vista.
+	 * @param Key La tecla: "1" a "9", "0" o "R".
+	 * @return La opción, o null si ninguna lleva esa tecla.
+	 */
+	const FDecisionOption* FindDecisionOption(const FDecisionView& View, const FString& Key);
+
+	/** El reloj de la barra del panel (S-028, nombre propuesto): qué decisión mide y cuánto quedaba cuando la vista la vio aparecer. */
+	struct FDecisionClock
+	{
+		FString Identity;
+		double TotalSeconds = 0.0;
+	};
+
+	/**
+	 * Avanza el reloj de la barra con la vista de ahora y devuelve qué parte del plazo queda (decisión del autor del 10/11/2026): el total es lo
+	 * que quedaba cuando la vista vio aparecer la decisión; si el plazo se alarga (la espera del Warden lo desplaza), el total pasa a lo que queda.
+	 * Sin vista, el reloj se vacía.
+	 * @param Clock El reloj, que se actualiza.
+	 * @param View La vista de ahora.
+	 * @return La fracción que queda, de 0 a 1; 0 sin vista o con el plazo vencido.
+	 */
+	double AdvanceDecisionClock(FDecisionClock& Clock, const TOptional<FDecisionView>& View);
+
+	/**
+	 * Qué parte del plazo queda: lo que falta hasta DeadlineSeconds entre TotalSeconds, de 0 a 1. La usan AdvanceDecisionClock y la barra del
+	 * panel en cada pintado, con el reloj de partida del momento.
+	 * @param TotalSeconds El total del reloj de la barra.
+	 * @param DeadlineSeconds Fin del plazo, en segundos del reloj de partida.
+	 * @param NowSeconds El reloj de partida ahora.
+	 * @return La fracción; 0 si el total no es positivo.
+	 */
+	double DecisionTimeFraction(double TotalSeconds, double DeadlineSeconds, double NowSeconds);
+
+	/**
+	 * Si los botones de una decisión van en fila (corrección del autor del 11/11/2026): todos tienen el ancho del más largo, y van en fila si
+	 * así caben en el ancho disponible; si no, en columna, también iguales.
+	 * @param Count Cuántos botones.
+	 * @param WidestButton El ancho del más largo, sin su hueco.
+	 * @param SlotGap El hueco que lleva cada botón (los dos lados de su margen).
+	 * @param AvailableWidth El ancho del que disponen los botones.
+	 * @return Verdadero si van en fila: Count por (WidestButton más SlotGap) no pasa de AvailableWidth. Sin botones, en fila.
+	 */
+	bool DecisionButtonsInRow(int32 Count, float WidestButton, float SlotGap, float AvailableWidth);
+}

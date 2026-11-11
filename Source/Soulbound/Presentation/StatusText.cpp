@@ -36,17 +36,22 @@ namespace Soulbound::Presentation
 		return TEXT("?");
 	}
 
-	/** Tecla de la opción en la posición Index (S-010): 1 a 9, y 0 para la décima si la elección no admite "no". Vacía si no tiene. */
-	FString OptionKey(const FPendingChoice& Choice, int32 Index)
+	FString ChoiceOptionKey(const FPendingChoice& Choice, int32 Index)
 	{
 		if (Index < 9)
 		{
-			return FString::Printf(TEXT("[%d]"), Index + 1);
+			return FString::FromInt(Index + 1);
 		}
-		return Index == 9 && !Choice.CanDecline() ? FString(TEXT("[0]")) : FString(TEXT("[sin tecla]"));
+		return Index == 9 && !Choice.CanDecline() ? FString(TEXT("0")) : FString();
 	}
 
-	/** Texto de la opción en la posición Index de la elección pendiente, para la línea de petición (S-009, S-010). */
+	/** Tecla de la opción en la posición Index (S-010) entre corchetes, para la línea de petición: "[1]", "[0]" o "[sin tecla]". */
+	FString OptionKey(const FPendingChoice& Choice, int32 Index)
+	{
+		const FString Key = ChoiceOptionKey(Choice, Index);
+		return Key.IsEmpty() ? FString(TEXT("[sin tecla]")) : FString::Printf(TEXT("[%s]"), *Key);
+	}
+
 	FString OptionText(const FMatchState& State, int32 Index)
 	{
 		const FPendingChoice& Choice = State.PendingChoice;
@@ -104,10 +109,6 @@ namespace Soulbound::Presentation
 		return true;
 	}
 
-	/**
-	 * Qué se elige al señalar a un rival en el evento en curso (S-015), para la línea de petición: a quién se pone a prueba, a
-	 * quién se roba, con quién se bate o, con dos rivales, quién reta y a quién. Solo lee el estado.
-	 */
 	FString ChosenRivalText(const FMatchState& State)
 	{
 		const FCurrentWardenEvent& Event = State.CurrentEvent;
@@ -231,6 +232,23 @@ namespace Soulbound::Presentation
 			State.Seats[Seat].VoidTurns + (bPlayingVoidTurn ? 0 : 1));
 	}
 
+	FString ChoiceWhat(const FMatchState& State)
+	{
+		switch (State.PendingChoice.Kind)
+		{
+		case EChoiceKind::Dilemma: return TEXT("una opción del dilema");
+		case EChoiceKind::ChosenRival: return ChosenRivalText(State);
+		case EChoiceKind::GiftRune: return TEXT("qué runa te regala el Warden");
+		case EChoiceKind::LoseRune: return TEXT("qué runa pierdes");
+		case EChoiceKind::DiceCount: return TEXT("dados");
+		case EChoiceKind::PlanarJump: return TEXT("salto planar");
+		case EChoiceKind::SafeRune: return TEXT("la runa que Koschei pone a salvo del trilero");
+		case EChoiceKind::ShellPick: return TEXT("esfera");
+		case EChoiceKind::Deflection: return TEXT("si sales del Vacío con Desvío (la runa vuelve a su Fuente y juegas el turno)");
+		default: return TEXT("accion contra un jugador");
+		}
+	}
+
 	/**
 	 * Línea de petición de la elección pendiente (S-009): qué se elige, las opciones numeradas como las contestan las
 	 * teclas (1 a 9, y 0 para "no" o, si no se admite, la décima) y el tiempo que queda. Para el humano, en imperativo y con
@@ -247,17 +265,8 @@ namespace Soulbound::Presentation
 			return bHuman ? FString::Printf(TEXT("REPETIR: [R] repite la tirada (una vez por turno)%s | %s"), bHints ? TEXT(", o clic en una casilla blanca") : TEXT(""), *Left)
 				: FString::Printf(TEXT("el asiento %d decide si repite la tirada | %s"), Choice.Seat, *Left);
 		}
-		const FString RivalWhat = Choice.Kind == EChoiceKind::ChosenRival ? ChosenRivalText(State) : FString();
-		const TCHAR* What = Choice.Kind == EChoiceKind::Dilemma ? TEXT("una opción del dilema")
-			: Choice.Kind == EChoiceKind::ChosenRival ? *RivalWhat
-			: Choice.Kind == EChoiceKind::GiftRune ? TEXT("qué runa te regala el Warden")
-			: Choice.Kind == EChoiceKind::LoseRune ? TEXT("qué runa pierdes")
-			: Choice.Kind == EChoiceKind::DiceCount ? TEXT("dados")
-			: Choice.Kind == EChoiceKind::PlanarJump ? TEXT("salto planar")
-			: Choice.Kind == EChoiceKind::SafeRune ? TEXT("la runa que Koschei pone a salvo del trilero")
-			: Choice.Kind == EChoiceKind::ShellPick ? TEXT("esfera")
-			: Choice.Kind == EChoiceKind::Deflection ? TEXT("si sales del Vacío con Desvío (la runa vuelve a su Fuente y juegas el turno)")
-			: TEXT("accion contra un jugador");
+		const FString WhatText = ChoiceWhat(State);
+		const TCHAR* What = *WhatText;
 		const TCHAR* No = Choice.Kind == EChoiceKind::PlanarJump ? TEXT("no saltar") : Choice.Kind == EChoiceKind::Deflection ? TEXT("no") : TEXT("nada");
 		TArray<FString> Parts;
 		for (int32 Index = 0; Index < Choice.AnswerCount(); ++Index)
@@ -583,7 +592,11 @@ namespace Soulbound::Presentation
 			const bool bHumanChoice = State.PendingChoice.Seat == HumanSeat;
 			if (bHumanChoice)
 			{
-				Top.Insert({ChoicePrompt(State, true, bHints), StatusGreen, true}, 0);
+				// S-028 (R-DEC-3): con el panel de decisión a la vista, la petición ya está allí; aquí no se repite.
+				if (!Context.bDecisionPanelShown)
+				{
+					Top.Insert({ChoicePrompt(State, true, bHints), StatusGreen, true}, 0);
+				}
 			}
 			else
 			{

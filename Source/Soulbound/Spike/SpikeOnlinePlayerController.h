@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "../Presentation/DecisionText.h"
 #include "SpikeOnlinePlayerController.generated.h"
 
 class ABoardViewActor;
@@ -185,6 +186,13 @@ public:
 	UFUNCTION(Exec)
 	void SbHelp();
 
+	/**
+	 * Entrega la respuesta de una opción del panel de decisión (S-028, R-DEC-2): la elección, el voto, la consulta o el rechazo del Oráculo, con
+	 * las mismas entradas del anfitrión que las teclas y los clics (SubmitHumanChoice, SubmitHumanVote, SubmitHumanOracleConsult,
+	 * SubmitHumanOracleRefuse). El motor decide si vale; mientras la mesa espera al Warden, el anfitrión la rechaza como cualquier otra.
+	 */
+	void AnswerDecisionOption(const Soulbound::Presentation::FDecisionOption& Option);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
@@ -204,7 +212,8 @@ private:
 
 	/**
 	 * Tecla numérica (S-009): contesta la elección pendiente del humano. 1 a 9 eligen la opción con ese número, en el
-	 * orden en que la vista las enseña; 0 es "no". El motor decide si vale.
+	 * orden en que la vista las enseña; 0 es "no". El motor decide si vale. Desde S-028, si el panel de decisión lleva una
+	 * opción con ese número, la tecla entrega esa opción (así también votan y consultan el Oráculo); si no, lo de siempre.
 	 */
 	void OnChoiceKey(int32 Number);
 
