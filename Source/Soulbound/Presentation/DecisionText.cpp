@@ -271,4 +271,10 @@ namespace Soulbound::Presentation
 		}
 		return FMath::Clamp((DeadlineSeconds - NowSeconds) / TotalSeconds, 0.0, 1.0);
 	}
+
+	bool DecisionButtonsInRow(int32 Count, float WidestButton, float SlotGap, float AvailableWidth)
+	{
+		// TODO(R-DEC-2): esqueleto para ver el test en rojo.
+		return false;
+	}
 }

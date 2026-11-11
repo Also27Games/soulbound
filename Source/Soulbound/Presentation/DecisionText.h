@@ -129,4 +129,15 @@ namespace Soulbound::Presentation
 	 * @return La fracción; 0 si el total no es positivo.
 	 */
 	double DecisionTimeFraction(double TotalSeconds, double DeadlineSeconds, double NowSeconds);
+
+	/**
+	 * Si los botones de una decisión van en fila (corrección del autor del 11/11/2026): todos tienen el ancho del más largo, y van en fila si
+	 * así caben en el ancho disponible; si no, en columna, también iguales.
+	 * @param Count Cuántos botones.
+	 * @param WidestButton El ancho del más largo, sin su hueco.
+	 * @param SlotGap El hueco que lleva cada botón (los dos lados de su margen).
+	 * @param AvailableWidth El ancho del que disponen los botones.
+	 * @return Verdadero si van en fila: Count por (WidestButton más SlotGap) no pasa de AvailableWidth. Sin botones, en fila.
+	 */
+	bool DecisionButtonsInRow(int32 Count, float WidestButton, float SlotGap, float AvailableWidth);
 }

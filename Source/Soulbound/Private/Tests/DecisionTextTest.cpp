@@ -135,6 +135,14 @@ bool FDecisionDiceTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	TestTrue(TEXT("Con botones"), View->Input == EDecisionInput::Buttons);
+	// Corrección del autor del 11/11/2026: el título del panel pregunta; la línea del panel de estado sigue diciendo "ELIGE dados".
+	TestEqual(TEXT("El título pregunta"), View->Title, FString(TEXT("¿Cuántos dados tiras?")));
+	{
+		Soulbound::Presentation::FStatusContext Context;
+		Context.HumanSeat = DtHuman;
+		const TArray<Soulbound::Presentation::FPanelLine> Lines = Soulbound::Presentation::StatusLines(State, Context);
+		TestTrue(TEXT("La línea del panel de estado no cambia"), Lines.Num() > 0 && Lines[0].Text.StartsWith(TEXT("ELIGE dados")));
+	}
 	TestEqual(TEXT("Las opciones del motor"), DtTexts(*View), TArray<FString>{TEXT("Un dado"), TEXT("Dos dados")});
 	TestEqual(TEXT("Numeradas desde 1"), DtKeys(*View), TArray<FString>{TEXT("1"), TEXT("2")});
 	if (View->Options.Num() == 2)
@@ -542,6 +550,22 @@ bool FDecisionClockTest::RunTest(const FString& Parameters)
 	Other.PendingChoice = FPendingChoice();
 	TestEqual(TEXT("Otra decisión, llena"), Soulbound::Presentation::AdvanceDecisionClock(Reused, Soulbound::Presentation::DecisionView(Other, DtHuman, false)), 1.0);
 	TestEqual(TEXT("Con su total"), Reused.TotalSeconds, 8.0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionButtonRowTest, "Soulbound.Game.Presentation.Decision.BotonesEnFilaOColumna", DecisionTestFlags)
+
+bool FDecisionButtonRowTest::RunTest(const FString& Parameters)
+{
+	// Corrección del autor del 11/11/2026: los botones de una decisión tienen todos el ancho del más largo; si así no caben en una fila, van
+	// en columna. Caben si el número de botones por el más ancho, más el hueco de cada uno, no pasa del ancho disponible.
+	using Soulbound::Presentation::DecisionButtonsInRow;
+	TestTrue(TEXT("Tres de 100 con 6 de hueco caben justos en 318"), DecisionButtonsInRow(3, 100.f, 6.f, 318.f));
+	TestFalse(TEXT("En 317, no"), DecisionButtonsInRow(3, 100.f, 6.f, 317.f));
+	TestTrue(TEXT("Uno ancho cabe si cabe él"), DecisionButtonsInRow(1, 300.f, 6.f, 306.f));
+	TestFalse(TEXT("Uno más ancho que el hueco: en columna, que es lo mismo"), DecisionButtonsInRow(1, 400.f, 6.f, 306.f));
+	TestTrue(TEXT("Sin botones, nada que repartir: en fila"), DecisionButtonsInRow(0, 0.f, 6.f, 100.f));
+	TestFalse(TEXT("Sin ancho disponible, en columna"), DecisionButtonsInRow(2, 50.f, 6.f, 0.f));
 	return true;
 }
 
