@@ -13,6 +13,10 @@ Decidido por el autor el 10/11/2026:
 - **Lo propio manda**: si el humano tiene algo que decidir, el panel enseña eso, como en S-028, y nada de los demás.
 - Sin reglas nuevas, sin sonido, sin animación.
 
+Añadido por el autor el 11/11/2026, al cerrar la prueba de S-028:
+
+- **El resultado de la votación se ve**: al cerrarse, el panel enseña unos segundos quién ha sido el más votado y qué votó cada uno. Hoy solo lo cuenta la crónica y no queda claro quién se lo lleva.
+
 ## Reglas a implementar (`Soulbound`, `Presentation/`)
 
 - **R-DEC-5 (precisión). Qué se enseña mientras esperas.** Una función pura junto a `DecisionView` (`WaitView`, nombre propuesto) recibe el estado y el asiento humano y devuelve, si la mesa espera a otro asiento, un `FDecisionView` con un tipo de entrada nuevo (`EDecisionInput::Wait`, nombre propuesto), sin opciones. No inventa nada: quién decide y qué lo dice el estado, y los textos salen de los que ya existen (`ChoiceWhat`, los nombres de asiento de S-028, el nombre y el texto del evento del Warden). Casos, en el mismo orden en que el panel de estado los enseña:
@@ -22,6 +26,7 @@ Decidido por el autor el 10/11/2026:
   4. **Votación abierta en la que el humano ya votó o no puede votar**: el nombre del evento y qué asientos faltan por votar (los que pueden votar y aún no lo han hecho). Plazo: el de la votación.
   5. **Prueba de habilidad o duelo de otros asientos** (Fuente, Prueba del Warden, escape del Vacío, desafío final, duelo): quién juega y qué; en el duelo, los dos asientos. Sin plazo: no lleva barra.
 - **R-DEC-6 (precisión). Una sola vista para el panel.** Una función pura (`PanelView`, nombre propuesto) decide qué enseña el panel: la decisión del humano (`DecisionView`) si existe; si no, la espera (`WaitView`); si no hay ninguna, nada. Mientras la mesa espera al Warden no se enseña la espera de otros: lo que pasa es la frase del Warden, que ya está en pantalla. La decisión propia sí se sigue enseñando bloqueada, como en S-028.
+- **R-DEC-8 (precisión). El resultado de la votación.** Al resolverse una votación (`VoteResolved` en el registro), el panel enseña el resultado durante `VoteResultSeconds` (Config, valor inicial 5, en segundos del reloj de partida): de título, el nombre del evento; después, el más votado con sus votos, y si desempató el Warden; debajo, una línea por voto (quién votó a quién, de los `VoteCast` de esa votación, marcando el que salió al azar por no votar a tiempo). Sin botones ni barra. Una función pura (`VoteResultView`, nombre propuesto) lo saca del registro y del reloj: hay vista si el último `VoteResolved` tiene menos de `VoteResultSeconds`. En `PanelView` va después de la decisión propia y antes de la espera, y a diferencia de la espera se enseña también mientras habla el Warden. No dice qué le pasa al más votado: eso lo dicen el Warden y la crónica.
 - **R-DEC-7 (precisión). Cómo se pinta.** `SDecisionPanel` pinta la vista de espera con el título en el gris de lo secundario, sin botones y con la barra en gris; la primera línea nombra al asiento ("Asiento 2 · nombre del Elegido", "Asiento 2 (Eco)", como en los botones de voto de S-028). Las reglas de visibilidad son las de R-DEC-3: no se enseña con el anillo del humano abierto, con el telón bajado ni con los paneles ocultos (`H`). El panel de estado no cambia: sigue llevando sus líneas con el detalle.
 
 ## Criterios de aceptación
@@ -37,10 +42,14 @@ Automáticos, en `Soulbound`, sin mundo (`Private/Tests/DecisionTextTest.cpp`, n
 - **CA-DEC-15** (el Warden habla, R-DEC-6). Con una elección abierta para un dummy y la mesa esperando al Warden, `PanelView` no devuelve nada; sin la espera, devuelve la vista de espera.
 - **CA-DEC-16** (nada, R-DEC-6). Entre turnos sin nada abierto, con una ficha moviéndose y con la partida terminada, `PanelView` no devuelve nada.
 
+- **CA-DEC-17** (resultado, R-DEC-8). Con un registro en que el 0 y el 1 votan al 2, el 3 vota al 1 al azar y `VoteResolved` da al 2 con 2 votos en el segundo 100: en el segundo 102 hay vista, nombra al asiento 2 con sus 2 votos, lleva tres líneas de voto y marca la del 3 como al azar; pasado `VoteResultSeconds`, no hay vista. Con desempate del Warden, la vista lo dice. Con dos votaciones en el registro, solo cuentan los votos de la última.
+- **CA-DEC-18** (orden, R-DEC-6 y R-DEC-8). Con un resultado reciente y una decisión abierta para el humano, `PanelView` es su decisión; con un resultado reciente y una elección abierta para un dummy, es el resultado; con la mesa esperando al Warden, el resultado se sigue enseñando.
+
 Manuales, por el autor, en PIE, a 1024x768 y a 1920x1080, con captura:
 
 - En el turno de cada dummy el panel dice de quién es el turno; si elige algo, qué.
 - En una votación (`SbEvent juicio`), tras votar el panel pasa a decir quién falta y se va al cerrarse la votación.
+- Al cerrarse la votación sale el resultado, se lee sin prisa y se va solo: quién es el más votado y qué votó cada asiento.
 - Con el Oráculo de un dummy (`SbEvent el-orbe-llama` hasta que le toque a uno), el panel dice quién está ante él.
 - La espera no se confunde con una decisión propia: sin verde y sin botones.
 - Si el panel aparece y desaparece tan deprisa que molesta, se dice en el PR: no se arregla en esta story.
@@ -52,11 +61,12 @@ Manuales, por el autor, en PIE, a 1024x768 y a 1920x1080, con captura:
 - El panel ya recibe el tipo de entrada: el modo espera es un caso más de `Rebuild`, sin botones.
 - Las teclas no cambian: `OnChoiceKey` sigue mirando `DecisionView`, no `PanelView`, para que una tecla nunca conteste algo que el panel enseña como espera.
 - Tests primero, en rojo. El pintado solo tiene criterio manual.
-- Nombres propuestos para el glosario, en el PR: `WaitView`, `PanelView`, `EDecisionInput::Wait`.
+- El resultado sale del registro (`FMatchState::EventLog`): `VoteCast` lleva quién vota (`Seat`), a quién (`OtherSeat`) y si fue al azar (`Detail`); `VoteResolved`, el más votado (`Seat`), sus votos (`Value`) y si hubo desempate (`Detail`). La edad se mide con `ClockSeconds` del evento y del estado, sin reloj real.
+- Nombres propuestos para el glosario, en el PR: `WaitView`, `PanelView`, `VoteResultView`, `EDecisionInput::Wait`.
 
 ## Fuera de esta story
 
-- Un tiempo mínimo en pantalla para que la espera no parpadee, y cambiar lo que tardan los dummies en contestar (`DummyResponseSeconds`, datos del autor).
+- Un tiempo mínimo en pantalla para que la espera no parpadee (el resultado de la votación sí tiene el suyo, R-DEC-8), y cambiar lo que tardan los dummies en contestar (`DummyResponseSeconds`, datos del autor).
 - Resaltar en el tablero la ficha de quien decide: es el aro de S-029.
 - Enseñar qué ha elegido cada dummy: eso lo cuenta la crónica.
 - Quitar del panel de estado las líneas de los demás.
