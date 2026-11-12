@@ -508,7 +508,14 @@ void ABoardViewActor::BuildTiles()
 
 		// Halo de "alcanzable": un disco por debajo de la losa, más ancho, que solo se ve en el borde. La losa
 		// conserva su color; el halo se enciende cuando la tirada la permite.
-		UStaticMeshComponent* Halo = AddShape(CylinderMesh, Position + FVector(0.f, 0.f, HaloZ), FRotator::ZeroRotator, FVector(Diameter * HaloScale, Diameter * HaloScale, HaloHeight));
+		// R-DEC-12 (S-033): el halo asoma por el borde de la pieza del kit también en el Altar, que es mayor y hexagonal (la mayor de X e Y).
+		FVector PieceSize = FVector::ZeroVector;
+		if (bAltar && KitSlab)
+		{
+			PieceSize = KitSlab->GetBounds().BoxExtent * 2.f * Layout.KitScale;
+		}
+		const float HaloWidth = Soulbound::Presentation::HaloDiameter(Diameter, HaloScale, static_cast<float>(PieceSize.X), static_cast<float>(PieceSize.Y));
+		UStaticMeshComponent* Halo = AddShape(CylinderMesh, Position + FVector(0.f, 0.f, HaloZ), FRotator::ZeroRotator, FVector(HaloWidth, HaloWidth, HaloHeight));
 		Soulbound::Presentation::SetComponentColor(*Halo, BaseMaterial, ReachableColor);
 		Halo->SetVisibility(false);
 		Halos[Tile.TileId] = Halo;
@@ -1087,7 +1094,7 @@ void ABoardViewActor::BuildOverlay()
 					// tope de la caja. Con él decide si sus botones caben en fila (corrección del autor del 11/11/2026).
 					.MaxWidth_Lambda([this]()
 					{
-						return Soulbound::Presentation::BoardFreeWidth(static_cast<float>(LastViewportSize.X) / PanelDpiScale, PanelSlateWidth, DecisionPanelMaxWidth);
+						return BoardFreeWidthNow(DecisionPanelMaxWidth);
 					})
 					.OnOption_Lambda([this](const Soulbound::Presentation::FDecisionOption& Option) { AnswerDecision(Option); })
 				]
@@ -1117,10 +1124,11 @@ void ABoardViewActor::BuildOverlay()
 				// R-HUD-3 (corrección del autor del 11/11/2026): con AutoWrapText el texto se parte al ancho con que se pintó la frase anterior
 				// (FSlateTextBlockLayout::CalculateWrappingWidth usa CachedSize, el de la última pasada de pintado), así que tras una frase corta
 				// todas salían estrechas. Con WrapTextAt solo y el hueco libre (el tope de 1000 menos los 40 de margen del fondo), el ancho no
-				// depende de lo pintado antes. Nunca los dos a la vez: manda el menor.
+				// depende de lo pintado antes. Nunca los dos a la vez: manda el menor. Desde R-DEC-13 (12/11/2026) el hueco sale de la geometría real
+				// de la capa (BoardFreeWidthNow), no de la ventana y la escala de DPI: a 1024x768 la cuenta daba de más y la frase se cortaba.
 				.WrapTextAt_Lambda([this]()
 				{
-					return FMath::Max(Soulbound::Presentation::BoardFreeWidth(static_cast<float>(LastViewportSize.X) / PanelDpiScale, PanelSlateWidth, 1000.f) - 40.f, 1.f);
+					return FMath::Max(BoardFreeWidthNow(1000.f) - 40.f, 1.f);
 				})
 			]
 		]
@@ -1872,6 +1880,21 @@ void ABoardViewActor::TickHud()
 		}
 	}
 
+	// S-033 (R-DEC-13): los números para medir a 1024x768, en la línea "Paneles:" cuando cambia el ancho de la capa de la frase: su geometría real,
+	// lo que da la cuenta con la ventana y la escala de DPI, y el hueco libre que sale de cada una (tope 1000, el de la frase).
+	if (WardenLineOverlay.IsValid())
+	{
+		const FVector2D LayerSize = FVector2D(WardenLineOverlay->GetTickSpaceGeometry().GetLocalSize());
+		if (LayerSize.X >= 1.0 && !FMath::IsNearlyEqual(static_cast<float>(LayerSize.X), LoggedLayerWidth, 0.5f))
+		{
+			LoggedLayerWidth = static_cast<float>(LayerSize.X);
+			const float ByWindow = static_cast<float>(LastViewportSize.X) / PanelDpiScale;
+			UE_LOG(LogSoulboundView, Log, TEXT("Paneles: capa de la frase %.1fx%.1f en Slate (geometría real); la cuenta con la ventana da %.1f de ancho (%.0f px / escala %.3f); hueco libre con tope 1000: %.1f por geometría, %.1f por la cuenta; columna %.1f."),
+				LayerSize.X, LayerSize.Y, ByWindow, LastViewportSize.X, PanelDpiScale, Soulbound::Presentation::BoardFreeWidth(static_cast<float>(LayerSize.X), PanelSlateWidth, 1000.f),
+				Soulbound::Presentation::BoardFreeWidth(ByWindow, PanelSlateWidth, 1000.f), PanelSlateWidth);
+		}
+	}
+
 	// S-024 (decisión del autor del 4/11): con el telón bajado, o en su margen, no se rellena nada: los paneles se ocultan en su capa.
 	if (HostPtr->IsCurtainDown())
 	{
@@ -1982,6 +2005,25 @@ TOptional<Soulbound::Presentation::FDecisionView> ABoardViewActor::PanelViewNow(
 		return {};
 	}
 	return Soulbound::Presentation::PanelView(HostPtr->GetState(), HostPtr->GetHumanSeat(), HostPtr->IsWardenSpeaking(), VoteResultSeconds, OutcomeSeconds);
+}
+
+float ABoardViewActor::LayerSlateWidth() const
+{
+	// La geometría de la capa en el último tick (en unidades de Slate, ya sin la escala de DPI); vacía hasta que se dibuja por primera vez.
+	if (WardenLineOverlay.IsValid())
+	{
+		const float Local = static_cast<float>(WardenLineOverlay->GetTickSpaceGeometry().GetLocalSize().X);
+		if (Local >= 1.f)
+		{
+			return Local;
+		}
+	}
+	return static_cast<float>(LastViewportSize.X) / PanelDpiScale;
+}
+
+float ABoardViewActor::BoardFreeWidthNow(float Cap) const
+{
+	return Soulbound::Presentation::BoardFreeWidth(LayerSlateWidth(), PanelSlateWidth, Cap);
 }
 
 float ABoardViewActor::WardenLineReservedHeight() const

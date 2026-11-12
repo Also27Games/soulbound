@@ -107,7 +107,11 @@ namespace
 		}
 		for (int32 Index = 0; Index < Choice.AnswerCount(); ++Index)
 		{
-			View.Options.Add(ChoiceOption(UpperFirst(Soulbound::Presentation::OptionText(State, Index)), Soulbound::Presentation::ChoiceOptionKey(Choice, Index),
+			// R-DEC-11: en el dilema, el texto de la opción para el jugador, sin la dirección cuando recae en quien elige.
+			const FWardenEventDef* DilemmaDef = Choice.Kind == EChoiceKind::Dilemma ? CurrentEventDef(State) : nullptr;
+			const FString OptionLabel = DilemmaDef && DilemmaDef->Options.IsValidIndex(Choice.Options[Index])
+				? Soulbound::Presentation::DescribeOptionForPlayer(DilemmaDef->Options[Choice.Options[Index]]) : Soulbound::Presentation::OptionText(State, Index);
+			View.Options.Add(ChoiceOption(UpperFirst(OptionLabel), Soulbound::Presentation::ChoiceOptionKey(Choice, Index),
 				Choice.Kind, Choice.AnswerAt(Index)));
 		}
 		if (Choice.CanDecline())
@@ -251,10 +255,13 @@ namespace
 namespace
 {
 	/** Si un suceso del registro es de la lista cerrada de desenlaces (R-DEC-10). */
-	bool IsOutcomeEvent(EMatchEventType Type)
+	bool IsOutcomeEvent(const FMatchEvent& Event)
 	{
-		switch (Type)
+		switch (Event.Type)
 		{
+		// Señalar: un efecto con rival señalado (OtherSeat, quien señaló) distinto del señalado (Seat). Los demás EffectApplied no son desenlace.
+		case EMatchEventType::EffectApplied:
+			return Event.OtherSeat != INDEX_NONE && Event.OtherSeat != Event.Seat;
 		case EMatchEventType::DuelWon:
 		case EMatchEventType::WardenDuelWon:
 		case EMatchEventType::WardenDuelLost:
@@ -279,7 +286,7 @@ namespace
 	{
 		for (int32 Index = State.EventLog.Num() - 1; Index >= 0; --Index)
 		{
-			if (IsOutcomeEvent(State.EventLog[Index].Type))
+			if (IsOutcomeEvent(State.EventLog[Index]))
 			{
 				return Index;
 			}
@@ -518,13 +525,22 @@ namespace Soulbound::Presentation
 				}
 			}
 			View.Title = Def ? Def->DisplayName() : FString(TEXT("Dilema"));
-			// El texto de la opción es el del botón de S-028 (DescribeOption sobre la opción del evento).
-			const FString Option = Def && Def->Options.IsValidIndex(Event.Value) ? UpperFirst(Soulbound::Presentation::DescribeOption(Def->Options[Event.Value]))
+			// El texto de la opción es el del botón de S-028 (DescribeOptionForPlayer sobre la opción del evento, R-DEC-11).
+			const FString Option = Def && Def->Options.IsValidIndex(Event.Value) ? UpperFirst(Soulbound::Presentation::DescribeOptionForPlayer(Def->Options[Event.Value]))
 				: FString::Printf(TEXT("Opción %d"), Event.Value + 1);
 			View.Context = bDrawn ? FString::Printf(TEXT("El Warden elige por %s: %s"), *SeatLabel(State, Event.Seat), *Option)
 				: FString::Printf(TEXT("%s elige: %s"), *SeatLabel(State, Event.Seat), *Option);
 			break;
 		}
+		case EMatchEventType::EffectApplied:
+			// Señalar: quien señaló no es el humano (lo hizo él y ya lo sabe); sí si el señalado es él.
+			if (Event.OtherSeat == HumanSeat)
+			{
+				return {};
+			}
+			View.Title = EffectName(Event.Value);
+			View.Context = FString::Printf(TEXT("%s señala a %s"), *SeatLabel(State, Event.OtherSeat), *SeatLabel(State, Event.Seat));
+			break;
 		case EMatchEventType::RuneStolen:
 			// La runa se nombra como en los botones de S-028 y en el Grimorio: "D2" (decisión del autor).
 			View.Title = TEXT("Trilero");

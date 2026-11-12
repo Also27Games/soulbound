@@ -176,8 +176,9 @@ bool FDecisionDilemmaTest::RunTest(const FString& Parameters)
 	const FWardenEventDef& Def = State.WardenEvents.Events[DtDilemma];
 	TestEqual(TEXT("El título es el nombre del evento"), View->Title, Def.Name);
 	TestEqual(TEXT("El contexto es su texto"), View->Context, Def.Text);
+	// Desde R-DEC-11 (S-033, 12/11/2026) el botón lleva el texto para el jugador: sin "al activo" cuando el efecto recae en quien elige.
 	TestEqual(TEXT("Las opciones del dilema, en su orden"), DtTexts(*View),
-		TArray<FString>{Soulbound::Presentation::DescribeOption(Def.Options[0]), Soulbound::Presentation::DescribeOption(Def.Options[1])});
+		TArray<FString>{Soulbound::Presentation::DescribeOptionForPlayer(Def.Options[0]), Soulbound::Presentation::DescribeOptionForPlayer(Def.Options[1])});
 	TestEqual(TEXT("Con las teclas 1 y 2, sin 0"), DtKeys(*View), TArray<FString>{TEXT("1"), TEXT("2")});
 	TestTrue(TEXT("Con botones"), View->Input == EDecisionInput::Buttons);
 	return true;
@@ -1359,5 +1360,89 @@ bool FDecisionOutcomeOrderTest::RunTest(const FString& Parameters)
 	}
 	return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionOutcomePointTest, "Soulbound.Game.Presentation.Decision.DesenlaceSenalar", DecisionTestFlags)
+
+bool FDecisionOutcomePointTest::RunTest(const FString& Parameters)
+{
+	// CA-DEC-24 (R-DEC-10, caso 5): un EffectApplied de Revelar Brazal sobre el 3 (Seat), señalado por el 1 (OtherSeat). Value es el efecto.
+	const int32 Reveal = static_cast<int32>(EEffect::RevealBracer);
+	FMatchState State = DtMakeState();
+	DtLog(State, EMatchEventType::EffectApplied, 100.0, 3, 1, Reveal, static_cast<int32>(EEffectTarget::ChosenRival));
+	const TOptional<FDecisionView> View = Soulbound::Presentation::OutcomeView(State, DtHuman, DtOutcomeSeconds);
+	if (TestTrue(TEXT("Hay vista"), View.IsSet()))
+	{
+		TestEqual(TEXT("El título es el nombre del efecto"), View->Title, FString(TEXT("Revelar Brazal")));
+		TestEqual(TEXT("Quién señala a quién"), View->Context, FString(TEXT("Asiento 1 (Eco) señala a Asiento 3 (Eco)")));
+		TestTrue(TEXT("Es un resultado, sin barra"), View->Input == EDecisionInput::Result && !View->bHasDeadline);
+	}
+	// Señalado por el humano: no se enseña. Con el humano de señalado, sí.
+	FMatchState ByHuman = DtMakeState();
+	DtLog(ByHuman, EMatchEventType::EffectApplied, 100.0, 3, DtHuman, Reveal, static_cast<int32>(EEffectTarget::ChosenRival));
+	TestFalse(TEXT("Si señala el humano, no"), Soulbound::Presentation::OutcomeView(ByHuman, DtHuman, DtOutcomeSeconds).IsSet());
+	FMatchState OnHuman = DtMakeState();
+	DtLog(OnHuman, EMatchEventType::EffectApplied, 100.0, DtHuman, 2, Reveal, static_cast<int32>(EEffectTarget::ChosenRival));
+	const TOptional<FDecisionView> OnHumanView = Soulbound::Presentation::OutcomeView(OnHuman, DtHuman, DtOutcomeSeconds);
+	if (TestTrue(TEXT("Si el señalado es el humano, sí"), OnHumanView.IsSet()))
+	{
+		TestEqual(TEXT("Línea"), OnHumanView->Context, FString(TEXT("Asiento 2 (Eco) señala a Asiento 0 (Eco)")));
+	}
+	// Sin señalador (efecto sin rival señalado), o señalándose a sí mismo: nada.
+	FMatchState NoPointer = DtMakeState();
+	DtLog(NoPointer, EMatchEventType::EffectApplied, 100.0, 3, INDEX_NONE, Reveal, static_cast<int32>(EEffectTarget::Leader));
+	TestFalse(TEXT("Sin señalador, no"), Soulbound::Presentation::OutcomeView(NoPointer, DtHuman, DtOutcomeSeconds).IsSet());
+	FMatchState Self = DtMakeState();
+	DtLog(Self, EMatchEventType::EffectApplied, 100.0, 3, 3, Reveal, static_cast<int32>(EEffectTarget::ChosenRival));
+	TestFalse(TEXT("Un asiento que se señala a sí mismo, no"), Soulbound::Presentation::OutcomeView(Self, DtHuman, DtOutcomeSeconds).IsSet());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionOptionForPlayerTest, "Soulbound.Game.Presentation.Decision.TextoDeOpcionParaElJugador", DecisionTestFlags)
+
+bool FDecisionOptionForPlayerTest::RunTest(const FString& Parameters)
+{
+	// CA-DEC-25 (R-DEC-11): sin la dirección cuando recae en quien elige; las demás se conservan; DescribeOption no cambia.
+	FWardenEventOption Lose;
+	FEffectApplication LoseRune{EEffect::LoseRune, EEffectTarget::ActivePlayer};
+	LoseRune.Variant = EEffectVariant::Chosen;
+	Lose.Applications.Add(LoseRune);
+	TestEqual(TEXT("Para el jugador, sin \"al activo\""), Soulbound::Presentation::DescribeOptionForPlayer(Lose), FString(TEXT("Perder una runa (a elección)")));
+	TestEqual(TEXT("DescribeOption no cambia"), Soulbound::Presentation::DescribeOption(Lose), FString(TEXT("Perder una runa (a elección) al activo")));
+
+	FWardenEventOption Leader;
+	Leader.Applications.Add({EEffect::LoseTurn, EEffectTarget::Leader});
+	TestEqual(TEXT("Al líder se conserva"), Soulbound::Presentation::DescribeOptionForPlayer(Leader), FString(TEXT("Turno perdido al líder")));
+
+	FWardenEventOption Two;
+	Two.Applications.Add({EEffect::ExtraTurn, EEffectTarget::ActivePlayer});
+	Two.Applications.Add({EEffect::LoseTurn, EEffectTarget::NextPlayer});
+	TestEqual(TEXT("Varias aplicaciones, cada una con lo suyo"), Soulbound::Presentation::DescribeOptionForPlayer(Two), FString(TEXT("Turno extra y luego Turno perdido al siguiente")));
+
+	// El botón del dilema y su desenlace usan el texto para el jugador. La opción 0 de la tabla de prueba es Turno extra al activo.
+	FMatchState State = DtMakeState();
+	State.ActiveSeat = 2;
+	State.CurrentEvent.EventIndex = DtDilemma;
+	State.CurrentEvent.Option = 0;
+	State.PendingChoice.Kind = EChoiceKind::Dilemma;
+	State.PendingChoice.Seat = DtHuman;
+	State.PendingChoice.Options = {0, 1};
+	State.PendingChoice.DeadlineSeconds = DtNow + 8.0;
+	const TOptional<FDecisionView> Buttons = Soulbound::Presentation::DecisionView(State, DtHuman, false);
+	if (TestTrue(TEXT("Hay botones del dilema"), Buttons.IsSet() && Buttons->Options.Num() >= 2))
+	{
+		TestEqual(TEXT("Botón 1 sin dirección"), Buttons->Options[0].Text, FString(TEXT("Turno extra")));
+		TestEqual(TEXT("Botón 2 con su dirección"), Buttons->Options[1].Text, FString(TEXT("Turno perdido al siguiente")));
+	}
+	FMatchState Outcome = DtMakeState();
+	DtLog(Outcome, EMatchEventType::WardenEventStarted, 90.0, 2, INDEX_NONE, DtDilemma, 2);
+	DtLog(Outcome, EMatchEventType::DilemmaChosen, 100.0, 2, INDEX_NONE, 0, 0);
+	const TOptional<FDecisionView> OutcomeLine = Soulbound::Presentation::OutcomeView(Outcome, DtHuman, DtOutcomeSeconds);
+	if (TestTrue(TEXT("Hay desenlace del dilema"), OutcomeLine.IsSet()))
+	{
+		TestEqual(TEXT("Sin dirección en el desenlace"), OutcomeLine->Context, FString(TEXT("Asiento 2 (Eco) elige: Turno extra")));
+	}
+	return true;
+}
+
 
 #endif

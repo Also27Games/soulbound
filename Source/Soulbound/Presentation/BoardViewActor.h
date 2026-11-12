@@ -723,6 +723,15 @@ private:
 	 * es. Se llama a intervalo corto porque el reloj cambia sin que cambie el estado.
 	 */
 	void TickHud();
+
+	/**
+	 * El ancho de la capa de la frase y del panel de decisión, en unidades de Slate (S-033, R-DEC-13): el de su geometría real en el último tick; si aún
+	 * no la hay, la cuenta con el tamaño de la ventana y la escala de DPI.
+	 */
+	float LayerSlateWidth() const;
+
+	/** El hueco libre del tablero en horizontal para un tope, a partir de LayerSlateWidth (BoardFreeWidth). */
+	float BoardFreeWidthNow(float Cap) const;
 	/** Lo que los paneles de estado y de depuración necesitan y no está en el estado (S-027, FStatusContext). */
 	Soulbound::Presentation::FStatusContext MakeStatusContext() const;
 
@@ -804,6 +813,8 @@ private:
 	float PanelDpiScale = 1.f;
 	/** Si ya se escribió la escala en el registro (al arrancar se escribe siempre; después, solo si cambia). */
 	bool bPanelScaleLogged = false;
+	/** El ancho de la capa de la frase en el último registro de "Paneles:" (S-033, R-DEC-13); para escribir solo si cambia. */
+	float LoggedLayerWidth = -1.f;
 
 	/**
 	 * La línea del Warden en pantalla (S-021): una capa aparte, que no se oculta con los paneles (H). Desde S-028 lleva encima, en la misma

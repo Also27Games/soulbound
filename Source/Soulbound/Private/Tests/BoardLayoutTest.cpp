@@ -553,4 +553,19 @@ bool FBoardLayoutCrackedTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardLayoutHaloTest, "Soulbound.Game.Presentation.Tablero3D.HaloDelAltarAsoma", LayoutTestFlags)
+
+bool FBoardLayoutHaloTest::RunTest(const FString& Parameters)
+{
+	// R-DEC-12 (S-033): el halo de una casilla alcanzable asoma por su borde. Sin pieza, el de siempre (diámetro por HaloScale); con una pieza
+	// mayor (el Altar es un hexágono: la mayor de sus medidas X o Y), un margen del 10 % por encima de ella para que asome también por las esquinas.
+	using Soulbound::Presentation::HaloDiameter;
+	TestEqual(TEXT("Sin pieza, el de siempre"), HaloDiameter(30.f, 1.35f, 0.f, 0.f), 40.5f);
+	TestEqual(TEXT("Con una pieza menor que el halo, el de siempre"), HaloDiameter(30.f, 1.35f, 30.f, 28.f), 40.5f);
+	TestEqual(TEXT("Con una pieza mayor, la mayor de X e Y con el margen"), HaloDiameter(30.f, 1.35f, 40.f, 50.f), 55.f);
+	TestEqual(TEXT("Y al revés, con X la mayor"), HaloDiameter(30.f, 1.35f, 50.f, 40.f), 55.f);
+	return true;
+}
+
+
 #endif

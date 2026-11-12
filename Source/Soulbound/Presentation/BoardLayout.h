@@ -229,4 +229,16 @@ namespace Soulbound::Presentation
 	 * @return La colocación; vacía si el tablero no tiene casillas.
 	 */
 	SOULBOUND_API FBoardLayout ComputeBoardLayout(const FBoardState& Board, const FBoardLayoutParams& Params);
+
+	/**
+	 * El diámetro del halo de una casilla alcanzable (S-033, R-DEC-12, nombre propuesto): el de siempre, el de la casilla por HaloScale, o, si su pieza
+	 * del kit es mayor, la mayor de sus medidas X e Y con un margen del 10 %, para que el halo asome por su borde también en las esquinas (el Altar,
+	 * hexagonal, lo tapaba).
+	 * @param TileDiameter El diámetro de la casilla.
+	 * @param HaloScale El factor del halo (HaloScale).
+	 * @param PieceSizeX La medida X de la pieza ya escalada; 0 sin pieza.
+	 * @param PieceSizeY La medida Y de la pieza ya escalada; 0 sin pieza.
+	 * @return El diámetro del halo.
+	 */
+	SOULBOUND_API float HaloDiameter(float TileDiameter, float HaloScale, float PieceSizeX, float PieceSizeY);
 }

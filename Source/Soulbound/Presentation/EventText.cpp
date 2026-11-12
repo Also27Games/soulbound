@@ -459,18 +459,32 @@ namespace Soulbound::Presentation
 		return TEXT("");
 	}
 
+	namespace
+	{
+		/** DescribeApplication, con la opción de callar la dirección cuando recae en quien elige (R-DEC-11). */
+		FString DescribeApplicationImpl(const FEffectApplication& Application, bool bSayActivePlayer)
+		{
+			const FString Amount = Application.Amount > 1 ? FString::Printf(TEXT(" ×%d"), Application.Amount) : FString();
+			const FString Variant = Application.Variant == EEffectVariant::Chosen ? FString(TEXT(" (a elección)"))
+				: Application.Variant == EEffectVariant::AllRunes ? FString(TEXT(" (por todas las runas)")) : FString();
+			const FString Target = !bSayActivePlayer && Application.Target == EEffectTarget::ActivePlayer ? FString() : EffectTargetName(static_cast<int32>(Application.Target));
+			return EffectName(static_cast<int32>(Application.Effect)) + Amount + Variant + (Target.IsEmpty() ? FString() : TEXT(" ") + Target);
+		}
+	}
+
 	FString DescribeApplication(const FEffectApplication& Application)
 	{
-		const FString Amount = Application.Amount > 1 ? FString::Printf(TEXT(" ×%d"), Application.Amount) : FString();
-		const FString Variant = Application.Variant == EEffectVariant::Chosen ? FString(TEXT(" (a elección)"))
-			: Application.Variant == EEffectVariant::AllRunes ? FString(TEXT(" (por todas las runas)")) : FString();
-		const FString Target = EffectTargetName(static_cast<int32>(Application.Target));
-		return EffectName(static_cast<int32>(Application.Effect)) + Amount + Variant + (Target.IsEmpty() ? FString() : TEXT(" ") + Target);
+		return DescribeApplicationImpl(Application, true);
 	}
 
 	FString DescribeOption(const FWardenEventOption& Option)
 	{
 		return FString::JoinBy(Option.Applications, TEXT(" y luego "), [](const FEffectApplication& Application) { return DescribeApplication(Application); });
+	}
+
+	FString DescribeOptionForPlayer(const FWardenEventOption& Option)
+	{
+		return FString::JoinBy(Option.Applications, TEXT(" y luego "), [](const FEffectApplication& Application) { return DescribeApplicationImpl(Application, false); });
 	}
 
 	FString DescribeWardenEventStart(EWardenEventStart Result)
