@@ -211,7 +211,10 @@ namespace Soulbound::Presentation
 		/** Si el poder está activo ahora (IsPowerActive). */
 		bool bActive = false;
 
-		bool operator==(const FGrimoireRune& Other) const { return true; }
+		bool operator==(const FGrimoireRune& Other) const
+		{
+			return RuneType == Other.RuneType && Count == Other.Count && bHasPower == Other.bHasPower && Power == Other.Power && PowerName == Other.PowerName && bActive == Other.bActive;
+		}
 	};
 
 	/** Una fila del Grimorio (S-027, nombre propuesto): un asiento, su papel, su Elegido y afinidad, sus seis runas y sus poderes activos. */
@@ -236,7 +239,13 @@ namespace Soulbound::Presentation
 		/** El color del asiento. */
 		FLinearColor Color = FLinearColor::White;
 
-		bool operator==(const FGrimoireRow& Other) const { return true; }
+		/** Igualdad de todo lo que se pinta (S-029, R-VIS-21): el panel solo se reconstruye si cambia. */
+		bool operator==(const FGrimoireRow& Other) const
+		{
+			return Seat == Other.Seat && bHuman == Other.bHuman && bElect == Other.bElect && ElectName == Other.ElectName && DomainId == Other.DomainId
+				&& DomainName == Other.DomainName && AffinityName == Other.AffinityName && AffinityText == Other.AffinityText && Runes == Other.Runes
+				&& ActivePowers == Other.ActivePowers && Color == Other.Color;
+		}
 	};
 
 	/**

@@ -2,17 +2,48 @@
 
 #include "Match/MatchState.h"
 
-FLinearColor Soulbound::Presentation::TokenColor(ESeatRole, int32, const FLinearColor&, const TArray<FLinearColor>&)
+FLinearColor Soulbound::Presentation::TokenColor(ESeatRole Role, int32 DomainId, const FLinearColor& EchoColor, const TArray<FLinearColor>& DomainColors)
 {
-	return FLinearColor::Black;
+	// R-VIS-10: solo un Elegido toma el color de su Dominio. El DomainId de un Eco es su hogar y no cuenta (glosario, "Rol del asiento").
+	return Role == ESeatRole::Elect && DomainColors.IsValidIndex(DomainId) ? DomainColors[DomainId] : EchoColor;
 }
 
-TArray<int32> Soulbound::Presentation::RingedSeats(const FMatchState&)
+TArray<int32> Soulbound::Presentation::RingedSeats(const FMatchState& State)
 {
-	return {-7};
+	TArray<int32> Seats;
+	if (State.IsMatchOver())
+	{
+		return Seats;
+	}
+	// Un duelo o un trilero que juega un evento del Warden entre turnos: la fase es Duel o ShellGame, pero ActiveSeat guarda el del último
+	// turno. Los que juegan son los participantes (R-VIS-11).
+	const bool bEventAction = State.CurrentEvent.IsActive() && State.CurrentEvent.bWaitsForAction;
+	if (bEventAction && State.TurnPhase == ETurnPhase::Duel && State.Duel.IsActive())
+	{
+		Seats = {State.Duel.Challenger, State.Duel.Challenged};
+	}
+	else if (bEventAction && State.TurnPhase == ETurnPhase::ShellGame && State.ShellGame.IsActive())
+	{
+		Seats = {State.ShellGame.Thief, State.ShellGame.Victim};
+	}
+	else if (State.TurnPhase != ETurnPhase::BetweenTurns)
+	{
+		Seats = {State.ActiveSeat};
+	}
+	Seats.RemoveAll([&State](int32 Seat) { return !State.Seats.IsValidIndex(Seat); });
+	Seats.Sort();
+	return Seats;
 }
 
-float Soulbound::Presentation::RingPulse(double, float, float)
+float Soulbound::Presentation::RingPulse(double Seconds, float PeriodSeconds, float MinIntensity)
 {
-	return -1.f;
+	if (PeriodSeconds <= 0.f)
+	{
+		return 1.f;
+	}
+	const float Min = FMath::Clamp(MinIntensity, 0.f, 1.f);
+	const double Phase = FMath::Fmod(Seconds, static_cast<double>(PeriodSeconds)) / PeriodSeconds;
+	// Coseno: parte del mínimo, sube hasta 1 a medio periodo y vuelve, sin saltos.
+	const float Wave = static_cast<float>(0.5 * (1.0 - FMath::Cos(2.0 * UE_DOUBLE_PI * Phase)));
+	return Min + (1.f - Min) * Wave;
 }
