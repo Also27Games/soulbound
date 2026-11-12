@@ -42,6 +42,7 @@ void SRingPanel::Construct(const FArguments& InArgs)
 {
 	FontSize = FMath::Max(InArgs._FontSize, 8);
 	Model = InArgs._Model;
+	RuneBrush = InArgs._RuneBrush;
 }
 
 FLinearColor SRingPanel::PrecisionColor(double Precision)
@@ -84,23 +85,63 @@ int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 	Top += DrawCenteredText(OutDrawElements, Layer, AllottedGeometry, Now.Title, TitleFont, Top, FLinearColor::White) + 4.f * Scale;
 	Top += DrawCenteredText(OutDrawElements, Layer, AllottedGeometry, Now.Counter, SmallFont, Top, FLinearColor(0.8f, 0.8f, 0.8f));
 
-	// La runa, la guía de la zona buena y el anillo.
+	// La franja verde de la zona buena, la runa y el aro (R-VIS-14, R-VIS-18, R-VIS-19). Orden de pintado: franja, runa, aro.
 	const FVector2f Center(Size.X * 0.5f, Size.Y * 0.5f);
 	const float RuneRadius = 34.f * Scale;
 	const float MaxRadius = FMath::Min(Size.X, Size.Y) * 0.36f;
 	if (Now.bShowRing)
 	{
-		DrawCircle(OutDrawElements, Layer, AllottedGeometry, Center, RuneRadius, FLinearColor(0.55f, 0.75f, 1.f), 7.f * Scale);
-		DrawCircle(OutDrawElements, Layer, AllottedGeometry, Center, RuneRadius * 0.45f, FLinearColor(0.55f, 0.75f, 1.f), 4.f * Scale);
-		const float ZoneRadius = RuneRadius + (MaxRadius - RuneRadius) * static_cast<float>(FMath::Clamp(Now.ZoneFraction, 0.0, 1.0));
-		DrawCircle(OutDrawElements, Layer, AllottedGeometry, Center, ZoneRadius, FLinearColor(0.2f, 0.9f, 0.3f, 0.35f), 2.f * Scale);
-		const float RingRadius = RuneRadius + (MaxRadius - RuneRadius) * static_cast<float>(1.0 - FMath::Clamp(Now.CloseFraction, 0.0, 1.0));
-		DrawCircle(OutDrawElements, Layer, AllottedGeometry, Center, RingRadius, FLinearColor::White, 4.f * Scale);
+		// La franja va del borde de la runa al radio en que el aro entra en la zona (el cierre 1 - ZoneFraction): un círculo grueso a media distancia. Su color y opacidad vienen de la configuración (RingZoneColor).
+		const float ZoneRadius = static_cast<float>(Soulbound::Presentation::RingInnerRadius(1.0 - FMath::Clamp(Now.ZoneFraction, 0.0, 1.0), RuneRadius, MaxRadius));
+		if (ZoneRadius > RuneRadius)
+		{
+			DrawCircle(OutDrawElements, Layer, AllottedGeometry, Center, (RuneRadius + ZoneRadius) * 0.5f, Now.ZoneColor, ZoneRadius - RuneRadius);
+		}
+
+		// La runa: la imagen teñida, del tamaño del diámetro de siempre; sin textura, un disco relleno del mismo color (un círculo cuyo grosor es su radio).
+		const FSlateBrush* Brush = RuneBrush ? RuneBrush() : nullptr;
+		if (Brush && Brush->GetResourceObject())
+		{
+			FSlateDrawElement::MakeBox(OutDrawElements, Layer + 1, AllottedGeometry.ToPaintGeometry(FVector2f(2.f * RuneRadius), FSlateLayoutTransform(Center - FVector2f(RuneRadius))),
+				Brush, ESlateDrawEffect::None, Now.RuneColor);
+		}
+		else
+		{
+			DrawCircle(OutDrawElements, Layer + 1, AllottedGeometry, Center, RuneRadius * 0.5f, Now.RuneColor, RuneRadius);
+		}
+
+		// El aro: blanco fuera de la zona buena; verde y más grueso dentro. Se pinta con el radio de su borde interior (RingInnerRadius), así que
+		// toca la runa exactamente en la coincidencia; la polilínea es simétrica, y su centro va medio grosor más afuera.
+		const float Thickness = (Now.bInSweetZone ? 7.f : 4.f) * Scale;
+		const float InnerRadius = static_cast<float>(Soulbound::Presentation::RingInnerRadius(Now.CloseFraction, RuneRadius, MaxRadius));
+		DrawCircle(OutDrawElements, Layer + 2, AllottedGeometry, Center, InnerRadius + Thickness * 0.5f,
+			Now.bInSweetZone ? FLinearColor(0.2f, 0.95f, 0.3f) : FLinearColor::White, Thickness);
 	}
 
-	// El texto grande: bajo la runa durante la prueba; en el centro con el resultado.
-	const float BigTop = Now.bShowRing ? Center.Y + MaxRadius + 4.f * Scale : Center.Y - FontSize * 1.2f;
-	DrawCenteredText(OutDrawElements, Layer, AllottedGeometry, Now.Big, BigFont, BigTop, Now.BigColor);
+	// El resultado ("SUPERADA", "FALLADA") en el centro, solo al acabar. Durante la prueba no hay texto de puntuación (R-VIS-17).
+	DrawCenteredText(OutDrawElements, Layer, AllottedGeometry, Now.Big, BigFont, Center.Y - FontSize * 1.2f, Now.BigColor);
+
+	// La barra de progreso bajo el anillo (R-VIS-16): el fondo, el relleno del color de la última precisión y la marca del objetivo.
+	const FSlateBrush* White = FCoreStyle::Get().GetBrush("WhiteBrush");
+	const float BarWidth = Size.X * 0.7f;
+	const float BarHeight = 12.f * Scale;
+	const FVector2f BarPosition((Size.X - BarWidth) * 0.5f, Center.Y + MaxRadius + 18.f * Scale);
+	FSlateDrawElement::MakeBox(OutDrawElements, Layer, AllottedGeometry.ToPaintGeometry(FVector2f(BarWidth, BarHeight), FSlateLayoutTransform(BarPosition)), White,
+		ESlateDrawEffect::None, FLinearColor(0.25f, 0.25f, 0.25f, 0.9f));
+	const float FillWidth = BarWidth * static_cast<float>(FMath::Clamp(Now.ProgressFill, 0.0, 1.0));
+	if (FillWidth > 0.f)
+	{
+		FSlateDrawElement::MakeBox(OutDrawElements, Layer + 1, AllottedGeometry.ToPaintGeometry(FVector2f(FillWidth, BarHeight), FSlateLayoutTransform(BarPosition)), White,
+			ESlateDrawEffect::None, Now.ProgressColor);
+	}
+	if (Now.ProgressMark.IsSet())
+	{
+		const float MarkWidth = 3.f * Scale;
+		const float MarkX = BarPosition.X + BarWidth * static_cast<float>(FMath::Clamp(Now.ProgressMark.GetValue(), 0.0, 1.0)) - MarkWidth * 0.5f;
+		FSlateDrawElement::MakeBox(OutDrawElements, Layer + 2,
+			AllottedGeometry.ToPaintGeometry(FVector2f(MarkWidth, BarHeight + 8.f * Scale), FSlateLayoutTransform(FVector2f(MarkX, BarPosition.Y - 4.f * Scale))), White,
+			ESlateDrawEffect::None, FLinearColor::White);
+	}
 
 	// Una marca por pulso, abajo: gris si falta, del color de su precisión si ya se resolvió.
 	const int32 Count = Now.Pulses.Num();
@@ -121,5 +162,5 @@ int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 			DrawCircle(OutDrawElements, Layer, AllottedGeometry, DotCenter, Dot, FLinearColor(0.5f, 0.5f, 0.5f), 2.f * Scale);
 		}
 	}
-	return Layer;
+	return Layer + 2;
 }

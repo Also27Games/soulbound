@@ -71,6 +71,19 @@ int32 FRingTrialRun::CurrentPulse(double Now) const
 	return Now >= Begins && Now <= Ends ? Pulse : INDEX_NONE;
 }
 
+bool FRingTrialRun::IsInSweetZone(double Now) const
+{
+	// QueryPress ya salta los pulsos vencidos y distingue anuncio, hueco entre pulsos y fin; solo cuenta el pulso en curso.
+	const FRingPressQuery Query = QueryPress(Now);
+	if (Query.Kind != ERingPressKind::Counts)
+	{
+		return false;
+	}
+	// Media zona antes y después de la coincidencia; el final no cuenta, como en Advance (vence en cuanto Now lo alcanza).
+	const double HalfZone = Sequence.SweetZoneSeconds * 0.5;
+	return Query.OffsetSeconds >= -HalfZone && Query.OffsetSeconds < HalfZone;
+}
+
 double FRingTrialRun::CloseFraction(double Now) const
 {
 	if (IsFinished() || !(Sequence.CloseSeconds > 0.0))

@@ -24,6 +24,8 @@
 #include "Match/WardenEventRules.h"
 #include "PresentationShapes.h"
 #include "RingPanel.h"
+#include "RingPanelModel.h"
+#include "Engine/Texture2D.h"
 #include "Warden/WardenBrain.h"
 #include "SeatTokenActor.h"
 #include "Camera/CameraActor.h"
@@ -1174,39 +1176,76 @@ void ABoardViewActor::BuildOverlay()
 	// S-022 (decisión del autor del 29/10/2026): con la partida terminada, un botón grande para volver al menú, con el ratón (el controlador
 	// deja el cursor visible y la entrada en juego y UI). El resultado es texto de depuración arriba a la izquierda, de altura variable: el botón
 	// va en el centro del hueco del tablero, a la izquierda de la columna de paneles. Antes del final no existe; pedido, se desactiva.
+	// R-VIS-20 (S-031, corrección del autor del 12/11/2026): como la capa de la frase (R-DEC-13), la capa ocupa el hueco libre (HAlign_Fill, con sus
+	// márgenes) y el botón se centra dentro, sin márgenes laterales; con HAlign_Center y márgenes desiguales, AlignChild lo dejaba media columna a la
+	// izquierda del centro del hueco. La caja interior, que no recibe clics por sí misma, solo centra.
 	ReturnToMenuOverlay = SNew(SBox)
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Fill)
 		.Padding_Lambda([this]() { return FMargin(16.f, 0.f, PanelSlateWidth + 16.f, 0.f); })
 		.Visibility_Lambda([this]() { return IsMatchOverShown() ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed; })
 		[
-			SNew(SButton)
-			.ContentPadding(FMargin(32.f, 14.f))
-			.IsEnabled_Lambda([this]() { return !bReturningToMenu; })
-			.OnClicked_Lambda([this]()
-			{
-				ReturnToMenu();
-				return FReply::Handled();
-			})
+			SNew(SBox)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.Visibility(EVisibility::SelfHitTestInvisible)
 			[
-				SNew(STextBlock)
-				.Text(FText::FromString(TEXT("Volver al menú")))
-				.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(ReturnToMenuFontSize, 8)))
-				.Justification(ETextJustify::Center)
+				SNew(SButton)
+				.ContentPadding(FMargin(32.f, 14.f))
+				.IsEnabled_Lambda([this]() { return !bReturningToMenu; })
+				.OnClicked_Lambda([this]()
+				{
+					ReturnToMenu();
+					return FReply::Handled();
+				})
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(TEXT("Volver al menú")))
+					.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(ReturnToMenuFontSize, 8)))
+					.Justification(ETextJustify::Center)
+				]
 			]
 		];
 	Viewport->AddViewportWidgetContent(ReturnToMenuOverlay.ToSharedRef(), 12);
 
 	// S-026: el panel del anillo, centrado en el hueco del tablero como el botón del final. No recibe clics: la entrada va por RingInput.
+	// R-VIS-20: igual que el botón de volver: la capa llena el hueco y la caja interior centra el panel.
+	// S-031 (R-VIS-18): la textura de la runa se carga aquí, una vez; el pincel la apunta y el actor la mantiene viva (RuneTexture es UPROPERTY).
+	RuneTexture = nullptr;
+	RuneBrush = FSlateBrush();
+	if (RingRuneTexture.IsNull())
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Anillo: RingRuneTexture está vacío; la runa se pinta como un disco relleno."));
+	}
+	else
+	{
+		RuneTexture = Cast<UTexture2D>(RingRuneTexture.TryLoad());
+		if (RuneTexture)
+		{
+			RuneBrush.SetResourceObject(RuneTexture);
+			RuneBrush.ImageSize = FVector2f(RuneTexture->GetSizeX(), RuneTexture->GetSizeY());
+			RuneBrush.DrawAs = ESlateBrushDrawType::Image;
+		}
+		else
+		{
+			UE_LOG(LogSoulboundView, Warning, TEXT("Anillo: no existe la textura de la runa %s; se pinta un disco relleno."), *RingRuneTexture.ToString());
+		}
+	}
 	RingOverlay = SNew(SBox)
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Fill)
 		.Padding_Lambda([this]() { return FMargin(16.f, 0.f, PanelSlateWidth + 16.f, 0.f); })
 		.Visibility_Lambda([this]() { return RingPanelModel().bVisible ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
 		[
-			SNew(SRingPanel)
-			.FontSize(RingFontSize)
-			.Model([this]() { return RingPanelModel(); })
+			SNew(SBox)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			[
+				SNew(SRingPanel)
+				.FontSize(RingFontSize)
+				.Model([this]() { return RingPanelModel(); })
+				.RuneBrush([this]() -> const FSlateBrush* { return RuneTexture ? &RuneBrush : nullptr; })
+			]
 		];
 	Viewport->AddViewportWidgetContent(RingOverlay.ToSharedRef(), 13);
 }
@@ -2000,6 +2039,22 @@ void ABoardViewActor::HandleRingOpened()
 	// El título se fija al abrir: al cerrarse, el anfitrión ya no tiene la prueba.
 	LastRingTitle = RingTitle(HostPtr->GetRingTrial(), HostPtr->IsRingDuel(), HostPtr->GetRingDifficulty());
 	LastRingShownUntil = 0.0;
+	// S-031 (R-VIS-16): criterio y umbral de la prueba, con las mismas funciones de datos con que el anfitrión la abrió (RingParamsForTrial/ForDuel);
+	// no duplica la regla, la lee. Sin parámetros (prueba None fuera del duelo), un criterio sin marca.
+	const FRingParams& RingData = HostPtr->GetState().Params.Ring;
+	LastRingParams = FRingTrialParams();
+	LastRingParams.Criterion = ERingCriterion::Performance;
+	if (HostPtr->IsRingDuel())
+	{
+		LastRingParams = Soulbound::Rules::RingParamsForDuel(RingData);
+	}
+	else if (const TOptional<FRingTrialParams> Params = Soulbound::Rules::RingParamsForTrial(RingData, HostPtr->GetRingTrial(), HostPtr->GetRingDifficulty()))
+	{
+		LastRingParams = Params.GetValue();
+	}
+	// R-VIS-18: la runa de una Fuente se tiñe con el Dominio de la casilla del humano; en el resto, el azul de siempre.
+	const int32 RuneDomain = Soulbound::Presentation::RingRuneDomain(HostPtr->GetState(), HostPtr->GetHumanSeat(), HostPtr->GetRingTrial());
+	LastRingRuneColor = RuneDomain != INDEX_NONE ? DomainColor(RuneDomain) : FLinearColor(0.55f, 0.75f, 1.f);
 	// S-027 (R-INS-1): la primera vez que se abre el anillo para el humano, el Warden lo explica. El anillo no es un evento del motor: lo avisa
 	// la vista al seguimiento.
 	if (HostPtr->HasMatch() && HostPtr->GetHumanSeat() != INDEX_NONE)
@@ -2042,7 +2097,8 @@ void ABoardViewActor::HandleRingClosed(const TOptional<FRingOutcome>& Outcome)
 	LastRingPrecisions = Outcome->Precisions;
 	if (Outcome->bDuel)
 	{
-		LastRingResult = FString::Printf(TEXT("RENDIMIENTO %.2f"), Outcome->Performance);
+		// R-VIS-17: en el duelo no hay texto ni cifra de rendimiento; quien gana lo dice el panel de decisión (R-DEC-10). Solo la barra y las marcas.
+		LastRingResult.Reset();
 		LastRingColor = SRingPanel::PrecisionColor(Outcome->Performance);
 		LastRingNote = Outcome->bForced ? TEXT("resultado fijado con SbDuel") : FString();
 	}
@@ -2140,20 +2196,23 @@ FRingPanelModel ABoardViewActor::RingPanelModel() const
 		Model.Title = LastRingTitle;
 		// En el anuncio, la instrucción bajo el título; los pulsos que vienen ya se ven en las marcas de abajo.
 		Model.Counter = Run->IsAnnouncing(Now)
-			? FString(TEXT("Haz clic cuando el anillo toque la runa"))
+			? FString(TEXT("Haz clic cuando el aro entre en la franja verde"))
 			: FString::Printf(TEXT("pulso %d de %d"), FMath::Min(Done.Num() + 1, Total), Total);
 		Model.CloseFraction = Run->CloseFraction(Now);
 		Model.ZoneFraction = Run->Sequence.CloseSeconds > 0.0 ? 0.5 * Run->Sequence.SweetZoneSeconds / Run->Sequence.CloseSeconds : 0.0;
+		Model.bInSweetZone = Run->IsInSweetZone(Now);
+		Model.ZoneColor = RingZoneColor;
+		Model.RuneColor = LastRingRuneColor;
 		for (int32 Pulse = 0; Pulse < Total; ++Pulse)
 		{
 			Model.Pulses.Add(Done.IsValidIndex(Pulse) ? TOptional<double>(Done[Pulse]) : TOptional<double>());
 		}
-		// Resuelto un pulso, su precisión se enseña hasta que empieza el siguiente.
-		if (!Done.IsEmpty() && Run->CurrentPulse(Now) == INDEX_NONE)
-		{
-			Model.Big = FString::Printf(TEXT("%.2f"), Done.Last());
-			Model.BigColor = SRingPanel::PrecisionColor(Done.Last());
-		}
+		// R-VIS-16: la barra enseña la suma de precisiones y el umbral del motor; el relleno toma el color de la última precisión. R-VIS-17: ya no
+		// hay número de precisión ni texto de puntuación; las marcas de color de cada pulso lo dicen.
+		const FRingProgress Progress = Soulbound::Presentation::RingProgress(Done, Total, LastRingParams.Criterion, LastRingParams.PassThreshold);
+		Model.ProgressFill = Progress.Fill;
+		Model.ProgressMark = Progress.Mark;
+		Model.ProgressColor = Done.IsEmpty() ? FLinearColor::White : SRingPanel::PrecisionColor(Done.Last());
 		return Model;
 	}
 	if (Now < LastRingShownUntil)
@@ -2167,6 +2226,11 @@ FRingPanelModel ABoardViewActor::RingPanelModel() const
 		{
 			Model.Pulses.Add(Precision);
 		}
+		// R-VIS-16/17: al acabar, la barra con el resultado final y las marcas; el duelo no lleva marca ni cifra.
+		const FRingProgress Progress = Soulbound::Presentation::RingProgress(LastRingPrecisions, LastRingParams.Pulses, LastRingParams.Criterion, LastRingParams.PassThreshold);
+		Model.ProgressFill = Progress.Fill;
+		Model.ProgressMark = Progress.Mark;
+		Model.ProgressColor = LastRingPrecisions.IsEmpty() ? FLinearColor::White : SRingPanel::PrecisionColor(LastRingPrecisions.Last());
 	}
 	return Model;
 }

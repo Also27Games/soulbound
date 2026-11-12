@@ -7,6 +7,8 @@
 #include "BoardLayout.h"
 #include "DecisionText.h"
 #include "InstructionTracker.h"
+#include "Match/RingRules.h"
+#include "Styling/SlateBrush.h"
 #include "StatusText.h"
 #include "WardenLineQueue.h"
 #include "BoardViewActor.generated.h"
@@ -28,6 +30,7 @@ struct FRingPanelModel;
 enum class ESkillTrial : uint8;
 enum class ESkillDifficulty : uint8;
 class UInstancedStaticMeshComponent;
+class UTexture2D;
 class UMaterialInterface;
 class UMatchHostSubsystem;
 class USkyLightComponent;
@@ -336,6 +339,21 @@ public:
 	/** Tamaño de la letra del título del panel del anillo (S-026); el resto se escala con él. Valor inicial 20. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
 	int32 RingFontSize = 20;
+
+	/**
+	 * Textura de la runa del panel del anillo (S-031, R-VIS-18): un símbolo blanco sobre transparente que el panel tiñe. Vacía, o con un asset que no
+	 * existe, el panel pinta un disco relleno del mismo color y lo dice una vez en el registro. Valor inicial /Game/Art/Anillo/T_RunaAnillo.T_RunaAnillo
+	 * (Config/DefaultGame.ini); el asset lo importa el autor.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (AllowedClasses = "/Script/Engine.Texture2D"))
+	FSoftObjectPath RingRuneTexture;
+
+	/**
+	 * Color y opacidad de la franja verde de la zona buena del panel del anillo (S-031, R-VIS-14). La anchura no se configura: sale de la zona buena.
+	 * Valor inicial (0,2, 0,9, 0,3) con opacidad 0,55 (Config/DefaultGame.ini); el autor lo ajusta en PIE.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FLinearColor RingZoneColor = FLinearColor(0.2f, 0.9f, 0.3f, 0.55f);
 
 	/** Margen de la cámara alrededor del tablero (1 = justo al borde). Valor inicial 1,04. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Paneles")
@@ -879,6 +897,19 @@ private:
 	FString LastRingNote;
 	TArray<double> LastRingPrecisions;
 	double LastRingShownUntil = 0.0;
+	/** Criterio, umbral y pulsos de la prueba en curso o de la última (S-031, R-VIS-16): los de datos, que la barra enseña sin reinterpretarlos. */
+	FRingTrialParams LastRingParams;
+	/** Color con que se tiñe la runa de la prueba en curso (R-VIS-18): el del Dominio de la Fuente, o el azul de siempre. */
+	FLinearColor LastRingRuneColor = FLinearColor(0.55f, 0.75f, 1.f);
+
+	/**
+	 * La textura de la runa del anillo, cargada al montar el panel (S-031, R-VIS-18). UPROPERTY para que el recolector no la libere mientras el pincel
+	 * que la apunta (RuneBrush, que no es UObject) esté en uso por el panel.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> RuneTexture;
+	/** El pincel de la runa: apunta a RuneTexture; vacío si no hay textura (entonces el panel pinta un disco). */
+	FSlateBrush RuneBrush;
 
 	Soulbound::Presentation::FWardenLineQueue WardenLineQueue;
 	/** Cuántos eventos del registro se han mirado en busca de frases. */
