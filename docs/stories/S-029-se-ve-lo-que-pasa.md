@@ -15,12 +15,17 @@ Decidido por el autor el 9/11/2026, cuatro cosas y nada más:
 
 Sin sonido, sin partículas, sin arte nuevo: colores sobre los materiales que ya existen y un panel Slate.
 
+Añadido por el autor el 12/11/2026:
+
+5. **El Grimorio no vibra.** En algunas partidas el panel del Grimorio (S-027) tiembla mientras está abierto. Las Ayudas mandan al jugador a pulsar G, y un panel que tiembla parece roto. No cambia lo que enseña.
+
 ## Reglas a implementar (`Soulbound`, `Presentation/`)
 
 - **R-VIS-10 (precisión). Color de la ficha.** `ASeatTokenActor` recibe del estado el rol del asiento y su Dominio: Eco, color gris de datos (`EchoTokenColor`, Config); Elegido, el color del Dominio que ya usa la leyenda (`DomainColor`). Cambia en el momento del vínculo (`Bonded`) y vuelve a gris si el asiento deja de ser Elegido. El aro de rol actual se mantiene o se retira, a elección de quien implemente, sin que el número deje de verse.
 - **R-VIS-11 (precisión). Ficha activa.** Un aro plano bajo la ficha del asiento activo (`State.ActiveSeat`), con el color del asiento y un pulso lento de intensidad (periodo en Config, `ActiveRingPulseSeconds`, valor inicial 1,5). Solo durante el turno, incluidas sus fases de elección; entre turnos, ninguno. En un duelo o un trilero entre turnos (S-015), lo llevan los dos participantes.
 - **R-VIS-12 (precisión). Destellos.** Al leer en el registro `RuneObtained`, `RuneStolen` (ganador y víctima), `RuneReturned`, `RunesSeized`, `FinalChallengeFailed`: la ficha del asiento afectado parpadea `FlashSeconds` (Config, valor inicial 0,6), claro si gana y rojo si pierde; la Fuente del tipo de runa implicado, igual. Varios eventos seguidos no se pisan: se encadenan. Una función pura (`Presentation/FlashCues.h`, nombre propuesto) convierte los eventos nuevos del registro en la lista de destellos (asiento o casilla, color, duración); la vista los ejecuta.
 - **R-VIS-13 (precisión). Carta del Elegido.** Al `Bonded` del asiento humano, un panel centrado (`SElectCardPanel`, nombre propuesto, reutilizando las filas del Grimorio de S-027) durante `ElectCardSeconds` (Config, valor inicial 6), o hasta que el jugador haga clic. Si el jugador abre el Grimorio con `G`, la carta se cierra. No se muestra para los dummies.
+- **R-VIS-21 (precisión). El Grimorio, quieto.** Hoy `TickHud` llama a `SGrimoirePanel::SetContent` en cada refresco con el panel abierto, y `SetContent` borra y vuelve a crear todos sus textos, que además usan `AutoWrapText` (parte al ancho de lo pintado antes). Hipótesis del autor: cada reconstrucción estrena textos sin ancho conocido y el panel cambia de tamaño de un fotograma a otro; depende de lo largos que sean los textos, y por eso solo pasa en algunas partidas. Desde esta story: el panel solo se reconstruye cuando su contenido cambia (las filas y las líneas de poderes se comparan con las anteriores, como `SDecisionPanel::SameLook`), y sus textos se parten con `WrapTextAt` a un ancho que no depende de lo pintado. Si la hipótesis no explica el temblor, se dice en el PR antes de probar otra cosa.
 
 ## Criterios de aceptación
 
@@ -30,6 +35,7 @@ Automáticos, en `Soulbound`, sin mundo (`Private/Tests/FlashCuesTest.cpp`, nomb
 - **CA-VIS-11** (aro). Con el asiento 2 activo en fase de tirada, solo el 2 lleva aro; entre turnos, ninguno; en un duelo entre turnos entre el 1 y el 3, los dos.
 - **CA-VIS-12** (destellos). Un `RuneObtained` del asiento 0 con la runa del Dominio 4 produce dos destellos claros, ficha 0 y Fuente del Dominio 4; un `RuneStolen` del 1 al 0 produce claro en el 1 y rojo en el 0; dos eventos en el mismo instante producen destellos encadenados, no simultáneos sobre la misma ficha.
 - **CA-VIS-13** (carta). La regla de visibilidad de la carta devuelve visible desde el `Bonded` del humano hasta `ElectCardSeconds` después, o hasta un clic, o hasta abrir el Grimorio; no la enseña para un `Bonded` de un dummy.
+- **CA-VIS-19** (Grimorio, R-VIS-21). Las filas del Grimorio de un mismo estado, calculadas dos veces, son iguales; si un asiento gana una runa, se vincula o activa un poder, dejan de serlo. La comparación es una función pura o el operador de igualdad de `FGrimoireRow`, sin Slate.
 
 Manuales, por el autor, en PIE, con captura:
 
@@ -37,6 +43,7 @@ Manuales, por el autor, en PIE, con captura:
 - Durante tu turno, tu ficha lleva el aro luminoso; durante el de un dummy, la suya.
 - Al coger una runa, tu ficha y la Fuente parpadean en claro; al perder una (`SbTakeRune 0 2 1` no vale: es edición; usar un robo o `SbEvent` con pérdida de runa), en rojo.
 - En 1024x768 la carta no tapa la frase del Warden.
+- Con el Grimorio abierto (`G`) durante una ronda entera de los dummies, el panel no tiembla ni cambia de tamaño, a 1024x768 y a 1920x1080, en una partida con los cuatro asientos vinculados; cuando alguien gana una runa, su fila se actualiza.
 
 ## Notas para quien lo implemente
 
