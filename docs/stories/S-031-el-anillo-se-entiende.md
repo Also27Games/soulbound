@@ -22,6 +22,7 @@ Decidido por el autor el 10/11/2026:
 - **R-VIS-17 (precisión). Sin cifras.** El panel no enseña la precisión como número ni ningún texto de puntuación. Se conservan el título de la prueba, el contador "pulso k de N", las marcas de color de cada pulso y, al acabar, el resultado ("superada", "fallada"). En el duelo, al acabar, el panel no enseña "RENDIMIENTO" ni ninguna cifra: solo la barra y las marcas; quién gana lo dice el panel de decisión (R-DEC-10, S-033). La instrucción del anuncio pasa a "Haz clic cuando el aro entre en la franja verde".
 
 - **R-VIS-18 (precisión). La imagen de la runa.** El panel pinta en el centro una textura, del tamaño del diámetro de la runa de hoy, teñida: con el color del Dominio de la runa cuando la prueba es de una Fuente, y con el azul de hoy en el resto. La textura se indica por configuración (`RingRuneTexture`, `FSoftObjectPath`, Config, en `DefaultGame.ini`). Si está vacía o el asset no existe, el panel pinta un disco relleno del mismo color y lo dice una vez en el registro: el código compila, pasa los tests y funciona sin el asset.
+- **R-VIS-20 (precisión). El anillo, centrado en el hueco.** Añadido por el autor el 12/11/2026, visto en S-033: la capa del anillo (`RingOverlay`) y la del botón de volver al menú (`ReturnToMenuOverlay`) van con `HAlign_Center` y márgenes desiguales (16 a la izquierda, la columna de paneles más 16 a la derecha), y Slate las coloca media columna a la izquierda del centro del hueco (`AlignChild`, `LayoutUtils.h`). Se corrigen como la capa de la frase en S-033 (R-DEC-13): la capa ocupa el hueco libre y el contenido se centra dentro, sin márgenes laterales.
 
 ## Asset que pide esta story
 
@@ -50,6 +51,7 @@ Manuales, por el autor, en PIE y en la build empaquetada, a 1024x768 y a 1920x10
 - La franja verde se distingue de la runa y del fondo; el aro se vuelve verde al entrar en ella y se ve el cambio también en la dificultad difícil.
 - La barra crece tras cada pulso y la marca del objetivo se ve en Fuente, Prueba del Warden y Vacío; en un duelo (`SbDuel` no vale, lo fija; retar a un dummy) no hay marca.
 - No queda ninguna cifra de precisión ni frase de puntuación en el panel.
+- El panel del anillo queda centrado bajo el tablero, en el hueco a la izquierda de la columna, y a 1024x768 no se corta por la izquierda; el botón de volver al menú, igual.
 - Con el asset importado, la runa se ve en el centro, nítida a los dos tamaños, teñida con el color del Dominio en una Fuente; con `RingRuneTexture` vacío sale el disco y el registro lo dice.
 - Jugando diez anillos seguidos, el autor acierta más que antes o igual: si la franja distrae, se dice en el PR.
 
