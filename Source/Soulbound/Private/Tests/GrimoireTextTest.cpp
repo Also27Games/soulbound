@@ -159,4 +159,44 @@ bool FGrimoireTextsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireRowsStillTest, "Soulbound.Game.Presentation.Grimorio.SoloSeReconstruyeSiCambia", GrimoireTestFlags)
+
+bool FGrimoireRowsStillTest::RunTest(const FString& Parameters)
+{
+	// CA-VIS-19 (R-VIS-21): las filas de un mismo estado, calculadas dos veces, son iguales (el panel no se reconstruye); si un asiento gana una
+	// runa, se vincula o activa un poder, dejan de serlo. La comparación es el operador de igualdad de FGrimoireRow, sin Slate.
+	FMatchState State;
+	if (!GrMakeState(*this, State))
+	{
+		return false;
+	}
+	FGrimoireTexts Texts;
+	const TArray<FLinearColor> Colors{FLinearColor::Red, FLinearColor::Green, FLinearColor::Blue, FLinearColor::White};
+	const TArray<FGrimoireRow> Before = Soulbound::Presentation::GrimoireRows(State, GrFenrirSeat, Texts, Colors);
+	const TArray<FGrimoireRow> Again = Soulbound::Presentation::GrimoireRows(State, GrFenrirSeat, Texts, Colors);
+	TestTrue(TEXT("El mismo estado, dos veces: iguales"), Before == Again);
+
+	FMatchState Gained = State;
+	Gained.Seats[GrEchoSeat].Runes[2] = 1;
+	TestFalse(TEXT("Un asiento gana una runa: distintas"), Before == Soulbound::Presentation::GrimoireRows(Gained, GrFenrirSeat, Texts, Colors));
+
+	FMatchState Bonded = State;
+	Bonded.Seats[GrEchoSeat].Role = ESeatRole::Elect;
+	Bonded.Seats[GrEchoSeat].DomainId = 3;
+	TestFalse(TEXT("Un asiento se vincula: distintas"), Before == Soulbound::Presentation::GrimoireRows(Bonded, GrFenrirSeat, Texts, Colors));
+
+	// Un Elegido que consigue la runa de su propio Dominio activa Celeridad (diagonal del cuadrado latino): cambia la cantidad y el poder activo.
+	FMatchState Powered = State;
+	Powered.Seats[GrFenrirSeat].Runes[GrFenrirDomain] = 1;
+	const TArray<FGrimoireRow> After = Soulbound::Presentation::GrimoireRows(Powered, GrFenrirSeat, Texts, Colors);
+	TestFalse(TEXT("Un asiento activa un poder: distintas"), Before == After);
+	TestTrue(TEXT("Y la fila del asiento trae el poder nuevo activo"), After[GrFenrirSeat].ActivePowers.Num() > Before[GrFenrirSeat].ActivePowers.Num());
+
+	// Un texto distinto (otra afinidad con otra frase) también es otro contenido.
+	FGrimoireTexts Other;
+	Other.AffinityTexts.Add(EAffinity::FreePassage, TEXT("Otra frase"));
+	TestFalse(TEXT("Otra frase de afinidad: distintas"), Before == Soulbound::Presentation::GrimoireRows(State, GrFenrirSeat, Other, Colors));
+	return true;
+}
+
 #endif

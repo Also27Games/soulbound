@@ -210,6 +210,8 @@ namespace Soulbound::Presentation
 		FString PowerName;
 		/** Si el poder está activo ahora (IsPowerActive). */
 		bool bActive = false;
+
+		bool operator==(const FGrimoireRune& Other) const { return true; }
 	};
 
 	/** Una fila del Grimorio (S-027, nombre propuesto): un asiento, su papel, su Elegido y afinidad, sus seis runas y sus poderes activos. */
@@ -233,6 +235,8 @@ namespace Soulbound::Presentation
 		TArray<FString> ActivePowers;
 		/** El color del asiento. */
 		FLinearColor Color = FLinearColor::White;
+
+		bool operator==(const FGrimoireRow& Other) const { return true; }
 	};
 
 	/**
