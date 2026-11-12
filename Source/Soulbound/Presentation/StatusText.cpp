@@ -879,3 +879,13 @@ namespace Soulbound::Presentation
 		return Lines;
 	}
 }
+
+float Soulbound::Presentation::GrimoirePanelWidth(float LayerWidth)
+{
+	return FMath::Clamp(LayerWidth - 32.f, 1.f, GrimoireMaxWidth);
+}
+
+float Soulbound::Presentation::GrimoireCardTextWidth(float PanelWidth, int32 Columns)
+{
+	return FMath::Max((PanelWidth - 32.f) / FMath::Max(Columns, 1) - 24.f, 1.f);
+}

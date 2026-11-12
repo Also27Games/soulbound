@@ -12,12 +12,14 @@
 #include "BoardViewState.h"
 #include "ChroniclePanel.h"
 #include "DecisionPanel.h"
+#include "ElectCardPanel.h"
 #include "EventText.h"
 #include "GrimoirePanel.h"
 #include "InstructionTracker.h"
 #include "LegendPanel.h"
 #include "StatusPanel.h"
 #include "StatusText.h"
+#include "TokenLook.h"
 #include "Match/BondRaceRules.h"
 #include "Match/RuneRules.h"
 #include "Match/VictoryRules.h"
@@ -195,7 +197,9 @@ namespace
 
 ABoardViewActor::ABoardViewActor()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	// S-029: solo corre mientras hay un destello de una Fuente (Tick); las fichas llevan los suyos.
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 	SetRootComponent(CreateDefaultSubobject<USceneComponent>(TEXT("Root")));
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(Soulbound::Presentation::CubePath);
@@ -286,6 +290,9 @@ void ABoardViewActor::Initialize(UMatchHostSubsystem* InHost)
 	BuildCamera();
 	BuildLighting();
 	BuildOverlay();
+	// S-029 (añadido del autor del 12/11/2026): los destellos y la carta empiezan en el final del registro; lo ya ocurrido no destella.
+	FlashScanned = InHost->GetState().EventLog.Num();
+	ElectCard.SkipExisting(InHost->GetState());
 	Refresh();
 
 	ChangedHandle = InHost->OnMatchStateChanged.AddUObject(this, &ABoardViewActor::Refresh);
@@ -329,6 +336,18 @@ void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		}
 		WardenLineOverlay.Reset();
 		WardenLineContent.Reset();
+	}
+	if (ElectCardOverlay.IsValid())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UGameViewportClient* Viewport = World->GetGameViewport())
+			{
+				Viewport->RemoveViewportWidgetContent(ElectCardOverlay.ToSharedRef());
+			}
+		}
+		ElectCardOverlay.Reset();
+		ElectCardPanel.Reset();
 	}
 	if (ReturnToMenuOverlay.IsValid())
 	{
@@ -690,10 +709,11 @@ void ABoardViewActor::BuildTokens()
 			Token->SetSeat(Seat);
 			Token->Configure(TokenLabelSize, ActiveLift, ActiveSpinDegreesPerSecond, RingDiameter, RingWidth, ActiveScale, TokenDiameter);
 			// R-VIS-6: la carta de prueba del kit, con el color del asiento en el aro de su base (sin carta, la esfera o el cono).
-			if (UStaticMeshComponent* CardMesh = Token->UseCard(Card, Kit.EmissiveMaterial(), TokenRingScale, TokenRingWidth, EchoRingBrightness))
+			if (UStaticMeshComponent* CardMesh = Token->UseCard(Card, Kit.EmissiveMaterial(), TokenRingScale, TokenRingWidth, RoleRingBrightness))
 			{
 				Kit.ApplyMaterials(*CardMesh);
 			}
+			Token->SetRingPulse(ActiveRingPulseSeconds, ActiveRingPulseMin);
 			Token->SetColor(SeatColor(Seat));
 			Token->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
 			Token->OnTileEntered.BindUObject(this, &ABoardViewActor::OnTokenTileEntered);
@@ -952,8 +972,8 @@ void ABoardViewActor::BuildOverlay()
 	FLegendRow Seats;
 	// S-019: con la carta del kit, el rol va en el aro de su base (decisión del autor del 20/10/2026).
 	Seats.Title = Kit.Mesh(EBoardKitPiece::TokenCard)
-		? TEXT("Asientos (el número va sobre la carta): aro tenue = Eco, aro vivo = Elegido. El activo crece, sube, gira y lleva aro")
-		: TEXT("Asientos (el número va en la ficha): esfera = Eco, cono = Elegido. El activo crece, sube, gira y lleva aro");
+		? TEXT("Asientos (el número va sobre la carta): aro de la base gris = Eco, del color de su Dominio = Elegido. Quien juega crece, sube, gira y lleva un aro del color del asiento que pulsa")
+		: TEXT("Asientos (el número va en la ficha): gris = Eco, color de su Dominio = Elegido. Quien juega crece, sube, gira y lleva un aro del color del asiento que pulsa");
 	for (int32 Seat = 0; Seat < Host->GetState().Seats.Num(); ++Seat)
 	{
 		FLegendChip Chip;
@@ -983,6 +1003,8 @@ void ABoardViewActor::BuildOverlay()
 		Seats.Chips.Add(Chip);
 	}
 	Rows.Add(Seats);
+	// S-029: lo que se ve al ganar o perder una runa.
+	Rows.Add({TEXT("Destello breve en la ficha y en la Fuente de la runa: claro = se gana una runa, rojo = se pierde (robo, devolución, Desvío, desafío fallado)"), {}});
 	// Brazal de cada asiento (S-008): runas por tipo y poderes activos, al día.
 	FLegendRow Bracers;
 	Bracers.Title = TEXT("Brazal por asiento: runas (D<n>×cantidad, una por Dominio) y poderes activos. Fuente: F, con su reserva");
@@ -1096,8 +1118,38 @@ void ABoardViewActor::BuildOverlay()
 			.FontSize(PanelFont)
 			.DomainColors(RuneChipColors)
 			.CloseKeys(FString::Printf(TEXT("%s o %s"), *GrimoireKey.GetDisplayName().ToString(), *PanelsToggleKey.GetDisplayName().ToString()))
+			// S-029 (R-VIS-21): ancho fijo, el de la capa; no depende de lo pintado antes.
+			.PanelWidth_Lambda([this]() { return Soulbound::Presentation::GrimoirePanelWidth(LayerSlateWidth()); })
 		];
 	Viewport->AddViewportWidgetContent(GrimoireOverlay.ToSharedRef(), 14);
+
+	// S-029 (R-VIS-13): la carta del Elegido. Como la capa de la frase (R-DEC-13) y la del anillo (R-VIS-20), la capa ocupa el hueco libre (HAlign_Fill,
+	// con sus márgenes) y la carta se centra dentro; AlignChild no centra dentro del hueco con márgenes desiguales. Abajo se deja libre una fracción
+	// de la pantalla (ElectCardBottomFraction) para el panel de decisión y la frase del Warden. La capa no recibe clics; la carta sí (cierra).
+	ElectCardOverlay = SNew(SBox)
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Center)
+		.Padding_Lambda([this]()
+		{
+			const float Height = static_cast<float>(LastViewportSize.Y) / FMath::Max(PanelDpiScale, 0.01f);
+			return FMargin(16.f, 0.f, PanelSlateWidth + 16.f, Height * ElectCardBottomFraction);
+		})
+		.Visibility_Lambda([this]() { return IsElectCardShown() ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed; })
+		[
+			SNew(SBox)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.Visibility(EVisibility::SelfHitTestInvisible)
+			[
+				SAssignNew(ElectCardPanel, SElectCardPanel)
+				.FontSize(PanelFont)
+				.DomainColors(RuneChipColors)
+				.GrimoireKey(GrimoireKey.GetDisplayName().ToString())
+				.PanelWidth_Lambda([this]() { return FMath::Max(BoardFreeWidthNow(ElectCardMaxWidth) - 8.f, 1.f); })
+				.OnDismissed(FSimpleDelegate::CreateUObject(this, &ABoardViewActor::DismissElectCard))
+			]
+		];
+	Viewport->AddViewportWidgetContent(ElectCardOverlay.ToSharedRef(), 13);
 
 	// S-028 (R-DEC-4): el ancho máximo del panel de decisión, en unidades de Slate; dentro, sus botones van en fila si caben.
 	static constexpr float DecisionPanelMaxWidth = 900.f;
@@ -1460,6 +1512,8 @@ void ABoardViewActor::Refresh()
 	RefreshOracleOrb(State);
 	RefreshAspirantHalos(State);
 	RefreshWardenLine(State);
+	RefreshFlashes(State);
+	RefreshElectCard(State);
 	RefreshChronicle(State);
 }
 
@@ -1584,8 +1638,9 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 	{
 		return;
 	}
-	// Asiento activo: solo mientras dura su turno; entre turnos no juega nadie.
-	const bool bSomeoneActive = !State.IsMatchOver() && State.TurnPhase != ETurnPhase::BetweenTurns;
+	// S-029 (R-VIS-11): los asientos con el aro del turno. Solo durante el turno; entre turnos, ninguno; en un duelo o un trilero que juega un evento
+	// del Warden, sus dos participantes (el ActiveSeat de entonces es el del último turno).
+	const TArray<int32> RingedSeats = Soulbound::Presentation::RingedSeats(State);
 	// S-013, S-019: qué fichas están en el tablero (fuera, en el Vacío). Se mira aquí porque las fichas también se recolocan al
 	// acabar un recorrido, sin pasar por Refresh.
 	const FBoardViewState View = Soulbound::Presentation::ComputeBoardViewState(State, Kit.IsNicheThroneConfigured());
@@ -1661,13 +1716,15 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 		// S-013 (R-TAB-24): en el Vacío la ficha sale del tablero; se oculta y reaparece en su hogar al salir.
 		Token->SetActorHiddenInGame(!View.TokensOnBoard.IsValidIndex(Seat) || !View.TokensOnBoard[Seat]);
 		Token->SetLabelVisible(!bOverlayHidden);
+		// S-029 (R-VIS-10): el aro de rol de la base (la ficha, sin carta) toma el gris del Eco o el color del Dominio del Elegido.
+		Token->SetRoleColor(Soulbound::Presentation::TokenColor(State.Seats[Seat].Role, State.Seats[Seat].DomainId, EchoTokenColor, DomainColors));
 		if (!TilePositions.IsValidIndex(TileId))
 		{
 			Token->StopWalk();
 			continue;
 		}
 		Token->SetElectShape(State.Seats[Seat].Role == ESeatRole::Elect);
-		Token->SetActive(bSomeoneActive && Seat == State.ActiveSeat);
+		Token->SetActive(RingedSeats.Contains(Seat));
 		// S-017: durante una votación, el clic en la ficha de otro es el voto del humano.
 		Token->SetClickable(Soulbound::Rules::VoteOptions(State, HostPtr->GetHumanSeat()).Contains(Seat));
 
@@ -1752,6 +1809,7 @@ void ABoardViewActor::TogglePanels()
 	// también cierra el Grimorio, para que uno invisible no siga bloqueando los clics (decisión aceptada por el autor el 9/11/2026).
 	bPanelsHidden = !bPanelsHidden;
 	bGrimoireOpen = false;
+	ElectCard.SetGrimoireOpen(false);
 	UpdateCamera();
 }
 
@@ -1903,7 +1961,139 @@ void ABoardViewActor::ToggleDebugPanel()
 void ABoardViewActor::ToggleGrimoire()
 {
 	bGrimoireOpen = !bGrimoireOpen;
+	// S-029 (R-VIS-13): abrir el Grimorio cierra la carta del Elegido.
+	ElectCard.SetGrimoireOpen(bGrimoireOpen);
 	TickHud();
+}
+
+void ABoardViewActor::RefreshElectCard(const FMatchState& State)
+{
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	const UWorld* World = GetWorld();
+	if (!HostPtr || !World)
+	{
+		return;
+	}
+	const double Now = World->GetTimeSeconds();
+	// Un Bonded del asiento humano abre la carta; el de un dummy, no (R-VIS-13).
+	ElectCard.Observe(State, HostPtr->GetHumanSeat(), Now);
+	if (ElectCardPanel.IsValid() && ElectCard.IsVisible(Now, ElectCardSeconds))
+	{
+		const TArray<Soulbound::Presentation::FGrimoireRow> Rows = Soulbound::Presentation::GrimoireRows(State, HostPtr->GetHumanSeat(), GrimoireTexts, SeatColors);
+		if (Rows.IsValidIndex(HostPtr->GetHumanSeat()))
+		{
+			ElectCardPanel->SetRow(Rows[HostPtr->GetHumanSeat()]);
+		}
+	}
+}
+
+void ABoardViewActor::DismissElectCard()
+{
+	ElectCard.Dismiss();
+}
+
+bool ABoardViewActor::IsElectCardShown() const
+{
+	const UWorld* World = GetWorld();
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	return World && HostPtr && !bPanelsHidden && !bGrimoireOpen && !HostPtr->IsCurtainDown() && ElectCard.IsVisible(World->GetTimeSeconds(), ElectCardSeconds);
+}
+
+void ABoardViewActor::RefreshFlashes(const FMatchState& State)
+{
+	// Un registro más corto que lo leído es otra partida.
+	if (FlashScanned > State.EventLog.Num())
+	{
+		FlashScanned = 0;
+	}
+	const TArray<Soulbound::Presentation::FFlashCue> Cues = Soulbound::Presentation::FlashCuesFromEvents(State, FlashScanned, FlashSeconds);
+	FlashScanned = State.EventLog.Num();
+	const UWorld* World = GetWorld();
+	if (Cues.IsEmpty() || !World)
+	{
+		return;
+	}
+	const double Now = World->GetTimeSeconds();
+	for (const Soulbound::Presentation::FFlashCue& Cue : Cues)
+	{
+		const FLinearColor Color = Cue.bGain ? FlashGainColor : FlashLossColor;
+		if (Cue.Target == Soulbound::Presentation::EFlashTarget::Token)
+		{
+			if (TokenActors.IsValidIndex(Cue.Id) && TokenActors[Cue.Id])
+			{
+				TokenActors[Cue.Id]->Flash(Color, Cue.DurationSeconds, Cue.DelaySeconds);
+			}
+			continue;
+		}
+		// La Fuente: la vista encadena sus destellos, uno tras otro, con el mismo criterio que la ficha.
+		double& Busy = SourceFlashBusy.FindOrAdd(Cue.Id, 0.0);
+		FSourceFlash Flash;
+		Flash.RuneType = Cue.Id;
+		Flash.bGain = Cue.bGain;
+		Flash.Start = FMath::Max(Now + Cue.DelaySeconds, Busy);
+		Flash.End = Flash.Start + Cue.DurationSeconds;
+		Busy = Flash.End;
+		SourceFlashes.Add(Flash);
+		SetActorTickEnabled(true);
+	}
+}
+
+void ABoardViewActor::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	const UWorld* World = GetWorld();
+	if (!HostPtr || !World || !HostPtr->HasMatch())
+	{
+		return;
+	}
+	// S-029 (R-VIS-12): el destello de una Fuente tiñe su cruz (la marca de la casilla) con el color del destello, con subida y bajada suaves, y al
+	// acabar el último se repinta la vista para devolver a la cruz su color de siempre.
+	const double Now = World->GetTimeSeconds();
+	const FMatchState& State = HostPtr->GetState();
+	const int32 Before = SourceFlashes.Num();
+	SourceFlashes.RemoveAll([Now](const FSourceFlash& Flash) { return Flash.End <= Now; });
+	for (const FSourceFlash& Flash : SourceFlashes)
+	{
+		if (Flash.Start > Now)
+		{
+			continue;
+		}
+		const int32 TileId = State.Board.FindPowerSource(Flash.RuneType);
+		const float Intensity = static_cast<float>(FMath::Sin(UE_DOUBLE_PI * (Now - Flash.Start) / FMath::Max(Flash.End - Flash.Start, static_cast<double>(KINDA_SMALL_NUMBER))));
+		const FLinearColor Color = FMath::Lerp(SourceColor, Flash.bGain ? FlashGainColor : FlashLossColor, Intensity);
+		for (const TArray<TObjectPtr<UStaticMeshComponent>>* Marks : {&Inlays, &InlayHoles})
+		{
+			if (UStaticMeshComponent* Mark = Marks->IsValidIndex(TileId) ? (*Marks)[TileId].Get() : nullptr)
+			{
+				Soulbound::Presentation::SetComponentColor(*Mark, BaseMaterial, Color);
+			}
+		}
+		// La cruz de la Fuente es blanca de por sí, y un destello claro no se vería en ella: el halo de la casilla (el de las alcanzables) se
+		// enciende con el color del destello mientras dura, y con él se ve también el claro.
+		if (UStaticMeshComponent* Halo = Halos.IsValidIndex(TileId) ? Halos[TileId].Get() : nullptr)
+		{
+			Soulbound::Presentation::SetComponentColor(*Halo, BaseMaterial, FLinearColor(Color.R * Intensity, Color.G * Intensity, Color.B * Intensity));
+			Halo->SetVisibility(true);
+		}
+	}
+	if (SourceFlashes.Num() != Before)
+	{
+		// Acabó algún destello: los halos recuperan su color de alcanzable y la vista se repinta (cruz y visibilidad de siempre).
+		for (UStaticMeshComponent* Halo : Halos)
+		{
+			if (Halo)
+			{
+				Soulbound::Presentation::SetComponentColor(*Halo, BaseMaterial, ReachableColor);
+			}
+		}
+		Refresh();
+	}
+	if (SourceFlashes.IsEmpty())
+	{
+		SourceFlashBusy.Reset();
+		SetActorTickEnabled(false);
+	}
 }
 
 Soulbound::Presentation::FStatusContext ABoardViewActor::MakeStatusContext() const
@@ -2027,6 +2217,7 @@ void ABoardViewActor::TickHud()
 		GrimoirePanel->SetContent(Soulbound::Presentation::GrimoireRows(State, Context.HumanSeat, GrimoireTexts, SeatColors),
 			Soulbound::Presentation::GrimoirePowerLines(GrimoireTexts));
 	}
+	RefreshElectCard(State);
 }
 
 void ABoardViewActor::HandleRingOpened()

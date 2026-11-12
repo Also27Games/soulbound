@@ -199,4 +199,26 @@ bool FGrimoireRowsStillTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireWidthsTest, "Soulbound.Game.Presentation.Grimorio.AnchoFijoYDosTarjetasPorFila", GrimoireTestFlags)
+
+bool FGrimoireWidthsTest::RunTest(const FString& Parameters)
+{
+	// R-VIS-21 y comprobación pedida por el autor (12/11/2026): el ancho del panel solo depende del de la capa, y a 1024x768 siguen cabiendo dos
+	// tarjetas por fila (dos celdas de texto con sus 24 de margen y los 32 del panel caben en el panel, que cabe en la capa).
+	using Soulbound::Presentation::GrimoireCardTextWidth;
+	using Soulbound::Presentation::GrimoirePanelWidth;
+	for (const float Layer : {1024.f, 1280.f, 1920.f})
+	{
+		const float Panel = GrimoirePanelWidth(Layer);
+		const float Text = GrimoireCardTextWidth(Panel, 2);
+		TestTrue(*FString::Printf(TEXT("Capa de %.0f: el panel cabe con su margen"), Layer), Panel <= Layer - 32.f + KINDA_SMALL_NUMBER);
+		TestTrue(*FString::Printf(TEXT("Capa de %.0f: dos tarjetas por fila caben en el panel"), Layer), 2.f * (Text + 24.f) + 32.f <= Panel + KINDA_SMALL_NUMBER);
+		TestTrue(*FString::Printf(TEXT("Capa de %.0f: el texto tiene sitio de sobra para una frase"), Layer), Text >= 300.f);
+		TestEqual(TEXT("El mismo ancho de capa da siempre el mismo ancho de panel"), GrimoirePanelWidth(Layer), Panel);
+	}
+	TestEqual(TEXT("Con una capa enorme, el tope"), GrimoirePanelWidth(5000.f), Soulbound::Presentation::GrimoireMaxWidth);
+	TestTrue(TEXT("Sin capa, un ancho válido"), GrimoirePanelWidth(0.f) >= 1.f && GrimoireCardTextWidth(0.f, 2) >= 1.f);
+	return true;
+}
+
 #endif

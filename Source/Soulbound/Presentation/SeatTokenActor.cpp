@@ -1,6 +1,7 @@
 #include "SeatTokenActor.h"
 
 #include "PresentationShapes.h"
+#include "TokenLook.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
@@ -15,6 +16,8 @@ namespace
 	/** Alto de los segmentos de un aro y altura a la que apoyan sobre la losa, en cm. */
 	constexpr float RingHeight = 0.18f;
 	constexpr float RingZ = 0.06f;
+	/** Diámetro del aro del destello por el del aro del turno. */
+	constexpr float FlashRingScale = 1.25f;
 	/** Holgura del número del asiento sobre lo alto de la ficha, en cm. */
 	constexpr float LabelClearance = 0.15f;
 }
@@ -32,6 +35,8 @@ ASeatTokenActor::ASeatTokenActor()
 	Mesh->SetupAttachment(Pivot);
 	RingRoot = CreateDefaultSubobject<USceneComponent>(TEXT("RingRoot"));
 	RingRoot->SetupAttachment(GetRootComponent());
+	FlashRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FlashRoot"));
+	FlashRoot->SetupAttachment(GetRootComponent());
 	Label = CreateDefaultSubobject<UTextRenderComponent>(TEXT("Label"));
 	Label->SetupAttachment(Pivot); // gira con la ficha: el número girando es lo que se ve desde arriba
 
@@ -81,6 +86,9 @@ void ASeatTokenActor::Configure(float InLabelSize, float InLift, float InSpinDeg
 	Label->SetWorldSize(InLabelSize);
 	Label->SetRelativeLocation(FVector(0.f, 0.f, TokenDiameter + LabelClearance));
 	BuildRing(RingRoot, RingSegments, RingDiameter, RingWidth, RingZ);
+	// S-029: el aro del destello, mayor y más grueso que el del turno para que se vea también sobre él; oculto hasta que haya uno.
+	BuildRing(FlashRoot, FlashSegments, RingDiameter * FlashRingScale, RingWidth * 1.6f, RingZ + 0.03f);
+	FlashRoot->SetVisibility(false, true);
 	// La esfera del clic, algo mayor que la ficha para acertar con el ratón; con la carta, la vuelve a medir UseCard.
 	ClickTarget->SetRelativeScale3D(FVector(TokenDiameter * 1.5f / 100.f));
 	ClickTarget->SetRelativeLocation(FVector(0.f, 0.f, TokenDiameter * 0.5f));
@@ -92,14 +100,14 @@ void ASeatTokenActor::SetClickable(bool bClickable)
 	ClickTarget->SetCollisionEnabled(bClickable ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 }
 
-UStaticMeshComponent* ASeatTokenActor::UseCard(UStaticMesh* Card, UMaterialInterface* InRoleRingMaterial, float RoleRingScale, float RoleRingWidth, float InEchoBrightness)
+UStaticMeshComponent* ASeatTokenActor::UseCard(UStaticMesh* Card, UMaterialInterface* InRoleRingMaterial, float RoleRingScale, float RoleRingWidth, float InRoleRingBrightness)
 {
 	if (!Card)
 	{
 		return nullptr;
 	}
 	bCard = true;
-	EchoBrightness = InEchoBrightness;
+	RoleRingBrightness = FMath::Clamp(InRoleRingBrightness, 0.f, 1.f);
 	RoleRingMaterial = InRoleRingMaterial ? InRoleRingMaterial : BaseMaterial.Get();
 	// Las piezas del kit no se escalan: origen en la base, un metro del kit son 100 cm.
 	Mesh->SetStaticMesh(Card);
@@ -141,43 +149,107 @@ void ASeatTokenActor::BuildRing(USceneComponent* Parent, TArray<TObjectPtr<UStat
 
 void ASeatTokenActor::PaintRoleRing()
 {
-	// S-019, decisión del autor del 20/10/2026: el rol se ve en el brillo del aro, Eco a medias y Elegido entero.
-	const float Brightness = bElect ? 1.f : EchoBrightness;
-	const FLinearColor Color(RingColor.R * Brightness, RingColor.G * Brightness, RingColor.B * Brightness);
+	// S-029 (R-VIS-10, decisión del autor del 12/11/2026): el rol se ve en el color del aro de la base, gris de datos para un Eco y el del Dominio
+	// para un Elegido, con el mismo brillo (RoleRingBrightness, en Config). La carta del kit no se tiñe; sin carta, la ficha toma el color.
+	FLinearColor Base = RoleColor;
+	FLinearColor FlashColor;
+	float Intensity = 0.f;
+	if (CurrentFlash(GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0, FlashColor, Intensity))
+	{
+		Base = FMath::Lerp(RoleColor, FlashColor, Intensity);
+	}
+	const FLinearColor RingPaint(Base.R * RoleRingBrightness, Base.G * RoleRingBrightness, Base.B * RoleRingBrightness);
 	for (UStaticMeshComponent* Segment : RoleRingSegments)
 	{
-		Soulbound::Presentation::SetComponentColor(*Segment, RoleRingMaterial, Color);
+		Soulbound::Presentation::SetComponentColor(*Segment, RoleRingMaterial, RingPaint);
 	}
+	if (!bCard)
+	{
+		Soulbound::Presentation::SetComponentColor(*Mesh, BaseMaterial, Base);
+	}
+}
+
+void ASeatTokenActor::PaintTurnRing(float Intensity)
+{
+	const FLinearColor Color(RingColor.R * Intensity, RingColor.G * Intensity, RingColor.B * Intensity);
+	for (UStaticMeshComponent* Segment : RingSegments)
+	{
+		Soulbound::Presentation::SetComponentColor(*Segment, BaseMaterial, Color);
+	}
+}
+
+bool ASeatTokenActor::CurrentFlash(double Now, FLinearColor& OutColor, float& OutIntensity)
+{
+	FlashSlots.RemoveAll([Now](const FFlashSlot& Slot) { return Slot.End <= Now; });
+	for (const FFlashSlot& Slot : FlashSlots)
+	{
+		if (Slot.Start <= Now)
+		{
+			OutColor = Slot.Color;
+			// Subida y bajada suaves: seno de medio periodo, de 0 a 1 y a 0.
+			OutIntensity = static_cast<float>(FMath::Sin(UE_DOUBLE_PI * (Now - Slot.Start) / FMath::Max(Slot.End - Slot.Start, KINDA_SMALL_NUMBER)));
+			return true;
+		}
+	}
+	return false;
+}
+
+void ASeatTokenActor::Flash(const FLinearColor& Color, float Seconds, float DelaySeconds)
+{
+	if (!GetWorld() || Seconds <= 0.f)
+	{
+		return;
+	}
+	const double Now = GetWorld()->GetTimeSeconds();
+	FFlashSlot Slot;
+	Slot.Start = FMath::Max(Now + FMath::Max(DelaySeconds, 0.f), FlashBusyUntil);
+	Slot.End = Slot.Start + Seconds;
+	Slot.Color = Color;
+	FlashBusyUntil = Slot.End;
+	FlashSlots.Add(Slot);
+}
+
+void ASeatTokenActor::SetRingPulse(float PeriodSeconds, float MinIntensity)
+{
+	RingPulsePeriod = PeriodSeconds;
+	RingPulseMin = MinIntensity;
+}
+
+void ASeatTokenActor::SetRoleColor(const FLinearColor& Color)
+{
+	if (bRoleColorSet && RoleColor.Equals(Color, 0.0001f))
+	{
+		return;
+	}
+	bRoleColorSet = true;
+	RoleColor = Color;
+	PaintRoleRing();
 }
 
 void ASeatTokenActor::SetColor(const FLinearColor& Color)
 {
 	RingColor = Color;
+	if (!bRoleColorSet)
+	{
+		// Hasta que la vista diga el rol, la ficha lleva el color del asiento.
+		RoleColor = Color;
+	}
 	if (!bCard)
 	{
-		Soulbound::Presentation::SetComponentColor(*Mesh, BaseMaterial, Color);
 		Label->SetTextRenderColor(FColor::Black);
 	}
-	for (UStaticMeshComponent* Segment : RingSegments)
-	{
-		Soulbound::Presentation::SetComponentColor(*Segment, BaseMaterial, Color);
-	}
+	PaintTurnRing(1.f);
 	PaintRoleRing();
 	Label->SetText(FText::AsNumber(Seat));
 }
 
 void ASeatTokenActor::SetElectShape(bool bInElect)
 {
+	bElect = bInElect;
 	if (bCard)
 	{
-		if (bElect != bInElect)
-		{
-			bElect = bInElect;
-			PaintRoleRing();
-		}
 		return;
 	}
-	bElect = bInElect;
 	UStaticMesh* Wanted = bInElect ? ElectMesh : EchoMesh;
 	// La instancia dinámica del material va en la ranura del componente, así que el color se conserva al cambiar de malla.
 	if (Wanted && Mesh->GetStaticMesh() != Wanted)
@@ -304,6 +376,29 @@ void ASeatTokenActor::Tick(float DeltaSeconds)
 	{
 		SlideElapsed = FMath::Min(SlideElapsed + DeltaSeconds, SlideDuration);
 		SetActorLocation(FMath::Lerp(SlideStart, SlideTarget, SlideElapsed / SlideDuration));
+	}
+	// S-029: el pulso lento del aro del turno y el destello en curso (los dos solo repintan mientras cambian).
+	if (bActive)
+	{
+		PaintTurnRing(Soulbound::Presentation::RingPulse(GetWorld()->GetTimeSeconds(), RingPulsePeriod, RingPulseMin));
+	}
+	{
+		FLinearColor FlashColor;
+		float Intensity = 0.f;
+		const bool bFlashing = CurrentFlash(GetWorld()->GetTimeSeconds(), FlashColor, Intensity);
+		if (bFlashing || bFlashShown)
+		{
+			bFlashShown = bFlashing;
+			FlashRoot->SetVisibility(bFlashing, true);
+			if (bFlashing)
+			{
+				for (UStaticMeshComponent* Segment : FlashSegments)
+				{
+					Soulbound::Presentation::SetComponentColor(*Segment, BaseMaterial, FLinearColor(FlashColor.R * Intensity, FlashColor.G * Intensity, FlashColor.B * Intensity));
+				}
+			}
+			PaintRoleRing();
+		}
 	}
 	// Sube y baja suave hacia la altura que toca, sin saltos cuando cambia el asiento activo.
 	const float TargetLift = bActive ? Lift : 0.f;
