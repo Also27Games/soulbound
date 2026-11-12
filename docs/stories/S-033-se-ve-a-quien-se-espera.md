@@ -22,6 +22,13 @@ Añadido por el autor el 11/11/2026, tras probar el PR en PIE:
 
 - **El desenlace también se ve**: tras un duelo el autor tuvo que mirar el log para saber quién había ganado, y de las decisiones de los dummies se ve que deciden pero no qué. El panel enseña unos segundos cómo acaba lo que no se ve en el tablero: quién gana un duelo, qué opción de un dilema sale, qué roba el trilero y si otro asiento supera su prueba. Lo que el tablero ya enseña (dados, salto, expulsión) no se repite.
 
+Añadido por el autor el 12/11/2026, tras probar el desenlace en PIE:
+
+- **Señalar también es un desenlace**: cuando otro asiento señala a un rival (para enseñar su Brazal, para un duelo), no se veía a quién.
+- **Sin "al activo"**: el texto de las opciones de un dilema lleva pegada la dirección del efecto ("Perder una runa (a elección) al activo"), que para el jugador no significa nada.
+- **Lo iluminado tiene que verse**: con el Altar como único destino, el panel dice "Elige una casilla iluminada" y no se ve ninguna: el halo del Altar queda tapado por su pieza del kit. El clic en el Altar funciona.
+- **A 1024x768 nada se sale por la izquierda**: la frase del Warden y un título largo de la espera ("Asiento 1 · Koschei decide cuántos dados tira") se cortan por el borde izquierdo.
+
 ## Reglas a implementar (`Soulbound`, `Presentation/`)
 
 - **R-DEC-5 (precisión). Qué se enseña mientras esperas.** Una función pura junto a `DecisionView` (`WaitView`, nombre propuesto) recibe el estado y el asiento humano y devuelve, si la mesa espera a otro asiento, un `FDecisionView` con un tipo de entrada nuevo (`EDecisionInput::Wait`, nombre propuesto), sin opciones. No inventa nada: quién decide y qué lo dice el estado, y los textos salen de los que ya existen (`ChoiceWhat`, los nombres de asiento de S-028, el nombre y el texto del evento del Warden). Casos, en el mismo orden en que el panel de estado los enseña:
@@ -37,9 +44,13 @@ Añadido por el autor el 11/11/2026, tras probar el PR en PIE:
   2. **Dilema** (`DilemmaChosen`): título, el nombre del evento; línea "<asiento> elige: <texto de la opción>" o, si la sorteó el Warden por no contestar a tiempo (`Detail` 1), "El Warden elige por <asiento>: <texto de la opción>". El texto de la opción es el del botón de S-028. No se enseña la opción que el propio humano eligió.
   3. **Trilero** (`RuneStolen`, `ShellGameExpired`): título "Trilero"; línea "<ladrón> roba a <víctima> la runa de <Dominio>" o "<ladrón> no elige a tiempo y no roba nada". La runa se nombra como en los botones de S-028.
   4. **Prueba de otro asiento** (`SkillMinigamePassed`/`Failed`, `WardenTrialPassed`/`Failed`, `VoidEscapePassed`/`Failed`, `FinalChallengeFailed`): título, el nombre de la prueba (el de la espera, R-DEC-5); línea "<asiento> la supera" o "<asiento> falla". Las del humano no: su resultado ya lo enseña el anillo.
+  5. **Señalar** (`EffectApplied` con `OtherSeat`, quien señaló, distinto de `Seat`, el señalado): título, el nombre del efecto; línea "<quien señala> señala a <señalado>". No se enseña cuando quien señala es el humano; sí cuando el señalado es él.
   En `PanelView` va donde el resultado de la votación: después de la decisión propia y antes de la espera, también mientras habla el Warden. Entre el resultado de una votación y un desenlace, manda el suceso más reciente. No inventa nada: quién, a quién y qué lo dice el registro.
+- **R-DEC-11 (precisión). El texto de una opción, para el jugador.** En los botones de un dilema (S-028) y en su desenlace, la dirección del efecto no se dice cuando recae en quien elige (`EEffectTarget::ActivePlayer`): "Perder una runa (a elección)", no "… al activo". Las demás direcciones se conservan ("al líder", "a todos", "al rival señalado"). Una función pura junto a `DescribeOption`; la crónica y el acta siguen con el texto de hoy.
 - **R-DEC-7 (precisión). Cómo se pinta.** `SDecisionPanel` pinta la vista de espera con el título en el gris de lo secundario, sin botones y con la barra en gris; la primera línea nombra al asiento ("Asiento 2 · nombre del Elegido", "Asiento 2 (Eco)", como en los botones de voto de S-028). Las reglas de visibilidad son las de R-DEC-3: no se enseña con el anillo del humano abierto, con el telón bajado ni con los paneles ocultos (`H`). El panel de estado no cambia: sigue llevando sus líneas con el detalle.
 - **R-DEC-9 (precisión). Posición fija.** El borde inferior del panel queda a una altura fija sobre el borde de la pantalla: la que ocupa una frase del Warden de `WardenLineReservedLines` líneas (Config, valor inicial 2) con su fondo y sus márgenes. Ese hueco se reserva siempre, haya frase o no, y la frase se pinta dentro de él, pegada abajo como hoy. El panel no cambia de sitio cuando la frase aparece, cambia de largo o desaparece; sí crece hacia arriba si la decisión tiene más botones. Si una frase ocupa más líneas de las reservadas, se sale del hueco por arriba y el panel sigue quieto: se anota en el PR, no se arregla aquí (es el `TODO(R-HUD-3)` de la frase a 1024x768).
+- **R-DEC-12 (precisión). Lo iluminado se ve.** Toda casilla alcanzable enseña su halo con las piezas del kit, también el Altar, que hoy lo tapa. Vale agrandar el halo del Altar hasta asomar por su borde o pintarlo por encima; sin assets nuevos. Se comprueba también en Nicho, Fuente y Nodo.
+- **R-DEC-13 (precisión). Dentro del hueco, a cualquier tamaño.** Ni la frase del Warden ni el panel se salen del hueco libre del tablero: lo que no cabe en una línea se parte. El ancho en que se parte sale del ancho real del hueco (la geometría de la capa), no de una cuenta con el tamaño de la ventana, que a 1024x768 da de más. Los textos del panel dejan `AutoWrapText` por la misma razón que la frase.
 
 ## Criterios de aceptación
 
@@ -62,6 +73,8 @@ Automáticos, en `Soulbound`, sin mundo (`Private/Tests/DecisionTextTest.cpp`, n
 - **CA-DEC-21** (trilero, R-DEC-10). Con un `RuneStolen` del asiento 1 al 3, la línea nombra al ladrón, a la víctima y la runa; con `ShellGameExpired`, dice que no roba nada.
 - **CA-DEC-22** (prueba de otro, R-DEC-10). Con un `SkillMinigamePassed` del asiento 2, la vista lleva el nombre de la prueba y dice que la supera; con `SkillMinigameFailed`, que falla; con el mismo suceso del asiento humano, no hay vista.
 - **CA-DEC-23** (orden, R-DEC-6 y R-DEC-10). Con un desenlace reciente y una decisión abierta para el humano, `PanelView` es su decisión; con una elección abierta para un dummy, es el desenlace; con la mesa esperando al Warden, el desenlace se sigue enseñando. Con un resultado de votación y un desenlace recientes, `PanelView` es el del suceso más nuevo. Un suceso que no está en la lista (`DiceChosen`, `PlanarJumped`, `Expelled`) no da vista.
+- **CA-DEC-24** (señalar, R-DEC-10). Con un `EffectApplied` de Revelar Brazal sobre el asiento 3 señalado por el 1, la vista lleva el nombre del efecto y dice que el 1 señala al 3. Señalado por el humano, no hay vista; con el humano de señalado, sí. Un `EffectApplied` sin señalador no da vista.
+- **CA-DEC-25** (texto de opción, R-DEC-11). La opción "Perder una runa, a elección, al activo" se lee "Perder una runa (a elección)" en el botón del dilema y en su desenlace; una opción dirigida al líder conserva "al líder"; `DescribeOption` no cambia.
 
 Manuales, por el autor, en PIE, a 1024x768 y a 1920x1080, con captura:
 
@@ -75,6 +88,9 @@ Manuales, por el autor, en PIE, a 1024x768 y a 1920x1080, con captura:
 - Tras un duelo contra un dummy, al cerrarse el anillo el panel dice quién gana y a quién.
 - Con el dilema de un dummy (`SbEvent elige-tu-veneno` hasta que le toque a uno), el panel dice qué opción sale; con un robo entre dummies, qué roba el trilero.
 - Si los desenlaces tapan la espera siguiente o se pisan unos a otros hasta no leerse, se dice en el PR.
+- Cuando un dummy señala a un rival (`SbEvent hazlo-tu` u otro que haga señalar), el panel dice quién señala a quién.
+- Junto al Altar con `SbRoll 1`, el Altar se ve iluminado, a los dos tamaños; lo mismo un Nicho, una Fuente y un Nodo alcanzables.
+- A 1024x768, la frase del Warden y los títulos largos de la espera se leen enteros, partidos en dos líneas si hace falta, sin cortarse por la izquierda.
 
 ## Notas para quien lo implemente
 
