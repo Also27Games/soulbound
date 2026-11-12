@@ -428,7 +428,7 @@ void ABoardViewActor::FitAltarHalo()
 		static_cast<float>(Bounds.BoxExtent.Y) * 2.f, AltarHaloMargin);
 	Halo->SetWorldLocation(FVector(Bounds.Origin.X, Bounds.Origin.Y, AltarHaloZ));
 	Halo->SetWorldScale3D(FVector(Width / 100.f, Width / 100.f, HaloHeight / 100.f));
-	UE_LOG(LogSoulboundView, Log, TEXT("Halo del Altar: pieza con origen (%.2f, %.2f, %.2f) y semiextensión (%.2f, %.2f, %.2f) en mundo, base en Z %.2f; halo en (%.2f, %.2f, %.2f), diámetro %.2f (casilla %.2f, HaloScale %.2f, AltarHaloMargin %.2f), alto %.2f, KitFloorHeight %.2f."),
+	UE_LOG(LogSoulboundView, Verbose, TEXT("Halo del Altar: pieza con origen (%.2f, %.2f, %.2f) y semiextensión (%.2f, %.2f, %.2f) en mundo, base en Z %.2f; halo en (%.2f, %.2f, %.2f), diámetro %.2f (casilla %.2f, HaloScale %.2f, AltarHaloMargin %.2f), alto %.2f, KitFloorHeight %.2f."),
 		Bounds.Origin.X, Bounds.Origin.Y, Bounds.Origin.Z, Bounds.BoxExtent.X, Bounds.BoxExtent.Y, Bounds.BoxExtent.Z, Bounds.Origin.Z - Bounds.BoxExtent.Z,
 		Bounds.Origin.X, Bounds.Origin.Y, AltarHaloZ, Width, Layout.AltarApothem * 2.f, HaloScale, AltarHaloMargin, HaloHeight, LayoutParams.KitFloorHeight);
 }
@@ -1341,7 +1341,7 @@ void ABoardViewActor::Refresh()
 				const FBoxSphereBounds PieceBounds = AltarPieceComponent.IsValid() ? AltarPieceComponent->CalcBounds(AltarPieceComponent->GetComponentTransform()) : FBoxSphereBounds(ForceInit);
 				const FVector HaloLocation = Halo->GetComponentLocation();
 				const FVector HaloScale3D = Halo->GetComponentScale();
-				UE_LOG(LogSoulboundView, Log, TEXT("Halo del Altar: visible %d; halo en (%.2f, %.2f, %.2f), diámetro %.2f, alto %.2f; pieza con origen (%.2f, %.2f, %.2f) y semiextensión (%.2f, %.2f, %.2f)."),
+				UE_LOG(LogSoulboundView, Verbose, TEXT("Halo del Altar: visible %d; halo en (%.2f, %.2f, %.2f), diámetro %.2f, alto %.2f; pieza con origen (%.2f, %.2f, %.2f) y semiextensión (%.2f, %.2f, %.2f)."),
 					bHaloShown ? 1 : 0, HaloLocation.X, HaloLocation.Y, HaloLocation.Z, HaloScale3D.X * 100.0, HaloScale3D.Z * 100.0,
 					PieceBounds.Origin.X, PieceBounds.Origin.Y, PieceBounds.Origin.Z, PieceBounds.BoxExtent.X, PieceBounds.BoxExtent.Y, PieceBounds.BoxExtent.Z);
 			}
@@ -1946,7 +1946,7 @@ void ABoardViewActor::TickHud()
 				LoggedLayoutKey = Key;
 				const float ByWindow = static_cast<float>(LastViewportSize.X) / PanelDpiScale;
 				const float HoleCenter = 16.f + (static_cast<float>(LayerSize.X) - PanelSlateWidth - 32.f) * 0.5f;
-				UE_LOG(LogSoulboundView, Log, TEXT("Paneles: capa de la frase %.1fx%.1f en Slate (geometría real); contenido en x %.1f con ancho %.1f (centro %.1f; centro del hueco %.1f); columna real %.1f (PanelSlateWidth %.1f); la cuenta con la ventana da %.1f de ancho (%.0f px / escala %.3f); hueco libre con tope 1000: %.1f por geometría, %.1f por la cuenta."),
+				UE_LOG(LogSoulboundView, Verbose, TEXT("Paneles: capa de la frase %.1fx%.1f en Slate (geometría real); contenido en x %.1f con ancho %.1f (centro %.1f; centro del hueco %.1f); columna real %.1f (PanelSlateWidth %.1f); la cuenta con la ventana da %.1f de ancho (%.0f px / escala %.3f); hueco libre con tope 1000: %.1f por geometría, %.1f por la cuenta."),
 					LayerSize.X, LayerSize.Y, ContentAt.X, ContentSize.X, ContentAt.X + ContentSize.X * 0.5, HoleCenter, ColumnWidth, PanelSlateWidth, ByWindow, LastViewportSize.X, PanelDpiScale,
 					Soulbound::Presentation::BoardFreeWidth(static_cast<float>(LayerSize.X), PanelSlateWidth, 1000.f), Soulbound::Presentation::BoardFreeWidth(ByWindow, PanelSlateWidth, 1000.f));
 			}
