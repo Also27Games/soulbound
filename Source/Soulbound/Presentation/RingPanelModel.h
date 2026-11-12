@@ -23,6 +23,8 @@ struct FRingPanelModel
 	double CloseFraction = 0.0;
 	/** Media zona buena como fracción del cierre: hasta dónde llega la franja verde (R-VIS-14). */
 	double ZoneFraction = 0.0;
+	/** Color y opacidad de la franja verde (RingZoneColor, configuración de la vista). */
+	FLinearColor ZoneColor = FLinearColor(0.2f, 0.9f, 0.3f, 0.55f);
 	/** Si el instante actual está dentro de la zona buena del pulso en curso: el aro se pinta verde y más grueso (R-VIS-14, R-VIS-15). */
 	bool bInSweetZone = false;
 	/** Un elemento por pulso: su precisión si ya se resolvió. */

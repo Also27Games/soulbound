@@ -1,26 +1,31 @@
 #include "RingPanel.h"
 
 #include "Fonts/FontMeasure.h"
+#include "Brushes/SlateRoundedBoxBrush.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Rendering/DrawElements.h"
 #include "Styling/CoreStyle.h"
 
 namespace
 {
-	/** Segmentos con que se aproxima un círculo. */
-	constexpr int32 CircleSegments = 72;
-
-	/** Un círculo de radio Radius alrededor de Center, como polilínea cerrada. */
-	void DrawCircle(FSlateWindowElementList& Out, int32 Layer, const FGeometry& Geometry, const FVector2f& Center, float Radius, const FLinearColor& Color, float Thickness)
+	/**
+	 * Un anillo de radio exterior OuterRadius y grosor Width alrededor de Center. Se pinta como una caja cuadrada de esquinas totalmente redondeadas con solo
+	 * contorno, que Slate dibuja con una sola función de distancia: sin segmentos ni junta (una polilínea cerrada dejaba una raya donde empieza y acaba).
+	 * El pincel es local: Slate copia lo que necesita al encolar el elemento.
+	 */
+	void DrawRing(FSlateWindowElementList& Out, int32 Layer, const FGeometry& Geometry, const FVector2f& Center, float OuterRadius, float Width, const FLinearColor& Color)
 	{
-		TArray<FVector2f> Points;
-		Points.Reserve(CircleSegments + 1);
-		for (int32 Index = 0; Index <= CircleSegments; ++Index)
-		{
-			const float Angle = 2.f * PI * Index / CircleSegments;
-			Points.Add(Center + FVector2f(FMath::Cos(Angle), FMath::Sin(Angle)) * Radius);
-		}
-		FSlateDrawElement::MakeLines(Out, Layer, Geometry.ToPaintGeometry(), Points, ESlateDrawEffect::None, Color, true, Thickness);
+		const FSlateRoundedBoxBrush Brush(FLinearColor::Transparent, Color, FMath::Min(Width, OuterRadius));
+		FSlateDrawElement::MakeBox(Out, Layer, Geometry.ToPaintGeometry(FVector2f(2.f * OuterRadius), FSlateLayoutTransform(Center - FVector2f(OuterRadius))), &Brush,
+			ESlateDrawEffect::None, FLinearColor::White);
+	}
+
+	/** Un disco relleno de radio Radius alrededor de Center. */
+	void DrawDisc(FSlateWindowElementList& Out, int32 Layer, const FGeometry& Geometry, const FVector2f& Center, float Radius, const FLinearColor& Color)
+	{
+		const FSlateRoundedBoxBrush Brush(FLinearColor::White);
+		FSlateDrawElement::MakeBox(Out, Layer, Geometry.ToPaintGeometry(FVector2f(2.f * Radius), FSlateLayoutTransform(Center - FVector2f(Radius))), &Brush,
+			ESlateDrawEffect::None, Color);
 	}
 
 	/** Texto centrado horizontalmente en la línea Top del panel. Devuelve su alto. */
@@ -91,14 +96,15 @@ int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 	const float MaxRadius = FMath::Min(Size.X, Size.Y) * 0.36f;
 	if (Now.bShowRing)
 	{
-		// La franja va del borde de la runa al radio en que el aro entra en la zona (el cierre 1 - ZoneFraction): un círculo grueso a media distancia.
+		// La franja va del borde de la runa al radio en que el aro entra en la zona (el cierre 1 - ZoneFraction): un anillo que llega hasta la runa.
+		// Su color y opacidad vienen de la configuración (RingZoneColor); su anchura, de la zona buena.
 		const float ZoneRadius = static_cast<float>(Soulbound::Presentation::RingInnerRadius(1.0 - FMath::Clamp(Now.ZoneFraction, 0.0, 1.0), RuneRadius, MaxRadius));
 		if (ZoneRadius > RuneRadius)
 		{
-			DrawCircle(OutDrawElements, Layer, AllottedGeometry, Center, (RuneRadius + ZoneRadius) * 0.5f, FLinearColor(0.2f, 0.9f, 0.3f, 0.3f), ZoneRadius - RuneRadius);
+			DrawRing(OutDrawElements, Layer, AllottedGeometry, Center, ZoneRadius, ZoneRadius - RuneRadius, Now.ZoneColor);
 		}
 
-		// La runa: la imagen teñida, del tamaño del diámetro de siempre; sin textura, un disco relleno del mismo color (un círculo cuyo grosor es su radio).
+		// La runa: la imagen teñida, del tamaño del diámetro de siempre; sin textura, un disco relleno del mismo color.
 		const FSlateBrush* Brush = RuneBrush ? RuneBrush() : nullptr;
 		if (Brush && Brush->GetResourceObject())
 		{
@@ -107,15 +113,15 @@ int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 		}
 		else
 		{
-			DrawCircle(OutDrawElements, Layer + 1, AllottedGeometry, Center, RuneRadius * 0.5f, Now.RuneColor, RuneRadius);
+			DrawDisc(OutDrawElements, Layer + 1, AllottedGeometry, Center, RuneRadius, Now.RuneColor);
 		}
 
 		// El aro: blanco fuera de la zona buena; verde y más grueso dentro. Se pinta con el radio de su borde interior (RingInnerRadius), así que
-		// toca la runa exactamente en la coincidencia; la polilínea es simétrica, y su centro va medio grosor más afuera.
+		// toca la runa exactamente en la coincidencia; el anillo se pinta por su radio exterior, el interior más el grosor.
 		const float Thickness = (Now.bInSweetZone ? 7.f : 4.f) * Scale;
 		const float InnerRadius = static_cast<float>(Soulbound::Presentation::RingInnerRadius(Now.CloseFraction, RuneRadius, MaxRadius));
-		DrawCircle(OutDrawElements, Layer + 2, AllottedGeometry, Center, InnerRadius + Thickness * 0.5f,
-			Now.bInSweetZone ? FLinearColor(0.2f, 0.95f, 0.3f) : FLinearColor::White, Thickness);
+		DrawRing(OutDrawElements, Layer + 2, AllottedGeometry, Center, InnerRadius + Thickness, Thickness,
+			Now.bInSweetZone ? FLinearColor(0.2f, 0.95f, 0.3f) : FLinearColor::White);
 	}
 
 	// El resultado ("SUPERADA", "FALLADA") en el centro, solo al acabar. Durante la prueba no hay texto de puntuación (R-VIS-17).
@@ -155,11 +161,11 @@ int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 		if (Now.Pulses[Pulse].IsSet())
 		{
 			const FLinearColor Color = PrecisionColor(Now.Pulses[Pulse].GetValue());
-			DrawCircle(OutDrawElements, Layer, AllottedGeometry, DotCenter, Dot * 0.5f, Color, Dot);
+			DrawDisc(OutDrawElements, Layer, AllottedGeometry, DotCenter, Dot, Color);
 		}
 		else
 		{
-			DrawCircle(OutDrawElements, Layer, AllottedGeometry, DotCenter, Dot, FLinearColor(0.5f, 0.5f, 0.5f), 2.f * Scale);
+			DrawRing(OutDrawElements, Layer, AllottedGeometry, DotCenter, Dot + Scale, 2.f * Scale, FLinearColor(0.5f, 0.5f, 0.5f));
 		}
 	}
 	return Layer + 2;

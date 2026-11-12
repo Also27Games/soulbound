@@ -348,6 +348,13 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (AllowedClasses = "/Script/Engine.Texture2D"))
 	FSoftObjectPath RingRuneTexture;
 
+	/**
+	 * Color y opacidad de la franja verde de la zona buena del panel del anillo (S-031, R-VIS-14). La anchura no se configura: sale de la zona buena.
+	 * Valor inicial (0,2, 0,9, 0,3) con opacidad 0,55 (Config/DefaultGame.ini); el autor lo ajusta en PIE.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FLinearColor RingZoneColor = FLinearColor(0.2f, 0.9f, 0.3f, 0.55f);
+
 	/** Margen de la cámara alrededor del tablero (1 = justo al borde). Valor inicial 1,04. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Paneles")
 	float CameraMargin = 1.04f;

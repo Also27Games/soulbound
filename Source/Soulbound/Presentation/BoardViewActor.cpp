@@ -2201,6 +2201,7 @@ FRingPanelModel ABoardViewActor::RingPanelModel() const
 		Model.CloseFraction = Run->CloseFraction(Now);
 		Model.ZoneFraction = Run->Sequence.CloseSeconds > 0.0 ? 0.5 * Run->Sequence.SweetZoneSeconds / Run->Sequence.CloseSeconds : 0.0;
 		Model.bInSweetZone = Run->IsInSweetZone(Now);
+		Model.ZoneColor = RingZoneColor;
 		Model.RuneColor = LastRingRuneColor;
 		for (int32 Pulse = 0; Pulse < Total; ++Pulse)
 		{
