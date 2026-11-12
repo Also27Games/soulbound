@@ -1,6 +1,6 @@
 # S-029. Se ve lo que pasa: feedback visual mínimo en el tablero
 
-**Sistema**: interfaz en plano (GDD 07: fichas, foco y consecuencias visibles; pilar 3, caos legible; pilar 4, el Warden te habla a ti). **Módulos**: `Soulbound` (presentación). `SoulboundCore` no cambia. **Rama base**: `main`, con S-028 fusionada. **Tamaño**: pequeño. Es la última de la semana de arreglos y la primera que se cae si no hay tiempo.
+**Sistema**: interfaz en plano (GDD 07: fichas, foco y consecuencias visibles; pilar 3, caos legible; pilar 4, el Warden te habla a ti). **Módulos**: `Soulbound` (presentación). `SoulboundCore` no cambia. **Rama base**: `main`, con S-031 fusionada. **Tamaño**: pequeño. Es la última de la semana de arreglos y la primera que se cae si no hay tiempo.
 
 ## Contexto
 
@@ -44,6 +44,11 @@ Manuales, por el autor, en PIE, con captura:
 - Los destellos salen del registro de eventos (`EventLog`), como la crónica y las Ayudas: la misma lectura incremental, sin escuchar al motor.
 - La carta reutiliza `GrimoireRows` de S-027 para un solo asiento.
 - Tests primero, en rojo; los actores solo tienen criterio manual.
+- Lo aprendido en S-033 y S-031 (12/11/2026), para no repetirlo:
+  - Lo que va por debajo del suelo del kit no se ve: las casillas están a la cota `KitFloorHeight` y el Altar a 0, y el relieve de la tierra tapa lo que quede más abajo (así estaba el halo del Altar). El aro de la ficha activa tiene que verse con el kit, en una casilla normal y sobre el Altar; su cota sale de la pieza real ya colocada o va en configuración, no de una cuenta a ciegas.
+  - Una capa centrada con márgenes desiguales (16 a la izquierda, la columna de paneles a la derecha) queda media columna a la izquierda: `AlignChild` no centra dentro del hueco. La carta del Elegido va como la capa de la frase y la del anillo: la capa ocupa el hueco (`HAlign_Fill` con sus márgenes) y el contenido se centra dentro.
+  - Los textos que se parten usan `WrapTextAt` con el ancho del hueco, no `AutoWrapText`, que parte al ancho de lo pintado antes.
+  - No se cambia la forma de pintar algo que ya se ve bien sin poder verlo: lo que no tenga test se anota para la prueba manual del autor.
 - Al cerrar: la leyenda del HUD (S-027) explica el aro, los colores de ficha y los destellos en una línea cada uno.
 
 ## Fuera de esta story
