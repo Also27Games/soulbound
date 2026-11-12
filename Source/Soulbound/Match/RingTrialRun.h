@@ -86,4 +86,10 @@ struct FRingTrialRun
 	 * y 1 con cualquier tiempo. Terminada la prueba, 1.
 	 */
 	double CloseFraction(double Now) const;
+
+	/**
+	 * Si Now está dentro de la zona buena del primer pulso sin resolver (S-031, R-VIS-15): desde la coincidencia menos media zona hasta la
+	 * coincidencia más media zona, esta no incluida. Falso en el anuncio, entre pulsos y con la prueba terminada. No muta nada.
+	 */
+	bool IsInSweetZone(double Now) const;
 };

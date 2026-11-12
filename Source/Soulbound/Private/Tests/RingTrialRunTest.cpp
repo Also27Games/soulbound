@@ -23,6 +23,40 @@ namespace
 	}
 }
 
+// CA-VIS-14 (zona), R-VIS-15: con cierre de 1,2 s y zona de 0,18 (0,216 s), dentro entre la coincidencia menos y más media zona (0,108 s) del primer
+// pulso sin resolver; fuera en el anuncio, entre pulsos y con la prueba terminada. Montaje propio: pulsos en 0 y 3 s, la prueba arranca en el 10;
+// el pulso 0 coincide en el 11,2.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingRunSweetZoneTest, "Soulbound.Game.Presentation.Anillo.ZonaBuena",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+bool FRingRunSweetZoneTest::RunTest(const FString& Parameters)
+{
+	FRingSequence Sequence;
+	Sequence.PulseStarts = {0.0, 3.0};
+	Sequence.CloseSeconds = 1.2;
+	Sequence.SweetZoneSeconds = 0.18 * 1.2;
+	FRingTrialRun Run;
+	Run.Begin(Sequence, 10.0);
+	const double Coincidence = 11.2;
+
+	TestFalse(TEXT("Anuncio (antes del 10): fuera"), Run.IsInSweetZone(9.0));
+	TestFalse(TEXT("0,2 s antes de la coincidencia: fuera"), Run.IsInSweetZone(Coincidence - 0.2));
+	TestTrue(TEXT("0,1 s antes: dentro"), Run.IsInSweetZone(Coincidence - 0.1));
+	TestTrue(TEXT("En la coincidencia: dentro"), Run.IsInSweetZone(Coincidence));
+	TestTrue(TEXT("0,1 s después: dentro"), Run.IsInSweetZone(Coincidence + 0.1));
+	TestFalse(TEXT("0,12 s después: fuera"), Run.IsInSweetZone(Coincidence + 0.12));
+	TestFalse(TEXT("Entre pulsos (el 0 vencido, el 1 aún no empieza): fuera"), Run.IsInSweetZone(12.0));
+
+	// Resuelto el pulso 0 con una pulsación, deja de contar aunque el instante siga en su zona: el primero sin resolver es el 1.
+	FRingTrialRun Pressed = Run;
+	TestTrue(TEXT("La pulsación en la coincidencia cuenta"), Pressed.Press(Coincidence));
+	TestFalse(TEXT("Resuelto el pulso, 0,05 s después: fuera"), Pressed.IsInSweetZone(Coincidence + 0.05));
+	TestTrue(TEXT("La zona del pulso 1 sí cuenta"), Pressed.IsInSweetZone(10.0 + 3.0 + 1.2));
+
+	Run.Advance(100.0);
+	TestFalse(TEXT("Prueba terminada: fuera"), Run.IsInSweetZone(100.0));
+	return true;
+}
+
 // CA-ANI-1 (primera pulsación), R-MIN-2: en un pulso, dos pulsaciones; cuenta la primera y la segunda no cambia la precisión.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingRunFirstPressTest, "Soulbound.Game.Match.Anillo.PrimeraPulsacion",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
