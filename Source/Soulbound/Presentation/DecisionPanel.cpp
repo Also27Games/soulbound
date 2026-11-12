@@ -103,7 +103,7 @@ bool SDecisionPanel::SameLook(const TOptional<Soulbound::Presentation::FDecision
 		return false;
 	}
 	return !A.IsSet() || (A->Input == B->Input && A->Title == B->Title && A->Context == B->Context && A->Instruction == B->Instruction
-		&& A->Options == B->Options && A->bBlocked == B->bBlocked);
+		&& A->Options == B->Options && A->bBlocked == B->bBlocked && A->Lines == B->Lines && A->bHasDeadline == B->bHasDeadline);
 }
 
 void SDecisionPanel::Rebuild()
@@ -127,6 +127,14 @@ void SDecisionPanel::Rebuild()
 		});
 	};
 	const Soulbound::Presentation::FDecisionView& Shown = View.GetValue();
+	// R-DEC-13 (S-033, corrección del autor del 12/11/2026): los textos se parten al ancho libre del hueco menos el margen del fondo, no con
+	// AutoWrapText, que parte al ancho con que se pintó antes (el mismo defecto que la frase del Warden, R-HUD-3).
+	auto Wrap = [this]() { return FMath::Max(MaxWidth.Get() - 2.f * PanelPaddingX, 1.f); };
+
+	// S-033 (R-DEC-7): la espera a otro asiento y el resultado de una votación no son una decisión del humano: título en el gris de lo secundario,
+	// sin botones y con la barra, si la lleva, en gris. Solo la decisión propia va en verde.
+	const bool bOwnDecision = Shown.Input != Soulbound::Presentation::EDecisionInput::Wait && Shown.Input != Soulbound::Presentation::EDecisionInput::Result;
+	const FLinearColor Accent = bOwnDecision ? DecisionGreen : DecisionGray;
 
 	// Título: qué se decide, con la letra grande del panel, como la petición del panel de estado.
 	Content->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 2.f)
@@ -134,8 +142,8 @@ void SDecisionPanel::Rebuild()
 		SNew(STextBlock)
 		.Text(FText::FromString(Shown.Title))
 		.Font(Font("Bold", Large))
-		.ColorAndOpacity(DecisionGreen)
-		.AutoWrapText(true)
+		.ColorAndOpacity(Accent)
+		.WrapTextAt_Lambda(Wrap)
 	];
 	if (!Shown.Context.IsEmpty())
 	{
@@ -145,7 +153,7 @@ void SDecisionPanel::Rebuild()
 			.Text(FText::FromString(Shown.Context))
 			.Font(Font("Regular", 1.f))
 			.ColorAndOpacity(DecisionGray)
-			.AutoWrapText(true)
+			.WrapTextAt_Lambda(Wrap)
 		];
 	}
 	if (!Shown.Instruction.IsEmpty())
@@ -156,7 +164,20 @@ void SDecisionPanel::Rebuild()
 			.Text(FText::FromString(Shown.Instruction))
 			.Font(Font("Regular", 1.f))
 			.ColorAndOpacity(FLinearColor::White)
-			.AutoWrapText(true)
+			.WrapTextAt_Lambda(Wrap)
+		];
+	}
+
+	// Una línea por voto en el resultado de una votación (S-033, R-DEC-8).
+	for (const FString& Line : Shown.Lines)
+	{
+		Content->AddSlot().AutoHeight().Padding(0.f, 1.f)
+		[
+			SNew(STextBlock)
+			.Text(FText::FromString(Line))
+			.Font(Font("Regular", 1.f))
+			.ColorAndOpacity(FLinearColor::White)
+			.WrapTextAt_Lambda(Wrap)
 		];
 	}
 
@@ -214,7 +235,7 @@ void SDecisionPanel::Rebuild()
 			.ColorAndOpacity(DecisionOrange)
 		];
 	}
-	else
+	else if (Shown.bHasDeadline)
 	{
 		Content->AddSlot().AutoHeight().Padding(0.f, 6.f, 0.f, 0.f)
 		[
@@ -223,7 +244,10 @@ void SDecisionPanel::Rebuild()
 			[
 				SNew(SProgressBar)
 				.Percent_Lambda([this]() { return TOptional<float>(FMath::Clamp(TimeFraction.Get(), 0.f, 1.f)); })
-				.FillColorAndOpacity(DecisionGreen)
+				// El relleno por defecto de SProgressBar ya es azul y el color solo lo tiñe: con un pincel blanco el color es el que se pide
+				// (corrección del autor del 11/11/2026, R-DEC-7).
+				.FillImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+				.FillColorAndOpacity(Accent)
 			]
 		];
 	}

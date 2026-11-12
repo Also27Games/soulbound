@@ -71,6 +71,13 @@ namespace Soulbound::Presentation
 	/** Una opción de un evento: sus aplicaciones en orden, separadas por " y luego " (S-014). */
 	FString DescribeOption(const FWardenEventOption& Option);
 
+	/**
+	 * Una opción de un evento para el jugador (S-033, R-DEC-11, nombre propuesto): como DescribeOption, sin la dirección cuando recae en quien elige
+	 * (EEffectTarget::ActivePlayer, "al activo"), que para el jugador no significa nada. Las demás direcciones se conservan. La crónica y el acta siguen
+	 * con DescribeOption.
+	 */
+	FString DescribeOptionForPlayer(const FWardenEventOption& Option);
+
 	/** Por qué no se lanzó un evento (S-014: SbEvent), en español. */
 	FString DescribeWardenEventStart(EWardenEventStart Result);
 

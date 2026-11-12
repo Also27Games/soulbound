@@ -18,6 +18,10 @@ namespace Soulbound::Presentation
 		Token,
 		Orb,
 		Tile,
+		/** S-033 (R-DEC-5, nombre propuesto): no es una decisión del humano, es la espera a otro asiento: sin botones y sin nada que pulsar. */
+		Wait,
+		/** S-033 (R-DEC-8, nombre propuesto): el resultado de una votación, unos segundos tras cerrarse: sin botones ni barra, con una línea por voto. */
+		Result,
 	};
 
 	/** A qué entrada del anfitrión va una opción del panel: la misma que su tecla o su clic. */
@@ -67,6 +71,10 @@ namespace Soulbound::Presentation
 		double DeadlineSeconds = 0.0;
 		/** El reloj de partida del estado con que se calculó. */
 		double ClockSeconds = 0.0;
+		/** Líneas de detalle bajo el contexto (S-033, nombre propuesto): una por voto en el resultado de una votación; vacía en las demás. */
+		TArray<FString> Lines;
+		/** Si lleva barra de plazo (S-033): falso en la espera de una prueba de habilidad o de un duelo, que no tienen plazo, y en el resultado. */
+		bool bHasDeadline = true;
 		/** La mesa espera al Warden (R-DEC-3): se enseña con los botones desactivados y "El Warden habla" en vez del reloj. */
 		bool bBlocked = false;
 		/** Qué decisión es, para saber si la que se ve es la misma que antes (el reloj de la barra): la entrada y, con botones, el tipo de elección. */
@@ -85,6 +93,57 @@ namespace Soulbound::Presentation
 	 * @return La vista, o nada si no hay decisión abierta para el humano, si ya votó o si la partida ha terminado.
 	 */
 	TOptional<FDecisionView> DecisionView(const FMatchState& State, int32 HumanSeat, bool bWardenSpeaking);
+
+	/**
+	 * Qué enseña el panel mientras la mesa espera a otro asiento (S-033, R-DEC-5, nombre propuesto). En el orden del panel de estado: la
+	 * elección pendiente de otro asiento, su destino (su turno de tirada), su consulta del Oráculo, la votación abierta en la que el humano ya
+	 * votó o no puede votar (con quién falta) y la prueba de habilidad o el duelo de otros asientos. No decide nada: quién y qué lo dice el estado.
+	 * @param State El estado de la partida.
+	 * @param HumanSeat El asiento humano de esta máquina.
+	 * @return La vista de tipo Wait, sin opciones, o nada si la mesa no espera a otro asiento o la partida ha terminado.
+	 */
+	TOptional<FDecisionView> WaitView(const FMatchState& State, int32 HumanSeat);
+
+	/**
+	 * El resultado de la última votación (S-033, R-DEC-8, nombre propuesto): el más votado con sus votos, si desempató el Warden y una línea por
+	 * voto de esa votación. Sale del registro de eventos y del reloj de partida, sin reloj real.
+	 * @param State El estado de la partida.
+	 * @param ResultSeconds Cuánto se enseña, en segundos del reloj de partida (VoteResultSeconds).
+	 * @return La vista de tipo Result, o nada si no hay votación resuelta o hace ResultSeconds o más que se resolvió.
+	 */
+	TOptional<FDecisionView> VoteResultView(const FMatchState& State, double ResultSeconds);
+
+	/**
+	 * El desenlace de lo que no se ve en el tablero (S-033, R-DEC-10, añadido del autor; nombre propuesto): quién gana un duelo, qué opción de un
+	 * dilema sale, qué roba el trilero y si otro asiento supera su prueba. Es el último suceso de esa lista en el registro, con su edad medida
+	 * con ClockSeconds; título y una línea (Context), sin botones ni barra. No inventa nada: quién, a quién y qué lo dice el registro.
+	 * @param State El estado de la partida.
+	 * @param HumanSeat El asiento humano: su elección de dilema y sus pruebas no se enseñan (ya las ve él).
+	 * @param OutcomeSeconds Cuánto se enseña, en segundos del reloj de partida (OutcomeSeconds).
+	 * @return La vista de tipo Result, o nada si el último suceso de la lista es del humano, hace OutcomeSeconds o más, o no hay ninguno.
+	 */
+	TOptional<FDecisionView> OutcomeView(const FMatchState& State, int32 HumanSeat, double OutcomeSeconds);
+
+	/**
+	 * Lo que enseña el panel en cada momento (S-033, R-DEC-6, nombre propuesto): la decisión del humano si existe; si no, el resultado de una
+	 * votación o el desenlace recientes (el más nuevo del registro, R-DEC-10); si no, la espera a otro asiento, salvo mientras la mesa espera al Warden (su frase ya está en pantalla); si no, nada.
+	 * @param State El estado de la partida.
+	 * @param HumanSeat El asiento humano de esta máquina.
+	 * @param bWardenSpeaking Si la mesa espera al Warden (UMatchHostSubsystem::IsWardenSpeaking).
+	 * @param VoteResultSeconds Cuánto dura el resultado de una votación.
+	 * @param OutcomeSeconds Cuánto dura un desenlace.
+	 * @return La vista, o nada.
+	 */
+	TOptional<FDecisionView> PanelView(const FMatchState& State, int32 HumanSeat, bool bWardenSpeaking, double VoteResultSeconds, double OutcomeSeconds);
+
+	/**
+	 * Si el panel enseña una decisión propia del humano (S-033, adición a del autor): lo que hace que el panel de estado no repita la petición.
+	 * Nunca con la espera ni con el resultado, y no con el anillo abierto.
+	 * @param View Lo que devolvió PanelView.
+	 * @param bRingOpen Si el anillo del humano está abierto.
+	 * @return Si se enseña y es una decisión del humano.
+	 */
+	bool IsOwnDecisionShown(const TOptional<FDecisionView>& View, bool bRingOpen);
 
 	/**
 	 * Si el panel de decisión se enseña (R-DEC-3): hay vista y el anillo del humano no está abierto. Bloqueada o no, se enseña. La tecla de los
@@ -140,4 +199,15 @@ namespace Soulbound::Presentation
 	 * @return Verdadero si van en fila: Count por (WidestButton más SlotGap) no pasa de AvailableWidth. Sin botones, en fila.
 	 */
 	bool DecisionButtonsInRow(int32 Count, float WidestButton, float SlotGap, float AvailableWidth);
+
+	/**
+	 * El hueco libre del tablero en horizontal (corrección del autor del 11/11/2026, R-HUD-3): lo que queda del ancho de la ventana, en unidades de
+	 * Slate, a la izquierda de la columna de paneles, con 16 de margen a cada lado. Con él se decide el ancho máximo del panel de decisión y el
+	 * ancho en que se parte la frase del Warden.
+	 * @param ViewportSlateWidth El ancho de la ventana, ya dividido por la escala de DPI.
+	 * @param PanelColumnWidth El ancho de la columna de paneles.
+	 * @param Cap El tope del ancho.
+	 * @return El ancho libre, entre 0 y Cap.
+	 */
+	float BoardFreeWidth(float ViewportSlateWidth, float PanelColumnWidth, float Cap);
 }

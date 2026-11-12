@@ -144,6 +144,21 @@ public:
 	float HaloScale = 1.35f;
 
 	/**
+	 * Cota del halo del Altar, en cm (S-033, R-DEC-12, nombre propuesto). El Altar va a cota 0 y las demás casillas a KitFloorHeight, así que su halo a
+	 * la cota de siempre (0,07) quedaba bajo el relieve de la tierra (hasta 3,9). Valor inicial 3,17: KitFloorHeight (3,1) más 0,07, la cota del halo
+	 * de las demás casillas. Se ajusta en PIE sin recompilar (Config/DefaultGame.ini).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Formas")
+	float AltarHaloZ = 3.17f;
+
+	/**
+	 * Cuánto sobresale el halo del Altar de su pieza, por la mayor de sus medidas X o Y (S-033, R-DEC-12): el Altar es un hexágono y el halo, redondo,
+	 * tiene que asomar también por las esquinas. Valor inicial 1,1 (un 10 %); menos de 1 se toma como 1 (Config/DefaultGame.ini).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Formas", meta = (ClampMin = "1"))
+	float AltarHaloMargin = 1.1f;
+
+	/**
 	 * Diámetro del halo del aspirante bajo el Altar (S-018), por el del halo de alcanzable: más ancho, para que se vea alrededor. Con
 	 * dos o más aspirantes, cada halo es AspirantHaloStep más ancho que el anterior. Valores iniciales 1,25 y 0,15.
 	 */
@@ -289,6 +304,27 @@ public:
 	/** Tamaño de la letra de la línea del Warden (S-021). Valor inicial 28. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
 	int32 WardenLineFontSize = 28;
+
+	/**
+	 * Cuántas líneas de la frase del Warden se reservan siempre bajo el panel de decisión (S-033, R-DEC-9), haya frase o no, para que el panel no
+	 * se mueva cuando la frase aparece, cambia o se va. Valor inicial 2 (Config/DefaultGame.ini).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
+	int32 WardenLineReservedLines = 2;
+
+	/**
+	 * Segundos del reloj de partida que el panel de decisión enseña el resultado de una votación al cerrarse (S-033, R-DEC-8). Valor inicial 5
+	 * (Config/DefaultGame.ini). Cero: no se enseña.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
+	float VoteResultSeconds = 5.f;
+
+	/**
+	 * Segundos del reloj de partida que el panel de decisión enseña el desenlace de un duelo, un dilema, un trilero o la prueba de otro asiento
+	 * (S-033, R-DEC-10). Valor inicial 4 (Config/DefaultGame.ini). Cero: no se enseña.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
+	float OutcomeSeconds = 4.f;
 
 	/**
 	 * Segundos que el panel del anillo enseña el resultado ("superada", "fallada" o el rendimiento del duelo) tras cerrarse la prueba (S-026).
@@ -590,6 +626,12 @@ private:
 	void BuildTiles();
 	/** Las piezas del kit que haya: cuñas, Altar, losas, senderos, estructuras, runas flotantes y cadenas (S-019). */
 	void BuildKit();
+
+	/**
+	 * Dimensiona y coloca el halo del Altar con el componente real de su pieza ya colocado (S-033, R-DEC-12): centro, tamaño (HaloDiameter con
+	 * AltarHaloMargin) y cota AltarHaloZ. Sin pieza, queda el del tablero básico. Escribe en el registro los números que usa.
+	 */
+	void FitAltarHalo();
 	void BuildTokens();
 	void BuildCamera();
 	/** Volumen de exposición fija, lámpara y cielo tenue (S-019, R-VIS-7). */
@@ -702,11 +744,26 @@ private:
 	 * es. Se llama a intervalo corto porque el reloj cambia sin que cambie el estado.
 	 */
 	void TickHud();
+
+	/**
+	 * El ancho de la capa de la frase y del panel de decisión, en unidades de Slate (S-033, R-DEC-13): el de su geometría real en el último tick; si aún
+	 * no la hay, la cuenta con el tamaño de la ventana y la escala de DPI.
+	 */
+	float LayerSlateWidth() const;
+
+	/** El hueco libre del tablero en horizontal para un tope, a partir de LayerSlateWidth (BoardFreeWidth). */
+	float BoardFreeWidthNow(float Cap) const;
 	/** Lo que los paneles de estado y de depuración necesitan y no está en el estado (S-027, FStatusContext). */
 	Soulbound::Presentation::FStatusContext MakeStatusContext() const;
 
-	/** La decisión abierta para el humano ahora (S-028, DecisionView), con la espera del Warden del anfitrión; nada sin partida. */
-	TOptional<Soulbound::Presentation::FDecisionView> DecisionViewNow() const;
+	/**
+	 * Lo que enseña el panel ahora (S-028, DecisionView; S-033, PanelView): la decisión del humano, el resultado de una votación reciente o la
+	 * espera a otro asiento, con la espera del Warden del anfitrión; nada sin partida.
+	 */
+	TOptional<Soulbound::Presentation::FDecisionView> PanelViewNow() const;
+
+	/** El alto del hueco que se reserva siempre a la frase del Warden (S-033, R-DEC-9): WardenLineReservedLines líneas de su letra más sus márgenes. */
+	float WardenLineReservedHeight() const;
 
 	/** Si la capa del panel de decisión se enseña (S-028, R-DEC-3): la regla de DecisionText, la tecla de los paneles (H) y el telón. */
 	bool IsDecisionPanelVisible() const;
@@ -777,6 +834,14 @@ private:
 	float PanelDpiScale = 1.f;
 	/** Si ya se escribió la escala en el registro (al arrancar se escribe siempre; después, solo si cambia). */
 	bool bPanelScaleLogged = false;
+	/** Los números de la última línea "Paneles: capa de la frase" (S-033, R-DEC-13); para escribir solo si cambian. */
+	FString LoggedLayoutKey;
+	/** La columna de paneles y el contenido de la capa de la frase: su geometría real va al registro (S-033, R-DEC-13). */
+	TSharedPtr<SWidget> PanelColumn;
+	TSharedPtr<SWidget> WardenLineContent;
+	/** La pieza del Altar ya colocada y la última visibilidad de su halo que se escribió en el registro (-1: ninguna; S-033, R-DEC-12). */
+	TWeakObjectPtr<UStaticMeshComponent> AltarPieceComponent;
+	int32 LoggedAltarHalo = -1;
 
 	/**
 	 * La línea del Warden en pantalla (S-021): una capa aparte, que no se oculta con los paneles (H). Desde S-028 lleva encima, en la misma

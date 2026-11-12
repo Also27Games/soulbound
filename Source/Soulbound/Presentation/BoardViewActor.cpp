@@ -44,7 +44,9 @@
 #include "Engine/World.h"
 #include "Misc/Paths.h"
 #include "Framework/Application/IInputProcessor.h"
+#include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Rendering/SlateRenderer.h"
 #include "HAL/PlatformTime.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -55,6 +57,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/SBoxPanel.h"
 
@@ -311,6 +314,7 @@ void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 			}
 		}
 		Overlay.Reset();
+		PanelColumn.Reset();
 	}
 	if (WardenLineOverlay.IsValid())
 	{
@@ -322,6 +326,7 @@ void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 			}
 		}
 		WardenLineOverlay.Reset();
+		WardenLineContent.Reset();
 	}
 	if (ReturnToMenuOverlay.IsValid())
 	{
@@ -389,6 +394,43 @@ void ABoardViewActor::BuildKit()
 	const FBoardState& Board = Host->GetState().Board;
 	Kit.PlaceFixed(*this, Board, Layout, KitFixed);
 	Kit.PlaceStructures(*this, Board, Layout, LayoutParams, FBoardKitStructureOptions(), KitStructures);
+	FitAltarHalo();
+}
+
+void ABoardViewActor::FitAltarHalo()
+{
+	// R-DEC-12 (S-033): el halo del Altar sale del componente real de su pieza ya colocado, no de la malla por la escala del kit.
+	const int32 Altar = Host->GetState().Board.FindAltar();
+	UStaticMeshComponent* Halo = Halos.IsValidIndex(Altar) ? Halos[Altar].Get() : nullptr;
+	UStaticMesh* AltarPiece = Kit.Mesh(EBoardKitPiece::Altar);
+	if (!Halo || !AltarPiece)
+	{
+		return;
+	}
+	UStaticMeshComponent* Piece = nullptr;
+	for (const TObjectPtr<UStaticMeshComponent>& Component : KitFixed.Fixed)
+	{
+		if (Component && Component->GetStaticMesh() == AltarPiece)
+		{
+			Piece = Component;
+			break;
+		}
+	}
+	if (!Piece)
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Halo del Altar: no encuentro el componente de su pieza entre los del kit; se queda el del tablero básico."));
+		return;
+	}
+	AltarPieceComponent = Piece;
+	// Los límites en mundo de la pieza: su centro, y la mayor de sus medidas X o Y (el Altar es un hexágono y el AABB lleva sus esquinas).
+	const FBoxSphereBounds Bounds = Piece->CalcBounds(Piece->GetComponentTransform());
+	const float Width = Soulbound::Presentation::HaloDiameter(Layout.AltarApothem * 2.f, HaloScale, static_cast<float>(Bounds.BoxExtent.X) * 2.f,
+		static_cast<float>(Bounds.BoxExtent.Y) * 2.f, AltarHaloMargin);
+	Halo->SetWorldLocation(FVector(Bounds.Origin.X, Bounds.Origin.Y, AltarHaloZ));
+	Halo->SetWorldScale3D(FVector(Width / 100.f, Width / 100.f, HaloHeight / 100.f));
+	UE_LOG(LogSoulboundView, Verbose, TEXT("Halo del Altar: pieza con origen (%.2f, %.2f, %.2f) y semiextensión (%.2f, %.2f, %.2f) en mundo, base en Z %.2f; halo en (%.2f, %.2f, %.2f), diámetro %.2f (casilla %.2f, HaloScale %.2f, AltarHaloMargin %.2f), alto %.2f, KitFloorHeight %.2f."),
+		Bounds.Origin.X, Bounds.Origin.Y, Bounds.Origin.Z, Bounds.BoxExtent.X, Bounds.BoxExtent.Y, Bounds.BoxExtent.Z, Bounds.Origin.Z - Bounds.BoxExtent.Z,
+		Bounds.Origin.X, Bounds.Origin.Y, AltarHaloZ, Width, Layout.AltarApothem * 2.f, HaloScale, AltarHaloMargin, HaloHeight, LayoutParams.KitFloorHeight);
 }
 
 void ABoardViewActor::BuildEdges()
@@ -505,6 +547,7 @@ void ABoardViewActor::BuildTiles()
 
 		// Halo de "alcanzable": un disco por debajo de la losa, más ancho, que solo se ve en el borde. La losa
 		// conserva su color; el halo se enciende cuando la tirada la permite.
+		// El del Altar con la pieza del kit se recoloca y redimensiona en BuildKit (FitAltarHalo), cuando la pieza ya existe (R-DEC-12).
 		UStaticMeshComponent* Halo = AddShape(CylinderMesh, Position + FVector(0.f, 0.f, HaloZ), FRotator::ZeroRotator, FVector(Diameter * HaloScale, Diameter * HaloScale, HaloHeight));
 		Soulbound::Presentation::SetComponentColor(*Halo, BaseMaterial, ReachableColor);
 		Halo->SetVisibility(false);
@@ -976,7 +1019,7 @@ void ABoardViewActor::BuildOverlay()
 			return bPanelsHidden || (HostPtr && HostPtr->IsCurtainDown()) ? EVisibility::Collapsed : EVisibility::SelfHitTestInvisible;
 		})
 		[
-			SNew(SBox)
+			SAssignNew(PanelColumn, SBox)
 			.WidthOverride_Lambda([this]() { return FOptionalSize(PanelSlateWidth); })
 			[
 				SNew(SVerticalBox)
@@ -1059,11 +1102,18 @@ void ABoardViewActor::BuildOverlay()
 	// S-021: la línea del Warden, grande y abajo, a la izquierda de la columna de paneles. Solo texto: ni assets ni widgets del juego.
 	// S-028 (R-DEC-2 a R-DEC-4): encima, en la misma columna, el panel de decisión, centrado y con la letra de los paneles; va siempre por
 	// encima de la frase. El panel se queda los clics que le caen encima (SDecisionPanel); la capa y la frase siguen sin recibirlos.
+	// R-DEC-13 (S-033, corrección del autor del 12/11/2026): la capa ocupa el hueco libre (HAlign_Fill, con sus márgenes) y el contenido se centra dentro,
+	// sin márgenes laterales. Con HAlign_Center y márgenes desiguales, AlignChild (LayoutUtils.h) coloca en (ancho - hijo) / 2 + izquierdo - derecho: todo
+	// quedaba media columna a la izquierda del centro del hueco y a 1024x768 se cortaba.
 	WardenLineOverlay = SNew(SBox)
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Bottom)
-		.Padding_Lambda([this]() { return FMargin(16.f, 0.f, PanelSlateWidth + 16.f, 36.f); })
-		.Visibility(EVisibility::SelfHitTestInvisible)
+	.HAlign(HAlign_Fill)
+	.VAlign(VAlign_Bottom)
+	.Padding_Lambda([this]() { return FMargin(16.f, 0.f, PanelSlateWidth + 16.f, 36.f); })
+	.Visibility(EVisibility::SelfHitTestInvisible)
+	[
+		SAssignNew(WardenLineContent, SOverlay)
+		// Capa de abajo: la columna del panel de decisión y, debajo, el hueco de la frase.
+		+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Bottom)
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, 8.f)
@@ -1080,37 +1130,45 @@ void ABoardViewActor::BuildOverlay()
 					// tope de la caja. Con él decide si sus botones caben en fila (corrección del autor del 11/11/2026).
 					.MaxWidth_Lambda([this]()
 					{
-						const float SlateViewportWidth = static_cast<float>(LastViewportSize.X) / PanelDpiScale;
-						return FMath::Clamp(SlateViewportWidth - PanelSlateWidth - 32.f, 0.f, DecisionPanelMaxWidth);
+						return BoardFreeWidthNow(DecisionPanelMaxWidth);
 					})
 					.OnOption_Lambda([this](const Soulbound::Presentation::FDecisionOption& Option) { AnswerDecision(Option); })
 				]
 			]
-			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+			// S-033 (R-DEC-9): el hueco de la frase, siempre reservado, haya frase o no, como espacio vacío de alto fijo: el panel de encima no se
+			// mueve cuando la frase aparece, cambia de largo o se va. Su alto sale de la letra de la frase y de sus márgenes (WardenLineReservedHeight).
+			+ SVerticalBox::Slot().AutoHeight()
 			[
-				SNew(SBox)
-				.Visibility(EVisibility::HitTestInvisible)
-				// TODO(R-HUD-3): a 1024x768 la frase se sale por la izquierda (visto en S-027, ya pasaba antes). No lo arreglan ni limitar este ancho
-				// al hueco libre ni un WrapTextAt explícito con ese hueco (probados en S-027): en la captura el fondo negro queda más pequeño que el
-				// texto, así que parece que el tamaño deseado no se recalcula al cambiar la frase. Hace falta mirarlo en el editor con el Widget Reflector.
-				.MaxDesiredWidth(1000.f)
-				[
-					SNew(SBorder)
-					.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-					.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.65f))
-					.Padding(FMargin(20.f, 10.f))
-					.Visibility_Lambda([this]() { return WardenLineNow().IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
-					[
-						SNew(STextBlock)
-						.Text_Lambda([this]() { return FText::FromString(WardenLineNow()); })
-						.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(WardenLineFontSize, 8)))
-						.ColorAndOpacity(WardenLineColor)
-						.Justification(ETextJustify::Center)
-						.AutoWrapText(true)
-					]
-				]
+				SNew(SBox).HeightOverride_Lambda([this]() { return FOptionalSize(WardenLineReservedHeight()); })
 			]
-		];
+		]
+		// Capa de arriba: la frase, anclada abajo con el mismo margen que el hueco. Crece hacia arriba, por encima del panel si hace falta (corrección
+		// del autor del 11/11/2026: en una caja de alto fijo se recortaba lo que sobraba). No recibe clics: el hueco vacío deja pasar los del tablero.
+		+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Bottom)
+		[
+			SNew(SBorder)
+			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+			.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.65f))
+			.Padding(FMargin(20.f, 10.f))
+			.Visibility_Lambda([this]() { return WardenLineNow().IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+			[
+				SNew(STextBlock)
+				.Text_Lambda([this]() { return FText::FromString(WardenLineNow()); })
+				.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(WardenLineFontSize, 8)))
+				.ColorAndOpacity(WardenLineColor)
+				.Justification(ETextJustify::Center)
+				// R-HUD-3 (corrección del autor del 11/11/2026): con AutoWrapText el texto se parte al ancho con que se pintó la frase anterior
+				// (FSlateTextBlockLayout::CalculateWrappingWidth usa CachedSize, el de la última pasada de pintado), así que tras una frase corta
+				// todas salían estrechas. Con WrapTextAt solo y el hueco libre (el tope de 1000 menos los 40 de margen del fondo), el ancho no
+				// depende de lo pintado antes. Nunca los dos a la vez: manda el menor. Desde R-DEC-13 (12/11/2026) el hueco sale de la geometría real
+				// de la capa (BoardFreeWidthNow), no de la ventana y la escala de DPI: a 1024x768 la cuenta daba de más y la frase se cortaba.
+				.WrapTextAt_Lambda([this]()
+				{
+					return FMath::Max(BoardFreeWidthNow(1000.f) - 40.f, 1.f);
+				})
+			]
+		]
+	];
 	Viewport->AddViewportWidgetContent(WardenLineOverlay.ToSharedRef(), 11);
 
 	// S-022 (decisión del autor del 29/10/2026): con la partida terminada, un botón grande para volver al menú, con el ratón (el controlador
@@ -1275,7 +1333,18 @@ void ABoardViewActor::Refresh()
 		}
 		if (UStaticMeshComponent* Halo = Halos.IsValidIndex(Tile.TileId) ? Halos[Tile.TileId].Get() : nullptr)
 		{
-			Halo->SetVisibility(Reachable.Contains(Tile.TileId));
+			const bool bHaloShown = Reachable.Contains(Tile.TileId);
+			Halo->SetVisibility(bHaloShown);
+			if (Tile.Type == ETileType::Altar && LoggedAltarHalo != (bHaloShown ? 1 : 0))
+			{
+				LoggedAltarHalo = bHaloShown ? 1 : 0;
+				const FBoxSphereBounds PieceBounds = AltarPieceComponent.IsValid() ? AltarPieceComponent->CalcBounds(AltarPieceComponent->GetComponentTransform()) : FBoxSphereBounds(ForceInit);
+				const FVector HaloLocation = Halo->GetComponentLocation();
+				const FVector HaloScale3D = Halo->GetComponentScale();
+				UE_LOG(LogSoulboundView, Verbose, TEXT("Halo del Altar: visible %d; halo en (%.2f, %.2f, %.2f), diámetro %.2f, alto %.2f; pieza con origen (%.2f, %.2f, %.2f) y semiextensión (%.2f, %.2f, %.2f)."),
+					bHaloShown ? 1 : 0, HaloLocation.X, HaloLocation.Y, HaloLocation.Z, HaloScale3D.X * 100.0, HaloScale3D.Z * 100.0,
+					PieceBounds.Origin.X, PieceBounds.Origin.Y, PieceBounds.Origin.Z, PieceBounds.BoxExtent.X, PieceBounds.BoxExtent.Y, PieceBounds.BoxExtent.Z);
+			}
 		}
 
 		UStaticMeshComponent* Inlay = Inlays.IsValidIndex(Tile.TileId) ? Inlays[Tile.TileId].Get() : nullptr;
@@ -1858,6 +1927,32 @@ void ABoardViewActor::TickHud()
 		}
 	}
 
+	// S-033 (R-DEC-13): los números para medir a 1024x768, en la línea "Paneles:" cuando cambian: la geometría real de la capa de la frase, de su contenido
+	// (dónde empieza y cuánto mide dentro de la capa) y de la columna de paneles, lo que da la cuenta con la ventana y la escala de DPI, y el hueco libre
+	// que sale de cada una (tope 1000, el de la frase). El centro del contenido y el del hueco tienen que coincidir.
+	if (WardenLineOverlay.IsValid() && WardenLineContent.IsValid())
+	{
+		const FGeometry& LayerGeometry = WardenLineOverlay->GetTickSpaceGeometry();
+		const FGeometry& ContentGeometry = WardenLineContent->GetTickSpaceGeometry();
+		const FVector2D LayerSize = FVector2D(LayerGeometry.GetLocalSize());
+		if (LayerSize.X >= 1.0)
+		{
+			const FVector2D ContentAt = FVector2D(LayerGeometry.AbsoluteToLocal(ContentGeometry.GetAbsolutePosition()));
+			const FVector2D ContentSize = FVector2D(ContentGeometry.GetLocalSize());
+			const float ColumnWidth = PanelColumn.IsValid() ? static_cast<float>(PanelColumn->GetTickSpaceGeometry().GetLocalSize().X) : -1.f;
+			const FString Key = FString::Printf(TEXT("%.0f|%.0f|%.0f|%.0f"), LayerSize.X, ContentAt.X, ContentSize.X, ColumnWidth);
+			if (Key != LoggedLayoutKey)
+			{
+				LoggedLayoutKey = Key;
+				const float ByWindow = static_cast<float>(LastViewportSize.X) / PanelDpiScale;
+				const float HoleCenter = 16.f + (static_cast<float>(LayerSize.X) - PanelSlateWidth - 32.f) * 0.5f;
+				UE_LOG(LogSoulboundView, Verbose, TEXT("Paneles: capa de la frase %.1fx%.1f en Slate (geometría real); contenido en x %.1f con ancho %.1f (centro %.1f; centro del hueco %.1f); columna real %.1f (PanelSlateWidth %.1f); la cuenta con la ventana da %.1f de ancho (%.0f px / escala %.3f); hueco libre con tope 1000: %.1f por geometría, %.1f por la cuenta."),
+					LayerSize.X, LayerSize.Y, ContentAt.X, ContentSize.X, ContentAt.X + ContentSize.X * 0.5, HoleCenter, ColumnWidth, PanelSlateWidth, ByWindow, LastViewportSize.X, PanelDpiScale,
+					Soulbound::Presentation::BoardFreeWidth(static_cast<float>(LayerSize.X), PanelSlateWidth, 1000.f), Soulbound::Presentation::BoardFreeWidth(ByWindow, PanelSlateWidth, 1000.f));
+			}
+		}
+	}
+
 	// S-024 (decisión del autor del 4/11): con el telón bajado, o en su margen, no se rellena nada: los paneles se ocultan en su capa.
 	if (HostPtr->IsCurtainDown())
 	{
@@ -1866,18 +1961,20 @@ void ABoardViewActor::TickHud()
 
 	// S-027 (R-HUD-1, R-HUD-2, R-HUD-4): lo que antes eran mensajes de pantalla del motor, en los paneles; el texto lo construye StatusText.
 	// S-028 (R-DEC-1 a R-DEC-3): la decisión del humano, en su panel, con el reloj de la barra; con el panel a la vista, el de estado no repite
-	// la petición.
-	const TOptional<Soulbound::Presentation::FDecisionView> Decision = DecisionViewNow();
-	Soulbound::Presentation::AdvanceDecisionClock(DecisionClock, Decision);
-	DecisionDeadlineSeconds = Decision.IsSet() ? Decision->DeadlineSeconds : 0.0;
-	bDecisionShown = Soulbound::Presentation::IsDecisionPanelShown(Decision, HostPtr->GetRingRun() != nullptr);
+	// la petición. S-033 (R-DEC-6): el mismo panel enseña, si el humano no tiene nada que decidir, el resultado de una votación reciente o a quién
+	// espera la mesa; el panel de estado solo deja de repetir la petición cuando lo que se ve es una decisión propia.
+	const TOptional<Soulbound::Presentation::FDecisionView> Panel = PanelViewNow();
+	Soulbound::Presentation::AdvanceDecisionClock(DecisionClock, Panel);
+	DecisionDeadlineSeconds = Panel.IsSet() ? Panel->DeadlineSeconds : 0.0;
+	const bool bRingOpen = HostPtr->GetRingRun() != nullptr;
+	bDecisionShown = Soulbound::Presentation::IsDecisionPanelShown(Panel, bRingOpen);
 	if (DecisionPanel.IsValid())
 	{
-		DecisionPanel->SetView(bDecisionShown ? Decision : TOptional<Soulbound::Presentation::FDecisionView>());
+		DecisionPanel->SetView(bDecisionShown ? Panel : TOptional<Soulbound::Presentation::FDecisionView>());
 	}
 
 	Soulbound::Presentation::FStatusContext Context = MakeStatusContext();
-	Context.bDecisionPanelShown = bDecisionShown;
+	Context.bDecisionPanelShown = Soulbound::Presentation::IsOwnDecisionShown(Panel, bRingOpen);
 	if (StatusPanel.IsValid())
 	{
 		StatusPanel->SetLines(Soulbound::Presentation::StatusLines(State, Context));
@@ -1958,14 +2055,45 @@ void ABoardViewActor::HandleRingClosed(const TOptional<FRingOutcome>& Outcome)
 	LastRingShownUntil = FPlatformTime::Seconds() + FMath::Max(RingResultSeconds, 0.f);
 }
 
-TOptional<Soulbound::Presentation::FDecisionView> ABoardViewActor::DecisionViewNow() const
+TOptional<Soulbound::Presentation::FDecisionView> ABoardViewActor::PanelViewNow() const
 {
 	const UMatchHostSubsystem* HostPtr = Host.Get();
 	if (!HostPtr || !HostPtr->HasMatch())
 	{
 		return {};
 	}
-	return Soulbound::Presentation::DecisionView(HostPtr->GetState(), HostPtr->GetHumanSeat(), HostPtr->IsWardenSpeaking());
+	return Soulbound::Presentation::PanelView(HostPtr->GetState(), HostPtr->GetHumanSeat(), HostPtr->IsWardenSpeaking(), VoteResultSeconds, OutcomeSeconds);
+}
+
+float ABoardViewActor::LayerSlateWidth() const
+{
+	// La geometría de la capa en el último tick (en unidades de Slate, ya sin la escala de DPI); vacía hasta que se dibuja por primera vez.
+	if (WardenLineOverlay.IsValid())
+	{
+		const float Local = static_cast<float>(WardenLineOverlay->GetTickSpaceGeometry().GetLocalSize().X);
+		if (Local >= 1.f)
+		{
+			return Local;
+		}
+	}
+	return static_cast<float>(LastViewportSize.X) / PanelDpiScale;
+}
+
+float ABoardViewActor::BoardFreeWidthNow(float Cap) const
+{
+	return Soulbound::Presentation::BoardFreeWidth(LayerSlateWidth(), PanelSlateWidth, Cap);
+}
+
+float ABoardViewActor::WardenLineReservedHeight() const
+{
+	// R-DEC-9: WardenLineReservedLines líneas de la letra de la frase, más el margen de arriba y de abajo de su fondo (los 10 del SBorder).
+	const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(WardenLineFontSize, 8));
+	float LineHeight = static_cast<float>(FMath::Max(WardenLineFontSize, 8));
+	if (FSlateApplication::IsInitialized() && FSlateApplication::Get().GetRenderer())
+	{
+		LineHeight = static_cast<float>(FSlateApplication::Get().GetRenderer()->GetFontMeasureService()->GetMaxCharacterHeight(Font, 1.f));
+	}
+	return FMath::Max(WardenLineReservedLines, 0) * LineHeight + 2.f * 10.f;
 }
 
 bool ABoardViewActor::IsDecisionPanelVisible() const
