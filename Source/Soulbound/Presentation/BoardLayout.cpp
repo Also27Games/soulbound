@@ -359,8 +359,8 @@ FBoardLayout Soulbound::Presentation::ComputeBoardLayout(const FBoardState& Boar
 	return Layout;
 }
 
-float Soulbound::Presentation::HaloDiameter(float TileDiameter, float HaloScale, float PieceSizeX, float PieceSizeY)
+float Soulbound::Presentation::HaloDiameter(float TileDiameter, float HaloScale, float PieceSizeX, float PieceSizeY, float Margin)
 {
-	// El margen del 10 % sobre la mayor medida: un hexágono es más ancho en las esquinas que en las caras, y un halo redondo tiene que cubrir las esquinas.
-	return FMath::Max(TileDiameter * HaloScale, FMath::Max(PieceSizeX, PieceSizeY) * 1.1f);
+	// El margen sobre la mayor medida: un hexágono es más ancho en las esquinas que en las caras, y un halo redondo tiene que cubrir las esquinas.
+	return FMath::Max(TileDiameter * HaloScale, FMath::Max(PieceSizeX, PieceSizeY) * FMath::Max(Margin, 1.f));
 }

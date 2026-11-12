@@ -144,6 +144,21 @@ public:
 	float HaloScale = 1.35f;
 
 	/**
+	 * Cota del halo del Altar, en cm (S-033, R-DEC-12, nombre propuesto). El Altar va a cota 0 y las demás casillas a KitFloorHeight, así que su halo a
+	 * la cota de siempre (0,07) quedaba bajo el relieve de la tierra (hasta 3,9). Valor inicial 3,17: KitFloorHeight (3,1) más 0,07, la cota del halo
+	 * de las demás casillas. Se ajusta en PIE sin recompilar (Config/DefaultGame.ini).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Formas")
+	float AltarHaloZ = 3.17f;
+
+	/**
+	 * Cuánto sobresale el halo del Altar de su pieza, por la mayor de sus medidas X o Y (S-033, R-DEC-12): el Altar es un hexágono y el halo, redondo,
+	 * tiene que asomar también por las esquinas. Valor inicial 1,1 (un 10 %); menos de 1 se toma como 1 (Config/DefaultGame.ini).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Formas", meta = (ClampMin = "1"))
+	float AltarHaloMargin = 1.1f;
+
+	/**
 	 * Diámetro del halo del aspirante bajo el Altar (S-018), por el del halo de alcanzable: más ancho, para que se vea alrededor. Con
 	 * dos o más aspirantes, cada halo es AspirantHaloStep más ancho que el anterior. Valores iniciales 1,25 y 0,15.
 	 */
@@ -611,6 +626,12 @@ private:
 	void BuildTiles();
 	/** Las piezas del kit que haya: cuñas, Altar, losas, senderos, estructuras, runas flotantes y cadenas (S-019). */
 	void BuildKit();
+
+	/**
+	 * Dimensiona y coloca el halo del Altar con el componente real de su pieza ya colocado (S-033, R-DEC-12): centro, tamaño (HaloDiameter con
+	 * AltarHaloMargin) y cota AltarHaloZ. Sin pieza, queda el del tablero básico. Escribe en el registro los números que usa.
+	 */
+	void FitAltarHalo();
 	void BuildTokens();
 	void BuildCamera();
 	/** Volumen de exposición fija, lámpara y cielo tenue (S-019, R-VIS-7). */
@@ -813,8 +834,14 @@ private:
 	float PanelDpiScale = 1.f;
 	/** Si ya se escribió la escala en el registro (al arrancar se escribe siempre; después, solo si cambia). */
 	bool bPanelScaleLogged = false;
-	/** El ancho de la capa de la frase en el último registro de "Paneles:" (S-033, R-DEC-13); para escribir solo si cambia. */
-	float LoggedLayerWidth = -1.f;
+	/** Los números de la última línea "Paneles: capa de la frase" (S-033, R-DEC-13); para escribir solo si cambian. */
+	FString LoggedLayoutKey;
+	/** La columna de paneles y el contenido de la capa de la frase: su geometría real va al registro (S-033, R-DEC-13). */
+	TSharedPtr<SWidget> PanelColumn;
+	TSharedPtr<SWidget> WardenLineContent;
+	/** La pieza del Altar ya colocada y la última visibilidad de su halo que se escribió en el registro (-1: ninguna; S-033, R-DEC-12). */
+	TWeakObjectPtr<UStaticMeshComponent> AltarPieceComponent;
+	int32 LoggedAltarHalo = -1;
 
 	/**
 	 * La línea del Warden en pantalla (S-021): una capa aparte, que no se oculta con los paneles (H). Desde S-028 lleva encima, en la misma
