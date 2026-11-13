@@ -68,7 +68,7 @@ public:
 	 * Destello (S-029, R-VIS-12): el disco de rol (la ficha, sin carta) y un aro grande de destello cambian a Color y vuelven en Seconds, con
 	 * una subida y una bajada suaves. Empieza tras DelaySeconds y nunca antes de que acabe el que hubiera: los destellos se encadenan.
 	 */
-	void Flash(const FLinearColor& Color, float Seconds, float DelaySeconds);
+	void Flash(const FLinearColor& Color, float Seconds, float DelaySeconds, bool bInward);
 
 	/**
 	 * Parámetros de la presentación que da la vista: letra del número, elevación y giro del asiento activo, el aro del activo
@@ -148,7 +148,7 @@ private:
 	/** Pinta el aro del turno con el color del asiento por su intensidad. */
 	void PaintTurnRing(float Intensity);
 	/** El destello en curso en Now: su color y su intensidad de 0 a 1; falso si no hay. */
-	bool CurrentFlash(double Now, FLinearColor& OutColor, float& OutIntensity, float& OutProgress);
+	bool CurrentFlash(double Now, FLinearColor& OutColor, float& OutIntensity, float& OutProgress, bool& bOutInward);
 
 	UPROPERTY()
 	TObjectPtr<USceneComponent> Pivot;
@@ -226,6 +226,7 @@ private:
 		double Start = 0.0;
 		double End = 0.0;
 		FLinearColor Color = FLinearColor::White;
+		bool bInward = true;
 	};
 	TArray<FFlashSlot> FlashSlots;
 	double FlashBusyUntil = 0.0;

@@ -1010,7 +1010,7 @@ void ABoardViewActor::BuildOverlay()
 	}
 	Rows.Add(Seats);
 	// S-029: lo que se ve al ganar o perder una runa.
-	Rows.Add({TEXT("Destello breve en la ficha y en la Fuente de la runa: claro = se gana una runa, rojo = se pierde (robo, devolución, Desvío, desafío fallado)"), {}});
+	Rows.Add({TEXT("Destello en la ficha y en la Fuente de la runa: hacia dentro es recibir y hacia fuera es perder. Ganar una runa: el aro de la ficha se cierra y el halo de la Fuente se abre, del color de su Dominio. Perderla (robo, devolución, Desvío, desafío fallado): el aro de la ficha se abre en morado y el halo de la Fuente se cierra"), {}});
 	// Brazal de cada asiento (S-008): runas por tipo y poderes activos, al día.
 	FLegendRow Bracers;
 	Bracers.Title = TEXT("Brazal por asiento: runas (D<n>×cantidad, una por Dominio) y poderes activos. Fuente: F, con su reserva");
@@ -2027,7 +2027,7 @@ void ABoardViewActor::RefreshFlashes(const FMatchState& State)
 		{
 			if (TokenActors.IsValidIndex(Cue.Id) && TokenActors[Cue.Id])
 			{
-				TokenActors[Cue.Id]->Flash(Color, Cue.DurationSeconds, Cue.DelaySeconds);
+				TokenActors[Cue.Id]->Flash(Color, Cue.DurationSeconds, Cue.DelaySeconds, Cue.Direction == Soulbound::Presentation::EFlashDirection::Inward);
 			}
 			continue;
 		}
@@ -2035,7 +2035,8 @@ void ABoardViewActor::RefreshFlashes(const FMatchState& State)
 		double& Busy = SourceFlashBusy.FindOrAdd(Cue.Id, 0.0);
 		FSourceFlash Flash;
 		Flash.RuneType = Cue.Id;
-		Flash.bGain = Cue.Direction == Soulbound::Presentation::EFlashDirection::Outward;
+		Flash.bInward = Cue.Direction == Soulbound::Presentation::EFlashDirection::Inward;
+		Flash.Color = Color;
 		Flash.Start = FMath::Max(Now + Cue.DelaySeconds, Busy);
 		Flash.End = Flash.Start + Cue.DurationSeconds;
 		Busy = Flash.End;
@@ -2067,7 +2068,7 @@ void ABoardViewActor::Tick(float DeltaSeconds)
 		}
 		const int32 TileId = State.Board.FindPowerSource(Flash.RuneType);
 		const float Intensity = static_cast<float>(FMath::Sin(UE_DOUBLE_PI * (Now - Flash.Start) / FMath::Max(Flash.End - Flash.Start, static_cast<double>(KINDA_SMALL_NUMBER))));
-		const FLinearColor Color = FMath::Lerp(SourceColor, Flash.bGain ? FlashGainColor : FlashLossColor, Intensity);
+		const FLinearColor Color = FMath::Lerp(SourceColor, Flash.Color, Intensity);
 		for (const TArray<TObjectPtr<UStaticMeshComponent>>* Marks : {&Inlays, &InlayHoles})
 		{
 			if (UStaticMeshComponent* Mark = Marks->IsValidIndex(TileId) ? (*Marks)[TileId].Get() : nullptr)
@@ -2079,11 +2080,12 @@ void ABoardViewActor::Tick(float DeltaSeconds)
 		// enciende con el color del destello mientras dura, y con él se ve también el claro.
 		if (UStaticMeshComponent* Halo = Halos.IsValidIndex(TileId) ? Halos[TileId].Get() : nullptr)
 		{
-			Soulbound::Presentation::SetComponentColor(*Halo, BaseMaterial, FLinearColor(Color.R * Intensity, Color.G * Intensity, Color.B * Intensity));
+			Soulbound::Presentation::SetComponentColor(*Halo, BaseMaterial, FLinearColor(Flash.Color.R * Intensity, Flash.Color.G * Intensity, Flash.Color.B * Intensity));
 			Halo->SetVisibility(true);
-			// El halo crece hacia fuera igual que el aro de la ficha (FlashScale); su escala de siempre se guarda la primera vez y se devuelve al acabar.
+			// El halo se abre (la runa sale de la Fuente) o se cierra (vuelve a ella) como el aro de la ficha (FlashScale); su escala de siempre se guarda la primera
+			// vez y se devuelve al acabar.
 			const FVector Original = HaloBaseScales.FindOrAdd(TileId, Halo->GetRelativeScale3D());
-			const float Grown = Soulbound::Presentation::FlashScale(static_cast<float>((Now - Flash.Start) / FMath::Max(Flash.End - Flash.Start, static_cast<double>(KINDA_SMALL_NUMBER))), FlashGrowth);
+			const float Grown = Soulbound::Presentation::FlashScale(static_cast<float>((Now - Flash.Start) / FMath::Max(Flash.End - Flash.Start, static_cast<double>(KINDA_SMALL_NUMBER))), FlashGrowth, Flash.bInward);
 			Halo->SetRelativeScale3D(FVector(Original.X * Grown, Original.Y * Grown, Original.Z));
 		}
 	}

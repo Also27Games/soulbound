@@ -303,13 +303,17 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Destellos", meta = (ClampMin = "0"))
 	float FlashGrowth = 0.8f;
 
-	/** Color del destello al ganar una runa. Valor inicial blanco. */
+	/** El claro de siempre: el color de un destello cuyo tipo de runa no se conoce (punto 8 de la story). Valor inicial blanco. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Destellos")
 	FLinearColor FlashGainColor = FLinearColor(1.f, 1.f, 1.f);
 
-	/** Color del destello al perder una runa (robo, devolución, Desvío, desafío fallado). Valor inicial rojo. */
+	/**
+	 * Color del destello de la ficha que pierde una runa (robo, devolución, Desvío, desafío fallado; punto 8 de la story). Es fijo y no el de la runa: el
+	 * color se lee antes que el sentido y el de algún Dominio puede coincidir, y lo desempata el sentido (hacia fuera es perder). Valor inicial un morado
+	 * vivo (0,55, 0, 1); decisión del autor del 13/11/2026 (antes rojo).
+	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Destellos")
-	FLinearColor FlashLossColor = FLinearColor(1.f, 0.1f, 0.1f);
+	FLinearColor FlashLossColor = FLinearColor(0.55f, 0.f, 1.f);
 
 	// ---- La carta del Elegido (S-029, R-VIS-13) ----
 
@@ -920,7 +924,9 @@ private:
 		int32 RuneType = INDEX_NONE;
 		double Start = 0.0;
 		double End = 0.0;
-		bool bGain = true;
+		/** Hacia dentro (se cierra: la Fuente que recibe de vuelta una runa) o hacia fuera (se abre), y de qué color (punto 8 de la story). */
+		bool bInward = false;
+		FLinearColor Color = FLinearColor::White;
 	};
 	TArray<FSourceFlash> SourceFlashes;
 	/** Hasta cuándo está ocupada la Fuente de cada tipo de runa, para encadenar sus destellos. */

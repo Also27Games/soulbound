@@ -66,5 +66,7 @@ float Soulbound::Presentation::RoleDiscLift(int32 Seat, float BaseLift)
 
 float Soulbound::Presentation::FlashScale(float Progress, float Growth, bool bInward)
 {
-	return 1.f + FMath::Max(Growth, 0.f) * FMath::Clamp(Progress, 0.f, 1.f);
+	// Hacia dentro es el mismo camino al revés: empieza grande y se cierra hasta su tamaño base.
+	const float Walked = FMath::Clamp(Progress, 0.f, 1.f);
+	return 1.f + FMath::Max(Growth, 0.f) * (bInward ? 1.f - Walked : Walked);
 }

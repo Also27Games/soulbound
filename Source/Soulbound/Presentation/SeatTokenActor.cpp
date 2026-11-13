@@ -186,7 +186,8 @@ void ASeatTokenActor::PaintRoleDisc()
 	FLinearColor FlashColor;
 	float Intensity = 0.f;
 	float Progress = 0.f;
-	if (CurrentFlash(GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0, FlashColor, Intensity, Progress))
+	bool bInward = true;
+	if (CurrentFlash(GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0, FlashColor, Intensity, Progress, bInward))
 	{
 		Base = FMath::Lerp(RoleColor, FlashColor, Intensity);
 	}
@@ -209,7 +210,7 @@ void ASeatTokenActor::PaintTurnRing(float Intensity)
 	}
 }
 
-bool ASeatTokenActor::CurrentFlash(double Now, FLinearColor& OutColor, float& OutIntensity, float& OutProgress)
+bool ASeatTokenActor::CurrentFlash(double Now, FLinearColor& OutColor, float& OutIntensity, float& OutProgress, bool& bOutInward)
 {
 	FlashSlots.RemoveAll([Now](const FFlashSlot& Slot) { return Slot.End <= Now; });
 	for (const FFlashSlot& Slot : FlashSlots)
@@ -217,6 +218,7 @@ bool ASeatTokenActor::CurrentFlash(double Now, FLinearColor& OutColor, float& Ou
 		if (Slot.Start <= Now)
 		{
 			OutColor = Slot.Color;
+			bOutInward = Slot.bInward;
 			OutProgress = static_cast<float>((Now - Slot.Start) / FMath::Max(Slot.End - Slot.Start, static_cast<double>(KINDA_SMALL_NUMBER)));
 			// Subida y bajada suaves: seno de medio periodo, de 0 a 1 y a 0.
 			OutIntensity = static_cast<float>(FMath::Sin(UE_DOUBLE_PI * (Now - Slot.Start) / FMath::Max(Slot.End - Slot.Start, KINDA_SMALL_NUMBER)));
@@ -226,7 +228,7 @@ bool ASeatTokenActor::CurrentFlash(double Now, FLinearColor& OutColor, float& Ou
 	return false;
 }
 
-void ASeatTokenActor::Flash(const FLinearColor& Color, float Seconds, float DelaySeconds)
+void ASeatTokenActor::Flash(const FLinearColor& Color, float Seconds, float DelaySeconds, bool bInward)
 {
 	if (!GetWorld() || Seconds <= 0.f)
 	{
@@ -237,6 +239,7 @@ void ASeatTokenActor::Flash(const FLinearColor& Color, float Seconds, float Dela
 	Slot.Start = FMath::Max(Now + FMath::Max(DelaySeconds, 0.f), FlashBusyUntil);
 	Slot.End = Slot.Start + Seconds;
 	Slot.Color = Color;
+	Slot.bInward = bInward;
 	FlashBusyUntil = Slot.End;
 	FlashSlots.Add(Slot);
 }
@@ -418,15 +421,16 @@ void ASeatTokenActor::Tick(float DeltaSeconds)
 		FLinearColor FlashColor;
 		float Intensity = 0.f;
 		float Progress = 0.f;
-		const bool bFlashing = CurrentFlash(GetWorld()->GetTimeSeconds(), FlashColor, Intensity, Progress);
+		bool bInward = true;
+		const bool bFlashing = CurrentFlash(GetWorld()->GetTimeSeconds(), FlashColor, Intensity, Progress, bInward);
 		if (bFlashing || bFlashShown)
 		{
 			bFlashShown = bFlashing;
 			FlashRoot->SetVisibility(bFlashing, true);
 			if (bFlashing)
 			{
-				// Crece hacia fuera mientras dura (FlashScale): el aro entero, así también se hace más grueso.
-				const float Grown = Soulbound::Presentation::FlashScale(Progress, FlashGrowth);
+				// Hacia dentro (recibir) se cierra y hacia fuera (perder) se abre mientras dura (FlashScale): el aro entero, así también se hace más grueso.
+				const float Grown = Soulbound::Presentation::FlashScale(Progress, FlashGrowth, bInward);
 				FlashRoot->SetRelativeScale3D(FVector(Grown, Grown, 1.f));
 				for (UStaticMeshComponent* Segment : FlashSegments)
 				{
