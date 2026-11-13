@@ -136,7 +136,7 @@ namespace Soulbound::Presentation
 	 * Estados del asiento Seat que dejan los efectos del Warden (S-014): Marcado y Brazal revelado, con la ronda en que
 	 * caducan, para la leyenda de asientos. Vacío si no tiene ninguno. Solo lee el estado.
 	 */
-	FString EffectStatusText(const FMatchState& State, int32 Seat)
+	FString EffectStatusTextAll(const FMatchState& State, int32 Seat)
 	{
 		FString Text;
 		if (State.Seats.IsValidIndex(Seat))
@@ -408,7 +408,17 @@ namespace Soulbound::Presentation
 	 * Brazal de un asiento (S-008, solo lectura): sus runas por tipo (D<n>×cantidad, solo las que tiene) y sus poderes
 	 * activos. Paso Libre por afinidad (Fenrir) se marca aparte, porque no depende de ninguna runa.
 	 */
-	FString BracerText(const FMatchState& State, int32 Seat)
+	bool CanSeeBracer(const FMatchState& State, int32 Seat, int32 ViewerSeat)
+	{
+		return true;
+	}
+
+	FString EffectStatusText(const FMatchState& State, int32 Seat, int32 ViewerSeat)
+	{
+		return EffectStatusTextAll(State, Seat);
+	}
+
+	FString BracerText(const FMatchState& State, int32 Seat, int32 ViewerSeat)
 	{
 		const FSeatState& SeatState = State.Seats[Seat];
 		TArray<FString> Runes;
@@ -709,7 +719,7 @@ namespace Soulbound::Presentation
 				: SeatState.DomainId == INDEX_NONE
 					? FString::Printf(TEXT("%d Eco"), Seat)
 					: FString::Printf(TEXT("%d Eco, hogar: Nicho del Dominio %d"), Seat, SeatState.DomainId))
-				+ (Void.IsEmpty() ? FString() : TEXT(", ") + Void) + EffectStatusText(State, Seat));
+				+ (Void.IsEmpty() ? FString() : TEXT(", ") + Void) + EffectStatusTextAll(State, Seat));
 		}
 		Lines.Add({FString::Printf(TEXT("Asientos: %s"), *FString::Join(Roles, TEXT(" | "))), StatusLineColor(FColor::Cyan)});
 		return Lines;

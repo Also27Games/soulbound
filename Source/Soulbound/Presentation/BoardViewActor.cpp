@@ -997,7 +997,7 @@ void ABoardViewActor::BuildOverlay()
 			// S-013: la ficha desterrada no está en el tablero; aquí se dice dónde está.
 			const FString Void = VoidText(HostPtr->GetState(), Seat);
 			// S-014: Marcado y Brazal revelado van detrás del Vacío.
-			const FString InVoid = (Void.IsEmpty() ? FString() : TEXT(" | ") + Void) + EffectStatusText(HostPtr->GetState(), Seat);
+			const FString InVoid = (Void.IsEmpty() ? FString() : TEXT(" | ") + Void) + EffectStatusText(HostPtr->GetState(), Seat, HostPtr->GetHumanSeat());
 			if (SeatState.Role == ESeatRole::Elect)
 			{
 				return FString::Printf(TEXT("%d (%s): ELEGIDO, D%d %s%s"), Seat, Who, SeatState.DomainId, *DomainName, *InVoid);
@@ -1025,7 +1025,7 @@ void ABoardViewActor::BuildOverlay()
 			{
 				return FString::Printf(TEXT("%d"), Seat);
 			}
-			return BracerText(HostPtr->GetState(), Seat);
+			return BracerText(HostPtr->GetState(), Seat, HostPtr->GetHumanSeat());
 		};
 		Bracers.Chips.Add(Chip);
 	}

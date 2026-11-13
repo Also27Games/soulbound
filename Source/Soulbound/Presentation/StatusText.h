@@ -135,16 +135,33 @@ namespace Soulbound::Presentation
 	FString VoidText(const FMatchState& State, int32 Seat);
 
 	/**
-	 * Estados del asiento Seat que dejan los efectos del Warden (S-014): insolencia, castigos pendientes, Prueba del Warden, Marcado y Brazal
-	 * revelado. Solo lee el estado.
+	 * Si quien mira puede ver los tipos de runa del Brazal de un asiento (S-035, R-RUN-7): sí si es el suyo o si ese Brazal está revelado
+	 * (IsBracerRevealed); no en el resto. Un asiento que mira no válido (INDEX_NONE) no es ningún asiento: solo ve lo revelado.
+	 * @param State El estado de la partida.
+	 * @param Seat El asiento cuyo Brazal se mira.
+	 * @param ViewerSeat El asiento de quien mira (el humano de esta máquina).
+	 * @return Verdadero si puede ver los tipos de runa y los poderes activos de Seat.
 	 */
-	FString EffectStatusText(const FMatchState& State, int32 Seat);
+	bool CanSeeBracer(const FMatchState& State, int32 Seat, int32 ViewerSeat);
 
 	/**
-	 * Brazal de un asiento (S-008, solo lectura): sus runas por tipo (D<n>×cantidad, solo las que tiene) y sus poderes activos. Paso Libre por
-	 * afinidad (Fenrir) se marca aparte, porque no depende de ninguna runa.
+	 * Estados del asiento Seat que dejan los efectos del Warden (S-014), tal como los ve el asiento ViewerSeat (S-035, R-HUD-6): la insolencia y
+	 * los castigos pendientes solo si Seat es ViewerSeat; la Prueba del Warden, el Marcado y el Brazal revelado, de todos. Solo lee el estado.
 	 */
-	FString BracerText(const FMatchState& State, int32 Seat);
+	FString EffectStatusText(const FMatchState& State, int32 Seat, int32 ViewerSeat);
+
+	/**
+	 * Lo mismo que EffectStatusText pero entero, sin filtrar por quien mira: insolencia y castigos de todos (S-035). Es para el panel de
+	 * depuración, que es del autor. Una función aparte y no un asiento especial, para que un asiento humano no válido nunca enseñe todo.
+	 */
+	FString EffectStatusTextAll(const FMatchState& State, int32 Seat);
+
+	/**
+	 * Brazal de un asiento (S-008, solo lectura) tal como lo ve ViewerSeat (S-035, R-RUN-7): si CanSeeBracer, sus runas por tipo
+	 * (D<n>×cantidad, solo las que tiene) y sus poderes activos; si no, solo cuántas runas tiene. Paso Libre por afinidad (Fenrir) se dice en
+	 * los dos casos: la afinidad de un Elegido es pública.
+	 */
+	FString BracerText(const FMatchState& State, int32 Seat, int32 ViewerSeat);
 
 	/** Nombre de un poder (glosario): "Duelo", "Celeridad", "Paso Libre", "Expulsión", "Vuelo Planar", "Desvío". */
 	const TCHAR* PowerName(EPower Power);
@@ -238,13 +255,17 @@ namespace Soulbound::Presentation
 		TArray<FString> ActivePowers;
 		/** El color del asiento. */
 		FLinearColor Color = FLinearColor::White;
+		/** S-035 (R-RUN-7): los tipos de runa y los poderes activos de este asiento no se enseñan a quien mira; Runes va sin cantidades ni activos. */
+		bool bTypesHidden = false;
+		/** S-035: cuántas runas tiene el asiento en total, sean de los tipos que sean. Es lo único que se dice de un Brazal oculto. */
+		int32 TotalRunes = 0;
 
 		/** Igualdad de todo lo que se pinta (S-029, R-VIS-21): el panel solo se reconstruye si cambia. */
 		bool operator==(const FGrimoireRow& Other) const
 		{
 			return Seat == Other.Seat && bHuman == Other.bHuman && bElect == Other.bElect && ElectName == Other.ElectName && DomainId == Other.DomainId
 				&& DomainName == Other.DomainName && AffinityName == Other.AffinityName && AffinityText == Other.AffinityText && Runes == Other.Runes
-				&& ActivePowers == Other.ActivePowers && Color == Other.Color;
+				&& ActivePowers == Other.ActivePowers && Color == Other.Color && bTypesHidden == Other.bTypesHidden && TotalRunes == Other.TotalRunes;
 		}
 	};
 

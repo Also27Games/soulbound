@@ -221,4 +221,66 @@ bool FGrimoireWidthsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireHiddenBracerTest, "Soulbound.Game.Presentation.Grimorio.BrazalDeLosDemas", GrimoireTestFlags)
+
+bool FGrimoireHiddenBracerTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-10 (R-RUN-7): las filas del asiento 2 sin revelar llevan su Elegido, su afinidad y su mapa, pero ninguna runa con cantidad ni marca de
+	// activo, y dicen su total; las del 0, enteras; con el Brazal del 2 revelado, enteras también. La comparación de filas (R-VIS-21) nota el cambio
+	// al revelarse y al caducar.
+	FMatchState State;
+	if (!GrMakeState(*this, State))
+	{
+		return false;
+	}
+	State.Round = 3;
+	constexpr int32 Other = 2;
+	State.Seats[Other].Role = ESeatRole::Elect;
+	State.Seats[Other].DomainId = GrFenrirDomain;
+	State.Seats[Other].Runes[1] = 2;
+	State.Seats[Other].Runes[GrRuneType] = 1;
+	FGrimoireTexts Texts;
+	const TArray<FLinearColor> Colors{FLinearColor::Red, FLinearColor::Green, FLinearColor::Blue, FLinearColor::White};
+	const TArray<FGrimoireRow> Hidden = Soulbound::Presentation::GrimoireRows(State, GrFenrirSeat, Texts, Colors);
+
+	const FGrimoireRow& Row = Hidden[Other];
+	TestTrue(TEXT("Los tipos del 2 están ocultos"), Row.bTypesHidden);
+	TestEqual(TEXT("Dice su total"), Row.TotalRunes, 3);
+	TestEqual(TEXT("Lleva su Elegido"), Row.ElectName, FString(TEXT("Fenrir")));
+	TestEqual(TEXT("Y su afinidad"), Row.AffinityName, FString(TEXT("FreePassage")));
+	if (TestEqual(TEXT("Seis runas"), Row.Runes.Num(), 6))
+	{
+		for (const Soulbound::Presentation::FGrimoireRune& Rune : Row.Runes)
+		{
+			TestTrue(FString::Printf(TEXT("D%d: su mapa, que es público"), Rune.RuneType), Rune.bHasPower && !Rune.PowerName.IsEmpty());
+			TestEqual(FString::Printf(TEXT("D%d: sin cantidad"), Rune.RuneType), Rune.Count, 0);
+			TestFalse(FString::Printf(TEXT("D%d: sin marca de activo"), Rune.RuneType), Rune.bActive);
+		}
+	}
+	TestTrue(TEXT("Sin poderes activos"), Row.ActivePowers.IsEmpty());
+
+	const FGrimoireRow& Own = Hidden[GrFenrirSeat];
+	TestFalse(TEXT("El propio, entero"), Own.bTypesHidden);
+	TestEqual(TEXT("Con su cantidad"), Own.Runes[GrRuneType].Count, 1);
+	TestTrue(TEXT("Y su poder activo"), Own.Runes[GrRuneType].bActive && !Own.ActivePowers.IsEmpty());
+
+	FMatchState Revealed = State;
+	Revealed.Seats[Other].RevealedUntilRound = Revealed.Round + 2;
+	const TArray<FGrimoireRow> Shown = Soulbound::Presentation::GrimoireRows(Revealed, GrFenrirSeat, Texts, Colors);
+	TestFalse(TEXT("Revelado: ya no están ocultos"), Shown[Other].bTypesHidden);
+	TestEqual(TEXT("Con su cantidad"), Shown[Other].Runes[1].Count, 2);
+	TestTrue(TEXT("Y su poder activo"), Shown[Other].Runes[GrRuneType].bActive);
+	TestFalse(TEXT("La comparación de filas nota que se revela"), Hidden == Shown);
+
+	Revealed.Round = Revealed.Seats[Other].RevealedUntilRound;
+	TestTrue(TEXT("Y que caduca: vuelve a ser como antes"), Hidden == Soulbound::Presentation::GrimoireRows(Revealed, GrFenrirSeat, Texts, Colors));
+
+	// Con un asiento humano no válido, nada oculto: todas las filas con los tipos ocultos.
+	for (const FGrimoireRow& Blind : Soulbound::Presentation::GrimoireRows(State, INDEX_NONE, Texts, Colors))
+	{
+		TestTrue(FString::Printf(TEXT("Sin humano válido, la fila %d, oculta"), Blind.Seat), Blind.bTypesHidden);
+	}
+	return true;
+}
+
 #endif
