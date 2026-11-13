@@ -67,4 +67,13 @@ namespace Soulbound::Presentation
 	 * @return La cota, en cm.
 	 */
 	SOULBOUND_API float RoleDiscLift(int32 Seat, float BaseLift);
+
+	/**
+	 * Escala del aro del destello y del halo de la Fuente según el avance del destello (S-029, R-VIS-12, corrección del autor del 13/11/2026: el destello
+	 * era demasiado sutil): crece hacia fuera de 1 a 1 + Growth en lo que dura, en línea recta.
+	 * @param Progress Avance del destello, de 0 (empieza) a 1 (acaba); fuera de rango se toma el extremo.
+	 * @param Growth Cuánto crece al final, como fracción del tamaño inicial (FlashGrowth, Config); negativo, 0.
+	 * @return La escala, de 1 a 1 + Growth.
+	 */
+	SOULBOUND_API float FlashScale(float Progress, float Growth);
 }

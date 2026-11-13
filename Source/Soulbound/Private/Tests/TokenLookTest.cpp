@@ -149,4 +149,20 @@ bool FRoleDiscTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFlashScaleTest, "Soulbound.Game.Presentation.Ficha.CrecimientoDelDestello", TokenLookFlags)
+
+bool FFlashScaleTest::RunTest(const FString& Parameters)
+{
+	// R-VIS-12 (corrección del autor del 13/11/2026): el aro del destello y el halo de la Fuente crecen hacia fuera mientras dura el destello.
+	using Soulbound::Presentation::FlashScale;
+	TestEqual(TEXT("Al empezar, su tamaño"), FlashScale(0.f, 0.8f), 1.f, 0.0001f);
+	TestEqual(TEXT("A la mitad, la mitad del crecimiento"), FlashScale(0.5f, 0.8f), 1.4f, 0.0001f);
+	TestEqual(TEXT("Al acabar, todo el crecimiento"), FlashScale(1.f, 0.8f), 1.8f, 0.0001f);
+	TestEqual(TEXT("Antes de empezar, el extremo"), FlashScale(-0.3f, 0.8f), 1.f, 0.0001f);
+	TestEqual(TEXT("Pasado el final, el extremo"), FlashScale(1.7f, 0.8f), 1.8f, 0.0001f);
+	TestEqual(TEXT("Sin crecimiento, siempre 1"), FlashScale(0.6f, 0.f), 1.f, 0.0001f);
+	TestEqual(TEXT("Un crecimiento negativo no encoge"), FlashScale(1.f, -2.f), 1.f, 0.0001f);
+	return true;
+}
+
 #endif
