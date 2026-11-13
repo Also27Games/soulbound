@@ -1073,13 +1073,6 @@ void ABoardViewActor::BuildOverlay()
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot().AutoWidth()[TabButton(TEXT("Leyenda"), Soulbound::Presentation::EColumnTab::Legend)]
 			+ SHorizontalBox::Slot().AutoWidth()[TabButton(TEXT("Crónica"), Soulbound::Presentation::EColumnTab::Chronicle)]
-			+ SHorizontalBox::Slot().FillWidth(1.f).HAlign(HAlign_Right).VAlign(VAlign_Center).Padding(0.f, 0.f, 10.f, 0.f)
-			[
-				SNew(STextBlock)
-				.Text(FText::FromString(FString::Printf(TEXT("%s cambia"), *ColumnTabKey.GetDisplayName().ToString())))
-				.Font_Lambda([PanelFont]() { return FCoreStyle::GetDefaultFontStyle("Regular", PanelFont.Get()); })
-				.ColorAndOpacity(FSlateColor(FLinearColor(0.5f, 0.5f, 0.5f)))
-			]
 		];
 	Overlay = SNew(SBox)
 		.HAlign(HAlign_Right)
@@ -1108,7 +1101,7 @@ void ABoardViewActor::BuildOverlay()
 					.WidgetIndex_Lambda([this]() { return ColumnTab.Active == Soulbound::Presentation::EColumnTab::Legend ? 0 : 1; })
 					+ SWidgetSwitcher::Slot().VAlign(VAlign_Top)
 					[
-						SNew(SLegendPanel).FontSize(PanelFont).Rows(Rows)
+						SNew(SLegendPanel).FontSize(PanelFont).WrapWidth_Lambda([this]() { return PanelSlateWidth; }).Rows(Rows)
 					]
 					+ SWidgetSwitcher::Slot()
 					[

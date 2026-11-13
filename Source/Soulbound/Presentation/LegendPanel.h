@@ -30,6 +30,8 @@ public:
 	SLATE_BEGIN_ARGS(SLegendPanel) : _FontSize(13) {}
 		/** Tamaño de la letra, en unidades de Slate; se lee cada vez que se pinta (S-027: escala con la pantalla). */
 		SLATE_ATTRIBUTE(int32, FontSize)
+		/** Ancho de la columna en unidades de Slate (S-035): los textos se parten a él con WrapTextAt, no con AutoWrapText. 0 o menos, sin partir. */
+		SLATE_ATTRIBUTE(float, WrapWidth)
 		/** Las filas, de arriba abajo. */
 		SLATE_ARGUMENT(TArray<FLegendRow>, Rows)
 	SLATE_END_ARGS()

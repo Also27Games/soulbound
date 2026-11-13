@@ -12,6 +12,17 @@ void SLegendPanel::Construct(const FArguments& InArgs)
 {
 	// S-027 (R-HUD-3): la letra se lee del atributo cada vez que se pinta, para que cambie con la resolución sin rehacer el panel.
 	const TAttribute<int32> FontSize = InArgs._FontSize;
+	// S-035: el ancho al que se parten los textos. Sale del de la columna menos el margen del panel (8 a cada lado) y, en una ficha, la sangría
+	// de la fila (8) y el cuadro de color con su separación (letra + 2 + 3). Con WrapTextAt: AutoWrapText dentro de un SWrapBox cortaba por la derecha.
+	const TAttribute<float> ColumnWidth = InArgs._WrapWidth;
+	const auto TextWidth = [ColumnWidth](const TAttribute<int32>& Size, bool bChip)
+	{
+		return [ColumnWidth, Size, bChip]()
+		{
+			const float Column = ColumnWidth.Get(0.f);
+			return Column > 0.f ? FMath::Max(Column - 16.f - (bChip ? 8.f + static_cast<float>(Size.Get()) + 5.f : 0.f), 1.f) : 0.f;
+		};
+	};
 	const auto Font = [FontSize](const ANSICHAR* Style) { return FCoreStyle::GetDefaultFontStyle(Style, FMath::Max(FontSize.Get(), 1)); };
 	TSharedRef<SVerticalBox> Column = SNew(SVerticalBox);
 	Column->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 3.f)
@@ -43,6 +54,7 @@ void SLegendPanel::Construct(const FArguments& InArgs)
 				[
 					SNew(STextBlock)
 					.Text_Lambda([Chip]() { return FText::FromString(Chip.TextGetter ? Chip.TextGetter() : Chip.Text); })
+					.WrapTextAt_Lambda(TextWidth(FontSize, true))
 					.Font_Lambda([Font]() { return Font("Regular"); })
 					.ColorAndOpacity(FLinearColor(0.9f, 0.9f, 0.9f))
 				]
@@ -58,7 +70,7 @@ void SLegendPanel::Construct(const FArguments& InArgs)
 				.Text(FText::FromString(Row.Title))
 				.Font_Lambda([Font]() { return Font("Bold"); })
 				.ColorAndOpacity(FLinearColor(1.f, 0.85f, 0.4f))
-				.AutoWrapText(true)
+				.WrapTextAt_Lambda(TextWidth(FontSize, false))
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(8.f, 0.f, 0.f, 0.f)
 			[
