@@ -3,6 +3,7 @@
 #include "BoardViewState.h"
 #include "Dom/JsonObject.h"
 #include "EventText.h"
+#include "RingPanelModel.h"
 #include "Match/BondRaceRules.h"
 #include "Match/MatchState.h"
 #include "Match/RuneRules.h"
@@ -596,20 +597,19 @@ namespace Soulbound::Presentation
 		// Prueba de habilidad o tirada (línea 1). S-026: con el interruptor encendido, la prueba del humano se juega con el anillo.
 		const bool bHumanRingTrial = Context.bHumanRing && State.ActiveSeat == HumanSeat;
 		const TCHAR* const RingHow = TEXT("con el anillo: clic izquierdo, o con SbTrial");
-		const FString Difficulty = DifficultyText(static_cast<int32>(State.PendingDifficulty));
 		if (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::FinalChallenge)
 		{
-			Lines.Add({FString::Printf(TEXT("DESAFÍO FINAL: el asiento %d juega en %s en vez de su turno, sin tirada, y espera el resultado (%s)"), State.ActiveSeat, *Difficulty,
+			Lines.Add({FString::Printf(TEXT("DESAFÍO FINAL: el asiento %d juega en vez de su turno, sin tirada, y espera el resultado (%s)"), State.ActiveSeat,
 				bHumanRingTrial ? RingHow : TEXT("resuelto al azar, o con SbTrial")), Context.SeatColor(State.ActiveSeat)});
 		}
 		else if (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::VoidEscape)
 		{
-			Lines.Add({FString::Printf(TEXT("Escape del Vacío: el asiento %d juega en %s (%s) y espera el resultado (%s)"), State.ActiveSeat, *Difficulty,
+			Lines.Add({FString::Printf(TEXT("Escape del Vacío: el asiento %d juega (%s) y espera el resultado (%s)"), State.ActiveSeat,
 				*VoidText(State, State.ActiveSeat), bHumanRingTrial ? RingHow : TEXT("resuelto al azar, o con SbTrial")), StatusYellow});
 		}
 		else if (State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::WardenTrial)
 		{
-			Lines.Add({FString::Printf(TEXT("PRUEBA DEL WARDEN: el asiento %d juega en %s antes de tirar y espera el resultado (%s)"), State.ActiveSeat, *Difficulty,
+			Lines.Add({FString::Printf(TEXT("PRUEBA DEL WARDEN: el asiento %d juega antes de tirar y espera el resultado (%s)"), State.ActiveSeat,
 				bHumanRingTrial ? RingHow : TEXT("resuelta al azar, o con SbTrial")), StatusYellow});
 		}
 		else if (State.TurnPhase == ETurnPhase::SkillTrial)
@@ -772,6 +772,13 @@ namespace Soulbound::Presentation
 			: FString::Printf(TEXT("siguiente evaluación en %.0f s"), State.Warden.NextEvaluationSeconds - State.ClockSeconds);
 		Lines.Add({FString::Printf(TEXT("Warden: Acto %s | %s | última intervención hace %.0f s%s"), ActNames[FMath::Clamp(Act, 0, 2)], *Next,
 			State.ClockSeconds - State.Warden.LastEffectSeconds, State.Warden.PendingScene != INDEX_NONE ? TEXT(" | una escena espera al hueco") : TEXT("")), StatusOrange});
+
+		// S-036 (R-HUD-1): el nivel de la prueba ya no se lee en el anillo ni en el panel de estado; el autor lo ve aquí mientras hay una prueba pendiente.
+		if (State.TurnPhase == ETurnPhase::SkillTrial)
+		{
+			Lines.Add({FString::Printf(TEXT("Prueba pendiente: %s, nivel %s"), *Soulbound::Presentation::RingTitleText(State.PendingTrial, false),
+				*DifficultyText(static_cast<int32>(State.PendingDifficulty))), StatusYellow});
+		}
 
 		// Semilla, tiempo y ronda (línea 5).
 		Lines.Add({FString::Printf(TEXT("Semilla: %d (fijala con FixedSeed para repetir la partida) | t=%.0f s | ronda %d"), Context.Seed, State.ClockSeconds, State.Round),

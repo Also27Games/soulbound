@@ -491,4 +491,66 @@ bool FStatusSeatLegendTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+namespace
+{
+	/** Una prueba de habilidad pendiente del asiento humano, en la dificultad dada. */
+	FMatchState StMakeTrialState(ESkillTrial Trial, ESkillDifficulty Difficulty)
+	{
+		FMatchState State = StMakeState();
+		State.TurnPhase = ETurnPhase::SkillTrial;
+		State.PendingTrial = Trial;
+		State.PendingDifficulty = Difficulty;
+		return State;
+	}
+
+	const ESkillDifficulty StDifficulties[] = {ESkillDifficulty::Easy, ESkillDifficulty::Normal, ESkillDifficulty::Hard};
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusTrialWithoutLevelTest, "Soulbound.Game.Presentation.Estado.PruebaPendienteSinNivel", StatusTestFlags)
+
+bool FStatusTrialWithoutLevelTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-11 (S-036, R-HUD-1): con una prueba pendiente de cada tipo en cada dificultad, ninguna línea del panel de estado dice el nivel y la
+	// línea de la prueba sigue nombrando al asiento que juega.
+	const ESkillTrial Trials[] = {ESkillTrial::FinalChallenge, ESkillTrial::VoidEscape, ESkillTrial::WardenTrial};
+	for (const ESkillTrial Trial : Trials)
+	{
+		for (const ESkillDifficulty Difficulty : StDifficulties)
+		{
+			FMatchState State = StMakeTrialState(Trial, Difficulty);
+			State.ActiveSeat = 2;
+			const TArray<FPanelLine> Lines = Soulbound::Presentation::StatusLines(State, StMakeContext());
+			const FString Case = FString::Printf(TEXT("prueba %d, nivel %d"), static_cast<int32>(Trial), static_cast<int32>(Difficulty));
+			for (const TCHAR* Level : {TEXT("fácil"), TEXT("normal"), TEXT("difícil")})
+			{
+				TestFalse(FString::Printf(TEXT("%s: ninguna línea dice «%s»"), *Case, Level), StAnyContains(Lines, Level));
+			}
+			TestTrue(FString::Printf(TEXT("%s: la línea de la prueba nombra al asiento 2"), *Case), StAnyContains(Lines, TEXT("el asiento 2 juega")));
+		}
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDebugPendingTrialLevelTest, "Soulbound.Game.Presentation.Estado.DepuracionDiceElNivelDeLaPrueba", StatusTestFlags)
+
+bool FDebugPendingTrialLevelTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-13 (S-036, R-HUD-1): el panel de depuración lleva "Prueba pendiente: <uso>, nivel <nivel>" mientras hay una prueba pendiente, y
+	// ninguna línea así sin ella.
+	{
+		const TArray<FPanelLine> Lines = Soulbound::Presentation::DebugLines(StMakeTrialState(ESkillTrial::VoidEscape, ESkillDifficulty::Hard), StMakeContext());
+		TestTrue(TEXT("Escape del Vacío en difícil"), StAnyContains(Lines, TEXT("Prueba pendiente: ESCAPE DEL VACÍO, nivel difícil")));
+	}
+	{
+		const TArray<FPanelLine> Lines = Soulbound::Presentation::DebugLines(StMakeTrialState(ESkillTrial::WardenTrial, ESkillDifficulty::Normal), StMakeContext());
+		TestTrue(TEXT("Prueba del Warden en normal"), StAnyContains(Lines, TEXT("Prueba pendiente: PRUEBA DEL WARDEN, nivel normal")));
+	}
+	{
+		const TArray<FPanelLine> Lines = Soulbound::Presentation::DebugLines(StMakeState(), StMakeContext());
+		TestFalse(TEXT("Sin prueba pendiente, ninguna línea empieza por Prueba pendiente"),
+			Lines.ContainsByPredicate([](const FPanelLine& Line) { return Line.Text.StartsWith(TEXT("Prueba pendiente")); }));
+	}
+	return true;
+}
+
 #endif

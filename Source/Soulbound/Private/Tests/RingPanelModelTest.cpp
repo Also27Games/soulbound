@@ -114,4 +114,60 @@ bool FRingRuneDomainTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// CA-VIS-20, R-VIS-22: el título del anillo es solo el uso, sin separador ni nivel. La función no recibe la dificultad, así que dos niveles del
+// mismo uso dan por fuerza el mismo título; el test fija el texto exacto de cada uso y que no se cuela ninguna palabra de nivel.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingTitleTextTest, "Soulbound.Game.Presentation.Anillo.TituloSoloElUso", RingModelTestFlags)
+bool FRingTitleTextTest::RunTest(const FString& Parameters)
+{
+	using Soulbound::Presentation::RingTitleText;
+	struct FCase
+	{
+		const TCHAR* Name;
+		ESkillTrial Trial;
+		bool bDuel;
+		const TCHAR* Expected;
+	};
+	const FCase Cases[] = {
+		{TEXT("duelo"), ESkillTrial::None, true, TEXT("DUELO")},
+		{TEXT("duelo gana a la prueba"), ESkillTrial::WardenTrial, true, TEXT("DUELO")},
+		{TEXT("Fuente de un Dominio Olvidado"), ESkillTrial::ForgottenSource, false, TEXT("FUENTE DE UN DOMINIO OLVIDADO")},
+		{TEXT("Prueba del Warden"), ESkillTrial::WardenTrial, false, TEXT("PRUEBA DEL WARDEN")},
+		{TEXT("escape del Vacío"), ESkillTrial::VoidEscape, false, TEXT("ESCAPE DEL VACÍO")},
+		{TEXT("desafío final"), ESkillTrial::FinalChallenge, false, TEXT("DESAFÍO FINAL")},
+		{TEXT("sin uso conocido"), ESkillTrial::None, false, TEXT("PRUEBA")},
+	};
+	for (const FCase& Case : Cases)
+	{
+		const FString Title = RingTitleText(Case.Trial, Case.bDuel);
+		TestEqual(FString::Printf(TEXT("Título de %s"), Case.Name), Title, FString(Case.Expected));
+		for (const TCHAR* Forbidden : {TEXT("·"), TEXT("fácil"), TEXT("normal"), TEXT("difícil")})
+		{
+			TestFalse(FString::Printf(TEXT("El título de %s no lleva «%s»"), Case.Name, Forbidden), Title.Contains(Forbidden));
+		}
+	}
+	return true;
+}
+
+// CA-VIS-21, R-VIS-17: la instrucción son dos líneas, ninguna vacía y ninguna habla de "pulso"; la función no recibe el estado del anillo, así que
+// son las mismas en el anuncio y con un pulso resuelto (dos llamadas dan lo mismo).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingInstructionLinesTest, "Soulbound.Game.Presentation.Anillo.InstruccionEnDosLineas", RingModelTestFlags)
+bool FRingInstructionLinesTest::RunTest(const FString& Parameters)
+{
+	using Soulbound::Presentation::RingInstructionLines;
+	const TArray<FString> Lines = RingInstructionLines();
+	if (!TestEqual(TEXT("Dos líneas"), Lines.Num(), 2))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Primera línea"), Lines[0], FString(TEXT("Haz clic cuando el aro toque la runa.")));
+	TestEqual(TEXT("Segunda línea"), Lines[1], FString(TEXT("En la franja verde cuenta; cuanto más cerca, mejor.")));
+	for (const FString& Line : Lines)
+	{
+		TestFalse(TEXT("Ninguna vacía"), Line.IsEmpty());
+		TestFalse(FString::Printf(TEXT("«%s» no habla de pulso"), *Line), Line.Contains(TEXT("pulso"), ESearchCase::IgnoreCase));
+	}
+	TestEqual(TEXT("Las mismas en el anuncio y con un pulso resuelto"), RingInstructionLines(), Lines);
+	return true;
+}
+
 #endif

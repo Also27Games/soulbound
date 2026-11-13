@@ -13,10 +13,12 @@ struct FRingPanelModel
 {
 	/** Si hay algo que enseñar: una prueba del humano en curso, o el resultado de la última durante un momento. */
 	bool bVisible = false;
-	/** El uso y su dificultad: "PRUEBA DEL WARDEN · normal". */
+	/** El uso de la prueba, sin el nivel: "PRUEBA DEL WARDEN" (R-VIS-22). */
 	FString Title;
-	/** "pulso 2 de 3", o la instrucción del anuncio. */
-	FString Counter;
+	/** Las líneas de la instrucción bajo el título, cada una centrada y pintada por separado; durante toda la prueba, antes y después del anuncio (R-VIS-17). Vacío al acabar. */
+	TArray<FString> Instruction;
+	/** La nota del resultado, bajo el título, al acabar; vacía durante la prueba. */
+	FString Note;
 	/** Si se pinta el anillo sobre la runa (durante la prueba; no en el resultado). */
 	bool bShowRing = false;
 	/** Fracción del cierre: 0 con el anillo en su radio mayor, 1 tocando la runa. */
@@ -73,4 +75,16 @@ namespace Soulbound::Presentation
 	 * asiento que no existe, INDEX_NONE.
 	 */
 	int32 RingRuneDomain(const FMatchState& State, int32 Seat, ESkillTrial Trial);
+
+	/**
+	 * Título del panel del anillo (R-VIS-22): el uso de la prueba y nada más, sin el nivel. Trial: la prueba del anillo. bDuel: si es un duelo (gana
+	 * a Trial). Devuelve "DUELO", "FUENTE DE UN DOMINIO OLVIDADO", "PRUEBA DEL WARDEN", "ESCAPE DEL VACÍO", "DESAFÍO FINAL" o, sin uso conocido, "PRUEBA".
+	 */
+	FString RingTitleText(ESkillTrial Trial, bool bDuel);
+
+	/**
+	 * Las líneas de la instrucción del anillo (R-VIS-17): dos, que el panel pinta cada una centrada y por separado bajo el título mientras la prueba
+	 * está abierta. Son las mismas en el anuncio y con pulsos resueltos; ninguna habla de "pulso".
+	 */
+	TArray<FString> RingInstructionLines();
 }

@@ -6,7 +6,7 @@
 
 /**
  * Panel del anillo (S-026, S-031; nombre propuesto en el PR): la runa (una imagen teñida, o un disco si no hay textura), la franja verde de la zona
- * buena, el aro cerrándose hacia ella (verde mientras está dentro), el contador de pulsos, una marca de color por pulso y la barra de progreso con
+ * buena, el aro cerrándose hacia ella (verde mientras está dentro), la instrucción en dos líneas, una marca de color por pulso y la barra de progreso con
  * la marca del objetivo. Sin cifras de precisión (R-VIS-17). Slate puro, como la crónica y la leyenda; pide su modelo en cada pintado.
  */
 class SRingPanel : public SLeafWidget
