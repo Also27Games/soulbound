@@ -16,6 +16,6 @@ El Altar está en el centro: ahí empezáis todos y ahí se gana. De él salen s
 
 Cuando tengas que decidir algo, abajo se abre un panel: responde con sus botones o con su número; para votar vale también un clic en la ficha, y para el Oráculo, en el orbe.
 
-En las pruebas de habilidad y en los duelos se abre un anillo: un aro se cierra sobre una runa. Haz clic cuando el aro entre en la franja verde. Cada acierto llena la barra: en una prueba tiene que llegar a la marca; en un duelo gana quien más la llena.
+En las pruebas de habilidad y en los duelos se abre un anillo: un aro se cierra sobre una runa. Haz clic cuando el aro toque la runa: dentro de la franja verde el clic cuenta, y cuanto más cerca de la runa, mejor. Cada acierto llena la barra: en una prueba tiene que llegar a la marca; en un duelo gana quien más la llena.
 
 Teclas: C cambia la vista, L muestra las etiquetas de las casillas, G abre el Grimorio (tu Elegido, su afinidad y lo que da cada runa), H oculta los paneles, D abre el panel de depuración, Intro vuelve al menú al acabar.

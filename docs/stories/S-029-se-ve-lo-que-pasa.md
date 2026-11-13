@@ -19,6 +19,11 @@ Añadido por el autor el 12/11/2026:
 
 5. **El Grimorio no vibra.** En algunas partidas el panel del Grimorio (S-027) tiembla mientras está abierto. Las Ayudas mandan al jugador a pulsar G, y un panel que tiembla parece roto. No cambia lo que enseña.
 
+Añadido por el autor el 13/11/2026, tras probar el PR en PIE:
+
+6. **El color del rol va en una peana de color, no en un aro fino.** El plan tiñó el aro de la base (0,25 cm de grosor) porque la carta del kit no se tiñe, y desde la cámara un Eco y un Elegido se ven iguales. Bajo la ficha va un disco plano relleno, más ancho que la peana de la carta: gris de Eco o color del Dominio. Es una forma básica teñida, sin asset nuevo; su diámetro y su cota van en configuración. Sustituye al aro de rol; el aro del turno (color del asiento, con pulso) se queda. El destello de la ficha enciende el disco. Tiene que verse en una casilla normal y sobre el Altar.
+7. **La instrucción del anillo decía dónde fallar** (corrección a S-031, R-VIS-17). "Haz clic cuando el aro entre en la franja verde" manda a pulsar en el borde de la zona buena, donde la precisión vale casi cero: la precisión es 1 cuando el aro toca la runa y baja en línea recta hasta 0 en el borde de la franja. En las actas del 13/11 el autor, siguiéndola, pulsó entre 0,15 y 0,27 s antes y falló todos los anillos. La instrucción pasa a "Haz clic cuando el aro toque la runa. En la franja verde cuenta; cuanto más cerca, mejor." La frase del Warden y "Cómo se juega" ya lo dicen así en `main` (commit c294966). No cambian ni la franja ni las reglas.
+
 ## Reglas a implementar (`Soulbound`, `Presentation/`)
 
 - **R-VIS-10 (precisión). Color de la ficha.** `ASeatTokenActor` recibe del estado el rol del asiento y su Dominio: Eco, color gris de datos (`EchoTokenColor`, Config); Elegido, el color del Dominio que ya usa la leyenda (`DomainColor`). Cambia en el momento del vínculo (`Bonded`) y vuelve a gris si el asiento deja de ser Elegido. El aro de rol actual se mantiene o se retira, a elección de quien implemente, sin que el número deje de verse.
