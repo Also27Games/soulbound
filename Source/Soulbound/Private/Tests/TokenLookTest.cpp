@@ -122,4 +122,31 @@ bool FRingPulseTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRoleDiscTest, "Soulbound.Game.Presentation.Ficha.DiscoDeRol", TokenLookFlags)
+
+bool FRoleDiscTest::RunTest(const FString& Parameters)
+{
+	// R-VIS-10 (corrección del autor del 13/11/2026): el color del rol va en un disco plano bajo la ficha, más ancho que la peana de la carta y sin
+	// pasar del borde interior del aro del turno.
+	using Soulbound::Presentation::RoleDiscDiameter;
+	using Soulbound::Presentation::RoleDiscLift;
+	using Soulbound::Presentation::RoleDiscMaxDiameter;
+	// Tope: diámetro del aro menos dos grosores y el margen (8,5 - 2 * 0,5 - 0,1).
+	TestEqual(TEXT("Tope: el borde interior del aro del turno, con margen"), RoleDiscMaxDiameter(8.5f, 0.5f), 7.4f, 0.001f);
+	TestEqual(TEXT("Un aro absurdo no da un tope negativo"), RoleDiscMaxDiameter(0.5f, 2.f), 0.f, 0.001f);
+	// Diámetro: huella por escala.
+	TestEqual(TEXT("Huella 3 por 1,8"), RoleDiscDiameter(3.f, 1.8f, 7.4f), 5.4f, 0.001f);
+	TestEqual(TEXT("Sin pasar del tope"), RoleDiscDiameter(5.f, 1.8f, 7.4f), 7.4f, 0.001f);
+	// Siempre más ancho que la peana: nunca menos de 1,1 veces la huella, aunque la escala sea 1 o menos...
+	TestEqual(TEXT("Escala 1: 1,1 veces la huella"), RoleDiscDiameter(3.f, 1.f, 7.4f), 3.3f, 0.001f);
+	// ...ni siquiera con un tope más corto que eso (el tope manda sobre la escala, el suelo sobre el tope).
+	TestEqual(TEXT("Tope menor que el suelo: el suelo"), RoleDiscDiameter(3.f, 1.8f, 2.f), 3.3f, 0.001f);
+	// Cota: cada asiento un poco más alto que el anterior.
+	TestEqual(TEXT("Asiento 0: la cota base"), RoleDiscLift(0, 0.1f), 0.1f, 0.0001f);
+	TestTrue(TEXT("Cada asiento más alto que el anterior"), RoleDiscLift(1, 0.1f) > RoleDiscLift(0, 0.1f) && RoleDiscLift(2, 0.1f) > RoleDiscLift(1, 0.1f)
+		&& RoleDiscLift(3, 0.1f) > RoleDiscLift(2, 0.1f));
+	TestEqual(TEXT("Por RoleDiscSeatStep"), RoleDiscLift(3, 0.1f), 0.1f + 3.f * Soulbound::Presentation::RoleDiscSeatStep, 0.0001f);
+	return true;
+}
+
 #endif

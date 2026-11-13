@@ -34,4 +34,37 @@ namespace Soulbound::Presentation
 	 * @return Intensidad de MinIntensity a 1.
 	 */
 	SOULBOUND_API float RingPulse(double Seconds, float PeriodSeconds, float MinIntensity = 0.35f);
+
+	/** Margen entre el borde del disco de rol y el borde interior del aro del turno, en cm (S-029, corrección del 13/11/2026). */
+	inline constexpr float RoleDiscRingMargin = 0.1f;
+
+	/** Cuánto sube el disco de rol por número de asiento, en cm (S-029): dos discos solapados en una casilla no comparten cota y no parpadean. */
+	inline constexpr float RoleDiscSeatStep = 0.01f;
+
+	/**
+	 * Diámetro máximo del disco de rol (S-029): el borde interior del aro del turno menos un margen, para que el borde del disco no quede bajo el
+	 * aro. El borde interior es su diámetro menos dos veces su grosor (cuenta conservadora: los segmentos del aro se centran en su radio).
+	 * @param TurnRingDiameter Diámetro del aro del turno (ABoardViewActor::RingDiameter), en cm.
+	 * @param TurnRingWidth Grosor del aro del turno (RingWidth), en cm.
+	 * @return El diámetro máximo, al menos 0.
+	 */
+	SOULBOUND_API float RoleDiscMaxDiameter(float TurnRingDiameter, float TurnRingWidth);
+
+	/**
+	 * Diámetro del disco de rol, la peana de color bajo la ficha (S-029, R-VIS-10): la huella de la carta por Scale, sin pasar de MaxDiameter, y
+	 * nunca menos de 1,1 veces la huella para que sea siempre más ancho que la peana de la carta.
+	 * @param Footprint Huella de la carta (o diámetro de la ficha sin carta), en cm.
+	 * @param Scale RoleDiscScale (Config).
+	 * @param MaxDiameter Tope, de RoleDiscMaxDiameter.
+	 * @return El diámetro del disco, en cm.
+	 */
+	SOULBOUND_API float RoleDiscDiameter(float Footprint, float Scale, float MaxDiameter);
+
+	/**
+	 * Cota del disco de rol sobre la base de la ficha (S-029): BaseLift más RoleDiscSeatStep por número de asiento.
+	 * @param Seat Asiento de la ficha.
+	 * @param BaseLift RoleDiscLift (Config), en cm.
+	 * @return La cota, en cm.
+	 */
+	SOULBOUND_API float RoleDiscLift(int32 Seat, float BaseLift);
 }

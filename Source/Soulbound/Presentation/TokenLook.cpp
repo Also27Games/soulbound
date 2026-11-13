@@ -47,3 +47,7 @@ float Soulbound::Presentation::RingPulse(double Seconds, float PeriodSeconds, fl
 	const float Wave = static_cast<float>(0.5 * (1.0 - FMath::Cos(2.0 * UE_DOUBLE_PI * Phase)));
 	return Min + (1.f - Min) * Wave;
 }
+
+float Soulbound::Presentation::RoleDiscMaxDiameter(float, float) { return -1.f; }
+float Soulbound::Presentation::RoleDiscDiameter(float, float, float) { return -1.f; }
+float Soulbound::Presentation::RoleDiscLift(int32, float) { return -1.f; }
