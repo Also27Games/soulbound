@@ -148,4 +148,26 @@ bool FRingTitleTextTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// CA-VIS-21, R-VIS-17: la instrucción son dos líneas, ninguna vacía y ninguna habla de "pulso"; la función no recibe el estado del anillo, así que
+// son las mismas en el anuncio y con un pulso resuelto (dos llamadas dan lo mismo).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingInstructionLinesTest, "Soulbound.Game.Presentation.Anillo.InstruccionEnDosLineas", RingModelTestFlags)
+bool FRingInstructionLinesTest::RunTest(const FString& Parameters)
+{
+	using Soulbound::Presentation::RingInstructionLines;
+	const TArray<FString> Lines = RingInstructionLines();
+	if (!TestEqual(TEXT("Dos líneas"), Lines.Num(), 2))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Primera línea"), Lines[0], FString(TEXT("Haz clic cuando el aro toque la runa.")));
+	TestEqual(TEXT("Segunda línea"), Lines[1], FString(TEXT("En la franja verde cuenta; cuanto más cerca, mejor.")));
+	for (const FString& Line : Lines)
+	{
+		TestFalse(TEXT("Ninguna vacía"), Line.IsEmpty());
+		TestFalse(FString::Printf(TEXT("«%s» no habla de pulso"), *Line), Line.Contains(TEXT("pulso"), ESearchCase::IgnoreCase));
+	}
+	TestEqual(TEXT("Las mismas en el anuncio y con un pulso resuelto"), RingInstructionLines(), Lines);
+	return true;
+}
+
 #endif

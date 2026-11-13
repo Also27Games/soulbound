@@ -45,3 +45,8 @@ FString Soulbound::Presentation::RingTitleText(ESkillTrial Trial, bool bDuel)
 		: Trial == ESkillTrial::FinalChallenge ? TEXT("DESAFÍO FINAL")
 		: TEXT("PRUEBA");
 }
+
+TArray<FString> Soulbound::Presentation::RingInstructionLines()
+{
+	return {TEXT("Haz clic cuando el aro toque la runa."), TEXT("En la franja verde cuenta; cuanto más cerca, mejor.")};
+}

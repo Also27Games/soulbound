@@ -77,13 +77,17 @@ int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 		FLinearColor(0.f, 0.f, 0.f, 0.72f));
 	const int32 Layer = LayerId + 1;
 
-	// Título y contador.
+	// Título y, debajo, la instrucción (cada línea centrada y por separado, R-VIS-17) o la nota del resultado.
 	const FSlateFontInfo TitleFont = FCoreStyle::GetDefaultFontStyle("Bold", FontSize);
 	const FSlateFontInfo SmallFont = FCoreStyle::GetDefaultFontStyle("Regular", FMath::Max(8, FMath::RoundToInt(FontSize * 0.75f)));
 	const FSlateFontInfo BigFont = FCoreStyle::GetDefaultFontStyle("Bold", FMath::RoundToInt(FontSize * 1.6f));
 	float Top = 12.f * Scale;
 	Top += DrawCenteredText(OutDrawElements, Layer, AllottedGeometry, Now.Title, TitleFont, Top, FLinearColor::White) + 4.f * Scale;
-	Top += DrawCenteredText(OutDrawElements, Layer, AllottedGeometry, Now.Counter, SmallFont, Top, FLinearColor(0.8f, 0.8f, 0.8f));
+	for (const FString& Line : Now.Instruction)
+	{
+		Top += DrawCenteredText(OutDrawElements, Layer, AllottedGeometry, Line, SmallFont, Top, FLinearColor(0.8f, 0.8f, 0.8f));
+	}
+	Top += DrawCenteredText(OutDrawElements, Layer, AllottedGeometry, Now.Note, SmallFont, Top, FLinearColor(0.8f, 0.8f, 0.8f));
 
 	// La franja verde de la zona buena, la runa y el aro (R-VIS-14, R-VIS-18, R-VIS-19). Orden de pintado: franja, runa, aro.
 	const FVector2f Center(Size.X * 0.5f, Size.Y * 0.5f);

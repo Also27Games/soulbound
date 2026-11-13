@@ -2466,10 +2466,8 @@ FRingPanelModel ABoardViewActor::RingPanelModel() const
 		Model.bVisible = true;
 		Model.bShowRing = true;
 		Model.Title = LastRingTitle;
-		// En el anuncio, la instrucción bajo el título; los pulsos que vienen ya se ven en las marcas de abajo.
-		Model.Counter = Run->IsAnnouncing(Now)
-			? FString(TEXT("Haz clic cuando el aro toque la runa. En la franja verde cuenta; cuanto más cerca, mejor."))
-			: FString::Printf(TEXT("pulso %d de %d"), FMath::Min(Done.Num() + 1, Total), Total);
+		// R-VIS-17: la instrucción, en dos líneas, durante toda la prueba; cuántos pulsos hay y cuántos van ya lo dicen las marcas de abajo.
+		Model.Instruction = Soulbound::Presentation::RingInstructionLines();
 		Model.CloseFraction = Run->CloseFraction(Now);
 		Model.ZoneFraction = Run->Sequence.CloseSeconds > 0.0 ? 0.5 * Run->Sequence.SweetZoneSeconds / Run->Sequence.CloseSeconds : 0.0;
 		Model.bInSweetZone = Run->IsInSweetZone(Now);
@@ -2491,7 +2489,7 @@ FRingPanelModel ABoardViewActor::RingPanelModel() const
 	{
 		Model.bVisible = true;
 		Model.Title = LastRingTitle;
-		Model.Counter = LastRingNote;
+		Model.Note = LastRingNote;
 		Model.Big = LastRingResult;
 		Model.BigColor = LastRingColor;
 		for (const double Precision : LastRingPrecisions)
