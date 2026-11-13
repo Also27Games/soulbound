@@ -709,10 +709,14 @@ void ABoardViewActor::BuildTokens()
 			Token->SetSeat(Seat);
 			Token->Configure(TokenLabelSize, ActiveLift, ActiveSpinDegreesPerSecond, RingDiameter, RingWidth, ActiveScale, TokenDiameter);
 			// R-VIS-6: la carta de prueba del kit, con el color del asiento en el aro de su base (sin carta, la esfera o el cono).
-			if (UStaticMeshComponent* CardMesh = Token->UseCard(Card, Kit.EmissiveMaterial(), TokenRingScale, TokenRingWidth, RoleRingBrightness))
+			if (UStaticMeshComponent* CardMesh = Token->UseCard(Card, Kit.EmissiveMaterial()))
 			{
 				Kit.ApplyMaterials(*CardMesh);
 			}
+			// S-029 (R-VIS-10): el disco de rol, de la huella de la carta, sin pasar del borde interior del aro del turno; el disco de cada asiento, un poco
+			// más alto que el del anterior.
+			Token->SetRoleDisc(Soulbound::Presentation::RoleDiscDiameter(Token->GetFootprint(), RoleDiscScale, Soulbound::Presentation::RoleDiscMaxDiameter(RingDiameter, RingWidth)),
+				Soulbound::Presentation::RoleDiscLift(Seat, RoleDiscLift), RoleDiscBrightness);
 			Token->SetRingPulse(ActiveRingPulseSeconds, ActiveRingPulseMin);
 			Token->SetColor(SeatColor(Seat));
 			Token->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
@@ -972,8 +976,8 @@ void ABoardViewActor::BuildOverlay()
 	FLegendRow Seats;
 	// S-019: con la carta del kit, el rol va en el aro de su base (decisión del autor del 20/10/2026).
 	Seats.Title = Kit.Mesh(EBoardKitPiece::TokenCard)
-		? TEXT("Asientos (el número va sobre la carta): aro de la base gris = Eco, del color de su Dominio = Elegido. Quien juega crece, sube, gira y lleva un aro del color del asiento que pulsa")
-		: TEXT("Asientos (el número va en la ficha): gris = Eco, color de su Dominio = Elegido. Quien juega crece, sube, gira y lleva un aro del color del asiento que pulsa");
+		? TEXT("Asientos (el número va sobre la carta): disco bajo la ficha gris = Eco, del color de su Dominio = Elegido. Quien juega crece, sube, gira y lleva un aro del color del asiento que pulsa")
+		: TEXT("Asientos (el número va en la ficha): gris = Eco, color de su Dominio = Elegido, también en el disco de debajo. Quien juega crece, sube, gira y lleva un aro del color del asiento que pulsa");
 	for (int32 Seat = 0; Seat < Host->GetState().Seats.Num(); ++Seat)
 	{
 		FLegendChip Chip;
@@ -1716,7 +1720,7 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 		// S-013 (R-TAB-24): en el Vacío la ficha sale del tablero; se oculta y reaparece en su hogar al salir.
 		Token->SetActorHiddenInGame(!View.TokensOnBoard.IsValidIndex(Seat) || !View.TokensOnBoard[Seat]);
 		Token->SetLabelVisible(!bOverlayHidden);
-		// S-029 (R-VIS-10): el aro de rol de la base (la ficha, sin carta) toma el gris del Eco o el color del Dominio del Elegido.
+		// S-029 (R-VIS-10): el disco de rol bajo la ficha (la propia ficha, sin carta) toma el gris del Eco o el color del Dominio del Elegido.
 		Token->SetRoleColor(Soulbound::Presentation::TokenColor(State.Seats[Seat].Role, State.Seats[Seat].DomainId, EchoTokenColor, DomainColors));
 		if (!TilePositions.IsValidIndex(TileId))
 		{
@@ -2387,7 +2391,7 @@ FRingPanelModel ABoardViewActor::RingPanelModel() const
 		Model.Title = LastRingTitle;
 		// En el anuncio, la instrucción bajo el título; los pulsos que vienen ya se ven en las marcas de abajo.
 		Model.Counter = Run->IsAnnouncing(Now)
-			? FString(TEXT("Haz clic cuando el aro entre en la franja verde"))
+			? FString(TEXT("Haz clic cuando el aro toque la runa. En la franja verde cuenta; cuanto más cerca, mejor."))
 			: FString::Printf(TEXT("pulso %d de %d"), FMath::Min(Done.Num() + 1, Total), Total);
 		Model.CloseFraction = Run->CloseFraction(Now);
 		Model.ZoneFraction = Run->Sequence.CloseSeconds > 0.0 ? 0.5 * Run->Sequence.SweetZoneSeconds / Run->Sequence.CloseSeconds : 0.0;

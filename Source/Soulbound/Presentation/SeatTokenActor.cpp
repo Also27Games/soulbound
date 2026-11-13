@@ -16,6 +16,8 @@ namespace
 	/** Alto de los segmentos de un aro y altura a la que apoyan sobre la losa, en cm. */
 	constexpr float RingHeight = 0.18f;
 	constexpr float RingZ = 0.06f;
+	/** Grosor del disco de rol, en cm. */
+	constexpr float RoleDiscThickness = 0.1f;
 	/** Diámetro del aro del destello por el del aro del turno. */
 	constexpr float FlashRingScale = 1.25f;
 	/** Holgura del número del asiento sobre lo alto de la ficha, en cm. */
@@ -43,10 +45,12 @@ ASeatTokenActor::ASeatTokenActor()
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(Soulbound::Presentation::SpherePath);
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cone(Soulbound::Presentation::ConePath);
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cube(Soulbound::Presentation::CubePath);
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(Soulbound::Presentation::CylinderPath);
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Material(Soulbound::Presentation::BasicMaterialPath);
 	EchoMesh = Sphere.Succeeded() ? Sphere.Object : nullptr;
 	ElectMesh = Cone.Succeeded() ? Cone.Object : nullptr;
 	CubeMesh = Cube.Succeeded() ? Cube.Object : nullptr;
+	CylinderMesh = Cylinder.Succeeded() ? Cylinder.Object : nullptr;
 	Mesh->SetStaticMesh(EchoMesh);
 	BaseMaterial = Material.Succeeded() ? Material.Object : nullptr;
 
@@ -59,6 +63,13 @@ ASeatTokenActor::ASeatTokenActor()
 	ClickTarget->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	ClickTarget->SetCollisionResponseToAllChannels(ECR_Ignore);
 	ClickTarget->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+
+	// S-029: el disco de rol, bajo la ficha y colgado de la raíz (no sube ni gira con ella); lo mide y lo coloca SetRoleDisc.
+	RoleDisc = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RoleDisc"));
+	RoleDisc->SetupAttachment(GetRootComponent());
+	RoleDisc->SetStaticMesh(CylinderMesh);
+	RoleDisc->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	RoleDisc->SetCastShadow(false);
 
 	// La ficha no recibe clics ni choca con nada: el clic va a la casilla que hay debajo.
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -80,6 +91,7 @@ void ASeatTokenActor::Configure(float InLabelSize, float InLift, float InSpinDeg
 	RingDiameter = InRingDiameter;
 	RingWidth = InRingWidth;
 	TokenDiameter = InTokenDiameter;
+	Footprint = InTokenDiameter;
 	// Las formas básicas del motor miden 100 cm y tienen el origen en su centro: la ficha se escala y se posa en la base.
 	Mesh->SetRelativeScale3D(FVector(TokenDiameter / 100.f));
 	Mesh->SetRelativeLocation(FVector(0.f, 0.f, TokenDiameter * 0.5f));
@@ -100,30 +112,37 @@ void ASeatTokenActor::SetClickable(bool bClickable)
 	ClickTarget->SetCollisionEnabled(bClickable ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 }
 
-UStaticMeshComponent* ASeatTokenActor::UseCard(UStaticMesh* Card, UMaterialInterface* InRoleRingMaterial, float RoleRingScale, float RoleRingWidth, float InRoleRingBrightness)
+UStaticMeshComponent* ASeatTokenActor::UseCard(UStaticMesh* Card, UMaterialInterface* InDiscMaterial)
 {
 	if (!Card)
 	{
 		return nullptr;
 	}
 	bCard = true;
-	RoleRingBrightness = FMath::Clamp(InRoleRingBrightness, 0.f, 1.f);
-	RoleRingMaterial = InRoleRingMaterial ? InRoleRingMaterial : BaseMaterial.Get();
+	RoleDiscMaterial = InDiscMaterial ? InDiscMaterial : BaseMaterial.Get();
 	// Las piezas del kit no se escalan: origen en la base, un metro del kit son 100 cm.
 	Mesh->SetStaticMesh(Card);
 	Mesh->SetRelativeScale3D(FVector::OneVector);
 	Mesh->SetRelativeLocation(FVector::ZeroVector);
 	const FBoxSphereBounds Bounds = Card->GetBounds();
-	const float Footprint = 2.f * FMath::Max(Bounds.BoxExtent.X, Bounds.BoxExtent.Y);
+	Footprint = 2.f * FMath::Max(Bounds.BoxExtent.X, Bounds.BoxExtent.Y);
 	// S-017: la esfera del clic, del alto de la carta.
 	ClickTarget->SetRelativeScale3D(FVector(2.f * FMath::Max(Bounds.BoxExtent.Z, Bounds.BoxExtent.X) / 100.f));
 	ClickTarget->SetRelativeLocation(FVector(0.f, 0.f, Bounds.Origin.Z));
 	Label->SetRelativeLocation(FVector(0.f, 0.f, Bounds.Origin.Z + Bounds.BoxExtent.Z + LabelClearance));
 	// Sobre la carta oscura, el número en blanco.
 	Label->SetTextRenderColor(FColor::White);
-	BuildRing(Pivot, RoleRingSegments, Footprint * RoleRingScale, RoleRingWidth, RingZ);
-	PaintRoleRing();
+	PaintRoleDisc();
 	return Mesh;
+}
+
+void ASeatTokenActor::SetRoleDisc(float Diameter, float DiscLift, float Brightness)
+{
+	RoleDiscBrightness = FMath::Clamp(Brightness, 0.f, 1.f);
+	// El cilindro del motor mide 100 cm de diámetro y 100 de alto y tiene el origen en su centro: se aplasta a un disco y se sube su mitad.
+	RoleDisc->SetRelativeScale3D(FVector(Diameter / 100.f, Diameter / 100.f, RoleDiscThickness / 100.f));
+	RoleDisc->SetRelativeLocation(FVector(0.f, 0.f, DiscLift + RoleDiscThickness * 0.5f));
+	PaintRoleDisc();
 }
 
 void ASeatTokenActor::BuildRing(USceneComponent* Parent, TArray<TObjectPtr<UStaticMeshComponent>>& OutSegments, float Diameter, float Width, float Z)
@@ -147,10 +166,11 @@ void ASeatTokenActor::BuildRing(USceneComponent* Parent, TArray<TObjectPtr<UStat
 	}
 }
 
-void ASeatTokenActor::PaintRoleRing()
+void ASeatTokenActor::PaintRoleDisc()
 {
-	// S-029 (R-VIS-10, decisión del autor del 12/11/2026): el rol se ve en el color del aro de la base, gris de datos para un Eco y el del Dominio
-	// para un Elegido, con el mismo brillo (RoleRingBrightness, en Config). La carta del kit no se tiñe; sin carta, la ficha toma el color.
+	// S-029 (R-VIS-10, corrección del autor del 13/11/2026): el rol se ve en el disco plano bajo la ficha, gris de datos para un Eco y el color del Dominio
+	// para un Elegido (el aro fino de la base no se distinguía desde la cámara). La carta del kit no se tiñe; sin carta, la ficha toma el color. El
+	// destello de la ficha enciende el disco.
 	FLinearColor Base = RoleColor;
 	FLinearColor FlashColor;
 	float Intensity = 0.f;
@@ -158,11 +178,8 @@ void ASeatTokenActor::PaintRoleRing()
 	{
 		Base = FMath::Lerp(RoleColor, FlashColor, Intensity);
 	}
-	const FLinearColor RingPaint(Base.R * RoleRingBrightness, Base.G * RoleRingBrightness, Base.B * RoleRingBrightness);
-	for (UStaticMeshComponent* Segment : RoleRingSegments)
-	{
-		Soulbound::Presentation::SetComponentColor(*Segment, RoleRingMaterial, RingPaint);
-	}
+	Soulbound::Presentation::SetComponentColor(*RoleDisc, RoleDiscMaterial ? RoleDiscMaterial.Get() : BaseMaterial.Get(),
+		FLinearColor(Base.R * RoleDiscBrightness, Base.G * RoleDiscBrightness, Base.B * RoleDiscBrightness));
 	if (!bCard)
 	{
 		Soulbound::Presentation::SetComponentColor(*Mesh, BaseMaterial, Base);
@@ -223,7 +240,7 @@ void ASeatTokenActor::SetRoleColor(const FLinearColor& Color)
 	}
 	bRoleColorSet = true;
 	RoleColor = Color;
-	PaintRoleRing();
+	PaintRoleDisc();
 }
 
 void ASeatTokenActor::SetColor(const FLinearColor& Color)
@@ -239,7 +256,7 @@ void ASeatTokenActor::SetColor(const FLinearColor& Color)
 		Label->SetTextRenderColor(FColor::Black);
 	}
 	PaintTurnRing(1.f);
-	PaintRoleRing();
+	PaintRoleDisc();
 	Label->SetText(FText::AsNumber(Seat));
 }
 
@@ -397,7 +414,7 @@ void ASeatTokenActor::Tick(float DeltaSeconds)
 					Soulbound::Presentation::SetComponentColor(*Segment, BaseMaterial, FLinearColor(FlashColor.R * Intensity, FlashColor.G * Intensity, FlashColor.B * Intensity));
 				}
 			}
-			PaintRoleRing();
+			PaintRoleDisc();
 		}
 	}
 	// Sube y baja suave hacia la altura que toca, sin saltos cuando cambia el asiento activo.

@@ -250,20 +250,25 @@ public:
 
 	// ---- Ficha con la carta del kit (S-019, R-VIS-6) ----
 
-	/** Diámetro del aro del rol en la base de la carta, por la huella de la carta. Valor inicial 1,25. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Ficha")
-	float TokenRingScale = 1.25f;
-
-	/** Ancho del aro del rol, en cm (S-029: en Config, para ajustarlo en PIE: ahora es lo que lleva el color del rol). Valor inicial 0,25. */
-	UPROPERTY(Config, EditAnywhere, Category = "Vista|Ficha")
-	float TokenRingWidth = 0.25f;
+	/**
+	 * Diámetro del disco de rol bajo la ficha, por la huella de la carta (S-029, R-VIS-10, corrección del autor del 13/11/2026: el aro fino de la base
+	 * no se distinguía desde la cámara). El diámetro final (RoleDiscDiameter) nunca pasa del borde interior del aro del turno (RingDiameter menos dos
+	 * RingWidth y un margen) ni baja de 1,1 veces la huella (siempre más ancho que la peana). Se ajusta en PIE. Valor inicial 1,8.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Ficha", meta = (ClampMin = "1"))
+	float RoleDiscScale = 1.8f;
 
 	/**
-	 * Brillo del aro del rol (S-029, R-VIS-10): el color del rol por este factor, el mismo para Eco y Elegido. Sustituye al brillo tenue del Eco (decisión
-	 * del autor del 12/11/2026: el rol se lee en el color). Se ajusta en PIE. Valor inicial 1.
+	 * Cota de la cara inferior del disco de rol sobre la base de la ficha, en cm (S-029). La base es la cara superior de la losa o del Altar ya
+	 * colocados (TokenBase), no una cuenta a ciegas: lo que quede bajo el suelo del kit no se ve (lección del halo del Altar, S-033). Cada asiento sube
+	 * su disco RoleDiscSeatStep (0,01 cm) más que el anterior para que dos discos solapados en una casilla no parpadeen. Se ajusta en PIE. Valor inicial 0,1.
 	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Ficha")
+	float RoleDiscLift = 0.1f;
+
+	/** Brillo del disco de rol: el color del rol por este factor, el mismo para Eco y Elegido. Se ajusta en PIE. Valor inicial 1. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Ficha", meta = (ClampMin = "0", ClampMax = "1"))
-	float RoleRingBrightness = 1.f;
+	float RoleDiscBrightness = 1.f;
 
 	/** Color de la ficha de un Eco (S-029, R-VIS-10): el gris de datos. Un Elegido lleva el color de su Dominio (DomainColor). Valor inicial (0,45, 0,45, 0,45). */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Ficha")
@@ -600,7 +605,7 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
 	TSoftObjectPtr<UMaterialInterface> VertexColorMaterial;
 
-	/** Material emisivo (cian), con un parámetro de color "Color": las ranuras emisivas del kit y el aro del rol de la ficha. */
+	/** Material emisivo (cian), con un parámetro de color "Color": las ranuras emisivas del kit y el disco de rol de la ficha. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
 	TSoftObjectPtr<UMaterialInterface> EmissiveMaterial;
 

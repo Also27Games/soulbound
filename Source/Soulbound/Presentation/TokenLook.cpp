@@ -48,6 +48,18 @@ float Soulbound::Presentation::RingPulse(double Seconds, float PeriodSeconds, fl
 	return Min + (1.f - Min) * Wave;
 }
 
-float Soulbound::Presentation::RoleDiscMaxDiameter(float, float) { return -1.f; }
-float Soulbound::Presentation::RoleDiscDiameter(float, float, float) { return -1.f; }
-float Soulbound::Presentation::RoleDiscLift(int32, float) { return -1.f; }
+float Soulbound::Presentation::RoleDiscMaxDiameter(float TurnRingDiameter, float TurnRingWidth)
+{
+	return FMath::Max(TurnRingDiameter - 2.f * TurnRingWidth - RoleDiscRingMargin, 0.f);
+}
+
+float Soulbound::Presentation::RoleDiscDiameter(float Footprint, float Scale, float MaxDiameter)
+{
+	// El tope manda sobre la escala, y el suelo (siempre más ancho que la peana de la carta) sobre el tope.
+	return FMath::Max(FMath::Min(Footprint * Scale, MaxDiameter), Footprint * 1.1f);
+}
+
+float Soulbound::Presentation::RoleDiscLift(int32 Seat, float BaseLift)
+{
+	return BaseLift + RoleDiscSeatStep * static_cast<float>(FMath::Max(Seat, 0));
+}
