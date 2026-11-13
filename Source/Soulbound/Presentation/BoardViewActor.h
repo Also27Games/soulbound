@@ -288,9 +288,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Ficha", meta = (ClampMin = "0", ClampMax = "1"))
 	float RoleDiscBrightness = 1.f;
 
-	/** Color de la ficha de un Eco (S-029, R-VIS-10): el gris de datos. Un Elegido lleva el color de su Dominio (DomainColor). Valor inicial (0,08, 0,08, 0,10), un gris oscuro (S-037: antes (0,45, 0,45, 0,45), que no se distinguía de la mesa; valor a ciegas, a ajustar en PIE). */
+	/** Color de la ficha de un Eco (S-029, R-VIS-10): el gris de datos. Un Elegido lleva el color de su Dominio (DomainColor). Valor inicial (0,45, 0,45, 0,45), el gris medio. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Ficha")
-	FLinearColor EchoTokenColor = FLinearColor(0.08f, 0.08f, 0.10f);
+	FLinearColor EchoTokenColor = FLinearColor(0.45f, 0.45f, 0.45f);
 
 	/** Periodo del pulso lento del aro del turno (S-029, R-VIS-11), en segundos; 0 o menos, sin pulso. Valor inicial 1,5. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Asiento activo")
