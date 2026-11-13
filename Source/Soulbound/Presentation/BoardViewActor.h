@@ -200,11 +200,11 @@ public:
 	float LabelOffsetFraction = 0.4f;
 
 	/**
-	 * Alto de la letra del número de la ficha, en cm. Valor inicial 2,0 (S-037, R-VIS-23: antes 1,4, que desde la vista sentada no se leía). Valor a ciegas, a
+	 * Alto de la letra del número de la ficha, en cm. Valor inicial 4,0 (S-037, R-VIS-23: antes 1,4; 2,0 se quedó corto en la prueba del autor del 13/11/2026). Valor a ciegas, a
 	 * ajustar en PIE a 1024x768 sin tapar la ficha de al lado.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Etiquetas")
-	float TokenLabelSize = 2.0f;
+	float TokenLabelSize = 4.0f;
 
 	/**
 	 * Altura del número sobre lo alto de la ficha, en cm (S-037, R-VIS-23); con la ficha activa sube con ella. Valor inicial 0,6, a ciegas: a ajustar en PIE.
@@ -288,9 +288,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Ficha", meta = (ClampMin = "0", ClampMax = "1"))
 	float RoleDiscBrightness = 1.f;
 
-	/** Color de la ficha de un Eco (S-029, R-VIS-10): el gris de datos. Un Elegido lleva el color de su Dominio (DomainColor). Valor inicial (0,45, 0,45, 0,45). */
+	/** Color de la ficha de un Eco (S-029, R-VIS-10): el gris de datos. Un Elegido lleva el color de su Dominio (DomainColor). Valor inicial (0,08, 0,08, 0,10), un gris oscuro (S-037: antes (0,45, 0,45, 0,45), que no se distinguía de la mesa; valor a ciegas, a ajustar en PIE). */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Ficha")
-	FLinearColor EchoTokenColor = FLinearColor(0.45f, 0.45f, 0.45f);
+	FLinearColor EchoTokenColor = FLinearColor(0.08f, 0.08f, 0.10f);
 
 	/** Periodo del pulso lento del aro del turno (S-029, R-VIS-11), en segundos; 0 o menos, sin pulso. Valor inicial 1,5. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Asiento activo")
