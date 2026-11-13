@@ -2309,7 +2309,7 @@ void ABoardViewActor::HandleRingOpened()
 		return;
 	}
 	// El título se fija al abrir: al cerrarse, el anfitrión ya no tiene la prueba.
-	LastRingTitle = RingTitle(HostPtr->GetRingTrial(), HostPtr->IsRingDuel(), HostPtr->GetRingDifficulty());
+	LastRingTitle = Soulbound::Presentation::RingTitleText(HostPtr->GetRingTrial(), HostPtr->IsRingDuel());
 	LastRingShownUntil = 0.0;
 	// S-031 (R-VIS-16): criterio y umbral de la prueba, con las mismas funciones de datos con que el anfitrión la abrió (RingParamsForTrial/ForDuel);
 	// no duplica la regla, la lee. Sin parámetros (prueba None fuera del duelo), un criterio sin marca.
@@ -2507,13 +2507,3 @@ FRingPanelModel ABoardViewActor::RingPanelModel() const
 	return Model;
 }
 
-FString ABoardViewActor::RingTitle(ESkillTrial Trial, bool bDuel, ESkillDifficulty Difficulty)
-{
-	const TCHAR* Use = bDuel ? TEXT("DUELO")
-		: Trial == ESkillTrial::ForgottenSource ? TEXT("FUENTE DE UN DOMINIO OLVIDADO")
-		: Trial == ESkillTrial::WardenTrial ? TEXT("PRUEBA DEL WARDEN")
-		: Trial == ESkillTrial::VoidEscape ? TEXT("ESCAPE DEL VACÍO")
-		: Trial == ESkillTrial::FinalChallenge ? TEXT("DESAFÍO FINAL")
-		: TEXT("PRUEBA");
-	return FString::Printf(TEXT("%s · %s"), Use, *Soulbound::Presentation::DifficultyText(static_cast<int32>(Difficulty)));
-}

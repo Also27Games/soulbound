@@ -35,3 +35,13 @@ int32 Soulbound::Presentation::RingRuneDomain(const FMatchState& State, int32 Se
 	const int32 TileId = State.Seats[Seat].TileId;
 	return State.Board.Tiles.IsValidIndex(TileId) ? State.Board.Tiles[TileId].DomainId : INDEX_NONE;
 }
+
+FString Soulbound::Presentation::RingTitleText(ESkillTrial Trial, bool bDuel)
+{
+	return bDuel ? TEXT("DUELO")
+		: Trial == ESkillTrial::ForgottenSource ? TEXT("FUENTE DE UN DOMINIO OLVIDADO")
+		: Trial == ESkillTrial::WardenTrial ? TEXT("PRUEBA DEL WARDEN")
+		: Trial == ESkillTrial::VoidEscape ? TEXT("ESCAPE DEL VACÍO")
+		: Trial == ESkillTrial::FinalChallenge ? TEXT("DESAFÍO FINAL")
+		: TEXT("PRUEBA");
+}

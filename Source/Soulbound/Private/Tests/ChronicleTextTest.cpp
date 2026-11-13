@@ -252,4 +252,20 @@ bool FChronicleRingSeatTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// CA-HUD-12 (S-036, R-HUD-1): lo que no cambia. La crónica de una Prueba del Warden superada sigue diciendo su nivel (Value es la dificultad),
+// aunque ya no lo digan el título del anillo ni el panel de estado. Test de guarda: nace en verde porque la crónica no se toca.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FChronicleWardenTrialLevelTest, "Soulbound.Game.Presentation.Cronica.PruebaDelWardenDiceSuNivel", ChronicleTestFlags)
+
+bool FChronicleWardenTrialLevelTest::RunTest(const FString& Parameters)
+{
+	const FBoardState Board;
+	const TArray<TPair<ESkillDifficulty, const TCHAR*>> Levels = {{ESkillDifficulty::Easy, TEXT("fácil")}, {ESkillDifficulty::Normal, TEXT("normal")}, {ESkillDifficulty::Hard, TEXT("difícil")}};
+	for (const TPair<ESkillDifficulty, const TCHAR*>& Level : Levels)
+	{
+		const FString Text = Soulbound::Presentation::DescribeEvent(MakeEvent(EMatchEventType::WardenTrialPassed, 1, static_cast<int32>(Level.Key)), Board);
+		TestTrue(FString::Printf(TEXT("«%s» dice %s"), *Text, Level.Value), Text.Contains(Level.Value));
+	}
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

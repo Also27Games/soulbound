@@ -114,4 +114,38 @@ bool FRingRuneDomainTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// CA-VIS-20, R-VIS-22: el título del anillo es solo el uso, sin separador ni nivel. La función no recibe la dificultad, así que dos niveles del
+// mismo uso dan por fuerza el mismo título; el test fija el texto exacto de cada uso y que no se cuela ninguna palabra de nivel.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingTitleTextTest, "Soulbound.Game.Presentation.Anillo.TituloSoloElUso", RingModelTestFlags)
+bool FRingTitleTextTest::RunTest(const FString& Parameters)
+{
+	using Soulbound::Presentation::RingTitleText;
+	struct FCase
+	{
+		const TCHAR* Name;
+		ESkillTrial Trial;
+		bool bDuel;
+		const TCHAR* Expected;
+	};
+	const FCase Cases[] = {
+		{TEXT("duelo"), ESkillTrial::None, true, TEXT("DUELO")},
+		{TEXT("duelo gana a la prueba"), ESkillTrial::WardenTrial, true, TEXT("DUELO")},
+		{TEXT("Fuente de un Dominio Olvidado"), ESkillTrial::ForgottenSource, false, TEXT("FUENTE DE UN DOMINIO OLVIDADO")},
+		{TEXT("Prueba del Warden"), ESkillTrial::WardenTrial, false, TEXT("PRUEBA DEL WARDEN")},
+		{TEXT("escape del Vacío"), ESkillTrial::VoidEscape, false, TEXT("ESCAPE DEL VACÍO")},
+		{TEXT("desafío final"), ESkillTrial::FinalChallenge, false, TEXT("DESAFÍO FINAL")},
+		{TEXT("sin uso conocido"), ESkillTrial::None, false, TEXT("PRUEBA")},
+	};
+	for (const FCase& Case : Cases)
+	{
+		const FString Title = RingTitleText(Case.Trial, Case.bDuel);
+		TestEqual(FString::Printf(TEXT("Título de %s"), Case.Name), Title, FString(Case.Expected));
+		for (const TCHAR* Forbidden : {TEXT("·"), TEXT("fácil"), TEXT("normal"), TEXT("difícil")})
+		{
+			TestFalse(FString::Printf(TEXT("El título de %s no lleva «%s»"), Case.Name, Forbidden), Title.Contains(Forbidden));
+		}
+	}
+	return true;
+}
+
 #endif

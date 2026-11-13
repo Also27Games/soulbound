@@ -73,4 +73,10 @@ namespace Soulbound::Presentation
 	 * asiento que no existe, INDEX_NONE.
 	 */
 	int32 RingRuneDomain(const FMatchState& State, int32 Seat, ESkillTrial Trial);
+
+	/**
+	 * Título del panel del anillo (R-VIS-22): el uso de la prueba y nada más, sin el nivel. Trial: la prueba del anillo. bDuel: si es un duelo (gana
+	 * a Trial). Devuelve "DUELO", "FUENTE DE UN DOMINIO OLVIDADO", "PRUEBA DEL WARDEN", "ESCAPE DEL VACÍO", "DESAFÍO FINAL" o, sin uso conocido, "PRUEBA".
+	 */
+	FString RingTitleText(ESkillTrial Trial, bool bDuel);
 }

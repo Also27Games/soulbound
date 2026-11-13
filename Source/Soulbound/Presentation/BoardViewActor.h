@@ -855,9 +855,6 @@ private:
 	/** Lo que pinta el panel del anillo ahora, con el reloj real (S-026). */
 	FRingPanelModel RingPanelModel() const;
 
-	/** Nombre del uso del anillo para el panel: "PRUEBA DEL WARDEN · normal" (S-026). Los textos son de la vista, como EventText. */
-	static FString RingTitle(ESkillTrial Trial, bool bDuel, ESkillDifficulty Difficulty);
-
 	/**
 	 * Si la vista pinta Olvidado el Dominio DomainId (S-023): fuera del prólogo, lo que dice el estado; en el prólogo, solo si su frase de
 	 * corrupción ya se ha enseñado (ForgottenDomainsShown). Lo calcula Refresh.
