@@ -469,8 +469,10 @@ namespace Soulbound::Presentation
 		}
 		// Textos de la leyenda revisados por el autor (13/11/2026): el propio lleva "(tú)"; el de otro, visible solo por la revelación, "(Brazal revelado)".
 		const bool bOwn = State.Seats.IsValidIndex(ViewerSeat) && Seat == ViewerSeat;
-		return FString::Printf(TEXT("%d%s: %s | poderes: %s"), Seat, bOwn ? TEXT(" (tú)") : TEXT(" (Brazal revelado)"),
-			Runes.IsEmpty() ? TEXT("-") : *FString::Join(Runes, TEXT(" ")), Powers.IsEmpty() ? TEXT("-") : *FString::Join(Powers, TEXT(", ")));
+		// Retoque del autor (13/11/2026): sin runas, "0 runas" y no "-"; sin poderes, se omite el trozo.
+		return FString::Printf(TEXT("%d%s: %s%s"), Seat, bOwn ? TEXT(" (tú)") : TEXT(" (Brazal revelado)"),
+			Runes.IsEmpty() ? TEXT("0 runas") : *FString::Join(Runes, TEXT(" ")),
+			Powers.IsEmpty() ? TEXT("") : *(FString(TEXT(" | poderes: ")) + FString::Join(Powers, TEXT(", "))));
 	}
 
 	FString DomainLegendText(const FMatchState& State, int32 DomainId, bool bForgotten)

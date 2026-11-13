@@ -309,7 +309,7 @@ bool FStatusBracerTextTest::RunTest(const FString& Parameters)
 	State.Seats[StOther].RevealedUntilRound = State.Round + 2;
 	const FString Revealed = BracerText(State, StOther, StHuman);
 	TestTrue(TEXT("Revelado: sus tipos"), Revealed.Contains(TEXT("D1×2")) && Revealed.Contains(TEXT("D3×1")));
-	TestTrue(TEXT("Revelado: lo dice"), Revealed.StartsWith(TEXT("2 (Brazal revelado): D1×2 D3×1 | poderes: ")));
+	TestTrue(TEXT("Revelado: lo dice"), Revealed.StartsWith(TEXT("2 (Brazal revelado): D1×2 D3×1")));
 	State.Seats[StOther].RevealedUntilRound = 0;
 
 	// Un Fenrir ajeno (Dominio 1 en elegidos.json) conserva el Paso Libre por afinidad, que es público, y sigue sin decir sus runas.
@@ -392,6 +392,40 @@ bool FStatusChoiceOptionsTest::RunTest(const FString& Parameters)
 	FStatusContext NoHuman = Context;
 	NoHuman.HumanSeat = INDEX_NONE;
 	TestFalse(TEXT("Sin humano válido, nada oculto"), StAnyContains(Soulbound::Presentation::StatusLines(State, NoHuman), TEXT("D1")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusBracerEmptyTest, "Soulbound.Game.Presentation.Estado.BrazalSinRunasNiPoderes", StatusTestFlags)
+
+bool FStatusBracerEmptyTest::RunTest(const FString& Parameters)
+{
+	// Retoque del autor (13/11/2026): cuando se ven los tipos (el propio o un Brazal revelado), sin runas dice "0 runas" en vez de "-", y sin
+	// poderes se omite " | poderes: -". Un Fenrir sin runas conserva "Paso Libre (afinidad)".
+	using Soulbound::Presentation::BracerText;
+	FMatchState State;
+	if (!StMakeRuneState(*this, State))
+	{
+		return false;
+	}
+	for (FSeatState& Seat : State.Seats)
+	{
+		Seat.Runes.Init(0, Seat.Runes.Num());
+	}
+	State.Seats[StHuman].Role = ESeatRole::LostEcho;
+	State.Seats[StHuman].DomainId = INDEX_NONE;
+	TestEqual(TEXT("El propio, sin runas ni poderes"), BracerText(State, StHuman, StHuman), FString(TEXT("0 (tú): 0 runas")));
+
+	State.Seats[StOther].RevealedUntilRound = State.Round + 2;
+	TestEqual(TEXT("Revelado, sin runas ni poderes"), BracerText(State, StOther, StHuman), FString(TEXT("2 (Brazal revelado): 0 runas")));
+	State.Seats[StOther].RevealedUntilRound = 0;
+
+	State.Seats[StHuman].Role = ESeatRole::Elect;
+	State.Seats[StHuman].DomainId = 1; // Fenrir
+	TestEqual(TEXT("Sin runas pero con la afinidad de Fenrir"), BracerText(State, StHuman, StHuman), FString(TEXT("0 (tú): 0 runas | poderes: Paso Libre (afinidad)")));
+
+	State.Seats[StHuman].Runes[5] = 1;
+	const FString WithRune = BracerText(State, StHuman, StHuman);
+	TestTrue(TEXT("Con runas y poderes, como antes"), WithRune.StartsWith(TEXT("0 (tú): D5×1 | poderes: Vuelo Planar")));
 	return true;
 }
 
