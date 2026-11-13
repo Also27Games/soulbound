@@ -68,9 +68,11 @@
 
 // S-027: los textos de asiento que usan la leyenda y las etiquetas viven en StatusText (antes, en el espacio anónimo de este archivo).
 using Soulbound::Presentation::BracerText;
+using Soulbound::Presentation::DomainLegendText;
 using Soulbound::Presentation::DomainTitle;
 using Soulbound::Presentation::EffectStatusText;
 using Soulbound::Presentation::ElectName;
+using Soulbound::Presentation::SeatLegendText;
 using Soulbound::Presentation::VoidText;
 
 namespace
@@ -926,14 +928,14 @@ void ABoardViewActor::BuildOverlay()
 	// La leyenda sale de los mismos colores que la vista: no pueden contradecirse.
 	TArray<FLegendRow> Rows;
 	FLegendRow Domains;
-	Domains.Title = TEXT("Dominios y su Elegido (color de la casilla, D<n> en la etiqueta). Fuera = Olvidado");
+	Domains.Title = TEXT("Los seis Dominios y su Elegido");
 	TWeakObjectPtr<UMatchHostSubsystem> WeakHost = Host;
 	TWeakObjectPtr<ABoardViewActor> WeakView = this;
 	for (int32 Id = 0; Id < Board.Domains.Num(); ++Id)
 	{
 		FLegendChip Chip;
 		Chip.Color = DomainColor(Id);
-		// Al día: fuera de la partida (Olvidado), en juego, o en juego con el asiento que reclamó su Nicho.
+		// Al día: Olvidado, libre o del asiento que reclamó su Nicho (DomainLegendText).
 		Chip.TextGetter = [WeakHost, WeakView, Id]() -> FString
 		{
 			const UMatchHostSubsystem* HostPtr = WeakHost.Get();
@@ -942,45 +944,29 @@ void ABoardViewActor::BuildOverlay()
 			{
 				return FString::Printf(TEXT("D%d"), Id);
 			}
-			const FDomainState& Domain = HostPtr->GetState().Board.Domains[Id];
 			// S-023: lo que pinta la vista, que en el prólogo va con la frase de corrupción.
-			if (ViewPtr->IsDomainShownForgotten(Id))
-			{
-				return FString::Printf(TEXT("D%d %s: OLVIDADO (fuera)"), Id, *DomainTitle(HostPtr->GetState(), Id));
-			}
-			return Domain.OwnerSeat == INDEX_NONE
-				? FString::Printf(TEXT("D%d %s: en juego"), Id, *DomainTitle(HostPtr->GetState(), Id))
-				: FString::Printf(TEXT("D%d %s: en juego, asiento %d"), Id, *DomainTitle(HostPtr->GetState(), Id), Domain.OwnerSeat);
+			return DomainLegendText(HostPtr->GetState(), Id, ViewPtr->IsDomainShownForgotten(Id));
 		};
 		Domains.Chips.Add(Chip);
 	}
 	Rows.Add(Domains);
-	Rows.Add({TEXT("Tipo = forma (etiqueta: ALTAR, N, F, X)"),
-		{{AltarColor, TEXT("ALTAR: casilla grande y alta")},
-			{NicheFreeColor, TEXT("N Nicho: casilla cuadrada con cubo")},
-			{SourceColor, TEXT("F Fuente: casilla redonda con cruz")},
-			{NodeColor, TEXT("X Nodo: rombo con esfera")}}});
-	// S-019: con el kit, la losa de cada tipo y su estructura dicen el tipo (las formas básicas quedan donde falta la pieza).
-	if (TileHasKitSlab.Contains(true))
-	{
-		Rows.Add({TEXT("Con el kit (color por vértice: sin color de Dominio en la losa)"),
-			{{NicheFreeColor, TEXT("Nicho: losa con cabecera y trono")},
-				{SourceColor, TEXT("Fuente: pilón, con runa mientras tiene reserva")},
-				{NodeColor, TEXT("Nodo: losa con puntas; desde el Despertar, arco, espadas u orbe")},
-				{SealedColor, TEXT("sellada: cadenas sobre la losa")}}});
-	}
-	Rows.Add({TEXT("Nicho (el cubo)"),
-		{{NicheFreeColor, TEXT("Libre")}, {SeatColor(0), TEXT("Reclamado: aro y número del asiento")}, {NicheClosedColor, TEXT("Cerrado")}}});
-	Rows.Add({TEXT("Estado de la casilla"),
-		{{ReachableColor, TEXT("alcanzable: halo blanco bajo la casilla")},
-			{SealedColor, TEXT("sellada (SELLO)")},
-			{ForgottenRingColor, TEXT("Dominio Olvidado: casillas apagadas con aro gris oscuro")}}});
-	// Una fila por asiento, con su rol al día: Eco (esfera) o Elegido (cono), y el Dominio que lleva.
+	// Textos de la leyenda revisados por el autor (13/11/2026). Un solo bloque de casillas: la segunda mitad de cada línea es la misma con o sin
+	// kit; la primera es la losa del kit (S-019) o la forma básica donde falta la pieza.
+	const bool bKit = TileHasKitSlab.Contains(true);
+	Rows.Add({TEXT("Casillas"),
+		{{AltarColor, bKit ? TEXT("Altar: la plataforma del centro. Aquí se empieza y aquí se gana") : TEXT("Altar: casilla grande y alta. Aquí se empieza y aquí se gana")},
+			{NicheFreeColor, bKit ? TEXT("N Nicho: losa con trono. El primero que llega se vincula a su Elegido") : TEXT("N Nicho: casilla cuadrada con cubo. El primero que llega se vincula a su Elegido")},
+			{SourceColor, bKit ? TEXT("F Fuente: pilón, con la runa flotando mientras le quedan. Aquí se coge la runa de su Dominio") : TEXT("F Fuente: casilla redonda con cruz. Aquí se coge la runa de su Dominio")},
+			{NodeColor, bKit ? TEXT("X Nodo: losa con puntas. Tras la carrera lleva espadas (duelo), orbe (Oráculo) o arco (salto)") : TEXT("X Nodo: rombo con esfera. Tras la carrera lleva espadas (duelo), orbe (Oráculo) o arco (salto)")}}});
+	Rows.Add({TEXT("Nichos"),
+		{{NicheFreeColor, TEXT("Libre")}, {SeatColor(0), TEXT("Reclamado: aro y número de su dueño")}, {NicheClosedColor, TEXT("Cerrado")}}});
+	Rows.Add({TEXT("Tablero"),
+		{{ReachableColor, TEXT("Halo blanco: puedes ir ahí")},
+			{SealedColor, bKit ? TEXT("Cadenas: sellada, no se pasa") : TEXT("SELLO: sellada, no se pasa")},
+			{ForgottenRingColor, TEXT("Casillas apagadas: Dominio Olvidado")}}});
+	// Una fila por asiento, con su rol al día: Eco o Elegido, y el Dominio que lleva.
 	FLegendRow Seats;
-	// S-019: con la carta del kit, el rol va en el aro de su base (decisión del autor del 20/10/2026).
-	Seats.Title = Kit.Mesh(EBoardKitPiece::TokenCard)
-		? TEXT("Asientos (el número va sobre la carta): disco bajo la ficha gris = Eco, del color de su Dominio = Elegido. Quien juega crece, sube, gira y lleva un aro del color del asiento que pulsa")
-		: TEXT("Asientos (el número va en la ficha): gris = Eco, color de su Dominio = Elegido, también en el disco de debajo. Quien juega crece, sube, gira y lleva un aro del color del asiento que pulsa");
+	Seats.Title = TEXT("Jugadores. Disco gris: Eco. Disco de color: Elegido de ese Dominio. A quien le toca le late un aro");
 	for (int32 Seat = 0; Seat < Host->GetState().Seats.Num(); ++Seat)
 	{
 		FLegendChip Chip;
@@ -992,29 +978,16 @@ void ABoardViewActor::BuildOverlay()
 			{
 				return FString::Printf(TEXT("%d"), Seat);
 			}
-			const FSeatState& SeatState = HostPtr->GetState().Seats[Seat];
-			const TCHAR* Who = Seat == HostPtr->GetHumanSeat() ? TEXT("humano") : TEXT("dummy");
-			const FString DomainName = DomainTitle(HostPtr->GetState(), SeatState.DomainId);
-			// S-013: la ficha desterrada no está en el tablero; aquí se dice dónde está.
-			const FString Void = VoidText(HostPtr->GetState(), Seat);
-			// S-014: Marcado y Brazal revelado van detrás del Vacío.
-			const FString InVoid = (Void.IsEmpty() ? FString() : TEXT(" | ") + Void) + EffectStatusText(HostPtr->GetState(), Seat, HostPtr->GetHumanSeat());
-			if (SeatState.Role == ESeatRole::Elect)
-			{
-				return FString::Printf(TEXT("%d (%s): ELEGIDO, D%d %s%s"), Seat, Who, SeatState.DomainId, *DomainName, *InVoid);
-			}
-			return SeatState.DomainId == INDEX_NONE
-				? FString::Printf(TEXT("%d (%s): ECO%s"), Seat, Who, *InVoid)
-				: FString::Printf(TEXT("%d (%s): ECO, hogar en D%d %s%s"), Seat, Who, SeatState.DomainId, *DomainName, *InVoid);
+			return SeatLegendText(HostPtr->GetState(), Seat, HostPtr->GetHumanSeat());
 		};
 		Seats.Chips.Add(Chip);
 	}
 	Rows.Add(Seats);
 	// S-029: lo que se ve al ganar o perder una runa.
-	Rows.Add({TEXT("Destello en la ficha y en la Fuente de la runa: hacia dentro es recibir y hacia fuera es perder. Ganar una runa: el aro de la ficha se cierra y el halo de la Fuente se abre, del color de su Dominio. Perderla (robo, devolución, Desvío, desafío fallado): el aro de la ficha se abre en morado y el halo de la Fuente se cierra"), {}});
+	Rows.Add({TEXT("Destello: hacia dentro y del color de la runa, la gana. Hacia fuera y en morado, la pierde"), {}});
 	// Brazal de cada asiento (S-008): runas por tipo y poderes activos, al día.
 	FLegendRow Bracers;
-	Bracers.Title = TEXT("Brazal por asiento: runas (D<n>×cantidad, una por Dominio) y poderes activos. Fuente: F, con su reserva");
+	Bracers.Title = TEXT("Runas de cada jugador");
 	for (int32 Seat = 0; Seat < Host->GetState().Seats.Num(); ++Seat)
 	{
 		FLegendChip Chip;
@@ -1031,25 +1004,45 @@ void ABoardViewActor::BuildOverlay()
 		Bracers.Chips.Add(Chip);
 	}
 	Rows.Add(Bracers);
-	// S-027: las teclas de los paneles, también en la leyenda.
-	Rows.Add({FString::Printf(TEXT("Teclas: %s Grimorio | %s depuración | %s panel de estado | %s paneles | %s leyenda o crónica"), *GrimoireKey.GetDisplayName().ToString(),
-		*DebugPanelKey.GetDisplayName().ToString(), *DebugTextToggleKey.GetDisplayName().ToString(), *PanelsToggleKey.GetDisplayName().ToString(),
-		*ColumnTabKey.GetDisplayName().ToString()), {}});
+	// S-027: las teclas de los paneles, también en la leyenda. La D y la T siguen funcionando, pero no se anuncian (decisión del autor, 13/11/2026).
+	Rows.Add({FString::Printf(TEXT("Teclas: %s Grimorio | %s leyenda o crónica | %s ocultar paneles | %s cambiar la vista"), *GrimoireKey.GetDisplayName().ToString(),
+		*ColumnTabKey.GetDisplayName().ToString(), *PanelsToggleKey.GetDisplayName().ToString(), *SeatedViewKey.GetDisplayName().ToString()), {}});
 
 	// S-027 (R-HUD-3): la letra y el ancho de todos los paneles se leen en cada pintado, para que sigan a la resolución sin rehacerlos.
 	const TAttribute<int32> PanelFont = TAttribute<int32>::CreateLambda([this]() { return PanelSlateFontSize; });
 	ChroniclePanel = SNew(SChroniclePanel).FontSize(PanelFont);
 	// S-035 (R-HUD-4): una partida nueva empieza en Leyenda.
 	ColumnTab.Reset();
-	// La cabecera de la columna: los nombres de las dos pestañas, la activa resaltada. Botones de texto que no toman el foco (las teclas siguen
-	// llegando al controlador). La cabecera se queda el clic, como el panel de decisión (SDecisionPanel): el que cae en su fondo no llega al tablero.
-	const auto TabButton = [this, PanelFont](const TCHAR* Label, Soulbound::Presentation::EColumnTab Tab) -> TSharedRef<SWidget>
+	// La cabecera de la columna (S-035, R-HUD-4): dos pestañas. La cabecera se queda el clic, como el panel de decisión (SDecisionPanel): el que
+	// cae en su fondo no llega al tablero.
+	// Cada pestaña es una caja, las dos del mismo ancho (FillWidth 1) y con márgenes iguales. Activa: fondo claro y texto oscuro en negrita. Inactiva:
+	// fondo oscuro con borde, y se ilumina al pasar el ratón. Los colores son los del panel de decisión (el gris de DecisionPanel.cpp y su fondo
+	// negro); el de pasar el ratón es el gris a media luz. Sin foco, y el clic se lo queda la caja.
+	// TODO(R-HUD-4): este gris repite el DecisionGray de DecisionPanel.cpp, que es privado de ese archivo; si un tercer panel lo necesita, extraerlo a un
+	// sitio común (Presentation) y que los dos lo lean de allí.
+	const FLinearColor TabLight = FLinearColor(FColor(190, 190, 190));
+	const FLinearColor TabDark = FLinearColor(0.04f, 0.04f, 0.04f, 1.f);
+	const FLinearColor TabHover = FLinearColor(TabLight.R * 0.35f, TabLight.G * 0.35f, TabLight.B * 0.35f, 1.f);
+	const auto TabButton = [this, PanelFont, TabLight, TabDark, TabHover](const TCHAR* Label, Soulbound::Presentation::EColumnTab Tab) -> TSharedRef<SWidget>
 	{
-		return SNew(SButton)
-			.IsFocusable(false)
-			.ButtonStyle(&FCoreStyle::Get().GetWidgetStyle<FButtonStyle>("NoBorder"))
-			.ContentPadding(FMargin(10.f, 4.f))
-			.OnClicked_Lambda([this, Tab]()
+		// La caja interior, para saber si el ratón está encima sin que la caja se tenga a sí misma (un puntero débil).
+		const TSharedRef<TWeakPtr<SWidget>> Inner = MakeShared<TWeakPtr<SWidget>>();
+		const auto IsHot = [Inner]()
+		{
+			const TSharedPtr<SWidget> Widget = Inner->Pin();
+			return Widget.IsValid() && Widget->IsHovered();
+		};
+		const TSharedRef<SBorder> Box = SNew(SBorder)
+			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+			.BorderBackgroundColor_Lambda([this, Tab, TabLight, TabDark, TabHover, IsHot]() -> FSlateColor
+			{
+				return ColumnTab.Active == Tab ? TabLight : IsHot() ? TabHover : TabDark;
+			})
+			.Padding(FMargin(8.f, 4.f))
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.Cursor(EMouseCursor::Hand)
+			.OnMouseButtonDown_Lambda([this, Tab](const FGeometry&, const FPointerEvent&)
 			{
 				SetColumnTab(Tab);
 				return FReply::Handled();
@@ -1058,21 +1051,30 @@ void ABoardViewActor::BuildOverlay()
 				SNew(STextBlock)
 				.Text(FText::FromString(Label))
 				.Font_Lambda([PanelFont]() { return FCoreStyle::GetDefaultFontStyle("Bold", PanelFont.Get()); })
-				.ColorAndOpacity_Lambda([this, Tab]()
+				.ColorAndOpacity_Lambda([this, Tab, IsHot]()
 				{
-					return ColumnTab.Active == Tab ? FSlateColor(FLinearColor::White) : FSlateColor(FLinearColor(0.5f, 0.5f, 0.5f));
+					return ColumnTab.Active == Tab ? FSlateColor(FLinearColor::Black) : IsHot() ? FSlateColor(FLinearColor::White) : FSlateColor(FLinearColor(0.75f, 0.75f, 0.75f));
 				})
+			];
+		*Inner = Box;
+		// El borde de una caja inactiva: un marco de un píxel del gris claro (en la activa, del mismo color que el fondo).
+		return SNew(SBorder)
+			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+			.BorderBackgroundColor(TabLight)
+			.Padding(FMargin(1.f))
+			[
+				Box
 			];
 	};
 	const TSharedRef<SWidget> ColumnHeader = SNew(SBorder)
 		.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
 		.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.72f))
-		.Padding(FMargin(0.f, 2.f))
+		.Padding(FMargin(4.f))
 		.OnMouseButtonDown_Lambda([](const FGeometry&, const FPointerEvent&) { return FReply::Handled(); })
 		[
 			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth()[TabButton(TEXT("Leyenda"), Soulbound::Presentation::EColumnTab::Legend)]
-			+ SHorizontalBox::Slot().AutoWidth()[TabButton(TEXT("Crónica"), Soulbound::Presentation::EColumnTab::Chronicle)]
+			+ SHorizontalBox::Slot().FillWidth(1.f).Padding(0.f, 0.f, 2.f, 0.f)[TabButton(TEXT("Leyenda"), Soulbound::Presentation::EColumnTab::Legend)]
+			+ SHorizontalBox::Slot().FillWidth(1.f).Padding(2.f, 0.f, 0.f, 0.f)[TabButton(TEXT("Crónica"), Soulbound::Presentation::EColumnTab::Chronicle)]
 		];
 	Overlay = SNew(SBox)
 		.HAlign(HAlign_Right)

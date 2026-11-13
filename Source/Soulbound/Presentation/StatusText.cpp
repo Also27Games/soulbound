@@ -464,11 +464,49 @@ namespace Soulbound::Presentation
 			{
 				Total += Count;
 			}
-			return FString::Printf(TEXT("%d: %d runa%s, tipos ocultos%s"), Seat, Total, Total == 1 ? TEXT("") : TEXT("s"),
-				Powers.IsEmpty() ? TEXT("") : *(FString(TEXT(" | poderes ")) + FString::Join(Powers, TEXT(", "))));
+			return FString::Printf(TEXT("%d: %d runa%s%s"), Seat, Total, Total == 1 ? TEXT("") : TEXT("s"),
+				Powers.IsEmpty() ? TEXT("") : *(FString(TEXT(" | poderes: ")) + FString::Join(Powers, TEXT(", "))));
 		}
-		return FString::Printf(TEXT("%d: runas %s | poderes %s"), Seat,
+		// Textos de la leyenda revisados por el autor (13/11/2026): el propio lleva "(tú)"; el de otro, visible solo por la revelación, "(Brazal revelado)".
+		const bool bOwn = State.Seats.IsValidIndex(ViewerSeat) && Seat == ViewerSeat;
+		return FString::Printf(TEXT("%d%s: %s | poderes: %s"), Seat, bOwn ? TEXT(" (tú)") : TEXT(" (Brazal revelado)"),
 			Runes.IsEmpty() ? TEXT("-") : *FString::Join(Runes, TEXT(" ")), Powers.IsEmpty() ? TEXT("-") : *FString::Join(Powers, TEXT(", ")));
+	}
+
+	FString DomainLegendText(const FMatchState& State, int32 DomainId, bool bForgotten)
+	{
+		if (!State.Board.Domains.IsValidIndex(DomainId))
+		{
+			return FString::Printf(TEXT("D%d"), DomainId);
+		}
+		const FString Title = DomainTitle(State, DomainId);
+		if (bForgotten)
+		{
+			return FString::Printf(TEXT("D%d %s: Olvidado"), DomainId, *Title);
+		}
+		const int32 Owner = State.Board.Domains[DomainId].OwnerSeat;
+		return Owner == INDEX_NONE ? FString::Printf(TEXT("D%d %s: libre"), DomainId, *Title)
+			: FString::Printf(TEXT("D%d %s: del asiento %d"), DomainId, *Title, Owner);
+	}
+
+	FString SeatLegendText(const FMatchState& State, int32 Seat, int32 ViewerSeat)
+	{
+		if (!State.Seats.IsValidIndex(Seat))
+		{
+			return FString::Printf(TEXT("%d"), Seat);
+		}
+		const FSeatState& SeatState = State.Seats[Seat];
+		const FString Who = State.Seats.IsValidIndex(ViewerSeat) && Seat == ViewerSeat ? FString::Printf(TEXT("%d (tú)"), Seat) : FString::FromInt(Seat);
+		// S-013: la ficha desterrada no está en el tablero; aquí se dice dónde está. S-014: Marcado y Brazal revelado van detrás del Vacío.
+		const FString Void = VoidText(State, Seat);
+		const FString After = (Void.IsEmpty() ? FString() : TEXT(" | ") + Void) + EffectStatusText(State, Seat, ViewerSeat);
+		if (SeatState.Role == ESeatRole::Elect)
+		{
+			const FString Name = ElectName(State, SeatState.DomainId);
+			return FString::Printf(TEXT("%s: Elegido, %s%s"), *Who, Name.IsEmpty() ? *FString::Printf(TEXT("D%d"), SeatState.DomainId) : *Name, *After);
+		}
+		return SeatState.DomainId == INDEX_NONE ? FString::Printf(TEXT("%s: Eco%s"), *Who, *After)
+			: FString::Printf(TEXT("%s: Eco, con hogar en D%d%s"), *Who, SeatState.DomainId, *After);
 	}
 }
 

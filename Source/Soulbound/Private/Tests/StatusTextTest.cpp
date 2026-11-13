@@ -298,13 +298,18 @@ bool FStatusBracerTextTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Sin D3"), Hidden.Contains(TEXT("D3")));
 	TestFalse(TEXT("Sin ningún poder"), StNamesAPower(Hidden));
 
+	// Textos de la leyenda revisados por el autor (13/11/2026): "2: 3 runas", "0 (tú): D5×1 | poderes: Vuelo Planar" y "2 (Brazal revelado): ...".
+	TestEqual(TEXT("El ajeno oculto, solo el total"), Hidden, FString(TEXT("2: 3 runas")));
+
 	const FString Own = BracerText(State, StHuman, StHuman);
 	TestTrue(TEXT("El propio lleva sus tipos"), Own.Contains(TEXT("D5×1")));
 	TestTrue(TEXT("Y sus poderes"), Own.Contains(TEXT("Vuelo Planar")));
+	TestTrue(TEXT("El propio, con (tú) y los poderes tras dos puntos"), Own.StartsWith(TEXT("0 (tú): D5×1 | poderes: Vuelo Planar")));
 
 	State.Seats[StOther].RevealedUntilRound = State.Round + 2;
 	const FString Revealed = BracerText(State, StOther, StHuman);
 	TestTrue(TEXT("Revelado: sus tipos"), Revealed.Contains(TEXT("D1×2")) && Revealed.Contains(TEXT("D3×1")));
+	TestTrue(TEXT("Revelado: lo dice"), Revealed.StartsWith(TEXT("2 (Brazal revelado): D1×2 D3×1 | poderes: ")));
 	State.Seats[StOther].RevealedUntilRound = 0;
 
 	// Un Fenrir ajeno (Dominio 1 en elegidos.json) conserva el Paso Libre por afinidad, que es público, y sigue sin decir sus runas.
@@ -313,6 +318,7 @@ bool FStatusBracerTextTest::RunTest(const FString& Parameters)
 	State.Seats[3].Runes[5] = 1; // la D5 de Fenrir da Vuelo Planar, no Paso Libre: así la afinidad no se confunde con el poder
 	const FString Fenrir = BracerText(State, 3, StHuman);
 	TestTrue(TEXT("Paso Libre por afinidad, de un Elegido ajeno"), Fenrir.Contains(TEXT("Paso Libre (afinidad)")));
+	TestEqual(TEXT("Con el formato nuevo"), Fenrir, FString(TEXT("3: 1 runa | poderes: Paso Libre (afinidad)")));
 	TestFalse(TEXT("Pero no sus runas ni sus poderes por runa"), Fenrir.Contains(TEXT("D5")) || Fenrir.Contains(TEXT("Vuelo Planar")));
 
 	// Sin asiento que mira válido, tampoco se enseña nada oculto.
@@ -386,6 +392,68 @@ bool FStatusChoiceOptionsTest::RunTest(const FString& Parameters)
 	FStatusContext NoHuman = Context;
 	NoHuman.HumanSeat = INDEX_NONE;
 	TestFalse(TEXT("Sin humano válido, nada oculto"), StAnyContains(Soulbound::Presentation::StatusLines(State, NoHuman), TEXT("D1")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusDomainLegendTest, "Soulbound.Game.Presentation.Estado.LeyendaDominios", StatusTestFlags)
+
+bool FStatusDomainLegendTest::RunTest(const FString& Parameters)
+{
+	// Textos de la leyenda revisados por el autor (13/11/2026), bloque Dominios: "D0 El Banquete · Shuten-dōji: del asiento 0", "...: libre" y
+	// "D1 El Fiordo Encadenado · Fenrir: Olvidado".
+	using Soulbound::Presentation::DomainLegendText;
+	FMatchState State;
+	if (!StMakeRuneState(*this, State))
+	{
+		return false;
+	}
+	State.Board.Domains.SetNum(6);
+	State.Board.Domains[0].Name = TEXT("El Banquete");
+	State.Board.Domains[1].Name = TEXT("El Fiordo Encadenado");
+	const FString Banquet = Soulbound::Presentation::DomainTitle(State, 0);
+	const FString Fjord = Soulbound::Presentation::DomainTitle(State, 1);
+	TestEqual(TEXT("El nombre del Dominio y el de su Elegido"), Banquet, FString(TEXT("El Banquete · Shuten-dōji")));
+	TestEqual(TEXT("Sin dueño"), DomainLegendText(State, 0, false), FString(TEXT("D0 El Banquete · Shuten-dōji: libre")));
+	State.Board.Domains[0].OwnerSeat = 0;
+	TestEqual(TEXT("Con dueño: del asiento"), DomainLegendText(State, 0, false), FString(TEXT("D0 El Banquete · Shuten-dōji: del asiento 0")));
+	TestEqual(TEXT("Olvidado"), DomainLegendText(State, 1, true), FString::Printf(TEXT("D1 %s: Olvidado"), *Fjord));
+	TestEqual(TEXT("Un Dominio fuera de rango, solo su número"), DomainLegendText(State, 9, false), FString(TEXT("D9")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusSeatLegendTest, "Soulbound.Game.Presentation.Estado.LeyendaJugadores", StatusTestFlags)
+
+bool FStatusSeatLegendTest::RunTest(const FString& Parameters)
+{
+	// Textos de la leyenda revisados por el autor (13/11/2026), bloque Jugadores: "0 (tú): Elegido, Shuten-dōji | insolencia 0 de 5", "1: Elegido,
+	// Tifón" y "2: Eco, con hogar en D2". Sin "(humano)" ni "(dummy)". Lo de detrás (Vacío, Marcado, Brazal revelado) no cambia.
+	using Soulbound::Presentation::SeatLegendText;
+	FMatchState State;
+	if (!StMakeRuneState(*this, State))
+	{
+		return false;
+	}
+	State.Seats[0].Role = ESeatRole::Elect;
+	State.Seats[0].DomainId = 0;
+	State.Seats[0].Insolence = 0;
+	State.Seats[1].Role = ESeatRole::Elect;
+	State.Seats[1].DomainId = 3;
+	State.Seats[StOther].Role = ESeatRole::LostEcho;
+	State.Seats[StOther].DomainId = 2;
+	const FString First = SeatLegendText(State, 0, 0);
+	TestTrue(TEXT("El jugador: (tú), Elegido y su nombre"), First.StartsWith(TEXT("0 (tú): Elegido, Shuten-dōji")));
+	TestTrue(TEXT("Y su insolencia, lo único que sigue detrás"), First.Contains(TEXT("insolencia 0 de ")));
+	TestEqual(TEXT("Otro Elegido: sin (tú) ni (dummy) ni insolencia"), SeatLegendText(State, 1, 0), FString::Printf(TEXT("1: Elegido, %s"), *Soulbound::Presentation::ElectName(State, 3)));
+	TestEqual(TEXT("Un Eco: con hogar en su Dominio, sin nombre"), SeatLegendText(State, StOther, 0), FString(TEXT("2: Eco, con hogar en D2")));
+	State.Seats[StOther].DomainId = INDEX_NONE;
+	TestEqual(TEXT("Un Eco sin hogar"), SeatLegendText(State, StOther, 0), FString(TEXT("2: Eco")));
+	for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
+	{
+		const FString Text = SeatLegendText(State, Seat, 0);
+		TestFalse(TEXT("Nunca (humano) ni (dummy)"), Text.Contains(TEXT("humano")) || Text.Contains(TEXT("dummy")));
+	}
+	State.Seats[StOther].MarkedUntilRound = State.Round + 2;
+	TestTrue(TEXT("Marcado sigue yendo detrás"), SeatLegendText(State, StOther, 0).StartsWith(TEXT("2: Eco")) && SeatLegendText(State, StOther, 0).Contains(TEXT("MARCADO")));
 	return true;
 }
 

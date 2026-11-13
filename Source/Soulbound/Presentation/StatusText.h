@@ -163,6 +163,19 @@ namespace Soulbound::Presentation
 	 */
 	FString BracerText(const FMatchState& State, int32 Seat, int32 ViewerSeat);
 
+	/**
+	 * Línea de un Dominio en la leyenda: "D0 El Banquete · Shuten-dōji: del asiento 0" (con dueño), "...: libre" o "...: Olvidado". Un Dominio
+	 * que no existe, solo "D<n>".
+	 * @param bForgotten Si la vista lo pinta como Olvidado (en el prólogo, con la frase de corrupción).
+	 */
+	FString DomainLegendText(const FMatchState& State, int32 DomainId, bool bForgotten);
+
+	/**
+	 * Línea de un asiento en la leyenda: "0 (tú): Elegido, Shuten-dōji | insolencia 0 de 5", "1: Elegido, Tifón" o "2: Eco, con hogar en D2",
+	 * y detrás lo del Vacío, Marcado y Brazal revelado. "(tú)" es el asiento ViewerSeat; la insolencia, solo la suya (EffectStatusText).
+	 */
+	FString SeatLegendText(const FMatchState& State, int32 Seat, int32 ViewerSeat);
+
 	/** Nombre de un poder (glosario): "Duelo", "Celeridad", "Paso Libre", "Expulsión", "Vuelo Planar", "Desvío". */
 	const TCHAR* PowerName(EPower Power);
 
