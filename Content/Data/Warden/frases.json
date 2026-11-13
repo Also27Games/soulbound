@@ -101,7 +101,7 @@
   {"id": "instruccion:eco", "lines": ["(pendiente)"]},
   {"id": "instruccion:robar", "lines": ["(pendiente)"]},
   {"id": "instruccion:vacio", "lines": ["(pendiente)"]},
-  {"id": "instruccion:anillo", "lines": ["Un aro, una runa y una franja verde. Clic cuando el aro esté dentro. Hasta tú puedes entenderlo… La barra dirá cuánto vales."]},
+  {"id": "instruccion:anillo", "lines": ["Un aro, una runa y una franja verde. Clic cuando el aro toque la runa. Hasta tú puedes entenderlo… La barra dirá cuánto vales."]},
   {"id": "insolencia:leve", "lines": [
     "Me has hecho esperar… Considéralo un pequeño recordatorio de quién manda aquí.",
     "Tu tardanza me irrita… Procura no convertir mi paciencia en un recuerdo.",
