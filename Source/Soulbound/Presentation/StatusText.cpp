@@ -136,12 +136,13 @@ namespace Soulbound::Presentation
 	 * Estados del asiento Seat que dejan los efectos del Warden (S-014): Marcado y Brazal revelado, con la ronda en que
 	 * caducan, para la leyenda de asientos. Vacío si no tiene ninguno. Solo lee el estado.
 	 */
-	FString EffectStatusText(const FMatchState& State, int32 Seat)
+	FString EffectStatusLine(const FMatchState& State, int32 Seat, bool bWithInsolence)
 	{
 		FString Text;
-		if (State.Seats.IsValidIndex(Seat))
+		// S-035 (R-HUD-6): la insolencia y los castigos que esperan son de quien mira y de la depuración; los de los demás no se enseñan. Esto
+		// sustituye a la decisión del autor del 05/10/2026 (S-016, B), que los ponía a la vista de todos.
+		if (bWithInsolence && State.Seats.IsValidIndex(Seat))
 		{
-			// S-016 (B), decisión del autor del 05/10/2026: la insolencia de cada uno, a la vista, y los castigos que esperan.
 			const FSeatState& SeatState = State.Seats[Seat];
 			const int32 Waiting = SeatState.PendingPunishments.Num() + SeatState.VoidPunishments.Num();
 			Text += FString::Printf(TEXT(" | insolencia %d de %d"), SeatState.Insolence, Soulbound::Match::MaxInsolence);
@@ -255,7 +256,7 @@ namespace Soulbound::Presentation
 	 * sus teclas; para un dummy, qué está decidiendo. Desde S-010 la elección puede ser de un asiento sin turno (Koschei
 	 * víctima): bHuman es si se le pide al humano, tenga o no el turno. Solo lee el estado.
 	 */
-	FString ChoicePrompt(const FMatchState& State, bool bHuman, bool bHints)
+	FString ChoicePrompt(const FMatchState& State, bool bHuman, bool bHints, int32 ViewerSeat)
 	{
 		const FPendingChoice& Choice = State.PendingChoice;
 		const FString Left = FString::Printf(TEXT("quedan %.0f s"), FMath::Max(0.0, Choice.DeadlineSeconds - State.ClockSeconds));
@@ -267,6 +268,13 @@ namespace Soulbound::Presentation
 		}
 		const FString WhatText = ChoiceWhat(State);
 		const TCHAR* What = *WhatText;
+		// S-035 (R-RUN-7): las opciones de runa de un dummy (la que pierde, la que regala el Warden, la que pone a salvo) son tipos de su Brazal: no
+		// se dicen mientras no se pueda ver. Se dice qué elige y cuánto le queda.
+		const bool bRuneOptions = Choice.Kind == EChoiceKind::LoseRune || Choice.Kind == EChoiceKind::GiftRune || Choice.Kind == EChoiceKind::SafeRune;
+		if (!bHuman && bRuneOptions && !CanSeeBracer(State, Choice.Seat, ViewerSeat))
+		{
+			return FString::Printf(TEXT("el asiento %d elige %s | %s"), Choice.Seat, What, *Left);
+		}
 		const TCHAR* No = Choice.Kind == EChoiceKind::PlanarJump ? TEXT("no saltar") : Choice.Kind == EChoiceKind::Deflection ? TEXT("no") : TEXT("nada");
 		TArray<FString> Parts;
 		for (int32 Index = 0; Index < Choice.AnswerCount(); ++Index)
@@ -408,7 +416,22 @@ namespace Soulbound::Presentation
 	 * Brazal de un asiento (S-008, solo lectura): sus runas por tipo (D<n>×cantidad, solo las que tiene) y sus poderes
 	 * activos. Paso Libre por afinidad (Fenrir) se marca aparte, porque no depende de ninguna runa.
 	 */
-	FString BracerText(const FMatchState& State, int32 Seat)
+	bool CanSeeBracer(const FMatchState& State, int32 Seat, int32 ViewerSeat)
+	{
+		return (State.Seats.IsValidIndex(ViewerSeat) && Seat == ViewerSeat) || Soulbound::Rules::IsBracerRevealed(State, Seat);
+	}
+
+	FString EffectStatusText(const FMatchState& State, int32 Seat, int32 ViewerSeat)
+	{
+		return EffectStatusLine(State, Seat, State.Seats.IsValidIndex(ViewerSeat) && Seat == ViewerSeat);
+	}
+
+	FString EffectStatusTextAll(const FMatchState& State, int32 Seat)
+	{
+		return EffectStatusLine(State, Seat, true);
+	}
+
+	FString BracerText(const FMatchState& State, int32 Seat, int32 ViewerSeat)
 	{
 		const FSeatState& SeatState = State.Seats[Seat];
 		TArray<FString> Runes;
@@ -420,16 +443,72 @@ namespace Soulbound::Presentation
 			}
 		}
 		TArray<FString> Powers;
-		for (const EPower Power : Soulbound::Rules::GetActivePowers(State, Seat))
+		const bool bSees = CanSeeBracer(State, Seat, ViewerSeat);
+		if (bSees)
 		{
-			Powers.Add(PowerName(Power));
+			for (const EPower Power : Soulbound::Rules::GetActivePowers(State, Seat))
+			{
+				Powers.Add(PowerName(Power));
+			}
 		}
+		// La afinidad de un Elegido es pública: Paso Libre por afinidad se dice aunque el Brazal esté oculto.
 		if (Soulbound::Rules::MakeMoverTraits(State, Seat).bFreePassage && !Soulbound::Rules::IsPowerActive(State, Seat, EPower::FreePassage))
 		{
 			Powers.Add(TEXT("Paso Libre (afinidad)"));
 		}
-		return FString::Printf(TEXT("%d: runas %s | poderes %s"), Seat,
-			Runes.IsEmpty() ? TEXT("-") : *FString::Join(Runes, TEXT(" ")), Powers.IsEmpty() ? TEXT("-") : *FString::Join(Powers, TEXT(", ")));
+		if (!bSees)
+		{
+			// S-035 (R-RUN-7): de un Brazal oculto, solo el total.
+			int32 Total = 0;
+			for (const int32 Count : SeatState.Runes)
+			{
+				Total += Count;
+			}
+			return FString::Printf(TEXT("%d: %d runa%s%s"), Seat, Total, Total == 1 ? TEXT("") : TEXT("s"),
+				Powers.IsEmpty() ? TEXT("") : *(FString(TEXT(" | poderes: ")) + FString::Join(Powers, TEXT(", "))));
+		}
+		// Textos de la leyenda revisados por el autor (13/11/2026): el propio lleva "(tú)"; el de otro, visible solo por la revelación, "(Brazal revelado)".
+		const bool bOwn = State.Seats.IsValidIndex(ViewerSeat) && Seat == ViewerSeat;
+		// Retoque del autor (13/11/2026): sin runas, "0 runas" y no "-"; sin poderes, se omite el trozo.
+		return FString::Printf(TEXT("%d%s: %s%s"), Seat, bOwn ? TEXT(" (tú)") : TEXT(" (Brazal revelado)"),
+			Runes.IsEmpty() ? TEXT("0 runas") : *FString::Join(Runes, TEXT(" ")),
+			Powers.IsEmpty() ? TEXT("") : *(FString(TEXT(" | poderes: ")) + FString::Join(Powers, TEXT(", "))));
+	}
+
+	FString DomainLegendText(const FMatchState& State, int32 DomainId, bool bForgotten)
+	{
+		if (!State.Board.Domains.IsValidIndex(DomainId))
+		{
+			return FString::Printf(TEXT("D%d"), DomainId);
+		}
+		const FString Title = DomainTitle(State, DomainId);
+		if (bForgotten)
+		{
+			return FString::Printf(TEXT("D%d %s: Olvidado"), DomainId, *Title);
+		}
+		const int32 Owner = State.Board.Domains[DomainId].OwnerSeat;
+		return Owner == INDEX_NONE ? FString::Printf(TEXT("D%d %s: libre"), DomainId, *Title)
+			: FString::Printf(TEXT("D%d %s: del asiento %d"), DomainId, *Title, Owner);
+	}
+
+	FString SeatLegendText(const FMatchState& State, int32 Seat, int32 ViewerSeat)
+	{
+		if (!State.Seats.IsValidIndex(Seat))
+		{
+			return FString::Printf(TEXT("%d"), Seat);
+		}
+		const FSeatState& SeatState = State.Seats[Seat];
+		const FString Who = State.Seats.IsValidIndex(ViewerSeat) && Seat == ViewerSeat ? FString::Printf(TEXT("%d (tú)"), Seat) : FString::FromInt(Seat);
+		// S-013: la ficha desterrada no está en el tablero; aquí se dice dónde está. S-014: Marcado y Brazal revelado van detrás del Vacío.
+		const FString Void = VoidText(State, Seat);
+		const FString After = (Void.IsEmpty() ? FString() : TEXT(" | ") + Void) + EffectStatusText(State, Seat, ViewerSeat);
+		if (SeatState.Role == ESeatRole::Elect)
+		{
+			const FString Name = ElectName(State, SeatState.DomainId);
+			return FString::Printf(TEXT("%s: Elegido, %s%s"), *Who, Name.IsEmpty() ? *FString::Printf(TEXT("D%d"), SeatState.DomainId) : *Name, *After);
+		}
+		return SeatState.DomainId == INDEX_NONE ? FString::Printf(TEXT("%s: Eco%s"), *Who, *After)
+			: FString::Printf(TEXT("%s: Eco, con hogar en D%d%s"), *Who, SeatState.DomainId, *After);
 	}
 }
 
@@ -595,12 +674,12 @@ namespace Soulbound::Presentation
 				// S-028 (R-DEC-3): con el panel de decisión a la vista, la petición ya está allí; aquí no se repite.
 				if (!Context.bDecisionPanelShown)
 				{
-					Top.Insert({ChoicePrompt(State, true, bHints), StatusGreen, true}, 0);
+					Top.Insert({ChoicePrompt(State, true, bHints, HumanSeat), StatusGreen, true}, 0);
 				}
 			}
 			else
 			{
-				Lines.Add({ChoicePrompt(State, false, bHints), StatusGray});
+				Lines.Add({ChoicePrompt(State, false, bHints, HumanSeat), StatusGray});
 			}
 		}
 
@@ -709,7 +788,7 @@ namespace Soulbound::Presentation
 				: SeatState.DomainId == INDEX_NONE
 					? FString::Printf(TEXT("%d Eco"), Seat)
 					: FString::Printf(TEXT("%d Eco, hogar: Nicho del Dominio %d"), Seat, SeatState.DomainId))
-				+ (Void.IsEmpty() ? FString() : TEXT(", ") + Void) + EffectStatusText(State, Seat));
+				+ (Void.IsEmpty() ? FString() : TEXT(", ") + Void) + EffectStatusTextAll(State, Seat));
 		}
 		Lines.Add({FString::Printf(TEXT("Asientos: %s"), *FString::Join(Roles, TEXT(" | "))), StatusLineColor(FColor::Cyan)});
 		return Lines;
@@ -839,6 +918,12 @@ namespace Soulbound::Presentation
 			Row.DomainId = SeatState.DomainId;
 			Row.DomainName = State.Board.Domains.IsValidIndex(SeatState.DomainId) ? State.Board.Domains[SeatState.DomainId].Name : FString();
 			Row.Color = SeatColors.IsValidIndex(Seat) ? SeatColors[Seat] : FLinearColor::White;
+			// S-035 (R-RUN-7): de otro asiento con el Brazal oculto, lo público (Elegido, afinidad, mapa) y el total; ni cantidades ni activos.
+			Row.bTypesHidden = !CanSeeBracer(State, Seat, HumanSeat);
+			for (const int32 Count : SeatState.Runes)
+			{
+				Row.TotalRunes += Count;
+			}
 			// R-ELE-3: el mapa de runa a poder es del Elegido; un Eco no tiene mapa ni afinidad.
 			const FElectDef* Elect = Row.bElect && State.Elects.IsValidDomain(SeatState.DomainId) ? &State.Elects.Elects[SeatState.DomainId] : nullptr;
 			if (Elect)
@@ -851,19 +936,22 @@ namespace Soulbound::Presentation
 			{
 				FGrimoireRune& Rune = Row.Runes.AddDefaulted_GetRef();
 				Rune.RuneType = RuneType;
-				Rune.Count = SeatState.RuneCountOf(RuneType);
+				Rune.Count = Row.bTypesHidden ? 0 : SeatState.RuneCountOf(RuneType);
 				if (Elect && Elect->RuneToPower.IsValidIndex(RuneType))
 				{
 					Rune.bHasPower = true;
 					Rune.Power = Elect->RuneToPower[RuneType];
 					Rune.PowerName = PowerName(Rune.Power);
 					// R-ELE-5: activo mientras tenga una runa del tipo; esta runa lo activa si la tiene.
-					Rune.bActive = Rune.Count > 0 && Soulbound::Rules::IsPowerActive(State, Seat, Rune.Power);
+					Rune.bActive = !Row.bTypesHidden && Rune.Count > 0 && Soulbound::Rules::IsPowerActive(State, Seat, Rune.Power);
 				}
 			}
-			for (const EPower Power : Soulbound::Rules::GetActivePowers(State, Seat))
+			if (!Row.bTypesHidden)
 			{
-				Row.ActivePowers.Add(PowerName(Power));
+				for (const EPower Power : Soulbound::Rules::GetActivePowers(State, Seat))
+				{
+					Row.ActivePowers.Add(PowerName(Power));
+				}
 			}
 		}
 		return Rows;

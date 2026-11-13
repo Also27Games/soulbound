@@ -2,9 +2,12 @@
 // orden, y la escala de la letra con la altura de la pantalla. Funciones puras sobre un FMatchState armado a mano: sin mundo, sin actor y sin
 // disco, como BoardLayoutTest. Filtro: "Soulbound.Game.Presentation.Estado".
 
+#include "../../Presentation/ColumnTab.h"
 #include "../../Presentation/StatusText.h"
+#include "Elects/ElectsLoader.h"
 #include "Match/MatchState.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/Paths.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -191,6 +194,300 @@ bool FStatusScaleTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Ancho a 1080"), Soulbound::Presentation::ScaledPanelWidth(1080.f, 460.f), 460.f);
 	TestEqual(TEXT("Ancho a 540, la mitad"), Soulbound::Presentation::ScaledPanelWidth(540.f, 460.f), 230.f);
 	TestEqual(TEXT("Sin altura, 0"), Soulbound::Presentation::ScaledPanelWidth(0.f, 460.f), 0.f);
+	return true;
+}
+
+// ---- S-035: la pestaña de la columna y lo que se ve de los demás ----
+
+namespace
+{
+	/** El asiento ajeno en las pruebas de S-035; quien mira es el humano de StMakeState (el 0). */
+	constexpr int32 StOther = 2;
+
+	/** Los nombres de poder que BracerText no puede decir de un Brazal oculto. */
+	bool StNamesAPower(const FString& Text)
+	{
+		for (const TCHAR* Name : {TEXT("Duelo"), TEXT("Celeridad"), TEXT("Paso Libre"), TEXT("Expulsión"), TEXT("Vuelo Planar"), TEXT("Desvío")})
+		{
+			if (Text.Contains(Name))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** El asiento 2 con dos runas del Dominio 1 y una del 3 (CA-HUD-8); el 0, Elegido de Fenrir con una del Dominio 5 (Vuelo Planar). */
+	bool StMakeRuneState(FAutomationTestBase& Test, FMatchState& OutState)
+	{
+		const FElectsLoadResult Elects = Soulbound::Rules::LoadElectsFromFile(FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data/Elects/elegidos.json")));
+		if (!Test.TestTrue(FString::Printf(TEXT("elegidos.json se carga (%s)"), *Elects.Message), Elects.IsSuccess()))
+		{
+			return false;
+		}
+		OutState = StMakeState();
+		OutState.Elects = Elects.Table;
+		OutState.Round = 3;
+		OutState.Seats[StHuman].Role = ESeatRole::Elect;
+		OutState.Seats[StHuman].DomainId = 1;
+		OutState.Seats[StHuman].Runes[5] = 1;
+		OutState.Seats[StOther].Runes[1] = 2;
+		OutState.Seats[StOther].Runes[3] = 1;
+		return true;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusColumnTabTest, "Soulbound.Game.Presentation.Estado.PestanaInicialYCambio", StatusTestFlags)
+
+bool FStatusColumnTabTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-6 (R-HUD-4): la pestaña inicial es Leyenda; cambiar da Crónica y volver a cambiar, Leyenda; una partida nueva (Reset) empieza otra
+	// vez en Leyenda aunque se hubiera dejado en Crónica.
+	using Soulbound::Presentation::EColumnTab;
+	Soulbound::Presentation::FColumnTabState Tab;
+	TestTrue(TEXT("Empieza en Leyenda"), Tab.Active == EColumnTab::Legend);
+	Tab.Toggle();
+	TestTrue(TEXT("Cambiar da Crónica"), Tab.Active == EColumnTab::Chronicle);
+	Tab.Toggle();
+	TestTrue(TEXT("Y volver a cambiar, Leyenda"), Tab.Active == EColumnTab::Legend);
+	Tab.Toggle();
+	Tab.Reset();
+	TestTrue(TEXT("Una partida nueva empieza otra vez en Leyenda"), Tab.Active == EColumnTab::Legend);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusCanSeeBracerTest, "Soulbound.Game.Presentation.Estado.VerElBrazalAjeno", StatusTestFlags)
+
+bool FStatusCanSeeBracerTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-7 (R-RUN-7): CanSeeBracer es verdadero para el asiento propio; falso para otro; verdadero para otro con el Brazal revelado y falso
+	// otra vez cuando la revelación caduca. Con un asiento que mira no válido, solo lo revelado (nunca todo).
+	using Soulbound::Presentation::CanSeeBracer;
+	FMatchState State = StMakeState();
+	State.Round = 3;
+	TestTrue(TEXT("El propio"), CanSeeBracer(State, StHuman, StHuman));
+	TestFalse(TEXT("Otro asiento"), CanSeeBracer(State, StOther, StHuman));
+	State.Seats[StOther].RevealedUntilRound = State.Round + 2;
+	TestTrue(TEXT("Otro asiento con el Brazal revelado"), CanSeeBracer(State, StOther, StHuman));
+	TestFalse(TEXT("Y el de un tercero, no"), CanSeeBracer(State, 3, StHuman));
+	State.Round = State.Seats[StOther].RevealedUntilRound;
+	TestFalse(TEXT("Caduca la revelación: otra vez no"), CanSeeBracer(State, StOther, StHuman));
+	TestFalse(TEXT("Sin asiento que mira, nadie ve el de otro"), CanSeeBracer(State, StOther, INDEX_NONE));
+	TestFalse(TEXT("Ni con un asiento que mira fuera de rango"), CanSeeBracer(State, StHuman, 9));
+	State.Seats[StOther].RevealedUntilRound = State.Round + 2;
+	TestTrue(TEXT("Lo revelado lo ve cualquiera, incluso sin asiento que mira"), CanSeeBracer(State, StOther, INDEX_NONE));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusBracerTextTest, "Soulbound.Game.Presentation.Estado.BrazalDeLosDemas", StatusTestFlags)
+
+bool FStatusBracerTextTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-8 (R-RUN-7): con el asiento 2 con dos runas del Dominio 1 y una del 3 y el humano en el 0, el texto del Brazal del 2 dice que tiene
+	// 3 runas y no nombra ni D1, ni D3, ni ningún poder; el del 0 lleva sus tipos y sus poderes; con el Brazal del 2 revelado, el del 2 lleva
+	// los suyos. Un Fenrir ajeno conserva "Paso Libre (afinidad)".
+	using Soulbound::Presentation::BracerText;
+	FMatchState State;
+	if (!StMakeRuneState(*this, State))
+	{
+		return false;
+	}
+	const FString Hidden = BracerText(State, StOther, StHuman);
+	TestTrue(TEXT("El 2 dice que tiene 3 runas"), Hidden.Contains(TEXT("3 runas")));
+	TestFalse(TEXT("Sin D1"), Hidden.Contains(TEXT("D1")));
+	TestFalse(TEXT("Sin D3"), Hidden.Contains(TEXT("D3")));
+	TestFalse(TEXT("Sin ningún poder"), StNamesAPower(Hidden));
+
+	// Textos de la leyenda revisados por el autor (13/11/2026): "2: 3 runas", "0 (tú): D5×1 | poderes: Vuelo Planar" y "2 (Brazal revelado): ...".
+	TestEqual(TEXT("El ajeno oculto, solo el total"), Hidden, FString(TEXT("2: 3 runas")));
+
+	const FString Own = BracerText(State, StHuman, StHuman);
+	TestTrue(TEXT("El propio lleva sus tipos"), Own.Contains(TEXT("D5×1")));
+	TestTrue(TEXT("Y sus poderes"), Own.Contains(TEXT("Vuelo Planar")));
+	TestTrue(TEXT("El propio, con (tú) y los poderes tras dos puntos"), Own.StartsWith(TEXT("0 (tú): D5×1 | poderes: Vuelo Planar")));
+
+	State.Seats[StOther].RevealedUntilRound = State.Round + 2;
+	const FString Revealed = BracerText(State, StOther, StHuman);
+	TestTrue(TEXT("Revelado: sus tipos"), Revealed.Contains(TEXT("D1×2")) && Revealed.Contains(TEXT("D3×1")));
+	TestTrue(TEXT("Revelado: lo dice"), Revealed.StartsWith(TEXT("2 (Brazal revelado): D1×2 D3×1")));
+	State.Seats[StOther].RevealedUntilRound = 0;
+
+	// Un Fenrir ajeno (Dominio 1 en elegidos.json) conserva el Paso Libre por afinidad, que es público, y sigue sin decir sus runas.
+	State.Seats[3].Role = ESeatRole::Elect;
+	State.Seats[3].DomainId = 1;
+	State.Seats[3].Runes[5] = 1; // la D5 de Fenrir da Vuelo Planar, no Paso Libre: así la afinidad no se confunde con el poder
+	const FString Fenrir = BracerText(State, 3, StHuman);
+	TestTrue(TEXT("Paso Libre por afinidad, de un Elegido ajeno"), Fenrir.Contains(TEXT("Paso Libre (afinidad)")));
+	TestEqual(TEXT("Con el formato nuevo"), Fenrir, FString(TEXT("3: 1 runa | poderes: Paso Libre (afinidad)")));
+	TestFalse(TEXT("Pero no sus runas ni sus poderes por runa"), Fenrir.Contains(TEXT("D5")) || Fenrir.Contains(TEXT("Vuelo Planar")));
+
+	// Sin asiento que mira válido, tampoco se enseña nada oculto.
+	const FString NoViewer = BracerText(State, StOther, INDEX_NONE);
+	TestFalse(TEXT("Con un asiento que mira no válido, sin tipos"), NoViewer.Contains(TEXT("D1")) || NoViewer.Contains(TEXT("D3")));
+	TestFalse(TEXT("Ni los del humano"), BracerText(State, StHuman, INDEX_NONE).Contains(TEXT("D5")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusInsolenceTest, "Soulbound.Game.Presentation.Estado.InsolenciaAjena", StatusTestFlags)
+
+bool FStatusInsolenceTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-9 (R-HUD-6): con el asiento 2 en insolencia 3 y el humano en el 1, el estado del 2 no dice su insolencia ni sus castigos; el del 1
+	// dice la suya. El 2 Marcado se sigue diciendo. La depuración (EffectStatusTextAll) lo lleva todo.
+	// La story dice "el del 0 dice la suya" con el humano en el 1; se entiende que cada uno ve la suya, la del asiento que mira.
+	using Soulbound::Presentation::EffectStatusText;
+	using Soulbound::Presentation::EffectStatusTextAll;
+	FMatchState State = StMakeState();
+	State.Round = 3;
+	constexpr int32 Viewer = 1;
+	State.Seats[StOther].Insolence = 3;
+	State.Seats[Viewer].Insolence = 2;
+	State.Seats[StOther].MarkedUntilRound = State.Round + 2;
+	State.Seats[StOther].RevealedUntilRound = State.Round + 2;
+	State.Seats[StOther].PendingPunishments.SetNum(1);
+
+	const FString Other = EffectStatusText(State, StOther, Viewer);
+	TestFalse(TEXT("El 2 no dice su insolencia"), Other.Contains(TEXT("insolencia")));
+	TestFalse(TEXT("Ni sus castigos pendientes"), Other.Contains(TEXT("castigo")));
+	TestTrue(TEXT("Marcado se sigue diciendo"), Other.Contains(TEXT("MARCADO")));
+	TestTrue(TEXT("Y el Brazal revelado"), Other.Contains(TEXT("BRAZAL REVELADO")));
+
+	TestTrue(TEXT("El del asiento que mira dice la suya"), EffectStatusText(State, Viewer, Viewer).Contains(TEXT("insolencia 2 de")));
+	TestFalse(TEXT("Sin asiento que mira no se dice la de nadie"), EffectStatusText(State, StOther, INDEX_NONE).Contains(TEXT("insolencia")));
+	TestFalse(TEXT("Ni con uno fuera de rango"), EffectStatusText(State, Viewer, 9).Contains(TEXT("insolencia")));
+
+	const FString All = EffectStatusTextAll(State, StOther);
+	TestTrue(TEXT("La depuración sí: insolencia"), All.Contains(TEXT("insolencia 3 de")));
+	TestTrue(TEXT("Y castigos"), All.Contains(TEXT("castigo")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusChoiceOptionsTest, "Soulbound.Game.Presentation.Estado.ElegirRunaAjenaNoDiceTipos", StatusTestFlags)
+
+bool FStatusChoiceOptionsTest::RunTest(const FString& Parameters)
+{
+	// Añadido del autor (R-RUN-7): el panel de estado enseña las opciones de la elección de un dummy; si son tipos de runa suyos (la que pierde),
+	// no se dicen mientras su Brazal esté oculto. La elección del humano, entera. Con el Brazal revelado, entera también.
+	FMatchState State = StMakeState();
+	State.Round = 3;
+	State.PendingChoice.Kind = EChoiceKind::LoseRune;
+	State.PendingChoice.Seat = StOther;
+	State.PendingChoice.Options = {1, 3};
+	State.PendingChoice.DeadlineSeconds = 40.0;
+	const FStatusContext Context = StMakeContext();
+
+	const TArray<FPanelLine> Hidden = Soulbound::Presentation::StatusLines(State, Context);
+	TestTrue(TEXT("Se dice que el 2 elige"), StAnyContains(Hidden, TEXT("el asiento 2 elige")));
+	TestFalse(TEXT("Pero no sus tipos de runa"), StAnyContains(Hidden, TEXT("D1")) || StAnyContains(Hidden, TEXT("D3")));
+
+	State.Seats[StOther].RevealedUntilRound = State.Round + 2;
+	TestTrue(TEXT("Con el Brazal revelado, sí"), StAnyContains(Soulbound::Presentation::StatusLines(State, Context), TEXT("D1")));
+	State.Seats[StOther].RevealedUntilRound = 0;
+
+	State.PendingChoice.Seat = StHuman;
+	TestTrue(TEXT("La elección del humano, entera"), StAnyContains(Soulbound::Presentation::StatusLines(State, Context), TEXT("D1")));
+
+	// Sin asiento humano válido, la de un dummy sigue sin decir tipos.
+	State.PendingChoice.Seat = StOther;
+	FStatusContext NoHuman = Context;
+	NoHuman.HumanSeat = INDEX_NONE;
+	TestFalse(TEXT("Sin humano válido, nada oculto"), StAnyContains(Soulbound::Presentation::StatusLines(State, NoHuman), TEXT("D1")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusBracerEmptyTest, "Soulbound.Game.Presentation.Estado.BrazalSinRunasNiPoderes", StatusTestFlags)
+
+bool FStatusBracerEmptyTest::RunTest(const FString& Parameters)
+{
+	// Retoque del autor (13/11/2026): cuando se ven los tipos (el propio o un Brazal revelado), sin runas dice "0 runas" en vez de "-", y sin
+	// poderes se omite " | poderes: -". Un Fenrir sin runas conserva "Paso Libre (afinidad)".
+	using Soulbound::Presentation::BracerText;
+	FMatchState State;
+	if (!StMakeRuneState(*this, State))
+	{
+		return false;
+	}
+	for (FSeatState& Seat : State.Seats)
+	{
+		Seat.Runes.Init(0, Seat.Runes.Num());
+	}
+	State.Seats[StHuman].Role = ESeatRole::LostEcho;
+	State.Seats[StHuman].DomainId = INDEX_NONE;
+	TestEqual(TEXT("El propio, sin runas ni poderes"), BracerText(State, StHuman, StHuman), FString(TEXT("0 (tú): 0 runas")));
+
+	State.Seats[StOther].RevealedUntilRound = State.Round + 2;
+	TestEqual(TEXT("Revelado, sin runas ni poderes"), BracerText(State, StOther, StHuman), FString(TEXT("2 (Brazal revelado): 0 runas")));
+	State.Seats[StOther].RevealedUntilRound = 0;
+
+	State.Seats[StHuman].Role = ESeatRole::Elect;
+	State.Seats[StHuman].DomainId = 1; // Fenrir
+	TestEqual(TEXT("Sin runas pero con la afinidad de Fenrir"), BracerText(State, StHuman, StHuman), FString(TEXT("0 (tú): 0 runas | poderes: Paso Libre (afinidad)")));
+
+	State.Seats[StHuman].Runes[5] = 1;
+	const FString WithRune = BracerText(State, StHuman, StHuman);
+	TestTrue(TEXT("Con runas y poderes, como antes"), WithRune.StartsWith(TEXT("0 (tú): D5×1 | poderes: Vuelo Planar")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusDomainLegendTest, "Soulbound.Game.Presentation.Estado.LeyendaDominios", StatusTestFlags)
+
+bool FStatusDomainLegendTest::RunTest(const FString& Parameters)
+{
+	// Textos de la leyenda revisados por el autor (13/11/2026), bloque Dominios: "D0 El Banquete · Shuten-dōji: del asiento 0", "...: libre" y
+	// "D1 El Fiordo Encadenado · Fenrir: Olvidado".
+	using Soulbound::Presentation::DomainLegendText;
+	FMatchState State;
+	if (!StMakeRuneState(*this, State))
+	{
+		return false;
+	}
+	State.Board.Domains.SetNum(6);
+	State.Board.Domains[0].Name = TEXT("El Banquete");
+	State.Board.Domains[1].Name = TEXT("El Fiordo Encadenado");
+	const FString Banquet = Soulbound::Presentation::DomainTitle(State, 0);
+	const FString Fjord = Soulbound::Presentation::DomainTitle(State, 1);
+	TestEqual(TEXT("El nombre del Dominio y el de su Elegido"), Banquet, FString(TEXT("El Banquete · Shuten-dōji")));
+	TestEqual(TEXT("Sin dueño"), DomainLegendText(State, 0, false), FString(TEXT("D0 El Banquete · Shuten-dōji: libre")));
+	State.Board.Domains[0].OwnerSeat = 0;
+	TestEqual(TEXT("Con dueño: del asiento"), DomainLegendText(State, 0, false), FString(TEXT("D0 El Banquete · Shuten-dōji: del asiento 0")));
+	TestEqual(TEXT("Olvidado"), DomainLegendText(State, 1, true), FString::Printf(TEXT("D1 %s: Olvidado"), *Fjord));
+	TestEqual(TEXT("Un Dominio fuera de rango, solo su número"), DomainLegendText(State, 9, false), FString(TEXT("D9")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusSeatLegendTest, "Soulbound.Game.Presentation.Estado.LeyendaJugadores", StatusTestFlags)
+
+bool FStatusSeatLegendTest::RunTest(const FString& Parameters)
+{
+	// Textos de la leyenda revisados por el autor (13/11/2026), bloque Jugadores: "0 (tú): Elegido, Shuten-dōji | insolencia 0 de 5", "1: Elegido,
+	// Tifón" y "2: Eco, con hogar en D2". Sin "(humano)" ni "(dummy)". Lo de detrás (Vacío, Marcado, Brazal revelado) no cambia.
+	using Soulbound::Presentation::SeatLegendText;
+	FMatchState State;
+	if (!StMakeRuneState(*this, State))
+	{
+		return false;
+	}
+	State.Seats[0].Role = ESeatRole::Elect;
+	State.Seats[0].DomainId = 0;
+	State.Seats[0].Insolence = 0;
+	State.Seats[1].Role = ESeatRole::Elect;
+	State.Seats[1].DomainId = 3;
+	State.Seats[StOther].Role = ESeatRole::LostEcho;
+	State.Seats[StOther].DomainId = 2;
+	const FString First = SeatLegendText(State, 0, 0);
+	TestTrue(TEXT("El jugador: (tú), Elegido y su nombre"), First.StartsWith(TEXT("0 (tú): Elegido, Shuten-dōji")));
+	TestTrue(TEXT("Y su insolencia, lo único que sigue detrás"), First.Contains(TEXT("insolencia 0 de ")));
+	TestEqual(TEXT("Otro Elegido: sin (tú) ni (dummy) ni insolencia"), SeatLegendText(State, 1, 0), FString::Printf(TEXT("1: Elegido, %s"), *Soulbound::Presentation::ElectName(State, 3)));
+	TestEqual(TEXT("Un Eco: con hogar en su Dominio, sin nombre"), SeatLegendText(State, StOther, 0), FString(TEXT("2: Eco, con hogar en D2")));
+	State.Seats[StOther].DomainId = INDEX_NONE;
+	TestEqual(TEXT("Un Eco sin hogar"), SeatLegendText(State, StOther, 0), FString(TEXT("2: Eco")));
+	for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
+	{
+		const FString Text = SeatLegendText(State, Seat, 0);
+		TestFalse(TEXT("Nunca (humano) ni (dummy)"), Text.Contains(TEXT("humano")) || Text.Contains(TEXT("dummy")));
+	}
+	State.Seats[StOther].MarkedUntilRound = State.Round + 2;
+	TestTrue(TEXT("Marcado sigue yendo detrás"), SeatLegendText(State, StOther, 0).StartsWith(TEXT("2: Eco")) && SeatLegendText(State, StOther, 0).Contains(TEXT("MARCADO")));
 	return true;
 }
 

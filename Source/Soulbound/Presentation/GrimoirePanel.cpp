@@ -48,7 +48,8 @@ TSharedRef<SWidget> Soulbound::Presentation::MakeGrimoireCard(const FGrimoireRow
 	];
 	for (const FGrimoireRune& Rune : Row.Runes)
 	{
-		const FString Count = Rune.Count > 0 ? FString::Printf(TEXT("×%d"), Rune.Count) : FString(TEXT("—"));
+		// S-035 (R-RUN-7): con los tipos ocultos no hay cantidad que decir (un guion diría "ninguna"): solo el mapa de runa a poder, que es público.
+		const FString Count = Row.bTypesHidden ? FString(TEXT("")) : Rune.Count > 0 ? FString::Printf(TEXT("×%d"), Rune.Count) : FString(TEXT("—"));
 		const FString Power = !Rune.bHasPower ? FString() : FString::Printf(TEXT(": %s%s"), *Rune.PowerName, Rune.bActive ? TEXT(" (ACTIVO)") : TEXT(""));
 		const FLinearColor Chip = DomainColors.IsValidIndex(Rune.RuneType) ? DomainColors[Rune.RuneType] : FLinearColor::Gray;
 		const TAttribute<int32> Size = FontSize;
@@ -66,13 +67,15 @@ TSharedRef<SWidget> Soulbound::Presentation::MakeGrimoireCard(const FGrimoireRow
 			]
 			+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center)
 			[
-				GrimoireText(FontSize, RuneWidth, FString::Printf(TEXT("D%d %s%s"), Rune.RuneType, *Count, *Power), Rune.bActive ? FLinearColor::White : Rune.Count > 0 ? GrimoireTextColor : GrimoireDimColor, Rune.bActive)
+				GrimoireText(FontSize, RuneWidth, FString::Printf(TEXT("D%d%s%s"), Rune.RuneType, *(Count.IsEmpty() ? Count : FString(TEXT(" ")) + Count), *Power),
+					Rune.bActive ? FLinearColor::White : Row.bTypesHidden || Rune.Count > 0 ? GrimoireTextColor : GrimoireDimColor, Rune.bActive)
 			]
 		];
 	}
 	Card->AddSlot().AutoHeight().Padding(0.f, 3.f, 0.f, 0.f)
 	[
-		GrimoireText(FontSize, TextWidth, FString::Printf(TEXT("Poderes activos: %s"), Row.ActivePowers.IsEmpty() ? TEXT("ninguno") : *FString::Join(Row.ActivePowers, TEXT(", "))),
+		GrimoireText(FontSize, TextWidth, Row.bTypesHidden ? FString::Printf(TEXT("%d runa%s; sus tipos están ocultos"), Row.TotalRunes, Row.TotalRunes == 1 ? TEXT("") : TEXT("s"))
+			: FString::Printf(TEXT("Poderes activos: %s"), Row.ActivePowers.IsEmpty() ? TEXT("ninguno") : *FString::Join(Row.ActivePowers, TEXT(", "))),
 			GrimoireTitleColor, false)
 	];
 	return SNew(SBorder)
