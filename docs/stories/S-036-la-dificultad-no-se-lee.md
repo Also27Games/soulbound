@@ -36,6 +36,18 @@ Manuales, por el autor, en PIE, con captura:
 - Una Prueba del Warden (`SbEvent` con un evento que la mande, o `SbTrial`) y un escape del Vacío (`SbBanish`): el título del anillo dice solo el uso, y el panel de estado no dice el nivel.
 - Con la prueba abierta, el panel de depuración (`D`) dice "Prueba pendiente" con su uso y su nivel, y la línea desaparece al acabar. La pestaña Crónica sigue diciendo el nivel cuando la prueba termina.
 
+## Segunda tanda: la instrucción del anillo se queda y cabe (corrección del autor del 13/11/2026)
+
+Probando el PR en PIE, el autor vio que la instrucción del anillo ("Haz clic cuando el aro toque la runa. En la franja verde cuenta; cuanto más cerca, mejor.") no se puede leer y se sale del panel. Las dos cosas tienen causa en el código: el panel la pinta en una sola línea, sin partirla (`DrawCenteredText`, `RingPanel.cpp`), y solo la enseña durante el anuncio (`RingAnnounceSeconds`, 1,5 s); después la sustituye "pulso k de N". El texto lo alargó el tutor el 12/11/2026 sin comprobar el ancho.
+
+Decidido por el autor: **la instrucción se queda durante todo el anillo, en dos líneas, y el contador "pulso k de N" desaparece** (las marcas de abajo ya dicen cuántos pulsos hay y cuántos van).
+
+- **R-VIS-17 (precisión). La instrucción, siempre a la vista.** Mientras el anillo está abierto, antes y después del anuncio, bajo el título van las dos líneas de la instrucción: "Haz clic cuando el aro toque la runa." y "En la franja verde cuenta; cuanto más cerca, mejor." Cada línea se pinta centrada y por separado. El panel no enseña "pulso k de N". Al acabar, el resultado y su nota se enseñan como hoy. `RingAnnounceSeconds` no cambia aquí: es dato del autor.
+- **CA-VIS-21** (R-VIS-17). Las líneas de la instrucción salen de una función pura (nombre a proponer): son dos, ninguna vacía, ninguna contiene "pulso", y son las mismas con el anillo en el anuncio y con un pulso ya resuelto.
+- Manual, por el autor, en PIE, a 1920x1080 y a 1024x768, con captura: las dos líneas caben dentro del panel del anillo, no pisan el aro en su radio mayor y siguen ahí en el segundo y el tercer pulso.
+
+Notas: si a 1024x768 las dos líneas pisan el aro, no se recoloca a ciegas: se dice y el autor decide. El modelo del panel (`FRingPanelModel`) puede ganar un campo para las líneas; el comentario de `Title` ("El uso y su dificultad") se corrige de paso.
+
 ## Notas para quien lo implemente
 
 - `RingTitle` es hoy un método estático de `ABoardViewActor` sin test. Para probarlo sin mundo conviene que el texto salga de una función pura junto al modelo del panel (`Presentation/RingPanelModel.h`); el nombre se propone en el plan. Si deja de usar la dificultad, el parámetro sobra: se quita, y con él lo que solo existía para pasárselo.
