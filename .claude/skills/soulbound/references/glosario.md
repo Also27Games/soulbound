@@ -100,6 +100,7 @@ Usa estos nombres y solo estos. La columna "Código" es el identificador en ingl
 | Ver el Brazal | `CanSeeBracer(State, Seat, ViewerSeat)` en `Presentation/StatusText.h` | S-035 (R-RUN-7, R-HUD-6): si quien mira puede ver los tipos de runa de un asiento: el suyo, o uno con el Brazal revelado (`IsBracerRevealed`). Con un asiento que mira no válido, solo lo revelado. Los textos de leyenda, Grimorio y estado ajeno pasan por él; la depuración, no. |
 | Línea de un Dominio en la leyenda | `DomainLegendText(State, DomainId, bForgotten)` en `Presentation/StatusText.h` | S-035: "D0 El Banquete · Shuten-dōji: del asiento 0", "...: libre" o "...: Olvidado". |
 | Línea de un asiento en la leyenda | `SeatLegendText(State, Seat, ViewerSeat)` en `Presentation/StatusText.h` | S-035: "0 (tú): Elegido, Shuten-dōji" o "2: Eco, con hogar en D2", con lo del Vacío, Marcado y Brazal revelado detrás; la insolencia, solo la de quien mira. |
+| Título del anillo | `RingTitleText(Trial, bDuel)` en `Presentation/RingPanelModel.h` | S-036 (R-VIS-22): el uso de la prueba y nada más ("DUELO", "FUENTE DE UN DOMINIO OLVIDADO", "PRUEBA DEL WARDEN", "ESCAPE DEL VACÍO", "DESAFÍO FINAL" o "PRUEBA"), sin el nivel: el jugador lo nota en la franja y en la velocidad del aro, no lo lee (decisión del autor del 13/11/2026). Sustituye al método estático `ABoardViewActor::RingTitle`, que lo decía. La línea "Prueba pendiente: <uso>, nivel <nivel>" del panel de depuración (R-HUD-1) usa el mismo texto. Propuesto en S-036. |
 
 ## Partida
 
