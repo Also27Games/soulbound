@@ -605,7 +605,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
 	TSoftObjectPtr<UMaterialInterface> VertexColorMaterial;
 
-	/** Material emisivo (cian), con un parámetro de color "Color": las ranuras emisivas del kit y el disco de rol de la ficha. */
+	/**
+	 * Material emisivo (cian) de las ranuras emisivas del kit. Sin parámetro de color (S-029: M_Emisivo es color por vértice por un multiplicador, sin
+	 * ningún `VectorParameter`; solo M_ColorVertice tiene "Color"), así que no sirve para teñir en código: el disco de rol usa el material básico.
+	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
 	TSoftObjectPtr<UMaterialInterface> EmissiveMaterial;
 

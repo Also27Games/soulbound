@@ -78,10 +78,10 @@ public:
 	void Configure(float InLabelSize, float InLift, float InSpinDegreesPerSecond, float InRingDiameter, float InRingWidth, float InActiveScale, float InTokenDiameter);
 
 	/**
-	 * Cambia la forma básica por la carta del kit (S-019, R-VIS-6). DiscMaterial es el material del disco de rol (S-029; necesita un parámetro
-	 * de color "Color"; sin él, el básico). Devuelve el componente de la carta para que la vista le ponga los materiales del kit.
+	 * Cambia la forma básica por la carta del kit (S-019, R-VIS-6). Devuelve el componente de la carta para que la vista le ponga los materiales
+	 * del kit. El disco de rol no usa ninguno de ellos: se pinta con el material básico (BaseMaterial, parámetro "Color"), como el aro del turno.
 	 */
-	UStaticMeshComponent* UseCard(UStaticMesh* Card, UMaterialInterface* DiscMaterial);
+	UStaticMeshComponent* UseCard(UStaticMesh* Card);
 
 	/** Huella de la ficha en cm: la de la carta del kit, o el diámetro de la ficha de formas básicas (S-029: de ella sale el disco de rol). */
 	float GetFootprint() const { return Footprint; }
@@ -175,9 +175,6 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> BaseMaterial;
-
-	UPROPERTY()
-	TObjectPtr<UMaterialInterface> RoleDiscMaterial;
 
 	UPROPERTY()
 	TObjectPtr<UStaticMesh> CylinderMesh;

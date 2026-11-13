@@ -112,14 +112,13 @@ void ASeatTokenActor::SetClickable(bool bClickable)
 	ClickTarget->SetCollisionEnabled(bClickable ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 }
 
-UStaticMeshComponent* ASeatTokenActor::UseCard(UStaticMesh* Card, UMaterialInterface* InDiscMaterial)
+UStaticMeshComponent* ASeatTokenActor::UseCard(UStaticMesh* Card)
 {
 	if (!Card)
 	{
 		return nullptr;
 	}
 	bCard = true;
-	RoleDiscMaterial = InDiscMaterial ? InDiscMaterial : BaseMaterial.Get();
 	// Las piezas del kit no se escalan: origen en la base, un metro del kit son 100 cm.
 	Mesh->SetStaticMesh(Card);
 	Mesh->SetRelativeScale3D(FVector::OneVector);
@@ -178,7 +177,9 @@ void ASeatTokenActor::PaintRoleDisc()
 	{
 		Base = FMath::Lerp(RoleColor, FlashColor, Intensity);
 	}
-	Soulbound::Presentation::SetComponentColor(*RoleDisc, RoleDiscMaterial ? RoleDiscMaterial.Get() : BaseMaterial.Get(),
+	// El material básico (BaseMaterial), el mismo del aro del turno y de los halos: tiene el parámetro "Color". El emisivo del kit (M_Emisivo) no lo tiene
+	// (es vértice por multiplicación, sin parámetro) y el disco salía siempre blanco.
+	Soulbound::Presentation::SetComponentColor(*RoleDisc, BaseMaterial,
 		FLinearColor(Base.R * RoleDiscBrightness, Base.G * RoleDiscBrightness, Base.B * RoleDiscBrightness));
 	if (!bCard)
 	{

@@ -709,7 +709,7 @@ void ABoardViewActor::BuildTokens()
 			Token->SetSeat(Seat);
 			Token->Configure(TokenLabelSize, ActiveLift, ActiveSpinDegreesPerSecond, RingDiameter, RingWidth, ActiveScale, TokenDiameter);
 			// R-VIS-6: la carta de prueba del kit, con el color del asiento en el aro de su base (sin carta, la esfera o el cono).
-			if (UStaticMeshComponent* CardMesh = Token->UseCard(Card, Kit.EmissiveMaterial()))
+			if (UStaticMeshComponent* CardMesh = Token->UseCard(Card))
 			{
 				Kit.ApplyMaterials(*CardMesh);
 			}
