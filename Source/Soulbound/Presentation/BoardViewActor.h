@@ -284,9 +284,24 @@ public:
 
 	// ---- Destellos (S-029, R-VIS-12) ----
 
-	/** Duración de cada destello de una ficha o de una Fuente al ganar o perder una runa, en segundos. Valor inicial 0,6. */
+	/** Duración de cada destello de una ficha o de una Fuente al ganar o perder una runa, en segundos. Valor inicial 1 (0,6 era demasiado sutil, prueba del 13/11/2026). */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Destellos")
-	float FlashSeconds = 0.6f;
+	float FlashSeconds = 1.f;
+
+	/** Diámetro del aro del destello de una ficha, por el del aro del turno (RingDiameter), al empezar. Valor inicial 1,4. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Destellos", meta = (ClampMin = "0.1"))
+	float FlashRingScale = 1.4f;
+
+	/** Grosor del aro del destello de una ficha, en cm (el del aro del turno es RingWidth, 0,5). Valor inicial 1,5. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Destellos", meta = (ClampMin = "0.01"))
+	float FlashRingWidth = 1.5f;
+
+	/**
+	 * Cuánto crece hacia fuera el aro del destello de la ficha y el halo de la Fuente mientras dura (FlashScale): al final miden 1 más este valor veces su
+	 * tamaño inicial. 0, sin crecer. Valor inicial 0,8.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Destellos", meta = (ClampMin = "0"))
+	float FlashGrowth = 0.8f;
 
 	/** Color del destello al ganar una runa. Valor inicial blanco. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Destellos")
@@ -910,6 +925,8 @@ private:
 	TArray<FSourceFlash> SourceFlashes;
 	/** Hasta cuándo está ocupada la Fuente de cada tipo de runa, para encadenar sus destellos. */
 	TMap<int32, double> SourceFlashBusy;
+	/** La escala de cada halo de casilla antes de crecer con un destello de su Fuente, para devolvérsela al acabar (S-029). */
+	TMap<int32, FVector> HaloBaseScales;
 	bool bInputBound = false;
 	/** Si ya se pidió volver al menú (S-022): un segundo clic o Intro mientras se cierra la sesión no hace nada. */
 	bool bReturningToMenu = false;

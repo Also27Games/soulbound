@@ -78,6 +78,13 @@ public:
 	void Configure(float InLabelSize, float InLift, float InSpinDegreesPerSecond, float InRingDiameter, float InRingWidth, float InActiveScale, float InTokenDiameter);
 
 	/**
+	 * El aro del destello (S-029, R-VIS-12, corrección del autor del 13/11/2026: el destello era demasiado sutil): su diámetro es DiameterScale por el del
+	 * aro del turno, su grosor Width (cm) y, mientras dura el destello, crece hacia fuera hasta 1 + Growth veces ese tamaño (FlashScale). Se llama una vez al
+	 * crear la ficha, después de Configure.
+	 */
+	void ConfigureFlash(float DiameterScale, float Width, float Growth);
+
+	/**
 	 * Cambia la forma básica por la carta del kit (S-019, R-VIS-6). Devuelve el componente de la carta para que la vista le ponga los materiales
 	 * del kit. El disco de rol no usa ninguno de ellos: se pinta con el material básico (BaseMaterial, parámetro "Color"), como el aro del turno.
 	 */
@@ -141,7 +148,7 @@ private:
 	/** Pinta el aro del turno con el color del asiento por su intensidad. */
 	void PaintTurnRing(float Intensity);
 	/** El destello en curso en Now: su color y su intensidad de 0 a 1; falso si no hay. */
-	bool CurrentFlash(double Now, FLinearColor& OutColor, float& OutIntensity);
+	bool CurrentFlash(double Now, FLinearColor& OutColor, float& OutIntensity, float& OutProgress);
 
 	UPROPERTY()
 	TObjectPtr<USceneComponent> Pivot;
@@ -232,6 +239,8 @@ private:
 	float TokenDiameter = 2.2f;
 	float CurrentLift = 0.f;
 	float RoleDiscBrightness = 1.f;
+	/** Cuánto crece el aro del destello mientras dura, como fracción de su tamaño (S-029). */
+	float FlashGrowth = 0.f;
 	float Footprint = 2.2f;
 	int32 Seat = INDEX_NONE;
 	bool bActive = false;

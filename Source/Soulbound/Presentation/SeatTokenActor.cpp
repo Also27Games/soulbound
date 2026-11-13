@@ -18,8 +18,6 @@ namespace
 	constexpr float RingZ = 0.06f;
 	/** Grosor del disco de rol, en cm. */
 	constexpr float RoleDiscThickness = 0.1f;
-	/** Diámetro del aro del destello por el del aro del turno. */
-	constexpr float FlashRingScale = 1.25f;
 	/** Holgura del número del asiento sobre lo alto de la ficha, en cm. */
 	constexpr float LabelClearance = 0.15f;
 }
@@ -98,13 +96,27 @@ void ASeatTokenActor::Configure(float InLabelSize, float InLift, float InSpinDeg
 	Label->SetWorldSize(InLabelSize);
 	Label->SetRelativeLocation(FVector(0.f, 0.f, TokenDiameter + LabelClearance));
 	BuildRing(RingRoot, RingSegments, RingDiameter, RingWidth, RingZ);
-	// S-029: el aro del destello, mayor y más grueso que el del turno para que se vea también sobre él; oculto hasta que haya uno.
-	BuildRing(FlashRoot, FlashSegments, RingDiameter * FlashRingScale, RingWidth * 1.6f, RingZ + 0.03f);
-	FlashRoot->SetVisibility(false, true);
 	// La esfera del clic, algo mayor que la ficha para acertar con el ratón; con la carta, la vuelve a medir UseCard.
 	ClickTarget->SetRelativeScale3D(FVector(TokenDiameter * 1.5f / 100.f));
 	ClickTarget->SetRelativeLocation(FVector(0.f, 0.f, TokenDiameter * 0.5f));
 	SetActive(false);
+}
+
+void ASeatTokenActor::ConfigureFlash(float DiameterScale, float Width, float Growth)
+{
+	FlashGrowth = Growth;
+	// El aro del destello, mayor y más grueso que el del turno para que se vea también sobre él; oculto hasta que haya un destello. Se arma de una vez:
+	// con otra llamada, los segmentos viejos se quedarían.
+	for (UStaticMeshComponent* Segment : FlashSegments)
+	{
+		if (Segment)
+		{
+			Segment->DestroyComponent();
+		}
+	}
+	FlashSegments.Reset();
+	BuildRing(FlashRoot, FlashSegments, RingDiameter * DiameterScale, Width, RingZ + 0.03f);
+	FlashRoot->SetVisibility(false, true);
 }
 
 void ASeatTokenActor::SetClickable(bool bClickable)
@@ -173,7 +185,8 @@ void ASeatTokenActor::PaintRoleDisc()
 	FLinearColor Base = RoleColor;
 	FLinearColor FlashColor;
 	float Intensity = 0.f;
-	if (CurrentFlash(GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0, FlashColor, Intensity))
+	float Progress = 0.f;
+	if (CurrentFlash(GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0, FlashColor, Intensity, Progress))
 	{
 		Base = FMath::Lerp(RoleColor, FlashColor, Intensity);
 	}
@@ -196,7 +209,7 @@ void ASeatTokenActor::PaintTurnRing(float Intensity)
 	}
 }
 
-bool ASeatTokenActor::CurrentFlash(double Now, FLinearColor& OutColor, float& OutIntensity)
+bool ASeatTokenActor::CurrentFlash(double Now, FLinearColor& OutColor, float& OutIntensity, float& OutProgress)
 {
 	FlashSlots.RemoveAll([Now](const FFlashSlot& Slot) { return Slot.End <= Now; });
 	for (const FFlashSlot& Slot : FlashSlots)
@@ -204,6 +217,7 @@ bool ASeatTokenActor::CurrentFlash(double Now, FLinearColor& OutColor, float& Ou
 		if (Slot.Start <= Now)
 		{
 			OutColor = Slot.Color;
+			OutProgress = static_cast<float>((Now - Slot.Start) / FMath::Max(Slot.End - Slot.Start, static_cast<double>(KINDA_SMALL_NUMBER)));
 			// Subida y bajada suaves: seno de medio periodo, de 0 a 1 y a 0.
 			OutIntensity = static_cast<float>(FMath::Sin(UE_DOUBLE_PI * (Now - Slot.Start) / FMath::Max(Slot.End - Slot.Start, KINDA_SMALL_NUMBER)));
 			return true;
@@ -403,13 +417,17 @@ void ASeatTokenActor::Tick(float DeltaSeconds)
 	{
 		FLinearColor FlashColor;
 		float Intensity = 0.f;
-		const bool bFlashing = CurrentFlash(GetWorld()->GetTimeSeconds(), FlashColor, Intensity);
+		float Progress = 0.f;
+		const bool bFlashing = CurrentFlash(GetWorld()->GetTimeSeconds(), FlashColor, Intensity, Progress);
 		if (bFlashing || bFlashShown)
 		{
 			bFlashShown = bFlashing;
 			FlashRoot->SetVisibility(bFlashing, true);
 			if (bFlashing)
 			{
+				// Crece hacia fuera mientras dura (FlashScale): el aro entero, así también se hace más grueso.
+				const float Grown = Soulbound::Presentation::FlashScale(Progress, FlashGrowth);
+				FlashRoot->SetRelativeScale3D(FVector(Grown, Grown, 1.f));
 				for (UStaticMeshComponent* Segment : FlashSegments)
 				{
 					Soulbound::Presentation::SetComponentColor(*Segment, BaseMaterial, FLinearColor(FlashColor.R * Intensity, FlashColor.G * Intensity, FlashColor.B * Intensity));

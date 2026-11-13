@@ -708,6 +708,8 @@ void ABoardViewActor::BuildTokens()
 		{
 			Token->SetSeat(Seat);
 			Token->Configure(TokenLabelSize, ActiveLift, ActiveSpinDegreesPerSecond, RingDiameter, RingWidth, ActiveScale, TokenDiameter);
+			// S-029 (corrección del 13/11/2026): el aro del destello, más grueso y creciendo hacia fuera mientras dura.
+			Token->ConfigureFlash(FlashRingScale, FlashRingWidth, FlashGrowth);
 			// R-VIS-6: la carta de prueba del kit, con el color del asiento en el aro de su base (sin carta, la esfera o el cono).
 			if (UStaticMeshComponent* CardMesh = Token->UseCard(Card))
 			{
@@ -2079,11 +2081,15 @@ void ABoardViewActor::Tick(float DeltaSeconds)
 		{
 			Soulbound::Presentation::SetComponentColor(*Halo, BaseMaterial, FLinearColor(Color.R * Intensity, Color.G * Intensity, Color.B * Intensity));
 			Halo->SetVisibility(true);
+			// El halo crece hacia fuera igual que el aro de la ficha (FlashScale); su escala de siempre se guarda la primera vez y se devuelve al acabar.
+			const FVector Original = HaloBaseScales.FindOrAdd(TileId, Halo->GetRelativeScale3D());
+			const float Grown = Soulbound::Presentation::FlashScale(static_cast<float>((Now - Flash.Start) / FMath::Max(Flash.End - Flash.Start, static_cast<double>(KINDA_SMALL_NUMBER))), FlashGrowth);
+			Halo->SetRelativeScale3D(FVector(Original.X * Grown, Original.Y * Grown, Original.Z));
 		}
 	}
 	if (SourceFlashes.Num() != Before)
 	{
-		// Acabó algún destello: los halos recuperan su color de alcanzable y la vista se repinta (cruz y visibilidad de siempre).
+		// Acabó algún destello: los halos recuperan su color de alcanzable y su tamaño, y la vista se repinta (cruz y visibilidad de siempre).
 		for (UStaticMeshComponent* Halo : Halos)
 		{
 			if (Halo)
@@ -2091,6 +2097,14 @@ void ABoardViewActor::Tick(float DeltaSeconds)
 				Soulbound::Presentation::SetComponentColor(*Halo, BaseMaterial, ReachableColor);
 			}
 		}
+		for (const TPair<int32, FVector>& Scaled : HaloBaseScales)
+		{
+			if (UStaticMeshComponent* Halo = Halos.IsValidIndex(Scaled.Key) ? Halos[Scaled.Key].Get() : nullptr)
+			{
+				Halo->SetRelativeScale3D(Scaled.Value);
+			}
+		}
+		HaloBaseScales.Reset();
 		Refresh();
 	}
 	if (SourceFlashes.IsEmpty())

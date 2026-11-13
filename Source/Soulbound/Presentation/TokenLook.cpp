@@ -64,4 +64,7 @@ float Soulbound::Presentation::RoleDiscLift(int32 Seat, float BaseLift)
 	return BaseLift + RoleDiscSeatStep * static_cast<float>(FMath::Max(Seat, 0));
 }
 
-float Soulbound::Presentation::FlashScale(float, float) { return -1.f; }
+float Soulbound::Presentation::FlashScale(float Progress, float Growth)
+{
+	return 1.f + FMath::Max(Growth, 0.f) * FMath::Clamp(Progress, 0.f, 1.f);
+}
