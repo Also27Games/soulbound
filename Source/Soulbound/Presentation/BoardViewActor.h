@@ -6,6 +6,8 @@
 #include "BoardKit.h"
 #include "BoardLayout.h"
 #include "DecisionText.h"
+#include "ElectCard.h"
+#include "FlashCues.h"
 #include "InstructionTracker.h"
 #include "Match/RingRules.h"
 #include "Styling/SlateBrush.h"
@@ -22,6 +24,7 @@ class ASeatTokenActor;
 class IInputProcessor;
 class SChroniclePanel;
 class SDecisionPanel;
+class SElectCardPanel;
 class SGrimoirePanel;
 class SStatusPanel;
 class SWidget;
@@ -75,6 +78,9 @@ public:
 	void Initialize(UMatchHostSubsystem* Host);
 
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	/** Solo corre mientras hay un destello de una Fuente en curso (S-029): la ficha tiene el suyo. */
+	virtual void Tick(float DeltaSeconds) override;
 
 	/**
 	 * Si Component es el orbe de la consulta del Oráculo (S-017): la vista lo enseña mientras alguien consulta, siempre sobre su
@@ -244,17 +250,87 @@ public:
 
 	// ---- Ficha con la carta del kit (S-019, R-VIS-6) ----
 
-	/** Diámetro del aro del rol en la base de la carta, por la huella de la carta. Valor inicial 1,25. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Ficha")
-	float TokenRingScale = 1.25f;
+	/**
+	 * Diámetro del disco de rol bajo la ficha, por la huella de la carta (S-029, R-VIS-10, corrección del autor del 13/11/2026: el aro fino de la base
+	 * no se distinguía desde la cámara). El diámetro final (RoleDiscDiameter) nunca pasa del borde interior del aro del turno (RingDiameter menos dos
+	 * RingWidth y un margen) ni baja de 1,1 veces la huella (siempre más ancho que la peana). Se ajusta en PIE. Valor inicial 1,8.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Ficha", meta = (ClampMin = "1"))
+	float RoleDiscScale = 1.8f;
 
-	/** Ancho del aro del rol, en cm. Valor inicial 0,25. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Ficha")
-	float TokenRingWidth = 0.25f;
+	/**
+	 * Cota de la cara inferior del disco de rol sobre la base de la ficha, en cm (S-029). La base es la cara superior de la losa o del Altar ya
+	 * colocados (TokenBase), no una cuenta a ciegas: lo que quede bajo el suelo del kit no se ve (lección del halo del Altar, S-033). Cada asiento sube
+	 * su disco RoleDiscSeatStep (0,01 cm) más que el anterior para que dos discos solapados en una casilla no parpadeen. Se ajusta en PIE. Valor inicial 0,1.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Ficha")
+	float RoleDiscLift = 0.1f;
 
-	/** Brillo del aro del rol de un Eco, por el de un Elegido (decisión del autor del 20/10/2026). Valor inicial 0,5. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Ficha", meta = (ClampMin = "0", ClampMax = "1"))
-	float EchoRingBrightness = 0.5f;
+	/** Brillo del disco de rol: el color del rol por este factor, el mismo para Eco y Elegido. Se ajusta en PIE. Valor inicial 1. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Ficha", meta = (ClampMin = "0", ClampMax = "1"))
+	float RoleDiscBrightness = 1.f;
+
+	/** Color de la ficha de un Eco (S-029, R-VIS-10): el gris de datos. Un Elegido lleva el color de su Dominio (DomainColor). Valor inicial (0,45, 0,45, 0,45). */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Ficha")
+	FLinearColor EchoTokenColor = FLinearColor(0.45f, 0.45f, 0.45f);
+
+	/** Periodo del pulso lento del aro del turno (S-029, R-VIS-11), en segundos; 0 o menos, sin pulso. Valor inicial 1,5. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Asiento activo")
+	float ActiveRingPulseSeconds = 1.5f;
+
+	/** Intensidad mínima del pulso del aro del turno, por la del color del asiento (S-029). Valor inicial 0,35. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Asiento activo", meta = (ClampMin = "0", ClampMax = "1"))
+	float ActiveRingPulseMin = 0.35f;
+
+	// ---- Destellos (S-029, R-VIS-12) ----
+
+	/** Duración de cada destello de una ficha o de una Fuente al ganar o perder una runa, en segundos. Valor inicial 1 (0,6 era demasiado sutil, prueba del 13/11/2026). */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Destellos")
+	float FlashSeconds = 1.f;
+
+	/** Diámetro del aro del destello de una ficha, por el del aro del turno (RingDiameter), al empezar. Valor inicial 1,4. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Destellos", meta = (ClampMin = "0.1"))
+	float FlashRingScale = 1.4f;
+
+	/** Grosor del aro del destello de una ficha, en cm (el del aro del turno es RingWidth, 0,5). Valor inicial 1,5. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Destellos", meta = (ClampMin = "0.01"))
+	float FlashRingWidth = 1.5f;
+
+	/**
+	 * Cuánto crece hacia fuera el aro del destello de la ficha y el halo de la Fuente mientras dura (FlashScale): al final miden 1 más este valor veces su
+	 * tamaño inicial. 0, sin crecer. Valor inicial 0,8.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Destellos", meta = (ClampMin = "0"))
+	float FlashGrowth = 0.8f;
+
+	/** El claro de siempre: el color de un destello cuyo tipo de runa no se conoce (punto 8 de la story). Valor inicial blanco. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Destellos")
+	FLinearColor FlashGainColor = FLinearColor(1.f, 1.f, 1.f);
+
+	/**
+	 * Color del destello de la ficha que pierde una runa (robo, devolución, Desvío, desafío fallado; punto 8 de la story). Es fijo y no el de la runa: el
+	 * color se lee antes que el sentido y el de algún Dominio puede coincidir, y lo desempata el sentido (hacia fuera es perder). Valor inicial un morado
+	 * vivo (0,55, 0, 1); decisión del autor del 13/11/2026 (antes rojo).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Destellos")
+	FLinearColor FlashLossColor = FLinearColor(0.55f, 0.f, 1.f);
+
+	// ---- La carta del Elegido (S-029, R-VIS-13) ----
+
+	/** Segundos que se enseña la carta del Elegido al vincularse el jugador, o hasta un clic o abrir el Grimorio. Valor inicial 6. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Carta del Elegido")
+	float ElectCardSeconds = 6.f;
+
+	/** Ancho máximo de la carta del Elegido, en unidades de Slate; con menos hueco, el del hueco. Valor inicial 560. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Carta del Elegido")
+	float ElectCardMaxWidth = 560.f;
+
+	/**
+	 * Fracción del alto de la pantalla que se deja libre abajo bajo la carta, para el panel de decisión y la frase del Warden (S-029: a 1024x768 la
+	 * carta no los tapa). La carta se centra en lo que queda encima. Valor inicial 0,3.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Carta del Elegido", meta = (ClampMin = "0", ClampMax = "0.6"))
+	float ElectCardBottomFraction = 0.3f;
 
 	// ---- Oráculo (S-017) ----
 
@@ -548,7 +624,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
 	TSoftObjectPtr<UMaterialInterface> VertexColorMaterial;
 
-	/** Material emisivo (cian), con un parámetro de color "Color": las ranuras emisivas del kit y el aro del rol de la ficha. */
+	/**
+	 * Material emisivo (cian) de las ranuras emisivas del kit. Sin parámetro de color (S-029: M_Emisivo es color por vértice por un multiplicador, sin
+	 * ningún `VectorParameter`; solo M_ColorVertice tiene "Color"), así que no sirve para teñir en código: el disco de rol usa el material básico.
+	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit")
 	TSoftObjectPtr<UMaterialInterface> EmissiveMaterial;
 
@@ -731,6 +810,21 @@ private:
 	 */
 	void RefreshWardenLine(const FMatchState& State);
 
+	/**
+	 * Destellos (S-029, R-VIS-12): lee los eventos nuevos del registro, como la crónica y las Ayudas, y pone en cola el destello de cada ficha (la
+	 * ficha los encadena sola) y de cada Fuente (los encadena la vista). Lo ya ocurrido al arrancar la vista no destella.
+	 */
+	void RefreshFlashes(const FMatchState& State);
+
+	/** La carta del Elegido (S-029, R-VIS-13): lee el registro y, con la carta a la vista, le pasa la fila del humano. */
+	void RefreshElectCard(const FMatchState& State);
+
+	/** Cierra la carta del Elegido (clic). */
+	void DismissElectCard();
+
+	/** Si la carta del Elegido se ve ahora: a tiempo, sin telón, sin paneles ocultos y sin el Grimorio abierto. */
+	bool IsElectCardShown() const;
+
 	/** La frase que toca enseñar ahora en la línea del Warden (vacía si ninguna): avanza la cola con el reloj real. */
 	FString WardenLineNow();
 
@@ -818,6 +912,27 @@ private:
 	bool bDebugPanelShown = false;
 	/** Si el Grimorio está abierto (tecla G, S-027). H lo cierra. */
 	bool bGrimoireOpen = false;
+	/** Cuándo se enseña la carta del Elegido (S-029), la capa y el panel. */
+	Soulbound::Presentation::FElectCardTracker ElectCard;
+	TSharedPtr<SElectCardPanel> ElectCardPanel;
+	TSharedPtr<SWidget> ElectCardOverlay;
+	/** Primer evento del registro que los destellos aún no han leído (S-029). */
+	int32 FlashScanned = 0;
+	/** Un destello de una Fuente, en segundos del mundo (S-029); la ficha lleva los suyos. */
+	struct FSourceFlash
+	{
+		int32 RuneType = INDEX_NONE;
+		double Start = 0.0;
+		double End = 0.0;
+		/** Hacia dentro (se cierra: la Fuente que recibe de vuelta una runa) o hacia fuera (se abre), y de qué color (punto 8 de la story). */
+		bool bInward = false;
+		FLinearColor Color = FLinearColor::White;
+	};
+	TArray<FSourceFlash> SourceFlashes;
+	/** Hasta cuándo está ocupada la Fuente de cada tipo de runa, para encadenar sus destellos. */
+	TMap<int32, double> SourceFlashBusy;
+	/** La escala de cada halo de casilla antes de crecer con un destello de su Fuente, para devolvérsela al acabar (S-029). */
+	TMap<int32, FVector> HaloBaseScales;
 	bool bInputBound = false;
 	/** Si ya se pidió volver al menú (S-022): un segundo clic o Intro mientras se cierra la sesión no hace nada. */
 	bool bReturningToMenu = false;

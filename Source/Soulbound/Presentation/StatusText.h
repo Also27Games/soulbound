@@ -210,6 +210,11 @@ namespace Soulbound::Presentation
 		FString PowerName;
 		/** Si el poder está activo ahora (IsPowerActive). */
 		bool bActive = false;
+
+		bool operator==(const FGrimoireRune& Other) const
+		{
+			return RuneType == Other.RuneType && Count == Other.Count && bHasPower == Other.bHasPower && Power == Other.Power && PowerName == Other.PowerName && bActive == Other.bActive;
+		}
 	};
 
 	/** Una fila del Grimorio (S-027, nombre propuesto): un asiento, su papel, su Elegido y afinidad, sus seis runas y sus poderes activos. */
@@ -233,6 +238,14 @@ namespace Soulbound::Presentation
 		TArray<FString> ActivePowers;
 		/** El color del asiento. */
 		FLinearColor Color = FLinearColor::White;
+
+		/** Igualdad de todo lo que se pinta (S-029, R-VIS-21): el panel solo se reconstruye si cambia. */
+		bool operator==(const FGrimoireRow& Other) const
+		{
+			return Seat == Other.Seat && bHuman == Other.bHuman && bElect == Other.bElect && ElectName == Other.ElectName && DomainId == Other.DomainId
+				&& DomainName == Other.DomainName && AffinityName == Other.AffinityName && AffinityText == Other.AffinityText && Runes == Other.Runes
+				&& ActivePowers == Other.ActivePowers && Color == Other.Color;
+		}
 	};
 
 	/**
@@ -244,6 +257,27 @@ namespace Soulbound::Presentation
 	 * @return Una fila por asiento, en orden de asiento.
 	 */
 	TArray<FGrimoireRow> GrimoireRows(const FMatchState& State, int32 HumanSeat, const FGrimoireTexts& Texts, const TArray<FLinearColor>& SeatColors);
+
+	/** Ancho máximo del panel del Grimorio, en unidades de Slate. */
+	inline constexpr float GrimoireMaxWidth = 1100.f;
+
+	/**
+	 * Ancho del panel del Grimorio (S-029, R-VIS-21): el de la capa menos 32 de margen, con tope GrimoireMaxWidth. Solo depende del ancho de la
+	 * capa, nunca de lo pintado antes, para que el panel no cambie de tamaño de un fotograma a otro.
+	 * @param LayerWidth Ancho de la capa que lo contiene, en unidades de Slate.
+	 * @return El ancho del panel, al menos 1.
+	 */
+	float GrimoirePanelWidth(float LayerWidth);
+
+	/**
+	 * Ancho al que se parten los textos de una tarjeta del Grimorio (WrapTextAt, no AutoWrapText: S-029, R-VIS-21). Es el de una celda del panel
+	 * (su ancho menos el margen de 32 entre Columns) menos los 24 de margen de la tarjeta. Dos tarjetas por fila caben mientras el ancho del panel
+	 * sea el de GrimoirePanelWidth.
+	 * @param PanelWidth Ancho del panel.
+	 * @param Columns Tarjetas por fila: 2 en el Grimorio, 1 en la carta del Elegido.
+	 * @return El ancho de texto, al menos 1.
+	 */
+	float GrimoireCardTextWidth(float PanelWidth, int32 Columns);
 
 	/**
 	 * Las líneas del pie del Grimorio: un poder por línea, "Nombre: frase", en el orden de EPower, con la frase de Texts.

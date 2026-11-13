@@ -159,4 +159,66 @@ bool FGrimoireTextsTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireRowsStillTest, "Soulbound.Game.Presentation.Grimorio.SoloSeReconstruyeSiCambia", GrimoireTestFlags)
+
+bool FGrimoireRowsStillTest::RunTest(const FString& Parameters)
+{
+	// CA-VIS-19 (R-VIS-21): las filas de un mismo estado, calculadas dos veces, son iguales (el panel no se reconstruye); si un asiento gana una
+	// runa, se vincula o activa un poder, dejan de serlo. La comparación es el operador de igualdad de FGrimoireRow, sin Slate.
+	FMatchState State;
+	if (!GrMakeState(*this, State))
+	{
+		return false;
+	}
+	FGrimoireTexts Texts;
+	const TArray<FLinearColor> Colors{FLinearColor::Red, FLinearColor::Green, FLinearColor::Blue, FLinearColor::White};
+	const TArray<FGrimoireRow> Before = Soulbound::Presentation::GrimoireRows(State, GrFenrirSeat, Texts, Colors);
+	const TArray<FGrimoireRow> Again = Soulbound::Presentation::GrimoireRows(State, GrFenrirSeat, Texts, Colors);
+	TestTrue(TEXT("El mismo estado, dos veces: iguales"), Before == Again);
+
+	FMatchState Gained = State;
+	Gained.Seats[GrEchoSeat].Runes[2] = 1;
+	TestFalse(TEXT("Un asiento gana una runa: distintas"), Before == Soulbound::Presentation::GrimoireRows(Gained, GrFenrirSeat, Texts, Colors));
+
+	FMatchState Bonded = State;
+	Bonded.Seats[GrEchoSeat].Role = ESeatRole::Elect;
+	Bonded.Seats[GrEchoSeat].DomainId = 3;
+	TestFalse(TEXT("Un asiento se vincula: distintas"), Before == Soulbound::Presentation::GrimoireRows(Bonded, GrFenrirSeat, Texts, Colors));
+
+	// Un Elegido que consigue la runa de su propio Dominio activa Celeridad (diagonal del cuadrado latino): cambia la cantidad y el poder activo.
+	FMatchState Powered = State;
+	Powered.Seats[GrFenrirSeat].Runes[GrFenrirDomain] = 1;
+	const TArray<FGrimoireRow> After = Soulbound::Presentation::GrimoireRows(Powered, GrFenrirSeat, Texts, Colors);
+	TestFalse(TEXT("Un asiento activa un poder: distintas"), Before == After);
+	TestTrue(TEXT("Y la fila del asiento trae el poder nuevo activo"), After[GrFenrirSeat].ActivePowers.Num() > Before[GrFenrirSeat].ActivePowers.Num());
+
+	// Un texto distinto (otra afinidad con otra frase) también es otro contenido.
+	FGrimoireTexts Other;
+	Other.AffinityTexts.Add(EAffinity::FreePassage, TEXT("Otra frase"));
+	TestFalse(TEXT("Otra frase de afinidad: distintas"), Before == Soulbound::Presentation::GrimoireRows(State, GrFenrirSeat, Other, Colors));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireWidthsTest, "Soulbound.Game.Presentation.Grimorio.AnchoFijoYDosTarjetasPorFila", GrimoireTestFlags)
+
+bool FGrimoireWidthsTest::RunTest(const FString& Parameters)
+{
+	// R-VIS-21 y comprobación pedida por el autor (12/11/2026): el ancho del panel solo depende del de la capa, y a 1024x768 siguen cabiendo dos
+	// tarjetas por fila (dos celdas de texto con sus 24 de margen y los 32 del panel caben en el panel, que cabe en la capa).
+	using Soulbound::Presentation::GrimoireCardTextWidth;
+	using Soulbound::Presentation::GrimoirePanelWidth;
+	for (const float Layer : {1024.f, 1280.f, 1920.f})
+	{
+		const float Panel = GrimoirePanelWidth(Layer);
+		const float Text = GrimoireCardTextWidth(Panel, 2);
+		TestTrue(*FString::Printf(TEXT("Capa de %.0f: el panel cabe con su margen"), Layer), Panel <= Layer - 32.f + KINDA_SMALL_NUMBER);
+		TestTrue(*FString::Printf(TEXT("Capa de %.0f: dos tarjetas por fila caben en el panel"), Layer), 2.f * (Text + 24.f) + 32.f <= Panel + KINDA_SMALL_NUMBER);
+		TestTrue(*FString::Printf(TEXT("Capa de %.0f: el texto tiene sitio de sobra para una frase"), Layer), Text >= 300.f);
+		TestEqual(TEXT("El mismo ancho de capa da siempre el mismo ancho de panel"), GrimoirePanelWidth(Layer), Panel);
+	}
+	TestEqual(TEXT("Con una capa enorme, el tope"), GrimoirePanelWidth(5000.f), Soulbound::Presentation::GrimoireMaxWidth);
+	TestTrue(TEXT("Sin capa, un ancho válido"), GrimoirePanelWidth(0.f) >= 1.f && GrimoireCardTextWidth(0.f, 2) >= 1.f);
+	return true;
+}
+
 #endif

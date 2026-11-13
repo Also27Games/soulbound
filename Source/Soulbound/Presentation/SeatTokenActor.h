@@ -21,7 +21,7 @@ DECLARE_DELEGATE_ThreeParams(FOnTokenTileEntered, int32 /*Seat*/, int32 /*TileId
  * con el color del asiento, que pasa a cono cuando el asiento es Elegido (S-006). Lleva el número del asiento escrito
  * encima. Si es el asiento activo (S-007) se eleva, gira despacio y un aro del color del asiento (el SeatRing) rodea
  * su casilla. Desde S-019, con la carta de prueba del kit si está (la pieza no se escala ni se tiñe: es una sola malla con
- * color por vértice) y un aro del color del asiento en su base: tenue para un Eco, vivo para un Elegido. La raíz de la
+ * color por vértice) y un disco de color del rol bajo ella (S-029). La raíz de la
  * ficha es su base, sobre la losa. Desde S-020 recorre el camino de su movimiento casilla a casilla (WalkPath) y avisa al
  * entrar en cada una. Adaptador de presentación, sin reglas: la coloca, le da forma y la activa la vista.
  */
@@ -46,11 +46,29 @@ public:
 	void SetSeat(int32 InSeat) { Seat = InSeat; }
 	int32 GetSeat() const { return Seat; }
 
-	/** Pinta la ficha (sin carta), su número, el aro del activo y el aro del rol. */
+	/** Pone el color del asiento: el del aro del turno y el del número. Sin carta, también el de la ficha hasta que llegue SetRoleColor. */
 	void SetColor(const FLinearColor& Color);
 
-	/** Forma de Elegido (cono) o de Eco (esfera); con la carta, el aro del rol vivo o tenue. Conserva el color. */
+	/**
+	 * Color del rol (S-029, R-VIS-10): el gris de un Eco o el color del Dominio de un Elegido. Lo toma el disco de rol bajo la ficha (la carta del kit
+	 * no se tiñe: es una malla con color por vértice) y, sin carta, la propia ficha. Sin cambio de color no repinta nada.
+	 */
+	void SetRoleColor(const FLinearColor& Color);
+
+	/** Forma de Elegido (cono) o de Eco (esfera) de las formas de respaldo; con la carta no hace nada. */
 	void SetElectShape(bool bElect);
+
+	/**
+	 * Pulso lento del aro del turno (S-029, R-VIS-11): de MinIntensity a 1 del color del asiento con el periodo dado; sin periodo, fijo.
+	 * Se pone una vez al crear la ficha.
+	 */
+	void SetRingPulse(float PeriodSeconds, float MinIntensity);
+
+	/**
+	 * Destello (S-029, R-VIS-12): el disco de rol (la ficha, sin carta) y un aro grande de destello cambian a Color y vuelven en Seconds, con
+	 * una subida y una bajada suaves. Empieza tras DelaySeconds y nunca antes de que acabe el que hubiera: los destellos se encadenan.
+	 */
+	void Flash(const FLinearColor& Color, float Seconds, float DelaySeconds, bool bInward);
 
 	/**
 	 * Parámetros de la presentación que da la vista: letra del número, elevación y giro del asiento activo, el aro del activo
@@ -60,12 +78,27 @@ public:
 	void Configure(float InLabelSize, float InLift, float InSpinDegreesPerSecond, float InRingDiameter, float InRingWidth, float InActiveScale, float InTokenDiameter);
 
 	/**
-	 * Cambia la forma básica por la carta del kit (S-019, R-VIS-6) y le pone el aro del rol en la base: su diámetro es
-	 * RoleRingScale por la huella de la carta, su grosor RoleRingWidth (cm), y un Eco lo lleva con EchoBrightness del brillo
-	 * de un Elegido. RoleRingMaterial necesita un parámetro de color "Color". Devuelve el componente de la carta para que la
-	 * vista le ponga los materiales del kit.
+	 * El aro del destello (S-029, R-VIS-12, corrección del autor del 13/11/2026: el destello era demasiado sutil): su diámetro es DiameterScale por el del
+	 * aro del turno, su grosor Width (cm) y, mientras dura el destello, crece hacia fuera hasta 1 + Growth veces ese tamaño (FlashScale). Se llama una vez al
+	 * crear la ficha, después de Configure.
 	 */
-	UStaticMeshComponent* UseCard(UStaticMesh* Card, UMaterialInterface* RoleRingMaterial, float RoleRingScale, float RoleRingWidth, float EchoBrightness);
+	void ConfigureFlash(float DiameterScale, float Width, float Growth);
+
+	/**
+	 * Cambia la forma básica por la carta del kit (S-019, R-VIS-6). Devuelve el componente de la carta para que la vista le ponga los materiales
+	 * del kit. El disco de rol no usa ninguno de ellos: se pinta con el material básico (BaseMaterial, parámetro "Color"), como el aro del turno.
+	 */
+	UStaticMeshComponent* UseCard(UStaticMesh* Card);
+
+	/** Huella de la ficha en cm: la de la carta del kit, o el diámetro de la ficha de formas básicas (S-029: de ella sale el disco de rol). */
+	float GetFootprint() const { return Footprint; }
+
+	/**
+	 * El disco de rol (S-029, R-VIS-10, corrección del autor del 13/11/2026): un disco plano relleno bajo la ficha, de color gris de Eco o del Dominio
+	 * del Elegido, de diámetro Diameter y con su cara inferior a DiscLift sobre la base de la ficha (la cara superior de la losa o del Altar); cuelga de la
+	 * raíz, así que no sube ni gira con la ficha. Brightness multiplica el color. Se llama una vez al crear la ficha, con el diámetro de RoleDiscDiameter.
+	 */
+	void SetRoleDisc(float Diameter, float DiscLift, float Brightness);
 
 	/** Enseña u oculta el número del asiento (la tecla de las capturas, S-019). */
 	void SetLabelVisible(bool bVisible);
@@ -97,7 +130,7 @@ public:
 	/** Aviso de llegada a cada casilla del recorrido (S-020). */
 	FOnTokenTileEntered OnTileEntered;
 
-	/** Asiento activo: se eleva, gira y enseña el aro. Inactivo, vuelve a su sitio sin giro y sin aro. */
+	/** Asiento activo (o participante de un duelo o trilero entre turnos, S-029): se eleva, gira y enseña el aro, que pulsa. Inactivo, vuelve a su sitio sin giro y sin aro. */
 	void SetActive(bool bInActive);
 
 	/**
@@ -110,7 +143,12 @@ public:
 private:
 	/** Un aro de segmentos (las formas básicas del motor no traen un anillo) bajo Parent, a la altura Z. */
 	void BuildRing(USceneComponent* Parent, TArray<TObjectPtr<UStaticMeshComponent>>& OutSegments, float Diameter, float Width, float Z);
-	void PaintRoleRing();
+	/** Pinta el disco de rol (y la ficha sin carta) con el color del rol, o con el del destello en curso. */
+	void PaintRoleDisc();
+	/** Pinta el aro del turno con el color del asiento por su intensidad. */
+	void PaintTurnRing(float Intensity);
+	/** El destello en curso en Now: su color y su intensidad de 0 a 1; falso si no hay. */
+	bool CurrentFlash(double Now, FLinearColor& OutColor, float& OutIntensity, float& OutProgress, bool& bOutInward);
 
 	UPROPERTY()
 	TObjectPtr<USceneComponent> Pivot;
@@ -131,15 +169,22 @@ private:
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> RingSegments;
 
-	/** Aro del rol en la base de la carta (S-019); vacío sin carta. */
+	/** Disco de rol bajo la ficha (S-029, R-VIS-10): un cilindro básico aplastado, del color del rol. */
 	UPROPERTY()
-	TArray<TObjectPtr<UStaticMeshComponent>> RoleRingSegments;
+	TObjectPtr<UStaticMeshComponent> RoleDisc;
+
+	/** Aro grande del destello (S-029): oculto salvo mientras dura uno. */
+	UPROPERTY()
+	TObjectPtr<USceneComponent> FlashRoot;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> FlashSegments;
 
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> BaseMaterial;
 
 	UPROPERTY()
-	TObjectPtr<UMaterialInterface> RoleRingMaterial;
+	TObjectPtr<UStaticMesh> CylinderMesh;
 
 	UPROPERTY()
 	TObjectPtr<UStaticMesh> EchoMesh;
@@ -169,6 +214,23 @@ private:
 	float SlideElapsed = 0.f;
 	bool bPlaced = false;
 	FLinearColor RingColor = FLinearColor::White;
+	/** Color del rol (S-029) y si ya se ha puesto alguno. */
+	FLinearColor RoleColor = FLinearColor::White;
+	bool bRoleColorSet = false;
+	float RingPulsePeriod = 0.f;
+	float RingPulseMin = 0.35f;
+
+	/** Un destello esperando o en curso, en segundos del mundo, y hasta cuándo está ocupada la ficha (S-029, encadenado). */
+	struct FFlashSlot
+	{
+		double Start = 0.0;
+		double End = 0.0;
+		FLinearColor Color = FLinearColor::White;
+		bool bInward = true;
+	};
+	TArray<FFlashSlot> FlashSlots;
+	double FlashBusyUntil = 0.0;
+	bool bFlashShown = false;
 	float Lift = 2.5f;
 	float ActiveScale = 1.3f;
 	float CurrentScale = 1.f;
@@ -177,7 +239,10 @@ private:
 	float RingWidth = 0.5f;
 	float TokenDiameter = 2.2f;
 	float CurrentLift = 0.f;
-	float EchoBrightness = 0.5f;
+	float RoleDiscBrightness = 1.f;
+	/** Cuánto crece el aro del destello mientras dura, como fracción de su tamaño (S-029). */
+	float FlashGrowth = 0.f;
+	float Footprint = 2.2f;
 	int32 Seat = INDEX_NONE;
 	bool bActive = false;
 	bool bCard = false;
