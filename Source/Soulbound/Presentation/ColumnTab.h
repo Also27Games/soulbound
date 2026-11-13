@@ -23,11 +23,13 @@ namespace Soulbound::Presentation
 		/** Pasa a la otra pestaña: de Leyenda a Crónica y de Crónica a Leyenda. */
 		void Toggle()
 		{
+			Active = Active == EColumnTab::Legend ? EColumnTab::Chronicle : EColumnTab::Legend;
 		}
 
 		/** Una partida nueva: vuelve a Leyenda. */
 		void Reset()
 		{
+			Active = EColumnTab::Legend;
 		}
 	};
 }

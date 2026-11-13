@@ -61,6 +61,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/SBoxPanel.h"
@@ -1031,12 +1032,55 @@ void ABoardViewActor::BuildOverlay()
 	}
 	Rows.Add(Bracers);
 	// S-027: las teclas de los paneles, también en la leyenda.
-	Rows.Add({FString::Printf(TEXT("Teclas: %s Grimorio | %s depuración | %s panel de estado | %s paneles"), *GrimoireKey.GetDisplayName().ToString(),
-		*DebugPanelKey.GetDisplayName().ToString(), *DebugTextToggleKey.GetDisplayName().ToString(), *PanelsToggleKey.GetDisplayName().ToString()), {}});
+	Rows.Add({FString::Printf(TEXT("Teclas: %s Grimorio | %s depuración | %s panel de estado | %s paneles | %s leyenda o crónica"), *GrimoireKey.GetDisplayName().ToString(),
+		*DebugPanelKey.GetDisplayName().ToString(), *DebugTextToggleKey.GetDisplayName().ToString(), *PanelsToggleKey.GetDisplayName().ToString(),
+		*ColumnTabKey.GetDisplayName().ToString()), {}});
 
 	// S-027 (R-HUD-3): la letra y el ancho de todos los paneles se leen en cada pintado, para que sigan a la resolución sin rehacerlos.
 	const TAttribute<int32> PanelFont = TAttribute<int32>::CreateLambda([this]() { return PanelSlateFontSize; });
 	ChroniclePanel = SNew(SChroniclePanel).FontSize(PanelFont);
+	// S-035 (R-HUD-4): una partida nueva empieza en Leyenda.
+	ColumnTab.Reset();
+	// La cabecera de la columna: los nombres de las dos pestañas, la activa resaltada. Botones de texto que no toman el foco (las teclas siguen
+	// llegando al controlador). La cabecera se queda el clic, como el panel de decisión (SDecisionPanel): el que cae en su fondo no llega al tablero.
+	const auto TabButton = [this, PanelFont](const TCHAR* Label, Soulbound::Presentation::EColumnTab Tab) -> TSharedRef<SWidget>
+	{
+		return SNew(SButton)
+			.IsFocusable(false)
+			.ButtonStyle(&FCoreStyle::Get().GetWidgetStyle<FButtonStyle>("NoBorder"))
+			.ContentPadding(FMargin(10.f, 4.f))
+			.OnClicked_Lambda([this, Tab]()
+			{
+				SetColumnTab(Tab);
+				return FReply::Handled();
+			})
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(Label))
+				.Font_Lambda([PanelFont]() { return FCoreStyle::GetDefaultFontStyle("Bold", PanelFont.Get()); })
+				.ColorAndOpacity_Lambda([this, Tab]()
+				{
+					return ColumnTab.Active == Tab ? FSlateColor(FLinearColor::White) : FSlateColor(FLinearColor(0.5f, 0.5f, 0.5f));
+				})
+			];
+	};
+	const TSharedRef<SWidget> ColumnHeader = SNew(SBorder)
+		.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+		.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.72f))
+		.Padding(FMargin(0.f, 2.f))
+		.OnMouseButtonDown_Lambda([](const FGeometry&, const FPointerEvent&) { return FReply::Handled(); })
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth()[TabButton(TEXT("Leyenda"), Soulbound::Presentation::EColumnTab::Legend)]
+			+ SHorizontalBox::Slot().AutoWidth()[TabButton(TEXT("Crónica"), Soulbound::Presentation::EColumnTab::Chronicle)]
+			+ SHorizontalBox::Slot().FillWidth(1.f).HAlign(HAlign_Right).VAlign(VAlign_Center).Padding(0.f, 0.f, 10.f, 0.f)
+			[
+				SNew(STextBlock)
+				.Text(FText::FromString(FString::Printf(TEXT("%s cambia"), *ColumnTabKey.GetDisplayName().ToString())))
+				.Font_Lambda([PanelFont]() { return FCoreStyle::GetDefaultFontStyle("Regular", PanelFont.Get()); })
+				.ColorAndOpacity(FSlateColor(FLinearColor(0.5f, 0.5f, 0.5f)))
+			]
+		];
 	Overlay = SNew(SBox)
 		.HAlign(HAlign_Right)
 		.VAlign(VAlign_Fill)
@@ -1055,11 +1099,21 @@ void ABoardViewActor::BuildOverlay()
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot().AutoHeight()
 				[
-					SNew(SLegendPanel).FontSize(PanelFont).Rows(Rows)
+					ColumnHeader
 				]
+				// S-035: una sola pestaña a la vista, a toda la altura. La otra queda sin dibujar pero viva: la crónica se sigue llenando.
 				+ SVerticalBox::Slot().FillHeight(1.f).Padding(0.f, 6.f, 0.f, 0.f)
 				[
-					ChroniclePanel.ToSharedRef()
+					SNew(SWidgetSwitcher)
+					.WidgetIndex_Lambda([this]() { return ColumnTab.Active == Soulbound::Presentation::EColumnTab::Legend ? 0 : 1; })
+					+ SWidgetSwitcher::Slot().VAlign(VAlign_Top)
+					[
+						SNew(SLegendPanel).FontSize(PanelFont).Rows(Rows)
+					]
+					+ SWidgetSwitcher::Slot()
+					[
+						ChroniclePanel.ToSharedRef()
+					]
 				]
 			]
 		];
@@ -1819,6 +1873,16 @@ void ABoardViewActor::TogglePanels()
 	UpdateCamera();
 }
 
+void ABoardViewActor::ToggleColumnTab()
+{
+	ColumnTab.Toggle();
+}
+
+void ABoardViewActor::SetColumnTab(Soulbound::Presentation::EColumnTab Tab)
+{
+	ColumnTab.Active = Tab;
+}
+
 void ABoardViewActor::ToggleDebugText()
 {
 	// S-027: el panel de estado se oculta en su capa; al volver, se rellena en el acto.
@@ -1927,6 +1991,8 @@ void ABoardViewActor::ApplyViewTarget()
 				// S-027: el Grimorio (G) y el panel de depuración (D).
 				InputComponent->BindKey(GrimoireKey, IE_Pressed, this, &ABoardViewActor::ToggleGrimoire);
 				InputComponent->BindKey(DebugPanelKey, IE_Pressed, this, &ABoardViewActor::ToggleDebugPanel);
+				// S-035: la pestaña de la columna (P).
+				InputComponent->BindKey(ColumnTabKey, IE_Pressed, this, &ABoardViewActor::ToggleColumnTab);
 				// S-022: la tecla de volver al menú, alternativa al botón, no se consume: antes del final sigue llegando a quien la use.
 				InputComponent->BindKey(ReturnToMenuKey, IE_Pressed, this, &ABoardViewActor::ReturnToMenu).bConsumeInput = false;
 				bInputBound = true;

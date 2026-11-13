@@ -5,6 +5,7 @@
 #include "InputCoreTypes.h"
 #include "BoardKit.h"
 #include "BoardLayout.h"
+#include "ColumnTab.h"
 #include "DecisionText.h"
 #include "ElectCard.h"
 #include "FlashCues.h"
@@ -525,6 +526,13 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey DebugPanelKey = EKeys::D;
 
+	/**
+	 * Tecla que cambia la pestaña de la columna de la derecha, de Leyenda a Crónica y al revés (S-035, R-HUD-4). Valor inicial P (de pestaña): la
+	 * tabuladora la consume Slate para el foco, C ya cambia la vista y el resto de letras de la vista y del controlador están en uso.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	FKey ColumnTabKey = EKeys::P;
+
 	/** Color de un Dominio (0 a 5); gris oscuro si no existe. Lo usa también el kit para teñir el suelo de las cuñas. */
 	FLinearColor DomainColor(int32 DomainId) const;
 
@@ -754,6 +762,10 @@ private:
 	void ToggleDebugPanel();
 	/** Abre o cierra el Grimorio (S-027, R-HUD-4); abierto, se rellena en el acto. */
 	void ToggleGrimoire();
+	/** Cambia la pestaña de la columna de la derecha (S-035, R-HUD-4): la tecla ColumnTabKey. */
+	void ToggleColumnTab();
+	/** Pone la pestaña activa de la columna (S-035): el clic en su nombre de la cabecera. */
+	void SetColumnTab(Soulbound::Presentation::EColumnTab Tab);
 	/**
 	 * Recalcula la letra y el ancho de los paneles para un viewport de ViewportSize (S-027, R-HUD-3): el tamaño en píxeles de pantalla
 	 * (ScaledPanelFontSize, ScaledPanelWidth) entre la escala de DPI que Unreal ya aplica a la interfaz. Lo escribe en el registro al
@@ -906,6 +918,8 @@ private:
 	bool bSeatedView = false;
 	bool bOverlayHidden = false;
 	bool bPanelsHidden = false;
+	/** La pestaña de la columna de la derecha (S-035, R-HUD-4): empieza en Leyenda en cada partida (la vista se crea con ella). */
+	Soulbound::Presentation::FColumnTabState ColumnTab;
 	/** Si el panel de estado está oculto (tecla T). TODO(R-HUD-1): renombrarlo con Rider (bStatusPanelHidden). */
 	bool bDebugTextHidden = false;
 	/** Si el panel de depuración se ve (tecla D, S-027). Al empezar, no. */

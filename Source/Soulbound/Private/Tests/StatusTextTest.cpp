@@ -310,10 +310,10 @@ bool FStatusBracerTextTest::RunTest(const FString& Parameters)
 	// Un Fenrir ajeno (Dominio 1 en elegidos.json) conserva el Paso Libre por afinidad, que es público, y sigue sin decir sus runas.
 	State.Seats[3].Role = ESeatRole::Elect;
 	State.Seats[3].DomainId = 1;
-	State.Seats[3].Runes[2] = 1;
+	State.Seats[3].Runes[5] = 1; // la D5 de Fenrir da Vuelo Planar, no Paso Libre: así la afinidad no se confunde con el poder
 	const FString Fenrir = BracerText(State, 3, StHuman);
 	TestTrue(TEXT("Paso Libre por afinidad, de un Elegido ajeno"), Fenrir.Contains(TEXT("Paso Libre (afinidad)")));
-	TestFalse(TEXT("Pero no sus runas"), Fenrir.Contains(TEXT("D2")));
+	TestFalse(TEXT("Pero no sus runas ni sus poderes por runa"), Fenrir.Contains(TEXT("D5")) || Fenrir.Contains(TEXT("Vuelo Planar")));
 
 	// Sin asiento que mira válido, tampoco se enseña nada oculto.
 	const FString NoViewer = BracerText(State, StOther, INDEX_NONE);
