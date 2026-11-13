@@ -78,4 +78,13 @@ namespace Soulbound::Presentation
 	 * @return La escala, entre 1 y 1 + Growth.
 	 */
 	SOULBOUND_API float FlashScale(float Progress, float Growth, bool bInward = false);
+
+	/**
+	 * La rotación con que el número de una ficha queda paralelo a la pantalla (S-037, R-VIS-23; nombre propuesto `LabelFacingRotation`): su frente mira a la
+	 * cámara y su "arriba" y su "derecha" son los de la cámara. Los ejes de UTextRenderComponent: frente +X, arriba +Z y se lee hacia -Y (como el texto
+	 * tumbado del tablero, FRotator(90, 180, 0)).
+	 * @param CameraRotation Rotación de la cámara activa.
+	 * @return La rotación del texto, en el mundo.
+	 */
+	SOULBOUND_API FRotator LabelFacingRotation(const FRotator& CameraRotation);
 }

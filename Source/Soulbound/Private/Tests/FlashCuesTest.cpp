@@ -139,7 +139,82 @@ bool FFlashIncrementalTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFlashColorTest, "Soulbound.Game.Presentation.Destellos.ColorDeCadaCaso", FlashTestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFlashSealPlacedTest, "Soulbound.Game.Presentation.Destellos.SellarDestellaLaCasillaHaciaDentro", FlashTestFlags)
+
+bool FFlashSealPlacedTest::RunTest(const FString& Parameters)
+{
+	// CA-VIS-23 (R-VIS-25): un SealPlaced de la casilla 12 da un destello de casilla, Id 12, hacia dentro y con el color del Sello, de la duración pedida;
+	// FlashColorOf de ese destello es el color del Sello que se le pasa.
+	FMatchState State;
+	FcAdd(State, EMatchEventType::SealPlaced, INDEX_NONE, 12);
+	const TArray<FFlashCue> Cues = Soulbound::Presentation::FlashCuesFromEvents(State, 0, 0.7f);
+	TestEqual(TEXT("Un destello"), Cues.Num(), 1);
+	if (Cues.Num() == 1)
+	{
+		TestTrue(TEXT("Casilla"), Cues[0].Target == EFlashTarget::Tile);
+		TestEqual(TEXT("Id 12"), Cues[0].Id, 12);
+		TestTrue(TEXT("Hacia dentro"), Cues[0].Direction == FcIn);
+		TestTrue(TEXT("Color del Sello"), Cues[0].ColorSource == EFlashColorSource::Seal);
+		TestEqual(TEXT("La duración pedida"), Cues[0].DurationSeconds, 0.7f);
+		TestEqual(TEXT("Sin espera"), Cues[0].DelaySeconds, 0.f);
+		const FLinearColor Seal(1.f, 0.05f, 0.05f);
+		TestEqual(TEXT("FlashColorOf es el color del Sello"), Soulbound::Presentation::FlashColorOf(Cues[0], {}, FLinearColor::White, FLinearColor(0.55f, 0.f, 1.f), Seal), Seal);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFlashSealReleasedTest, "Soulbound.Game.Presentation.Destellos.LiberarDestellaLaCasillaHaciaFuera", FlashTestFlags)
+
+bool FFlashSealReleasedTest::RunTest(const FString& Parameters)
+{
+	// CA-VIS-24 (R-VIS-25): un SealReleased de la casilla 12 da un destello de casilla hacia fuera con el color del Sello; un SealPlaced y un SealReleased de la
+	// misma casilla en la misma lectura salen encadenados (el segundo espera una duración), y los de otra casilla no esperan.
+	FMatchState State;
+	FcAdd(State, EMatchEventType::SealReleased, INDEX_NONE, 12);
+	TestTrue(TEXT("Casilla 12 hacia fuera, color del Sello"),
+		Soulbound::Presentation::FlashCuesFromEvents(State, 0, FcSeconds) == TArray<FFlashCue>({FcCue(EFlashTarget::Tile, 12, FcOut, EFlashColorSource::Seal, INDEX_NONE)}));
+
+	FMatchState Chained;
+	FcAdd(Chained, EMatchEventType::SealPlaced, INDEX_NONE, 12);
+	FcAdd(Chained, EMatchEventType::SealReleased, INDEX_NONE, 12);
+	FcAdd(Chained, EMatchEventType::SealPlaced, INDEX_NONE, 7);
+	TestTrue(TEXT("Misma casilla: encadenados; otra casilla: sin espera"),
+		Soulbound::Presentation::FlashCuesFromEvents(Chained, 0, FcSeconds)
+			== TArray<FFlashCue>({FcCue(EFlashTarget::Tile, 12, FcIn, EFlashColorSource::Seal, INDEX_NONE),
+				FcCue(EFlashTarget::Tile, 12, FcOut, EFlashColorSource::Seal, INDEX_NONE, FcSeconds), FcCue(EFlashTarget::Tile, 7, FcIn, EFlashColorSource::Seal, INDEX_NONE)}));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFlashSealLeavesRunesTest, "Soulbound.Game.Presentation.Destellos.LosDeRunasNoCambianConSellos", FlashTestFlags)
+
+bool FFlashSealLeavesRunesTest::RunTest(const FString& Parameters)
+{
+	// CA-VIS-25 (R-VIS-25): los destellos de RuneObtained, RuneReturned y RuneStolen son los mismos aunque haya Sellos entre medias en la misma lectura.
+	FMatchState State;
+	FcAdd(State, EMatchEventType::RuneObtained, 0, 4);
+	FcAdd(State, EMatchEventType::SealPlaced, INDEX_NONE, 12);
+	FcAdd(State, EMatchEventType::RuneReturned, 1, 2);
+	FcAdd(State, EMatchEventType::SealReleased, INDEX_NONE, 12);
+	FcAdd(State, EMatchEventType::RuneStolen, 2, 3, 1);
+	TArray<FFlashCue> OnlyRunes;
+	const TArray<FFlashCue> All = Soulbound::Presentation::FlashCuesFromEvents(State, 0, FcSeconds);
+	for (const FFlashCue& Cue : All)
+	{
+		if (Cue.Target != EFlashTarget::Tile)
+		{
+			OnlyRunes.Add(Cue);
+		}
+	}
+	FMatchState Reference;
+	FcAdd(Reference, EMatchEventType::RuneObtained, 0, 4);
+	FcAdd(Reference, EMatchEventType::RuneReturned, 1, 2);
+	FcAdd(Reference, EMatchEventType::RuneStolen, 2, 3, 1);
+	TestTrue(TEXT("Mismos destellos de runas, con el mismo encadenado"), OnlyRunes == Soulbound::Presentation::FlashCuesFromEvents(Reference, 0, FcSeconds));
+	TestEqual(TEXT("Y los dos de casilla se suman"), All.Num(), OnlyRunes.Num() + 2);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFlashColorTest,"Soulbound.Game.Presentation.Destellos.ColorDeCadaCaso", FlashTestFlags)
 
 bool FFlashColorTest::RunTest(const FString& Parameters)
 {
@@ -153,13 +228,14 @@ bool FFlashColorTest::RunTest(const FString& Parameters)
 	}
 	const FLinearColor Clear(1.f, 1.f, 1.f);
 	const FLinearColor Loss(0.55f, 0.f, 1.f);
-	TestEqual(TEXT("Recibir: el color del Dominio de la runa"), FlashColorOf(FcCue(EFlashTarget::Token, 0, FcIn, ByRune, 4), Domains, Clear, Loss), Domains[4]);
-	TestEqual(TEXT("La Fuente al abrirse: el color de su runa"), FlashColorOf(FcCue(EFlashTarget::Source, 4, FcOut, ByRune, 4), Domains, Clear, Loss), Domains[4]);
-	TestEqual(TEXT("La Fuente al cerrarse: el color de su runa"), FlashColorOf(FcCue(EFlashTarget::Source, 1, FcIn, ByRune, 1), Domains, Clear, Loss), Domains[1]);
-	TestEqual(TEXT("Perder en la ficha: el de perder, no el de la runa"), FlashColorOf(FcCue(EFlashTarget::Token, 0, FcOut, ByLoss, 2), Domains, Clear, Loss), Loss);
-	TestEqual(TEXT("Perder sin tipo de runa: el de perder"), FlashColorOf(FcCue(EFlashTarget::Token, 0, FcOut, ByLoss, INDEX_NONE), Domains, Clear, Loss), Loss);
-	TestEqual(TEXT("Sin tipo de runa conocido: el claro de siempre"), FlashColorOf(FcCue(EFlashTarget::Token, 0, FcIn, ByRune, INDEX_NONE), Domains, Clear, Loss), Clear);
-	TestEqual(TEXT("Un tipo sin color: el claro de siempre"), FlashColorOf(FcCue(EFlashTarget::Token, 0, FcIn, ByRune, 9), Domains, Clear, Loss), Clear);
+	const FLinearColor Seal(1.f, 0.05f, 0.05f);
+	TestEqual(TEXT("Recibir: el color del Dominio de la runa"), FlashColorOf(FcCue(EFlashTarget::Token, 0, FcIn, ByRune, 4), Domains, Clear, Loss, Seal), Domains[4]);
+	TestEqual(TEXT("La Fuente al abrirse: el color de su runa"), FlashColorOf(FcCue(EFlashTarget::Source, 4, FcOut, ByRune, 4), Domains, Clear, Loss, Seal), Domains[4]);
+	TestEqual(TEXT("La Fuente al cerrarse: el color de su runa"), FlashColorOf(FcCue(EFlashTarget::Source, 1, FcIn, ByRune, 1), Domains, Clear, Loss, Seal), Domains[1]);
+	TestEqual(TEXT("Perder en la ficha: el de perder, no el de la runa"), FlashColorOf(FcCue(EFlashTarget::Token, 0, FcOut, ByLoss, 2), Domains, Clear, Loss, Seal), Loss);
+	TestEqual(TEXT("Perder sin tipo de runa: el de perder"), FlashColorOf(FcCue(EFlashTarget::Token, 0, FcOut, ByLoss, INDEX_NONE), Domains, Clear, Loss, Seal), Loss);
+	TestEqual(TEXT("Sin tipo de runa conocido: el claro de siempre"), FlashColorOf(FcCue(EFlashTarget::Token, 0, FcIn, ByRune, INDEX_NONE), Domains, Clear, Loss, Seal), Clear);
+	TestEqual(TEXT("Un tipo sin color: el claro de siempre"), FlashColorOf(FcCue(EFlashTarget::Token, 0, FcIn, ByRune, 9), Domains, Clear, Loss, Seal), Clear);
 	return true;
 }
 

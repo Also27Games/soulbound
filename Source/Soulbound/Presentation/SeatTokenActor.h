@@ -73,9 +73,10 @@ public:
 	/**
 	 * Parámetros de la presentación que da la vista: letra del número, elevación y giro del asiento activo, el aro del activo
 	 * (diámetro y grosor), el crecimiento del activo y el diámetro de la ficha de formas básicas, en cm. Se llama una vez al
-	 * crear la ficha.
+	 * crear la ficha. S-037: InLabelHeight es la altura del número sobre lo alto de la ficha (cm).
 	 */
-	void Configure(float InLabelSize, float InLift, float InSpinDegreesPerSecond, float InRingDiameter, float InRingWidth, float InActiveScale, float InTokenDiameter);
+	void Configure(float InLabelSize, float InLift, float InSpinDegreesPerSecond, float InRingDiameter, float InRingWidth, float InActiveScale, float InTokenDiameter,
+		float InLabelHeight);
 
 	/**
 	 * El aro del destello (S-029, R-VIS-12, corrección del autor del 13/11/2026: el destello era demasiado sutil): su diámetro es DiameterScale por el del
@@ -239,6 +240,9 @@ private:
 	float RingWidth = 0.5f;
 	float TokenDiameter = 2.2f;
 	float CurrentLift = 0.f;
+	/** S-037: lo alto de la ficha en reposo (cm, sobre su base) y la holgura del número sobre ella; el número cuelga de la raíz y sigue la elevación y la escala del activo. */
+	float LabelTopZ = 0.f;
+	float LabelHeight = 0.f;
 	float RoleDiscBrightness = 1.f;
 	/** Cuánto crece el aro del destello mientras dura, como fracción de su tamaño (S-029). */
 	float FlashGrowth = 0.f;

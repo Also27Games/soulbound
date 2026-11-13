@@ -140,6 +140,12 @@ namespace
 	constexpr float HaloHeight = 0.15f;
 	constexpr float ForgottenRingZ = 0.1f;
 	constexpr float ForgottenRingHeight = 0.22f;
+	/**
+	 * La marca del Sello (S-037): su cota sobre la losa de la casilla y su alto, en cm. Por encima del halo de alcanzable (cima en 0,145) y del aro de Dominio Olvidado (cima en
+	 * 0,21), para que se vea sobre los dos y, por ser menos ancha que el halo, deje ver su borde blanco.
+	 */
+	constexpr float SealMarkZ = 0.14f;
+	constexpr float SealMarkHeight = 0.3f;
 	/** Segmentos del aro de un Nicho reclamado. */
 	constexpr int32 NicheRingSegmentCount = 24;
 
@@ -504,6 +510,7 @@ void ABoardViewActor::BuildTiles()
 	InlayOutlines.Init(nullptr, Board.Tiles.Num());
 	InlayOutlinesB.Init(nullptr, Board.Tiles.Num());
 	Halos.Init(nullptr, Board.Tiles.Num());
+	SealMarks.Init(nullptr, Board.Tiles.Num());
 	ForgottenRings.Init(nullptr, Board.Tiles.Num());
 	NicheNames.Init(nullptr, Board.Tiles.Num());
 	NicheNumbers.Init(nullptr, Board.Tiles.Num());
@@ -583,6 +590,14 @@ void ABoardViewActor::BuildTiles()
 		Soulbound::Presentation::SetComponentColor(*Ring, BaseMaterial, ForgottenRingColor);
 		Ring->SetVisibility(false);
 		ForgottenRings[Tile.TileId] = Ring;
+
+		// S-037 (R-VIS-24): la marca del Sello, otro disco como los dos anteriores (uno por casilla, no un aro de segmentos): del tamaño de la casilla por SealMarkScale,
+		// entre el aro de Dominio Olvidado y el halo, por encima de los dos. Oculta hasta que la casilla se sella.
+		UStaticMeshComponent* SealMark = AddShape(CylinderMesh, Position + FVector(0.f, 0.f, SealMarkZ), FRotator::ZeroRotator,
+			FVector(Diameter * SealMarkScale, Diameter * SealMarkScale, SealMarkHeight));
+		Soulbound::Presentation::SetComponentColor(*SealMark, BaseMaterial, SealMarkColor);
+		SealMark->SetVisibility(false);
+		SealMarks[Tile.TileId] = SealMark;
 
 		// Marca del tipo sobre la losa, del tamaño justo para no tapar la ficha del centro, con contorno negro
 		// para que se distinga sobre cualquier Dominio. Con la losa del kit no hace falta: la pieza ya dice el tipo.
@@ -710,7 +725,7 @@ void ABoardViewActor::BuildTokens()
 		if (Token)
 		{
 			Token->SetSeat(Seat);
-			Token->Configure(TokenLabelSize, ActiveLift, ActiveSpinDegreesPerSecond, RingDiameter, RingWidth, ActiveScale, TokenDiameter);
+			Token->Configure(TokenLabelSize, ActiveLift, ActiveSpinDegreesPerSecond, RingDiameter, RingWidth, ActiveScale, TokenDiameter, TokenLabelHeight);
 			// S-029 (corrección del 13/11/2026): el aro del destello, más grueso y creciendo hacia fuera mientras dura.
 			Token->ConfigureFlash(FlashRingScale, FlashRingWidth, FlashGrowth);
 			// R-VIS-6: la carta de prueba del kit, con el color del asiento en el aro de su base (sin carta, la esfera o el cono).
@@ -962,7 +977,7 @@ void ABoardViewActor::BuildOverlay()
 		{{NicheFreeColor, TEXT("Libre")}, {SeatColor(0), TEXT("Reclamado: aro y número de su dueño")}, {NicheClosedColor, TEXT("Cerrado")}}});
 	Rows.Add({TEXT("Tablero"),
 		{{ReachableColor, TEXT("Halo blanco: puedes ir ahí")},
-			{SealedColor, bKit ? TEXT("Cadenas: sellada, no se pasa") : TEXT("SELLO: sellada, no se pasa")},
+			{SealMarkColor, bKit ? TEXT("Aro rojo y cadenas: sellada, no se pasa") : TEXT("Aro rojo y SELLO: sellada, no se pasa")},
 			{ForgottenRingColor, TEXT("Casillas apagadas: Dominio Olvidado")}}});
 	// Una fila por asiento, con su rol al día: Eco o Elegido, y el Dominio que lleva.
 	FLegendRow Seats;
@@ -1437,6 +1452,8 @@ void ABoardViewActor::Refresh()
 
 	// Alcanzables: las que guarda el estado, calculadas por el motor (ReachableTiles) al tirar. Solo valen mientras
 	// se espera el destino. Con un salto planar pendiente (S-009), el halo marca los Nodos a los que se puede saltar.
+	// S-037 (R-VIS-24): las casillas con marca del Sello, del estado de vista.
+	const TSet<int32> SealMarked(Soulbound::Presentation::SealMarkedTiles(State));
 	TSet<int32> Reachable;
 	if (State.TurnPhase == ETurnPhase::RollAndChoose)
 	{
@@ -1476,6 +1493,12 @@ void ABoardViewActor::Refresh()
 		if (UStaticMeshComponent* ForgottenRing = ForgottenRings.IsValidIndex(Tile.TileId) ? ForgottenRings[Tile.TileId].Get() : nullptr)
 		{
 			ForgottenRing->SetVisibility(bForgotten);
+		}
+		if (UStaticMeshComponent* SealMarkDisc = SealMarks.IsValidIndex(Tile.TileId) ? SealMarks[Tile.TileId].Get() : nullptr)
+		{
+			// S-037 (R-VIS-24): la marca se ve mientras la casilla está sellada, y mientras dura un destello de Sello aunque ya no lo esté.
+			SealMarkDisc->SetVisibility(SealMarked.Contains(Tile.TileId) || IsSealMarkFlashing(Tile.TileId));
+			Soulbound::Presentation::SetComponentColor(*SealMarkDisc, BaseMaterial, SealMarkColor);
 		}
 		if (UStaticMeshComponent* Halo = Halos.IsValidIndex(Tile.TileId) ? Halos[Tile.TileId].Get() : nullptr)
 		{
@@ -2083,7 +2106,7 @@ void ABoardViewActor::RefreshFlashes(const FMatchState& State)
 	const double Now = World->GetTimeSeconds();
 	for (const Soulbound::Presentation::FFlashCue& Cue : Cues)
 	{
-		const FLinearColor Color = Soulbound::Presentation::FlashColorOf(Cue, DomainColors, FlashGainColor, FlashLossColor);
+		const FLinearColor Color = Soulbound::Presentation::FlashColorOf(Cue, DomainColors, FlashGainColor, FlashLossColor, SealMarkColor);
 		if (Cue.Target == Soulbound::Presentation::EFlashTarget::Token)
 		{
 			if (TokenActors.IsValidIndex(Cue.Id) && TokenActors[Cue.Id])
@@ -2092,9 +2115,11 @@ void ABoardViewActor::RefreshFlashes(const FMatchState& State)
 			}
 			continue;
 		}
-		// La Fuente: la vista encadena sus destellos, uno tras otro, con el mismo criterio que la ficha.
-		double& Busy = SourceFlashBusy.FindOrAdd(Cue.Id, 0.0);
+		// La Fuente (o, desde S-037, la casilla de un Sello): la vista encadena sus destellos, uno tras otro, con el mismo criterio que la ficha.
+		const bool bTileCue = Cue.Target == Soulbound::Presentation::EFlashTarget::Tile;
+		double& Busy = bTileCue ? SealFlashBusy.FindOrAdd(Cue.Id, 0.0) : SourceFlashBusy.FindOrAdd(Cue.Id, 0.0);
 		FSourceFlash Flash;
+		Flash.bTile = bTileCue;
 		Flash.RuneType = Cue.Id;
 		Flash.bInward = Cue.Direction == Soulbound::Presentation::EFlashDirection::Inward;
 		Flash.Color = Color;
@@ -2104,6 +2129,18 @@ void ABoardViewActor::RefreshFlashes(const FMatchState& State)
 		SourceFlashes.Add(Flash);
 		SetActorTickEnabled(true);
 	}
+}
+
+bool ABoardViewActor::IsSealMarkFlashing(int32 TileId) const
+{
+	for (const FSourceFlash& Flash : SourceFlashes)
+	{
+		if (Flash.bTile && Flash.RuneType == TileId)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void ABoardViewActor::Tick(float DeltaSeconds)
@@ -2127,8 +2164,25 @@ void ABoardViewActor::Tick(float DeltaSeconds)
 		{
 			continue;
 		}
-		const int32 TileId = State.Board.FindPowerSource(Flash.RuneType);
 		const float Intensity = static_cast<float>(FMath::Sin(UE_DOUBLE_PI * (Now - Flash.Start) / FMath::Max(Flash.End - Flash.Start, static_cast<double>(KINDA_SMALL_NUMBER))));
+		if (Flash.bTile)
+		{
+			// S-037 (R-VIS-25): el destello de un Sello escala el disco de la marca de su casilla (como el de la Fuente con su halo): hacia dentro se cierra al
+			// sellarse y hacia fuera se abre al liberarse. Sellada, el disco conserva su color y lo anima solo el tamaño; liberada, ya no hay marca y el
+			// destello la enciende y la apaga con la subida y bajada de siempre.
+			if (UStaticMeshComponent* Mark = SealMarks.IsValidIndex(Flash.RuneType) ? SealMarks[Flash.RuneType].Get() : nullptr)
+			{
+				const bool bStillSealed = State.Board.IsValidTile(Flash.RuneType) && State.Board.Tiles[Flash.RuneType].bSealed;
+				Soulbound::Presentation::SetComponentColor(*Mark, BaseMaterial,
+					bStillSealed ? Flash.Color : FLinearColor(Flash.Color.R * Intensity, Flash.Color.G * Intensity, Flash.Color.B * Intensity));
+				Mark->SetVisibility(true);
+				const FVector Original = SealMarkBaseScales.FindOrAdd(Flash.RuneType, Mark->GetRelativeScale3D());
+				const float Grown = Soulbound::Presentation::FlashScale(static_cast<float>((Now - Flash.Start) / FMath::Max(Flash.End - Flash.Start, static_cast<double>(KINDA_SMALL_NUMBER))), FlashGrowth, Flash.bInward);
+				Mark->SetRelativeScale3D(FVector(Original.X * Grown, Original.Y * Grown, Original.Z));
+			}
+			continue;
+		}
+		const int32 TileId = State.Board.FindPowerSource(Flash.RuneType);
 		const FLinearColor Color = FMath::Lerp(SourceColor, Flash.Color, Intensity);
 		for (const TArray<TObjectPtr<UStaticMeshComponent>>* Marks : {&Inlays, &InlayHoles})
 		{
@@ -2168,11 +2222,20 @@ void ABoardViewActor::Tick(float DeltaSeconds)
 			}
 		}
 		HaloBaseScales.Reset();
+		for (const TPair<int32, FVector>& Scaled : SealMarkBaseScales)
+		{
+			if (UStaticMeshComponent* Mark = SealMarks.IsValidIndex(Scaled.Key) ? SealMarks[Scaled.Key].Get() : nullptr)
+			{
+				Mark->SetRelativeScale3D(Scaled.Value);
+			}
+		}
+		SealMarkBaseScales.Reset();
 		Refresh();
 	}
 	if (SourceFlashes.IsEmpty())
 	{
 		SourceFlashBusy.Reset();
+		SealFlashBusy.Reset();
 		SetActorTickEnabled(false);
 	}
 }

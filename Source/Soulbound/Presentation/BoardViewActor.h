@@ -199,9 +199,26 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
 	float LabelOffsetFraction = 0.4f;
 
-	/** Alto de la letra del número de la ficha, en cm. Valor inicial 1,4 (40 antes de S-019). */
-	UPROPERTY(EditAnywhere, Category = "Vista|Etiquetas")
-	float TokenLabelSize = 1.4f;
+	/**
+	 * Alto de la letra del número de la ficha, en cm. Valor inicial 2,0 (S-037, R-VIS-23: antes 1,4, que desde la vista sentada no se leía). Valor a ciegas, a
+	 * ajustar en PIE a 1024x768 sin tapar la ficha de al lado.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Etiquetas")
+	float TokenLabelSize = 2.0f;
+
+	/**
+	 * Altura del número sobre lo alto de la ficha, en cm (S-037, R-VIS-23); con la ficha activa sube con ella. Valor inicial 0,6, a ciegas: a ajustar en PIE.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Etiquetas")
+	float TokenLabelHeight = 0.6f;
+
+	/**
+	 * Diámetro del disco de la marca del Sello y de su destello, por el de la casilla (S-037, R-VIS-24): entre el aro de Dominio Olvidado (ForgottenRingScale,
+	 * 1,2) y el halo de alcanzable (HaloScale, 1,35), para que una casilla sellada y alcanzable enseñe los dos bordes, el rojo por dentro y el blanco por fuera.
+	 * Valor inicial 1,28, a ajustar en PIE.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Formas")
+	float SealMarkScale = 1.28f;
 
 	/** Radio del aro del asiento en un Nicho reclamado, por el diámetro de la casilla. Valor inicial 0,7. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
@@ -695,6 +712,13 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	FLinearColor SealedColor = FLinearColor(0.01f, 0.01f, 0.01f);
 
+	/**
+	 * El color del Sello (S-037, R-VIS-24, R-VIS-25): el de su marca bajo la casilla, el de sus destellos y la muestra de la leyenda. Valor inicial rojo (1, 0, 0),
+	 * el rojo con que el panel de estado escribe "Sellos activos" (FColor::Red); no el morado, que es perder una runa (FlashLossColor).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Colores")
+	FLinearColor SealMarkColor = FLinearColor(1.f, 0.f, 0.f);
+
 	/** Aro bajo las casillas de un Dominio Olvidado (además de apagarlas). */
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	FLinearColor ForgottenRingColor = FLinearColor(0.12f, 0.12f, 0.14f);
@@ -809,6 +833,9 @@ private:
 	void RefreshOracleOrb(const FMatchState& State);
 	/** Los halos del aspirante (S-018): bajo el Altar, uno del color de cada asiento aspirante, de dentro afuera por asiento; ocultos si no. */
 	void RefreshAspirantHalos(const FMatchState& State);
+
+	/** Si la casilla tiene un destello de Sello en curso (S-037): su marca se ve aunque el estado ya no la marque. */
+	bool IsSealMarkFlashing(int32 TileId) const;
 	/** La ficha de Seat llegó a TileId en su recorrido (S-020): entrega la intención de avance de su asiento; al acabar, se recoloca. */
 	void OnTokenTileEntered(int32 Seat, int32 TileId, bool bLast);
 	/** Base de una ficha sobre el centro de la casilla (la cara superior de la losa). */
@@ -938,8 +965,14 @@ private:
 		/** Hacia dentro (se cierra: la Fuente que recibe de vuelta una runa) o hacia fuera (se abre), y de qué color (punto 8 de la story). */
 		bool bInward = false;
 		FLinearColor Color = FLinearColor::White;
+		/** S-037 (R-VIS-25): si es el destello de una casilla sellada o liberada, y no de una Fuente; RuneType es entonces el identificador de la casilla. */
+		bool bTile = false;
 	};
 	TArray<FSourceFlash> SourceFlashes;
+	/** Hasta cuándo está ocupada cada casilla con destello de Sello, para encadenar los suyos (S-037). */
+	TMap<int32, double> SealFlashBusy;
+	/** La escala de cada disco de marca antes de crecer con un destello, para devolvérsela al acabar (S-037). */
+	TMap<int32, FVector> SealMarkBaseScales;
 	/** Hasta cuándo está ocupada la Fuente de cada tipo de runa, para encadenar sus destellos. */
 	TMap<int32, double> SourceFlashBusy;
 	/** La escala de cada halo de casilla antes de crecer con un destello de su Fuente, para devolvérsela al acabar (S-029). */
@@ -1114,6 +1147,12 @@ private:
 	/** Disco bajo cada casilla que se enseña si es alcanzable. */
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> Halos;
+
+	/**
+	 * La marca del Sello (S-037, R-VIS-24): un disco plano por casilla, bajo la losa y más ancho, del que solo se ve el borde, con BaseMaterial y SealMarkColor.
+	 * Visible mientras la casilla está sellada (SealMarkedTiles) y durante un destello de Sello (R-VIS-25), que lo escala.
+	 */
+	TArray<TObjectPtr<UStaticMeshComponent>> SealMarks;
 
 	/** Segundo brazo de la cruz de la Fuente (nulo en las demás). */
 	UPROPERTY()

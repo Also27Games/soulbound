@@ -58,6 +58,26 @@ namespace
 	}
 }
 
+// CA-VIS-26 (R-VIS-24): las casillas con marca son exactamente las de SealedTiles; ninguna sin Sellos, y una deja de estar cuando su Sello se libera.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardViewSealMarkTest, "Soulbound.Game.Presentation.Tablero3D.MarcaDelSelloSoloEnLasSelladas", ViewStateTestFlags)
+bool FBoardViewSealMarkTest::RunTest(const FString& Parameters)
+{
+	FMatchState State;
+	if (!MakeState(*this, State))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Sin Sellos, ninguna"), Soulbound::Presentation::SealMarkedTiles(State).Num(), 0);
+	State.Board.SealedTiles = {12, 7};
+	State.Board.Tiles[12].bSealed = true;
+	State.Board.Tiles[7].bSealed = true;
+	TestEqual(TEXT("Con dos Sellos, esas dos"), Soulbound::Presentation::SealMarkedTiles(State), TArray<int32>({12, 7}));
+	State.Board.SealedTiles.Remove(12);
+	State.Board.Tiles[12].bSealed = false;
+	TestEqual(TEXT("Liberado el de la 12, solo la 7"), Soulbound::Presentation::SealMarkedTiles(State), TArray<int32>({7}));
+	return true;
+}
+
 // CA-VIS-5 (R-VIS-5, R-TAB-8): antes del Despertar no se pide ninguna estructura de Nodo; desde el Despertar, la de su efecto.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardViewNodesTest, "Soulbound.Game.Presentation.Tablero3D.NodosSoloDesdeElDespertar", ViewStateTestFlags)
 bool FBoardViewNodesTest::RunTest(const FString& Parameters)

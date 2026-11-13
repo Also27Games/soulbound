@@ -103,3 +103,9 @@ TArray<bool> Soulbound::Presentation::ForgottenDomainsShown(const FMatchState& S
 	}
 	return Shown;
 }
+
+TArray<int32> Soulbound::Presentation::SealMarkedTiles(const FMatchState& State)
+{
+	// R-VIS-24: la vista no decide nada, lee el orden de los Sellos tal como lo guarda el tablero.
+	return State.Board.SealedTiles;
+}
