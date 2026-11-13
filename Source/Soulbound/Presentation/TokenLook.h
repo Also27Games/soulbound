@@ -70,10 +70,12 @@ namespace Soulbound::Presentation
 
 	/**
 	 * Escala del aro del destello y del halo de la Fuente según el avance del destello (S-029, R-VIS-12, corrección del autor del 13/11/2026: el destello
-	 * era demasiado sutil): crece hacia fuera de 1 a 1 + Growth en lo que dura, en línea recta.
+	 * era demasiado sutil; y punto 8, el sentido): hacia fuera (el defecto) crece de 1 a 1 + Growth en lo que dura, en línea recta; hacia dentro hace el camino
+	 * contrario, de 1 + Growth a 1 (se cierra).
 	 * @param Progress Avance del destello, de 0 (empieza) a 1 (acaba); fuera de rango se toma el extremo.
-	 * @param Growth Cuánto crece al final, como fracción del tamaño inicial (FlashGrowth, Config); negativo, 0.
-	 * @return La escala, de 1 a 1 + Growth.
+	 * @param Growth Cuánto crece (o encoge) como fracción del tamaño base (FlashGrowth, Config); negativo, 0.
+	 * @param bInward Si el destello va hacia dentro (se cierra).
+	 * @return La escala, entre 1 y 1 + Growth.
 	 */
-	SOULBOUND_API float FlashScale(float Progress, float Growth);
+	SOULBOUND_API float FlashScale(float Progress, float Growth, bool bInward = false);
 }

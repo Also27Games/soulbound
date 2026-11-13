@@ -2022,7 +2022,7 @@ void ABoardViewActor::RefreshFlashes(const FMatchState& State)
 	const double Now = World->GetTimeSeconds();
 	for (const Soulbound::Presentation::FFlashCue& Cue : Cues)
 	{
-		const FLinearColor Color = Cue.bGain ? FlashGainColor : FlashLossColor;
+		const FLinearColor Color = Soulbound::Presentation::FlashColorOf(Cue, DomainColors, FlashGainColor, FlashLossColor);
 		if (Cue.Target == Soulbound::Presentation::EFlashTarget::Token)
 		{
 			if (TokenActors.IsValidIndex(Cue.Id) && TokenActors[Cue.Id])
@@ -2035,7 +2035,7 @@ void ABoardViewActor::RefreshFlashes(const FMatchState& State)
 		double& Busy = SourceFlashBusy.FindOrAdd(Cue.Id, 0.0);
 		FSourceFlash Flash;
 		Flash.RuneType = Cue.Id;
-		Flash.bGain = Cue.bGain;
+		Flash.bGain = Cue.Direction == Soulbound::Presentation::EFlashDirection::Outward;
 		Flash.Start = FMath::Max(Now + Cue.DelaySeconds, Busy);
 		Flash.End = Flash.Start + Cue.DurationSeconds;
 		Busy = Flash.End;

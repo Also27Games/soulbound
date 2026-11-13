@@ -162,6 +162,11 @@ bool FFlashScaleTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Pasado el final, el extremo"), FlashScale(1.7f, 0.8f), 1.8f, 0.0001f);
 	TestEqual(TEXT("Sin crecimiento, siempre 1"), FlashScale(0.6f, 0.f), 1.f, 0.0001f);
 	TestEqual(TEXT("Un crecimiento negativo no encoge"), FlashScale(1.f, -2.f), 1.f, 0.0001f);
+	// Punto 8: hacia dentro hace el camino contrario, se cierra de 1 + crecimiento a 1.
+	TestEqual(TEXT("Hacia dentro, al empezar: todo el tamaño"), FlashScale(0.f, 0.8f, true), 1.8f, 0.0001f);
+	TestEqual(TEXT("Hacia dentro, a la mitad"), FlashScale(0.5f, 0.8f, true), 1.4f, 0.0001f);
+	TestEqual(TEXT("Hacia dentro, al acabar: el tamaño base"), FlashScale(1.f, 0.8f, true), 1.f, 0.0001f);
+	TestEqual(TEXT("Hacia dentro, fuera de rango: el extremo"), FlashScale(-1.f, 0.8f, true), 1.8f, 0.0001f);
 	return true;
 }
 
