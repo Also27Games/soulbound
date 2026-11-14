@@ -959,6 +959,7 @@ private:
 	/** Un destello de una Fuente, en segundos del mundo (S-029); la ficha lleva los suyos. */
 	struct FSourceFlash
 	{
+		// TODO(R-VIS-25): con bTile, RuneType guarda el identificador de la casilla y no un tipo de runa; un nombre neutro (FlashTargetId) o un campo propio lo aclararía, pero habría que tocar los usos de las Fuentes.
 		int32 RuneType = INDEX_NONE;
 		double Start = 0.0;
 		double End = 0.0;
