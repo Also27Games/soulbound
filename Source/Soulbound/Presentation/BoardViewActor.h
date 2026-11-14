@@ -213,12 +213,12 @@ public:
 	float TokenLabelHeight = 0.6f;
 
 	/**
-	 * Diámetro del disco de la marca del Sello y de su destello, por el de la casilla (S-037, R-VIS-24): entre el aro de Dominio Olvidado (ForgottenRingScale,
-	 * 1,2) y el halo de alcanzable (HaloScale, 1,35), para que una casilla sellada y alcanzable enseñe los dos bordes, el rojo por dentro y el blanco por fuera.
-	 * Valor inicial 1,28, a ajustar en PIE.
+	 * Diámetro del disco de la marca del Sello y de su destello, por el de la casilla (S-037, R-VIS-24): por debajo del halo de alcanzable (HaloScale, 1,35), para que
+	 * una casilla sellada y alcanzable enseñe los dos bordes, el rojo por dentro y el blanco por fuera. Valor inicial 1,20 (el del aro de Dominio Olvidado,
+	 * ForgottenRingScale): con 1,28 el halo apenas asomaba por fuera de la marca en la prueba del 14/11/2026. A ajustar en PIE.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Formas")
-	float SealMarkScale = 1.28f;
+	float SealMarkScale = 1.20f;
 
 	/** Radio del aro del asiento en un Nicho reclamado, por el diámetro de la casilla. Valor inicial 0,7. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
