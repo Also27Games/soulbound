@@ -10,9 +10,9 @@
 UENUM(BlueprintType)
 enum class EHintsMode : uint8
 {
-	/** Valor inicial: una instrucción se enseña solo si el perfil no la tiene, y al enseñarla se guarda. */
+	/** Una instrucción se enseña solo si el perfil no la tiene, y al enseñarla se guarda. */
 	Automatic UMETA(DisplayName = "Automático"),
-	/** Se enseña cada instrucción una vez por partida, sin mirar el perfil. */
+	/** Valor inicial (UPlayerProfile::DefaultHints, S-038): se enseña cada instrucción una vez por partida, sin mirar el perfil. */
 	Always UMETA(DisplayName = "Siempre"),
 	/** No se enseña ninguna. */
 	Never UMETA(DisplayName = "Nunca"),

@@ -25,9 +25,16 @@ public:
 	UPROPERTY()
 	TArray<FString> InstructionsSeen;
 
-	/** El ajuste de ayudas. Valor inicial Automatic. */
+	/**
+	 * El valor inicial de las Ayudas (R-AYU-1, S-038): el de un perfil nuevo, el de una ranura que no existe, el de unos datos ilegibles y el
+	 * que devuelve el subsistema sin perfil cargado. Es el único sitio donde vive.
+	 * TODO(R-AYU-1): llevarlo a Config para equilibrarlo sin recompilar; hoy sigue en el código, como desde S-021.
+	 */
+	static constexpr EHintsMode DefaultHints = EHintsMode::Always;
+
+	/** El ajuste de ayudas. Valor inicial DefaultHints (siempre). */
 	UPROPERTY()
-	EHintsMode Hints = EHintsMode::Automatic;
+	EHintsMode Hints = DefaultHints;
 
 	/** Si ya ha visto la instrucción Moment. */
 	bool HasSeen(EInstructionMoment Moment) const;
@@ -38,7 +45,7 @@ public:
 	/** Guarda el perfil en la ranura Slot. Devuelve si se guardó. */
 	bool SaveToSlot(const FString& Slot) const;
 
-	/** El perfil de la ranura Slot, o uno vacío (Automatic, sin instrucciones) si no existe o no se puede leer. Nunca nulo. */
+	/** El perfil de la ranura Slot, o uno vacío (DefaultHints, sin instrucciones) si no existe o no se puede leer. Nunca nulo. */
 	static UPlayerProfile* LoadFromSlot(const FString& Slot);
 
 	/** El perfil serializado en memoria, y su vuelta: lo mismo que pasa por el disco, sin tocarlo (para los tests). */
