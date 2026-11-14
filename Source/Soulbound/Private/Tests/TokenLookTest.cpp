@@ -149,6 +149,36 @@ bool FRoleDiscTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLabelFacingTest, "Soulbound.Game.Presentation.Ficha.NumeroMiraALaCamara", TokenLookFlags)
+
+bool FLabelFacingTest::RunTest(const FString& Parameters)
+{
+	// CA-VIS-22 (R-VIS-23): la rotación del número sale de la de la cámara. Ejes del texto de UTextRenderComponent: frente +X, arriba +Z, y se lee hacia -Y
+	// (el texto tumbado del tablero, FRotator(90, 180, 0), tiene su derecha en -Y). El frente mira a la cámara y su arriba y su derecha son los de ella.
+	using Soulbound::Presentation::LabelFacingRotation;
+	auto CheckFacing = [this](const TCHAR* What, const FRotator& Camera)
+	{
+		const FQuat Text = LabelFacingRotation(Camera).Quaternion();
+		const FQuat CameraQuat = Camera.Quaternion();
+		TestTrue(FString::Printf(TEXT("%s: el frente mira a la cámara"), What), Text.GetForwardVector().Equals(-CameraQuat.GetForwardVector(), 0.001));
+		TestTrue(FString::Printf(TEXT("%s: su arriba es el de la cámara (no boca abajo)"), What), Text.GetUpVector().Equals(CameraQuat.GetUpVector(), 0.001));
+		TestTrue(FString::Printf(TEXT("%s: su derecha es la de la cámara (no en espejo)"), What), (-Text.GetRightVector()).Equals(CameraQuat.GetRightVector(), 0.001));
+	};
+	const FRotator Down(-90.f, 0.f, 0.f);
+	CheckFacing(TEXT("Cámara recta hacia abajo"), Down);
+	TestTrue(TEXT("Cámara recta hacia abajo: el número mira hacia arriba"), LabelFacingRotation(Down).Quaternion().GetForwardVector().Equals(FVector::UpVector, 0.001));
+	const FRotator Level(0.f, 0.f, 0.f);
+	CheckFacing(TEXT("Cámara horizontal"), Level);
+	TestTrue(TEXT("Cámara horizontal: el número está vertical"), FMath::IsNearlyZero(LabelFacingRotation(Level).Quaternion().GetForwardVector().Z, 0.001));
+	const FRotator Turned(0.f, 180.f, 0.f);
+	CheckFacing(TEXT("Cámara girada media vuelta"), Turned);
+	TestTrue(TEXT("Cámara girada media vuelta: de frente al otro lado"),
+		!LabelFacingRotation(Turned).Quaternion().GetForwardVector().Equals(LabelFacingRotation(Level).Quaternion().GetForwardVector(), 0.001));
+	CheckFacing(TEXT("Cámara sentada"), FRotator(-35.f, 200.f, 0.f));
+	CheckFacing(TEXT("Cámara con alabeo"), FRotator(-20.f, 40.f, 15.f));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FFlashScaleTest, "Soulbound.Game.Presentation.Ficha.CrecimientoDelDestello", TokenLookFlags)
 
 bool FFlashScaleTest::RunTest(const FString& Parameters)

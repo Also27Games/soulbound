@@ -64,6 +64,14 @@ TArray<FFlashCue> Soulbound::Presentation::FlashCuesFromEvents(const FMatchState
 			AddCue(Cues, PerTarget, EFlashTarget::Token, Event.Seat, EFlashDirection::Inward, EFlashColorSource::Rune, Event.Value, FlashSeconds);
 			AddCue(Cues, PerTarget, EFlashTarget::Token, Event.OtherSeat, EFlashDirection::Outward, EFlashColorSource::Loss, Event.Value, FlashSeconds);
 			break;
+		case EMatchEventType::SealPlaced:
+			// S-037 (R-VIS-25): la casilla sellada recibe el Sello (hacia dentro); Value es la casilla.
+			AddCue(Cues, PerTarget, EFlashTarget::Tile, Event.Value, EFlashDirection::Inward, EFlashColorSource::Seal, INDEX_NONE, FlashSeconds);
+			break;
+		case EMatchEventType::SealReleased:
+			// Al liberarse, el inverso: hacia fuera, del mismo color.
+			AddCue(Cues, PerTarget, EFlashTarget::Tile, Event.Value, EFlashDirection::Outward, EFlashColorSource::Seal, INDEX_NONE, FlashSeconds);
+			break;
 		case EMatchEventType::FinalChallengeFailed:
 			AddCue(Cues, PerTarget, EFlashTarget::Token, Event.Seat, EFlashDirection::Outward, EFlashColorSource::Loss, Event.Value, FlashSeconds);
 			break;
@@ -74,11 +82,15 @@ TArray<FFlashCue> Soulbound::Presentation::FlashCuesFromEvents(const FMatchState
 	return Cues;
 }
 
-FLinearColor Soulbound::Presentation::FlashColorOf(const FFlashCue& Cue, const TArray<FLinearColor>& DomainColors, const FLinearColor& ClearColor, const FLinearColor& LossColor)
+FLinearColor Soulbound::Presentation::FlashColorOf(const FFlashCue& Cue, const TArray<FLinearColor>& DomainColors, const FLinearColor& ClearColor, const FLinearColor& LossColor, const FLinearColor& SealColor)
 {
 	if (Cue.ColorSource == EFlashColorSource::Loss)
 	{
 		return LossColor;
+	}
+	if (Cue.ColorSource == EFlashColorSource::Seal)
+	{
+		return SealColor;
 	}
 	// Sin tipo de runa conocido (o sin color), el claro de siempre.
 	return DomainColors.IsValidIndex(Cue.RuneType) ? DomainColors[Cue.RuneType] : ClearColor;

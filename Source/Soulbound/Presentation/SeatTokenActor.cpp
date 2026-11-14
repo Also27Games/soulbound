@@ -7,6 +7,8 @@
 #include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
+#include "Kismet/GameplayStatics.h"
+#include "Camera/PlayerCameraManager.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace
@@ -18,8 +20,6 @@ namespace
 	constexpr float RingZ = 0.06f;
 	/** Grosor del disco de rol, en cm. */
 	constexpr float RoleDiscThickness = 0.1f;
-	/** Holgura del número del asiento sobre lo alto de la ficha, en cm. */
-	constexpr float LabelClearance = 0.15f;
 }
 
 ASeatTokenActor::ASeatTokenActor()
@@ -38,7 +38,8 @@ ASeatTokenActor::ASeatTokenActor()
 	FlashRoot = CreateDefaultSubobject<USceneComponent>(TEXT("FlashRoot"));
 	FlashRoot->SetupAttachment(GetRootComponent());
 	Label = CreateDefaultSubobject<UTextRenderComponent>(TEXT("Label"));
-	Label->SetupAttachment(Pivot); // gira con la ficha: el número girando es lo que se ve desde arriba
+	// S-037 (R-VIS-23): el número cuelga de la raíz y no del pivote: no gira con la ficha; Tick lo orienta a la cámara activa.
+	Label->SetupAttachment(GetRootComponent());
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(Soulbound::Presentation::SpherePath);
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cone(Soulbound::Presentation::ConePath);
@@ -73,15 +74,15 @@ ASeatTokenActor::ASeatTokenActor()
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Mesh->SetCastShadow(false);
 
-	// Número del asiento, plano sobre la ficha y legible desde la cámara cenital (el texto del motor se ve desde +X).
+	// Número del asiento, sobre la ficha, paralelo a la pantalla de la cámara activa (lo orienta Tick con LabelFacingRotation).
 	Label->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Label->SetHorizontalAlignment(EHTA_Center);
 	Label->SetVerticalAlignment(EVRTA_TextCenter);
-	Label->SetRelativeRotation(FRotator(90.f, 180.f, 0.f));
 	Label->SetCastShadow(false);
 }
 
-void ASeatTokenActor::Configure(float InLabelSize, float InLift, float InSpinDegreesPerSecond, float InRingDiameter, float InRingWidth, float InActiveScale, float InTokenDiameter)
+void ASeatTokenActor::Configure(float InLabelSize, float InLift, float InSpinDegreesPerSecond, float InRingDiameter, float InRingWidth, float InActiveScale, float InTokenDiameter,
+	float InLabelHeight)
 {
 	Lift = InLift;
 	ActiveScale = InActiveScale;
@@ -94,7 +95,9 @@ void ASeatTokenActor::Configure(float InLabelSize, float InLift, float InSpinDeg
 	Mesh->SetRelativeScale3D(FVector(TokenDiameter / 100.f));
 	Mesh->SetRelativeLocation(FVector(0.f, 0.f, TokenDiameter * 0.5f));
 	Label->SetWorldSize(InLabelSize);
-	Label->SetRelativeLocation(FVector(0.f, 0.f, TokenDiameter + LabelClearance));
+	LabelTopZ = TokenDiameter;
+	LabelHeight = InLabelHeight;
+	Label->SetRelativeLocation(FVector(0.f, 0.f, LabelTopZ + LabelHeight));
 	BuildRing(RingRoot, RingSegments, RingDiameter, RingWidth, RingZ);
 	// La esfera del clic, algo mayor que la ficha para acertar con el ratón; con la carta, la vuelve a medir UseCard.
 	ClickTarget->SetRelativeScale3D(FVector(TokenDiameter * 1.5f / 100.f));
@@ -140,9 +143,8 @@ UStaticMeshComponent* ASeatTokenActor::UseCard(UStaticMesh* Card)
 	// S-017: la esfera del clic, del alto de la carta.
 	ClickTarget->SetRelativeScale3D(FVector(2.f * FMath::Max(Bounds.BoxExtent.Z, Bounds.BoxExtent.X) / 100.f));
 	ClickTarget->SetRelativeLocation(FVector(0.f, 0.f, Bounds.Origin.Z));
-	Label->SetRelativeLocation(FVector(0.f, 0.f, Bounds.Origin.Z + Bounds.BoxExtent.Z + LabelClearance));
-	// Sobre la carta oscura, el número en blanco.
-	Label->SetTextRenderColor(FColor::White);
+	LabelTopZ = Bounds.Origin.Z + Bounds.BoxExtent.Z;
+	Label->SetRelativeLocation(FVector(0.f, 0.f, LabelTopZ + LabelHeight));
 	PaintRoleDisc();
 	return Mesh;
 }
@@ -269,10 +271,8 @@ void ASeatTokenActor::SetColor(const FLinearColor& Color)
 		// Hasta que la vista diga el rol, la ficha lleva el color del asiento.
 		RoleColor = Color;
 	}
-	if (!bCard)
-	{
-		Label->SetTextRenderColor(FColor::Black);
-	}
+	// S-037 (R-VIS-23): el número lleva el color del asiento, el de su aro del turno y su ficha en la leyenda, con o sin carta.
+	Label->SetTextRenderColor(Color.ToFColor(true));
 	PaintTurnRing(1.f);
 	PaintRoleDisc();
 	Label->SetText(FText::AsNumber(Seat));
@@ -446,6 +446,13 @@ void ASeatTokenActor::Tick(float DeltaSeconds)
 	Pivot->SetRelativeLocation(FVector(0.f, 0.f, CurrentLift));
 	CurrentScale = FMath::FInterpTo(CurrentScale, bActive ? ActiveScale : 1.f, DeltaSeconds, 8.f);
 	Pivot->SetRelativeScale3D(FVector(CurrentScale));
+	// S-037 (R-VIS-23): el número sigue la elevación y el crecimiento de la ficha activa, y se pone paralelo a la pantalla de la cámara activa (sea la sentada o la
+	// cenital: la que esté mostrando el jugador local).
+	Label->SetRelativeLocation(FVector(0.f, 0.f, CurrentLift + LabelTopZ * CurrentScale + LabelHeight));
+	if (const APlayerCameraManager* CameraManager = UGameplayStatics::GetPlayerCameraManager(this, 0))
+	{
+		Label->SetWorldRotation(Soulbound::Presentation::LabelFacingRotation(CameraManager->GetCameraRotation()));
+	}
 	if (IsWalking())
 	{
 		// R-VIS-6 (decisión del autor del 23/10/2026): mientras recorre su camino, la carta mira hacia donde va. Su frente es la

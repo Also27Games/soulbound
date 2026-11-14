@@ -44,6 +44,13 @@ namespace Soulbound::Presentation
 	SOULBOUND_API FBoardViewState ComputeBoardViewState(const FMatchState& State, bool bNicheThroneConfigured);
 
 	/**
+	 * Las casillas que llevan la marca del Sello (S-037, R-VIS-24; nombre propuesto `SealMarkedTiles`): exactamente las de `FBoardState::SealedTiles`.
+	 * @param State Estado de la partida, en solo lectura.
+	 * @return Los identificadores de casilla, de la más antigua a la más nueva; vacío sin Sellos.
+	 */
+	SOULBOUND_API TArray<int32> SealMarkedTiles(const FMatchState& State);
+
+	/**
 	 * Qué Dominios pinta Olvidados la vista (S-023, R-PRO-1, R-WAR-10, nombre propuesto): fuera del prólogo, los del estado; en el
 	 * prólogo, solo aquellos cuya frase de corrupción ya se ha enseñado: el DomainForgotten que va justo antes de cada
 	 * programado:corrupcion del instante cero dice el Dominio. Así todos se ven encendidos durante la bienvenida y cada frase apaga el

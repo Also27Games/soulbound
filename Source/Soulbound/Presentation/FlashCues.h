@@ -11,6 +11,8 @@ namespace Soulbound::Presentation
 	{
 		Token,
 		Source,
+		/** La casilla de un Sello (S-037, R-VIS-25): `Id` es el identificador de la casilla. */
+		Tile,
 	};
 
 	/**
@@ -28,6 +30,8 @@ namespace Soulbound::Presentation
 	{
 		Rune,
 		Loss,
+		/** El color del Sello (S-037, R-VIS-25): ABoardViewActor::SealMarkColor. */
+		Seal,
 	};
 
 	/**
@@ -59,6 +63,7 @@ namespace Soulbound::Presentation
 	 *  - RuneReturned: la ficha hacia fuera con el color de perder, y la Fuente hacia dentro con el color de su runa.
 	 *  - RuneStolen y RunesSeized: el que se queda la runa (Seat), hacia dentro con su color; el que la pierde (OtherSeat), hacia fuera con el de perder. Ninguna
 	 *    Fuente: la runa no pasa por ella.
+	 *  - SealPlaced: la casilla hacia dentro con el color del Sello; SealReleased: la casilla hacia fuera con el mismo (S-037, R-VIS-25).
 	 *  - FinalChallengeFailed: la ficha hacia fuera con el de perder; el RuneReturned que le sigue del mismo asiento y tipo solo aporta la Fuente, para no
 	 *    destellar dos veces la ficha.
 	 * @param State Estado de la partida, en solo lectura.
@@ -75,7 +80,9 @@ namespace Soulbound::Presentation
 	 * @param DomainColors El color de cada Dominio, el de la leyenda.
 	 * @param ClearColor El claro de siempre (ABoardViewActor::FlashGainColor).
 	 * @param LossColor El color de perder (ABoardViewActor::FlashLossColor).
+	 * @param SealColor El color del Sello (ABoardViewActor::SealMarkColor), el de los destellos de casilla (S-037).
 	 * @return El color del destello.
 	 */
-	SOULBOUND_API FLinearColor FlashColorOf(const FFlashCue& Cue, const TArray<FLinearColor>& DomainColors, const FLinearColor& ClearColor, const FLinearColor& LossColor);
+	SOULBOUND_API FLinearColor FlashColorOf(const FFlashCue& Cue, const TArray<FLinearColor>& DomainColors, const FLinearColor& ClearColor, const FLinearColor& LossColor,
+		const FLinearColor& SealColor);
 }

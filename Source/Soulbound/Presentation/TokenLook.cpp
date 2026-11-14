@@ -70,3 +70,10 @@ float Soulbound::Presentation::FlashScale(float Progress, float Growth, bool bIn
 	const float Walked = FMath::Clamp(Progress, 0.f, 1.f);
 	return 1.f + FMath::Max(Growth, 0.f) * (bInward ? 1.f - Walked : Walked);
 }
+
+FRotator Soulbound::Presentation::LabelFacingRotation(const FRotator& CameraRotation)
+{
+	// El texto tiene el frente en +X, el arriba en +Z y se lee hacia -Y. Para que su frente mire a la cámara (-adelante de la cámara) con el mismo arriba y la misma
+	// derecha, es la rotación de la cámara girada media vuelta sobre su eje vertical: adelante y derecha se invierten y el arriba se queda.
+	return (CameraRotation.Quaternion() * FRotator(0.f, 180.f, 0.f).Quaternion()).Rotator();
+}
