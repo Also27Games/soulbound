@@ -2,7 +2,7 @@
 
 Soulbound es un party game de terror social con un anfitrión IA, el Warden. Unreal Engine 5.8, C++ primero. Este repositorio es el Trabajo de Fin de Máster de Lluis Alonso y, a la vez, la Fase 1 del producto. Se evalúan el proceso y la calidad del código tanto como el resultado.
 
-**Stack, con versiones**: Unreal Engine 5.8.3; C++ con el toolchain de Visual Studio 2022 (MSVC 14.4x); .NET SDK 10.0.2xx (runtime 10.0.7, el del motor); Redpoint EOS Online Framework Free Edition para 5.8 y EOS SDK 1.17; Ultra Game Template 1.3 y Ultra Loading Screen 1.2; Rider 2026.1; Git con LFS. Cuando propongas una API o un ajuste, que sea de estas versiones, no de otras.
+**Stack, con versiones**: Unreal Engine 5.8.3; C++ con el toolchain de Visual Studio 2022 (MSVC 14.4x); .NET SDK 10.0.2xx (runtime 10.0.7, el del motor); Redpoint EOS Online Framework Free Edition para 5.8 y EOS SDK 1.19.2.1; Ultra Game Template 1.3 y Ultra Loading Screen 1.2; Rider 2026.1; Git con LFS. Cuando propongas una API o un ajuste, que sea de estas versiones, no de otras.
 
 ## Antes de tocar nada
 
