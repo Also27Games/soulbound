@@ -34,6 +34,6 @@
     "duelPulses": 3,
     "duelDifficulty": "normal",
     "finalChallengePulses": 6,
-    "finalChallengeSweetZone": 0.2
+    "finalChallengeSweetZone": 0.14
   }
 }

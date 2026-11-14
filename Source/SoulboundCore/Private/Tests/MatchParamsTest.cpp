@@ -202,7 +202,7 @@ bool FMatchParamsLoadTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Pulsos: Fuente 2, Prueba 3, escape 3, duelo 3, desafío final 6"), Ring.ForgottenSourcePulses == 2 && Ring.WardenTrialPulses == 3
 		&& Ring.VoidEscapePulses == 3 && Ring.DuelPulses == 3 && Ring.FinalChallengePulses == 6);
 	TestTrue(TEXT("Duelo en normal"), Ring.DuelDifficulty == ESkillDifficulty::Normal);
-	TestEqual(TEXT("Zona propia del desafío final: 0,20"), Ring.FinalChallengeSweetZone, 0.2);
+		TestEqual(TEXT("Zona propia del desafío final: 0,14 (0,20 hasta el 14/11/2026)"), Ring.FinalChallengeSweetZone, 0.14);
 
 	// Los valores salen del texto, no del código: con otros valores en el JSON, otros parámetros.
 	const FMatchParamsLoadResult Other = Soulbound::Rules::LoadMatchParamsFromJsonString(
