@@ -3,6 +3,8 @@
 // Filtro: "Soulbound.Game.Perfil".
 
 #include "../../Profile/PlayerProfile.h"
+#include "../../Profile/PlayerProfileSubsystem.h"
+#include "Engine/GameInstance.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/AutomationTest.h"
 #include "UObject/StrongObjectPtr.h"
@@ -21,9 +23,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPlayerProfileDefaultsTest, "Soulbound.Game.Per
 
 bool FPlayerProfileDefaultsTest::RunTest(const FString& Parameters)
 {
-	// CA-INS-2: el perfil nuevo está vacío y en automático; HasSeen y ForgetInstructions leen y vacían la lista sin tocar el ajuste.
+	// CA-INS-2 y CA-AYU-2 (R-AYU-1): el perfil nuevo está vacío y en siempre; HasSeen y ForgetInstructions leen y vacían la lista sin tocar el ajuste.
 	TStrongObjectPtr<UPlayerProfile> Profile(NewObject<UPlayerProfile>(GetTransientPackage()));
-	TestEqual(TEXT("Ajuste inicial automático"), static_cast<int32>(Profile->Hints), static_cast<int32>(EHintsMode::Automatic));
+	TestEqual(TEXT("Ajuste inicial siempre"), static_cast<int32>(Profile->Hints), static_cast<int32>(EHintsMode::Always));
 	TestEqual(TEXT("Sin instrucciones vistas"), Profile->InstructionsSeen.Num(), 0);
 	TestFalse(TEXT("No ha visto tirar"), Profile->HasSeen(EInstructionMoment::Roll));
 
@@ -69,7 +71,59 @@ bool FPlayerProfileRoundTripTest::RunTest(const FString& Parameters)
 	if (Missing.IsValid())
 	{
 		TestEqual(TEXT("Vacío"), Missing->InstructionsSeen.Num(), 0);
-		TestEqual(TEXT("Y automático"), static_cast<int32>(Missing->Hints), static_cast<int32>(EHintsMode::Automatic));
+		TestEqual(TEXT("Y siempre"), static_cast<int32>(Missing->Hints), static_cast<int32>(EHintsMode::Always));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPlayerProfileUnreadableTest, "Soulbound.Game.Perfil.DatosIlegibles", ProfileTestFlags)
+
+bool FPlayerProfileUnreadableTest::RunTest(const FString& Parameters)
+{
+	// CA-AYU-2 (R-AYU-1): unos datos que no se pueden leer dan un perfil nuevo: en siempre y con la lista vacía, nunca nulo.
+	// Un archivo vacío (lo que deja una escritura cortada). Bytes arbitrarios no sirven: el motor lee un FName inválido y aborta el comandlet.
+	TStrongObjectPtr<UPlayerProfile> Profile(UPlayerProfile::FromBytes(TArray<uint8>()));
+	TestNotNull(TEXT("Con datos ilegibles, un perfil nuevo"), Profile.Get());
+	if (Profile.IsValid())
+	{
+		TestEqual(TEXT("En siempre"), static_cast<int32>(Profile->Hints), static_cast<int32>(EHintsMode::Always));
+		TestEqual(TEXT("Y sin instrucciones"), Profile->InstructionsSeen.Num(), 0);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPlayerProfileSubsystemDefaultTest, "Soulbound.Game.Perfil.SubsistemaSinPerfil", ProfileTestFlags)
+
+bool FPlayerProfileSubsystemDefaultTest::RunTest(const FString& Parameters)
+{
+	// CA-AYU-2 (R-AYU-1): sin perfil cargado (el subsistema sin Initialize), GetHints da el mismo valor inicial que el perfil nuevo: siempre.
+	// UGameInstanceSubsystem es Within = GameInstance: cuelga de un UGameInstance transitorio, sin mundo.
+	TStrongObjectPtr<UGameInstance> GameInstance(NewObject<UGameInstance>(GetTransientPackage()));
+	TStrongObjectPtr<UPlayerProfileSubsystem> Subsystem(NewObject<UPlayerProfileSubsystem>(GameInstance.Get()));
+	TestEqual(TEXT("Sin perfil, siempre"), static_cast<int32>(Subsystem->GetHints()), static_cast<int32>(EHintsMode::Always));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FPlayerProfileKeepsSettingTest, "Soulbound.Game.Perfil.ConservaElAjuste", ProfileTestFlags)
+
+bool FPlayerProfileKeepsSettingTest::RunTest(const FString& Parameters)
+{
+	// CA-AYU-3 (R-AYU-1): un perfil en automático, guardado y vuelto a cargar, sigue en automático (y lo mismo con nunca), en memoria y por disco.
+	// Es una guarda: automático ya volvía como automático antes de S-038; tras el cambio de valor inicial pasa a ser lo que se escribe en el archivo.
+	for (const EHintsMode Mode : {EHintsMode::Automatic, EHintsMode::Never})
+	{
+		const FString Name = Mode == EHintsMode::Automatic ? TEXT("automático") : TEXT("nunca");
+		TStrongObjectPtr<UPlayerProfile> Profile(NewObject<UPlayerProfile>(GetTransientPackage()));
+		Profile->Hints = Mode;
+
+		TStrongObjectPtr<UPlayerProfile> FromMemory(UPlayerProfile::FromBytes(Profile->ToBytes()));
+		TestEqual(FString::Printf(TEXT("En memoria, %s"), *Name), static_cast<int32>(FromMemory->Hints), static_cast<int32>(Mode));
+
+		UGameplayStatics::DeleteGameInSlot(ProfileTestSlot, 0);
+		TestTrue(TEXT("Guarda en la ranura de prueba"), Profile->SaveToSlot(ProfileTestSlot));
+		TStrongObjectPtr<UPlayerProfile> FromDisk(UPlayerProfile::LoadFromSlot(ProfileTestSlot));
+		TestEqual(FString::Printf(TEXT("En disco, %s"), *Name), static_cast<int32>(FromDisk->Hints), static_cast<int32>(Mode));
+		UGameplayStatics::DeleteGameInSlot(ProfileTestSlot, 0);
 	}
 	return true;
 }

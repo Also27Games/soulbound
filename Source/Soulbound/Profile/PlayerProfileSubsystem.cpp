@@ -10,7 +10,7 @@ void UPlayerProfileSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 EHintsMode UPlayerProfileSubsystem::GetHints() const
 {
-	return Profile ? Profile->Hints : EHintsMode::Automatic;
+	return Profile ? Profile->Hints : UPlayerProfile::DefaultHints;
 }
 
 void UPlayerProfileSubsystem::SetHints(EHintsMode Mode)
