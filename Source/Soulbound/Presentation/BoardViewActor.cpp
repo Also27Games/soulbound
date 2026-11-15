@@ -976,7 +976,7 @@ void ABoardViewActor::BuildOverlay()
 	Rows.Add({TEXT("Nichos"),
 		{{NicheFreeColor, TEXT("Libre")}, {SeatColor(0), TEXT("Reclamado: aro y número de su dueño")}, {NicheClosedColor, TEXT("Cerrado")}}});
 	Rows.Add({TEXT("Tablero"),
-		{{ReachableColor, TEXT("Halo blanco: puedes ir ahí")},
+		{{ReachableColor, TEXT("Halo blanco que late: puedes ir ahí")},
 			{SealMarkColor, bKit ? TEXT("Aro rojo y cadenas: sellada, no se pasa") : TEXT("Aro rojo y SELLO: sellada, no se pasa")},
 			{ForgottenRingColor, TEXT("Casillas apagadas: Dominio Olvidado")}}});
 	// Una fila por asiento, con su rol al día: Eco o Elegido, y el Dominio que lleva.
@@ -1249,6 +1249,13 @@ void ABoardViewActor::BuildOverlay()
 					SAssignNew(DecisionPanel, SDecisionPanel)
 					.FontSize(PanelFont)
 					.LargeScale(StatusLargeFontScale)
+					// S-039 (R-DEC-15, R-DEC-16): la cara del dado (con imagen si existe, si no dibujada por código) y la línea del aviso, en el color de la
+					// línea del Warden.
+					.DiceBrush([this]() -> const FSlateBrush* { return DiceTexture ? &DiceBrush : nullptr; })
+					.DiceFaceSize_Lambda([this]() { return DiceFaceSize; })
+					.DiceColor_Lambda([this]() { return DiceFaceColor; })
+					.DicePipColor_Lambda([this]() { return DiceFacePipColor; })
+					.NoticeColor_Lambda([this]() { return WardenLineColor; })
 					.TimeFraction_Lambda([this]() { return DecisionTimeFractionNow(); })
 					// Lo más ancho que puede ser el panel: el hueco del tablero (la capa deja 16 a la izquierda y la columna más 16 a la derecha), con el
 					// tope de la caja. Con él decide si sus botones caben en fila (corrección del autor del 11/11/2026).
@@ -1351,6 +1358,27 @@ void ABoardViewActor::BuildOverlay()
 		else
 		{
 			UE_LOG(LogSoulboundView, Warning, TEXT("Anillo: no existe la textura de la runa %s; se pinta un disco relleno."), *RingRuneTexture.ToString());
+		}
+	}
+	// S-039 (R-DEC-15): la imagen de las caras del dado se carga aquí, una vez, como la runa. Sin imagen, el panel de decisión dibuja la cara por código.
+	DiceTexture = nullptr;
+	DiceBrush = FSlateBrush();
+	if (DiceFacesTexture.IsNull())
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Dado: DiceFacesTexture está vacío; la cara del dado se dibuja por código."));
+	}
+	else
+	{
+		DiceTexture = Cast<UTexture2D>(DiceFacesTexture.TryLoad());
+		if (DiceTexture)
+		{
+			DiceBrush.SetResourceObject(DiceTexture);
+			DiceBrush.ImageSize = FVector2f(DiceTexture->GetSizeX(), DiceTexture->GetSizeY());
+			DiceBrush.DrawAs = ESlateBrushDrawType::Image;
+		}
+		else
+		{
+			UE_LOG(LogSoulboundView, Warning, TEXT("Dado: no existe la textura de las caras %s; la cara del dado se dibuja por código."), *DiceFacesTexture.ToString());
 		}
 	}
 	RingOverlay = SNew(SBox)
@@ -1462,6 +1490,13 @@ void ABoardViewActor::Refresh()
 	else if (State.PendingChoice.Kind == EChoiceKind::PlanarJump)
 	{
 		Reachable.Append(State.PendingChoice.Options);
+	}
+
+	// S-039 (R-VIS-26): mientras hay halos a la vista el actor tica para que latan; Tick lo apaga cuando ya no hay halos ni destellos.
+	bReachableHalosShown = !Reachable.IsEmpty();
+	if (bReachableHalosShown)
+	{
+		SetActorTickEnabled(true);
 	}
 
 	// S-023 (R-PRO-1): en el prólogo, un Dominio Olvidado se ve en juego hasta que se enseña su frase de corrupción; después, lo del estado.
@@ -2158,11 +2193,17 @@ void ABoardViewActor::Tick(float DeltaSeconds)
 	const FMatchState& State = HostPtr->GetState();
 	const int32 Before = SourceFlashes.Num();
 	SourceFlashes.RemoveAll([Now](const FSourceFlash& Flash) { return Flash.End <= Now; });
+	// S-039 (R-VIS-26): las casillas cuyo halo está en un destello de Fuente en este instante; ahí manda el destello y el latido no pinta.
+	TSet<int32> FlashedHalos;
 	for (const FSourceFlash& Flash : SourceFlashes)
 	{
 		if (Flash.Start > Now)
 		{
 			continue;
+		}
+		if (!Flash.bTile)
+		{
+			FlashedHalos.Add(State.Board.FindPowerSource(Flash.RuneType));
 		}
 		const float Intensity = static_cast<float>(FMath::Sin(UE_DOUBLE_PI * (Now - Flash.Start) / FMath::Max(Flash.End - Flash.Start, static_cast<double>(KINDA_SMALL_NUMBER))));
 		if (Flash.bTile)
@@ -2232,11 +2273,27 @@ void ABoardViewActor::Tick(float DeltaSeconds)
 		SealMarkBaseScales.Reset();
 		Refresh();
 	}
+	// S-039 (R-VIS-26): el latido de los halos de casilla alcanzable. El color es ReachableColor por el pulso del aro del turno (ReachableHaloColor); el
+	// halo no cambia de tamaño ni de sitio. Solo los halos visibles, y no los que está pintando un destello.
+	if (bReachableHalosShown)
+	{
+		const FLinearColor Pulse = Soulbound::Presentation::ReachableHaloColor(ReachableColor, Now, ReachablePulseSeconds, ReachablePulseMin);
+		for (int32 TileId = 0; TileId < Halos.Num(); ++TileId)
+		{
+			if (UStaticMeshComponent* Halo = Halos[TileId].Get(); Halo && Halo->IsVisible() && !FlashedHalos.Contains(TileId))
+			{
+				Soulbound::Presentation::SetComponentColor(*Halo, BaseMaterial, Pulse);
+			}
+		}
+	}
 	if (SourceFlashes.IsEmpty())
 	{
 		SourceFlashBusy.Reset();
 		SealFlashBusy.Reset();
-		SetActorTickEnabled(false);
+		if (!bReachableHalosShown)
+		{
+			SetActorTickEnabled(false);
+		}
 	}
 }
 
@@ -2336,8 +2393,32 @@ void ABoardViewActor::TickHud()
 	// S-028 (R-DEC-1 a R-DEC-3): la decisión del humano, en su panel, con el reloj de la barra; con el panel a la vista, el de estado no repite
 	// la petición. S-033 (R-DEC-6): el mismo panel enseña, si el humano no tiene nada que decidir, el resultado de una votación reciente o a quién
 	// espera la mesa; el panel de estado solo deja de repetir la petición cuando lo que se ve es una decisión propia.
-	const TOptional<Soulbound::Presentation::FDecisionView> Panel = PanelViewNow();
+	TOptional<Soulbound::Presentation::FDecisionView> Panel = PanelViewNow();
 	Soulbound::Presentation::AdvanceDecisionClock(DecisionClock, Panel);
+	// S-039 (R-DEC-16): el aviso de casilla inalcanzable. Un rechazo nuevo del anfitrión (otro número de orden, aunque el motivo y la tirada se repitan) lo
+	// enseña o lo sustituye; se quita solo al pasar sus segundos, o ya si el turno de tirada deja de ser del humano (destino aceptado, turno cortado o
+	// terminado). Va en la vista sin cambiar su identidad: la barra del plazo no se reinicia. La primera vez solo se pone al día el número.
+	{
+		const UMatchHostSubsystem::FHumanRejection& Rejection = HostPtr->GetLastHumanRejection();
+		const double RealNow = FPlatformTime::Seconds();
+		if (SeenRejectionSerial == INDEX_NONE)
+		{
+			SeenRejectionSerial = Rejection.Serial;
+		}
+		else if (Rejection.Serial != SeenRejectionSerial)
+		{
+			SeenRejectionSerial = Rejection.Serial;
+			UnreachableNotice.Show(Soulbound::Presentation::UnreachableNoticeText(Rejection.Reason, Rejection.Roll), RealNow);
+		}
+		if (!Panel.IsSet() || !Panel->bReservesNotice)
+		{
+			UnreachableNotice.Dismiss();
+		}
+		else
+		{
+			Soulbound::Presentation::SetNotice(*Panel, UnreachableNotice.Current(RealNow, UnreachableNoticeSeconds));
+		}
+	}
 	DecisionDeadlineSeconds = Panel.IsSet() ? Panel->DeadlineSeconds : 0.0;
 	const bool bRingOpen = HostPtr->GetRingRun() != nullptr;
 	bDecisionShown = Soulbound::Presentation::IsDecisionPanelShown(Panel, bRingOpen);

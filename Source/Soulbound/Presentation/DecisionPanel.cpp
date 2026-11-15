@@ -1,11 +1,15 @@
 #include "DecisionPanel.h"
 
+#include "DiceFace.h"
 #include "Styling/CoreStyle.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/Notifications/SProgressBar.h"
+#include "Widgets/SCanvas.h"
+#include "Widgets/SOverlay.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -30,6 +34,11 @@ void SDecisionPanel::Construct(const FArguments& InArgs)
 	TimeFraction = InArgs._TimeFraction;
 	MaxWidth = InArgs._MaxWidth;
 	OnOption = InArgs._OnOption;
+	DiceBrush = InArgs._DiceBrush;
+	DiceFaceSize = InArgs._DiceFaceSize;
+	DiceColor = InArgs._DiceColor;
+	DicePipColor = InArgs._DicePipColor;
+	NoticeColor = InArgs._NoticeColor;
 
 	ChildSlot
 	[
@@ -103,7 +112,8 @@ bool SDecisionPanel::SameLook(const TOptional<Soulbound::Presentation::FDecision
 		return false;
 	}
 	return !A.IsSet() || (A->Input == B->Input && A->Title == B->Title && A->Context == B->Context && A->Instruction == B->Instruction
-		&& A->Options == B->Options && A->bBlocked == B->bBlocked && A->Lines == B->Lines && A->bHasDeadline == B->bHasDeadline);
+		&& A->Options == B->Options && A->bBlocked == B->bBlocked && A->Lines == B->Lines && A->bHasDeadline == B->bHasDeadline
+			&& A->DiceValues == B->DiceValues && A->bReservesNotice == B->bReservesNotice);
 }
 
 void SDecisionPanel::Rebuild()
@@ -156,6 +166,61 @@ void SDecisionPanel::Rebuild()
 			.WrapTextAt_Lambda(Wrap)
 		];
 	}
+	// S-039 (R-DEC-15): la cara de cada dado tirado, en el orden del estado, bajo el contexto ("Has sacado"). Con la imagen de caras, el trozo de cada
+	// valor; sin ella, un cuadrado con sus puntos, dibujado aquí.
+	FaceBrushes.Reset();
+	if (!Shown.DiceValues.IsEmpty())
+	{
+		const float Side = FMath::Max(DiceFaceSize.Get(8.f), 8.f);
+		const FSlateBrush* Atlas = DiceBrush ? DiceBrush() : nullptr;
+		TSharedRef<SHorizontalBox> Faces = SNew(SHorizontalBox);
+		for (const int32 Value : Shown.DiceValues)
+		{
+			TSharedRef<SWidget> Face = SNullWidget::NullWidget;
+			if (Atlas)
+			{
+				TSharedRef<FSlateBrush> Piece = MakeShared<FSlateBrush>(*Atlas);
+				Piece->SetUVRegion(Soulbound::Presentation::DiceFaceUV(Value));
+				Piece->ImageSize = FVector2f(Side, Side);
+				FaceBrushes.Add(Piece);
+				Face = SNew(SBox).WidthOverride(Side).HeightOverride(Side)[SNew(SImage).Image(&Piece.Get())];
+			}
+			else
+			{
+				const float PipSide = Side * 0.2f;
+				TSharedRef<SCanvas> Pips = SNew(SCanvas);
+				for (const FVector2f& Pip : Soulbound::Presentation::DiceFacePips(Value))
+				{
+					Pips->AddSlot()
+						.Position(FVector2D(Pip.X * Side - PipSide * 0.5f, Pip.Y * Side - PipSide * 0.5f))
+						.Size(FVector2D(PipSide, PipSide))
+						[
+							SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(DicePipColor.Get(FLinearColor(0.08f, 0.08f, 0.1f)))
+						];
+				}
+				Face = SNew(SBox).WidthOverride(Side).HeightOverride(Side)
+				[
+					SNew(SOverlay)
+					+ SOverlay::Slot()
+					[
+						SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(DiceColor.Get(FLinearColor(0.92f, 0.92f, 0.88f)))
+					]
+					+ SOverlay::Slot()
+					[
+						Pips
+					]
+				];
+			}
+			Faces->AddSlot().AutoWidth().Padding(0.f, 0.f, 8.f, 0.f)
+			[
+				Face
+			];
+		}
+		Content->AddSlot().AutoHeight().HAlign(HAlign_Left).Padding(0.f, 3.f)
+		[
+			Faces
+		];
+	}
 	if (!Shown.Instruction.IsEmpty())
 	{
 		Content->AddSlot().AutoHeight().Padding(0.f, 1.f)
@@ -164,6 +229,21 @@ void SDecisionPanel::Rebuild()
 			.Text(FText::FromString(Shown.Instruction))
 			.Font(Font("Regular", 1.f))
 			.ColorAndOpacity(FLinearColor::White)
+			.WrapTextAt_Lambda(Wrap)
+		];
+	}
+	// S-039 (R-DEC-16): la línea del aviso de casilla inalcanzable, con el color de la línea del Warden. Su sitio va reservado siempre en la decisión de
+	// casilla (oculta, con un espacio, ocupa su alto): al salir o quitarse el aviso, ni los dados ni la instrucción ni la barra se mueven. Lee el texto de
+	// la vista en cada pintado, así que cambiar el aviso no rehace el panel.
+	if (Shown.bReservesNotice)
+	{
+		Content->AddSlot().AutoHeight().Padding(0.f, 1.f)
+		[
+			SNew(STextBlock)
+			.Text_Lambda([this]() { return FText::FromString(View.IsSet() && !View->Notice.IsEmpty() ? View->Notice : FString(TEXT(" "))); })
+			.Visibility_Lambda([this]() { return View.IsSet() && !View->Notice.IsEmpty() ? EVisibility::HitTestInvisible : EVisibility::Hidden; })
+			.Font(Font("Bold", 1.f))
+			.ColorAndOpacity_Lambda([this]() { return NoticeColor.Get(FLinearColor(1.f, 0.45f, 0.05f)); })
 			.WrapTextAt_Lambda(Wrap)
 		];
 	}

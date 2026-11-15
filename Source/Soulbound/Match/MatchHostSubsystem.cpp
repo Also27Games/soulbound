@@ -836,7 +836,19 @@ EIntentResult UMatchHostSubsystem::SubmitHumanIntent(int32 TileId)
 	const double Now = MatchSeconds();
 	State.ClockSeconds = Now;
 	const EIntentResult Result = Soulbound::Rules::SubmitDestinationIntent(State, HumanSeat, TileId, Now);
-	RecordHuman(FString::Printf(TEXT("%s -> %s"), *What, *Soulbound::Presentation::IntentResultText(Result)));
+	if (Result == EIntentResult::Unreachable)
+	{
+		// S-039 (R-DEC-16, R-ACT-8): el motivo, que la vista enseña y el acta escribe; el motor lo calcula sin cambiar el estado.
+		++LastHumanRejection.Serial;
+		LastHumanRejection.Reason = Soulbound::Rules::UnreachableReason(State, HumanSeat, TileId);
+		LastHumanRejection.Roll = State.Roll;
+		RecordHuman(FString::Printf(TEXT("%s -> %s (%s)"), *What, *Soulbound::Presentation::IntentResultText(Result),
+			*Soulbound::Presentation::UnreachableReasonText(LastHumanRejection.Reason)));
+	}
+	else
+	{
+		RecordHuman(FString::Printf(TEXT("%s -> %s"), *What, *Soulbound::Presentation::IntentResultText(Result)));
+	}
 	if (Result == EIntentResult::Accepted)
 	{
 		OnMatchStateChanged.Broadcast();

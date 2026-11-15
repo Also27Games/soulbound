@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "DecisionText.h"
+#include "Styling/SlateBrush.h"
 #include "Widgets/SCompoundWidget.h"
 
 class SVerticalBox;
@@ -35,6 +36,18 @@ public:
 		SLATE_ATTRIBUTE(float, MaxWidth)
 		/** Se pulsó el botón de una opción. */
 		SLATE_EVENT(FOnDecisionOption, OnOption)
+		/**
+		 * El pincel de la imagen de las caras del dado (S-039, R-DEC-15), pedido al montar la decisión: la imagen lleva las seis caras en una fila y el
+		 * panel pinta el trozo de cada valor (DiceFaceUV). nullptr (o sin función) dibuja la cara por código.
+		 */
+		SLATE_ARGUMENT(TFunction<const FSlateBrush*()>, DiceBrush)
+		/** Lado de la cara del dado, en unidades de Slate (ABoardViewActor::DiceFaceSize). */
+		SLATE_ATTRIBUTE(float, DiceFaceSize)
+		/** Color del cuadrado del dado dibujado por código y el de sus puntos (DiceFaceColor, DiceFacePipColor). */
+		SLATE_ATTRIBUTE(FLinearColor, DiceColor)
+		SLATE_ATTRIBUTE(FLinearColor, DicePipColor)
+		/** Color de la línea del aviso de casilla inalcanzable (S-039, R-DEC-16): el de la línea del Warden. */
+		SLATE_ATTRIBUTE(FLinearColor, NoticeColor)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -66,6 +79,13 @@ private:
 	TSharedPtr<SUniformGridPanel> ButtonGrid;
 	bool bButtonsInRow = true;
 	FOnDecisionOption OnOption;
+	TFunction<const FSlateBrush*()> DiceBrush;
+	TAttribute<float> DiceFaceSize;
+	TAttribute<FLinearColor> DiceColor;
+	TAttribute<FLinearColor> DicePipColor;
+	TAttribute<FLinearColor> NoticeColor;
+	/** Los pinceles de las caras de la decisión que se enseña, uno por dado: cada uno la copia del pincel de la imagen con el trozo de su valor. */
+	TArray<TSharedPtr<FSlateBrush>> FaceBrushes;
 	TSharedPtr<SVerticalBox> Content;
 	TOptional<Soulbound::Presentation::FDecisionView> View;
 };
