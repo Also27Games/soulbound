@@ -1,5 +1,6 @@
 #include "DecisionPanel.h"
 
+#include "Brushes/SlateRoundedBoxBrush.h"
 #include "DiceFace.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/Images/SImage.h"
@@ -38,7 +39,6 @@ void SDecisionPanel::Construct(const FArguments& InArgs)
 	DiceFaceSize = InArgs._DiceFaceSize;
 	DiceColor = InArgs._DiceColor;
 	DicePipColor = InArgs._DicePipColor;
-	NoticeColor = InArgs._NoticeColor;
 
 	ChildSlot
 	[
@@ -113,7 +113,7 @@ bool SDecisionPanel::SameLook(const TOptional<Soulbound::Presentation::FDecision
 	}
 	return !A.IsSet() || (A->Input == B->Input && A->Title == B->Title && A->Context == B->Context && A->Instruction == B->Instruction
 		&& A->Options == B->Options && A->bBlocked == B->bBlocked && A->Lines == B->Lines && A->bHasDeadline == B->bHasDeadline
-			&& A->DiceValues == B->DiceValues && A->bReservesNotice == B->bReservesNotice);
+			&& A->DiceValues == B->DiceValues);
 }
 
 void SDecisionPanel::Rebuild()
@@ -187,7 +187,13 @@ void SDecisionPanel::Rebuild()
 			}
 			else
 			{
-				const float PipSide = Side * 0.2f;
+				// Corrección del autor del 15/11/2026: los puntos, redondos, más pequeños y más separados, y la cara con las esquinas redondeadas. Todo por
+				// proporciones del lado (DiceFace.h), no números sueltos.
+				const float PipSide = Side * Soulbound::Presentation::DicePipDiameterRatio;
+				TSharedRef<FSlateBrush> PipBrush = MakeShared<FSlateRoundedBoxBrush>(FLinearColor::White, PipSide * 0.5f);
+				TSharedRef<FSlateBrush> FaceBrush = MakeShared<FSlateRoundedBoxBrush>(FLinearColor::White, Side * Soulbound::Presentation::DiceFaceCornerRatio);
+				FaceBrushes.Add(PipBrush);
+				FaceBrushes.Add(FaceBrush);
 				TSharedRef<SCanvas> Pips = SNew(SCanvas);
 				for (const FVector2f& Pip : Soulbound::Presentation::DiceFacePips(Value))
 				{
@@ -195,7 +201,7 @@ void SDecisionPanel::Rebuild()
 						.Position(FVector2D(Pip.X * Side - PipSide * 0.5f, Pip.Y * Side - PipSide * 0.5f))
 						.Size(FVector2D(PipSide, PipSide))
 						[
-							SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(DicePipColor.Get(FLinearColor(0.08f, 0.08f, 0.1f)))
+							SNew(SImage).Image(&PipBrush.Get()).ColorAndOpacity(FSlateColor(DicePipColor.Get(FLinearColor(0.08f, 0.08f, 0.1f))))
 						];
 				}
 				Face = SNew(SBox).WidthOverride(Side).HeightOverride(Side)
@@ -203,7 +209,7 @@ void SDecisionPanel::Rebuild()
 					SNew(SOverlay)
 					+ SOverlay::Slot()
 					[
-						SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush")).BorderBackgroundColor(DiceColor.Get(FLinearColor(0.92f, 0.92f, 0.88f)))
+						SNew(SImage).Image(&FaceBrush.Get()).ColorAndOpacity(FSlateColor(DiceColor.Get(FLinearColor(0.92f, 0.92f, 0.88f))))
 					]
 					+ SOverlay::Slot()
 					[
@@ -229,21 +235,6 @@ void SDecisionPanel::Rebuild()
 			.Text(FText::FromString(Shown.Instruction))
 			.Font(Font("Regular", 1.f))
 			.ColorAndOpacity(FLinearColor::White)
-			.WrapTextAt_Lambda(Wrap)
-		];
-	}
-	// S-039 (R-DEC-16): la línea del aviso de casilla inalcanzable, con el color de la línea del Warden. Su sitio va reservado siempre en la decisión de
-	// casilla (oculta, con un espacio, ocupa su alto): al salir o quitarse el aviso, ni los dados ni la instrucción ni la barra se mueven. Lee el texto de
-	// la vista en cada pintado, así que cambiar el aviso no rehace el panel.
-	if (Shown.bReservesNotice)
-	{
-		Content->AddSlot().AutoHeight().Padding(0.f, 1.f)
-		[
-			SNew(STextBlock)
-			.Text_Lambda([this]() { return FText::FromString(View.IsSet() && !View->Notice.IsEmpty() ? View->Notice : FString(TEXT(" "))); })
-			.Visibility_Lambda([this]() { return View.IsSet() && !View->Notice.IsEmpty() ? EVisibility::HitTestInvisible : EVisibility::Hidden; })
-			.Font(Font("Bold", 1.f))
-			.ColorAndOpacity_Lambda([this]() { return NoticeColor.Get(FLinearColor(1.f, 0.45f, 0.05f)); })
 			.WrapTextAt_Lambda(Wrap)
 		];
 	}

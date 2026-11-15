@@ -116,6 +116,11 @@ public:
 		EUnreachableReason Reason = EUnreachableReason::Roll;
 		/** La tirada del turno (la suma de los dados) cuando se rechazó. */
 		int32 Roll = 0;
+		/**
+		 * Dónde estaba el cursor al hacer clic, en coordenadas absolutas de Slate, leído en la misma llamada que el clic (no en el siguiente refresco del
+		 * HUD, que ya podría ser otro punto). La vista lo pasa a coordenadas de su capa. Cero si no hay Slate o no hay cursor.
+		 */
+		FVector2f ScreenPosition = FVector2f::ZeroVector;
 	};
 
 	/** El último rechazo por inalcanzable del humano (FHumanRejection). */

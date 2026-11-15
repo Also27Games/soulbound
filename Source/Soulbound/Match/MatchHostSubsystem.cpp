@@ -3,6 +3,7 @@
 #include "../Presentation/BoardViewActor.h"
 #include "../Presentation/EventText.h"
 #include "../Presentation/MatchRecord.h"
+#include "Framework/Application/SlateApplication.h"
 #include "../Presentation/WardenLineQueue.h"
 #include "../Spike/SpikeOnlineGameMode.h"
 #include "Board/BoardLoader.h"
@@ -842,6 +843,9 @@ EIntentResult UMatchHostSubsystem::SubmitHumanIntent(int32 TileId)
 		++LastHumanRejection.Serial;
 		LastHumanRejection.Reason = Soulbound::Rules::UnreachableReason(State, HumanSeat, TileId);
 		LastHumanRejection.Roll = State.Roll;
+		// El punto del clic se lee ahora, en la misma llamada que el clic: el controlador llama a SubmitHumanIntent al recibirlo, con el cursor donde se
+		// hizo. Leerlo luego, en el refresco del HUD, daría el punto de ese momento.
+		LastHumanRejection.ScreenPosition = FSlateApplication::IsInitialized() ? FVector2f(FSlateApplication::Get().GetCursorPos()) : FVector2f::ZeroVector;
 		RecordHuman(FString::Printf(TEXT("%s -> %s (%s)"), *What, *Soulbound::Presentation::IntentResultText(Result),
 			*Soulbound::Presentation::UnreachableReasonText(LastHumanRejection.Reason)));
 	}

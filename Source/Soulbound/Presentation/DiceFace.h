@@ -8,6 +8,12 @@
  */
 namespace Soulbound::Presentation
 {
+	/** El diámetro de un punto de la cara por el lado de la cara (R-DEC-15). Las proporciones, no números sueltos en píxeles. */
+	inline constexpr float DicePipDiameterRatio = 0.13f;
+
+	/** El radio de las esquinas de la cara dibujada por código, por el lado de la cara. */
+	inline constexpr float DiceFaceCornerRatio = 0.15f;
+
 	/**
 	 * Dónde van los puntos de la cara de un dado dibujada por código (R-DEC-15), en coordenadas de la cara de 0 a 1 en cada eje, con el origen
 	 * arriba a la izquierda, como las pintan los dados de siempre: 1 al centro, 2 en una diagonal, 3 en la diagonal con el del centro, 4 en las

@@ -57,8 +57,6 @@ namespace
 		View.Context = RollContext(State, TEXT("Has sacado"));
 		View.DiceValues = State.DiceValues;
 		View.Instruction = TEXT("Elige una casilla que late.");
-		// R-DEC-16: el sitio del aviso de casilla inalcanzable va reservado desde el principio.
-		View.bReservesNotice = true;
 		View.DeadlineSeconds = State.TurnDeadlineSeconds;
 	}
 
@@ -687,12 +685,4 @@ FString Soulbound::Presentation::UnreachableNoticeText(EUnreachableReason Reason
 	case EUnreachableReason::Roll: break;
 	}
 	return FString::Printf(TEXT("Con un %d no llegas ahí. Qué lástima."), Roll);
-}
-
-void Soulbound::Presentation::SetNotice(FDecisionView& View, const FString& NoticeText)
-{
-	if (View.bReservesNotice)
-	{
-		View.Notice = NoticeText;
-	}
 }

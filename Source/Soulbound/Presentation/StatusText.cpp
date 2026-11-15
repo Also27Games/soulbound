@@ -623,8 +623,12 @@ namespace Soulbound::Presentation
 			// S-039 (R-HUD-1): "Dado: N" con un dado y "Dados: N" con dos (N es la suma): "Tirada 1" se leía como el contador de turno.
 			const FPanelLine Roll = {FString::Printf(TEXT("%s: %d | reloj de turno: %s%s"), State.DiceCount > 1 ? TEXT("Dados") : TEXT("Dado"), State.Roll, *Clock,
 				bHumanTurn && bHints ? TEXT("  <- tu turno: clic en una casilla que late") : TEXT("")), bHumanTurn ? StatusGreen : FLinearColor::White, bHumanTurn};
-			// En su turno de tirada, la tirada es la petición al jugador: elegir casilla.
-			(bHumanTurn ? Top : Lines).Add(Roll);
+			// En su turno de tirada, la tirada es la petición al jugador: elegir casilla. Con el panel de decisión a la vista ya está allí (R-DEC-3, S-028;
+			// corrección del autor del 15/11/2026, S-039): la línea del humano no se repite; la de otro asiento sigue.
+			if (!(bHumanTurn && Context.bDecisionPanelShown))
+			{
+				(bHumanTurn ? Top : Lines).Add(Roll);
+			}
 		}
 
 		// Sellos activos (línea 3).

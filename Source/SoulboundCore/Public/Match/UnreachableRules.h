@@ -8,7 +8,8 @@ struct FMatchState;
 
 /**
  * Por qué un asiento no puede ir a una casilla que no está entre sus alcanzables (R-TAB-29, S-039). Nombre propuesto en S-039.
- * El orden de la enumeración es el de la comprobación: primero el sello, después el confinamiento, y si no, la tirada.
+ * La comprobación (UnreachableReason) va en el orden contrario al de la enumeración: primero el sello (Sealed), después el confinamiento (Confined) y,
+ * si no, la tirada (Roll). El orden de los valores no significa nada.
  */
 UENUM()
 enum class EUnreachableReason : uint8

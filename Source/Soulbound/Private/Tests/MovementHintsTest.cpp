@@ -184,6 +184,23 @@ bool FDiceFaceTest::RunTest(const FString& Parameters)
 		TestTrue(FString::Printf(TEXT("La cara %d: todos dentro de la cara"), Value), bInside);
 		TestTrue(FString::Printf(TEXT("La cara %d: sin repetir posición"), Value), bDistinct);
 
+		// Corrección del autor del 15/11/2026: los puntos, más pequeños y más separados (se leía un damero). Por proporciones de la cara: el punto no pasa
+		// de 0,16 del lado, entre dos puntos cabe al menos un diámetro libre, y ninguno toca el borde (queda al menos un diámetro entre el punto y el borde).
+		const float Diameter = Soulbound::Presentation::DicePipDiameterRatio;
+		TestTrue(FString::Printf(TEXT("La cara %d: el punto no pasa de 0,16 del lado (%.3f)"), Value, Diameter), Diameter <= 0.16f);
+		bool bSeparated = true;
+		bool bFromEdge = true;
+		for (int32 Index = 0; Index < Pips.Num(); ++Index)
+		{
+			bFromEdge &= Pips[Index].X >= Diameter * 1.5f && Pips[Index].X <= 1.f - Diameter * 1.5f && Pips[Index].Y >= Diameter * 1.5f && Pips[Index].Y <= 1.f - Diameter * 1.5f;
+			for (int32 Other = Index + 1; Other < Pips.Num(); ++Other)
+			{
+				bSeparated &= FVector2f::Distance(Pips[Index], Pips[Other]) >= Diameter * 2.f - 0.0001f;
+			}
+		}
+		TestTrue(FString::Printf(TEXT("La cara %d: un diámetro libre entre dos puntos"), Value), bSeparated);
+		TestTrue(FString::Printf(TEXT("La cara %d: los puntos no se pegan al borde"), Value), bFromEdge);
+
 		const FBox2f UV = DiceFaceUV(Value);
 		TestTrue(FString::Printf(TEXT("La cara %d: su sexto del ancho"), Value),
 			FMath::IsNearlyEqual(UV.Min.X, (Value - 1) / 6.f, 0.0001f) && FMath::IsNearlyEqual(UV.Max.X, Value / 6.f, 0.0001f));
@@ -216,27 +233,34 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FUnreachableNoticeLifeTest, "Soulbound.Game.Pre
 
 bool FUnreachableNoticeLifeTest::RunTest(const FString& Parameters)
 {
-	// CA-DEC-32 (R-DEC-16, vida del aviso): se ve desde el clic rechazado hasta que pasan sus segundos; un segundo rechazo lo sustituye y vuelve a
-	// contar, aunque sea el mismo texto; un clic aceptado o el final del turno de tirada (Dismiss) lo quitan.
+	// CA-DEC-32 (R-DEC-16, vida del aviso; corrección del autor del 15/11/2026): se ve desde el clic rechazado, en el punto del clic, hasta que pasan
+	// sus segundos; un segundo rechazo lo sustituye, lo lleva al punto nuevo y vuelve a contar, aunque sea el mismo texto; un clic aceptado o el final
+	// del turno de tirada (Dismiss) lo quitan.
 	using Soulbound::Presentation::FUnreachableNotice;
 	const double Seconds = 4.0;
+	const FVector2f PointA(120.f, 340.f);
+	const FVector2f PointB(600.f, 80.f);
 	FUnreachableNotice Notice;
 	TestEqual(TEXT("Antes de ningún rechazo, nada"), Notice.Current(10.0, Seconds), FString());
 
-	Notice.Show(TEXT("A"), 10.0);
+	Notice.Show(TEXT("A"), PointA, 10.0);
 	TestEqual(TEXT("Se ve desde el clic"), Notice.Current(10.0, Seconds), FString(TEXT("A")));
+	TestEqual(TEXT("... en el punto del clic"), Notice.Position(), PointA);
 	TestEqual(TEXT("... y mientras dura"), Notice.Current(13.9, Seconds), FString(TEXT("A")));
+	TestEqual(TEXT("... y se queda quieto"), Notice.Position(), PointA);
 	TestEqual(TEXT("... y se quita cuando pasan sus segundos"), Notice.Current(14.0, Seconds), FString());
 	TestEqual(TEXT("... y sigue quitado"), Notice.Current(20.0, Seconds), FString());
 
-	Notice.Show(TEXT("A"), 20.0);
-	Notice.Show(TEXT("A"), 22.0);
+	Notice.Show(TEXT("A"), PointA, 20.0);
+	Notice.Show(TEXT("A"), PointB, 22.0);
 	TestEqual(TEXT("Un segundo rechazo, con el mismo texto, vuelve a contar"), Notice.Current(25.9, Seconds), FString(TEXT("A")));
+	TestEqual(TEXT("... lo lleva al punto nuevo"), Notice.Position(), PointB);
 	TestEqual(TEXT("... desde el segundo"), Notice.Current(26.0, Seconds), FString());
 
-	Notice.Show(TEXT("B"), 30.0);
-	Notice.Show(TEXT("C"), 31.0);
+	Notice.Show(TEXT("B"), PointA, 30.0);
+	Notice.Show(TEXT("C"), PointB, 31.0);
 	TestEqual(TEXT("Un rechazo con otro texto sustituye al anterior"), Notice.Current(31.5, Seconds), FString(TEXT("C")));
+	TestEqual(TEXT("... y se pone en su punto"), Notice.Position(), PointB);
 
 	Notice.Dismiss();
 	TestEqual(TEXT("Un clic aceptado o el final del turno lo quitan"), Notice.Current(31.5, Seconds), FString());
@@ -244,66 +268,58 @@ bool FUnreachableNoticeLifeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNoticeKeepsIdentityTest, "Soulbound.Game.Presentation.Decision.ElAvisoNoMueveLaVista", HintsTestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNoticePlacementTest, "Soulbound.Game.Presentation.Decision.ColocacionDelAviso", HintsTestFlags)
 
-bool FNoticeKeepsIdentityTest::RunTest(const FString& Parameters)
+bool FNoticePlacementTest::RunTest(const FString& Parameters)
 {
-	// R-DEC-16 (S-039), revisión del autor: el aviso no cambia la identidad de la decisión (la barra del plazo no se reinicia al salir o quitarse) ni
-	// toca el título, el contexto, los dados ni la instrucción (nada salta); la decisión de casilla deja siempre el sitio de su línea. Otras
-	// decisiones no lo llevan.
-	using Soulbound::Presentation::SetNotice;
-	const FMatchState State = MhHumanRoll({3, 5});
-	const TOptional<FDecisionView> Plain = Soulbound::Presentation::DecisionView(State, MhHuman, false);
-	if (!TestTrue(TEXT("Hay vista"), Plain.IsSet()))
+	// R-DEC-16 (corrección del autor del 15/11/2026): el aviso sale junto al punto del clic y se recoloca para verse entero: dentro del viewport y
+	// sin quedar debajo de la columna de paneles ni del panel de estado. Función pura de la posición, el tamaño, el viewport y las zonas a evitar.
+	using Soulbound::Presentation::PlaceNotice;
+	const FBox2f Bounds(FVector2f(0.f, 0.f), FVector2f(1000.f, 700.f));
+	const FBox2f Column(FVector2f(800.f, 0.f), FVector2f(1000.f, 700.f));
+	const FBox2f Status(FVector2f(0.f, 0.f), FVector2f(350.f, 200.f));
+	const TArray<FBox2f> Avoid = {Column, Status};
+	const FVector2f Size(300.f, 40.f);
+	const float Gap = 12.f;
+	auto Overlaps = [](const FBox2f& A, const FBox2f& B)
 	{
-		return false;
-	}
-	TestTrue(TEXT("La decisión de casilla deja sitio al aviso"), Plain->bReservesNotice);
-	TestTrue(TEXT("Sin aviso, el texto está vacío"), Plain->Notice.IsEmpty());
+		return A.Min.X < B.Max.X && B.Min.X < A.Max.X && A.Min.Y < B.Max.Y && B.Min.Y < A.Max.Y;
+	};
 
-	FDecisionView WithNotice = *Plain;
-	SetNotice(WithNotice, TEXT("Con un 8 no llegas ahí. Qué lástima."));
-	TestEqual(TEXT("El aviso se pone"), WithNotice.Notice, FString(TEXT("Con un 8 no llegas ahí. Qué lástima.")));
-	TestEqual(TEXT("La identidad es la misma con aviso y sin él"), WithNotice.Identity, Plain->Identity);
-	TestFalse(TEXT("La identidad no está vacía"), Plain->Identity.IsEmpty());
-	TestEqual(TEXT("El título no cambia"), WithNotice.Title, Plain->Title);
-	TestEqual(TEXT("El contexto no cambia"), WithNotice.Context, Plain->Context);
-	TestEqual(TEXT("La instrucción no cambia"), WithNotice.Instruction, Plain->Instruction);
-	TestTrue(TEXT("Los dados no cambian"), WithNotice.DiceValues == Plain->DiceValues);
-	TestEqual(TEXT("El plazo no cambia"), WithNotice.DeadlineSeconds, Plain->DeadlineSeconds);
-	TestTrue(TEXT("El sitio sigue reservado"), WithNotice.bReservesNotice);
-
-	SetNotice(WithNotice, FString());
-	TestTrue(TEXT("Quitar el aviso deja la vista como estaba"), WithNotice.Notice.IsEmpty() && WithNotice.Identity == Plain->Identity);
-
-	// La tirada repetible sigue siendo la decisión de casilla: misma identidad y sitio reservado.
-	FMatchState Reroll = State;
-	Reroll.PendingChoice.Kind = EChoiceKind::Reroll;
-	Reroll.PendingChoice.Seat = MhHuman;
-	Reroll.PendingChoice.Options = {1};
-	Reroll.PendingChoice.DeadlineSeconds = MhNow + 15.0;
-	const TOptional<FDecisionView> RerollView = Soulbound::Presentation::DecisionView(Reroll, MhHuman, false);
-	if (TestTrue(TEXT("Hay vista con la repetición"), RerollView.IsSet()))
+	// Con sitio de sobra: centrado encima del clic, a Gap de distancia.
+	TestEqual(TEXT("Centrado encima del clic"), PlaceNotice(FVector2f(500.f, 400.f), Size, Bounds, Avoid, Gap), FVector2f(350.f, 348.f));
+	// Sin sitio encima: debajo.
+	TestEqual(TEXT("Sin sitio arriba, debajo"), PlaceNotice(FVector2f(500.f, 20.f), Size, Bounds, Avoid, Gap), FVector2f(350.f, 32.f));
+	// Pegado al borde izquierdo: recortado al viewport (a una altura que no toca el panel de estado).
+	TestEqual(TEXT("Recortado al borde izquierdo"), PlaceNotice(FVector2f(30.f, 400.f), Size, Bounds, Avoid, Gap), FVector2f(0.f, 348.f));
+	// Contra la columna: no la toca.
 	{
-		TestTrue(TEXT("Con la repetición también deja sitio"), RerollView->bReservesNotice);
+		const FVector2f At = PlaceNotice(FVector2f(790.f, 400.f), Size, Bounds, Avoid, Gap);
+		TestFalse(TEXT("Junto a la columna no se mete debajo"), Overlaps(FBox2f(At, At + Size), Column));
+		TestTrue(TEXT("... y se ve entero"), At.X >= 0.f && At.Y >= 0.f && At.X + Size.X <= 1000.f && At.Y + Size.Y <= 700.f);
 	}
 
-	// Otra decisión no lleva el sitio y el aviso no se le pone.
-	FMatchState Dice;
-	Dice.Seats.SetNum(4);
-	Dice.ActiveSeat = MhHuman;
-	Dice.TurnPhase = ETurnPhase::PreRoll;
-	Dice.PendingChoice.Kind = EChoiceKind::DiceCount;
-	Dice.PendingChoice.Seat = MhHuman;
-	Dice.PendingChoice.Options = {1, 2};
-	Dice.PendingChoice.DeadlineSeconds = MhNow + 12.0;
-	TOptional<FDecisionView> Buttons = Soulbound::Presentation::DecisionView(Dice, MhHuman, false);
-	if (TestTrue(TEXT("Hay vista de dados"), Buttons.IsSet()))
+	// Propiedad, en una rejilla de clics por todo el viewport: siempre dentro, y nunca sobre la columna ni el panel de estado.
+	int32 Checked = 0;
+	int32 Bad = 0;
+	for (float X = 0.f; X <= 1000.f; X += 50.f)
 	{
-		TestFalse(TEXT("La elección de dados no reserva aviso"), Buttons->bReservesNotice);
-		SetNotice(*Buttons, TEXT("x"));
-		TestTrue(TEXT("... y no se le pone"), Buttons->Notice.IsEmpty());
+		for (float Y = 0.f; Y <= 700.f; Y += 50.f)
+		{
+			const FVector2f At = PlaceNotice(FVector2f(X, Y), Size, Bounds, Avoid, Gap);
+			const FBox2f Box(At, At + Size);
+			const bool bInside = Box.Min.X >= 0.f && Box.Min.Y >= 0.f && Box.Max.X <= 1000.f && Box.Max.Y <= 700.f;
+			if (!bInside || Overlaps(Box, Column) || Overlaps(Box, Status))
+			{
+				++Bad;
+			}
+			++Checked;
+		}
 	}
+	TestEqual(FString::Printf(TEXT("De %d clics en rejilla, ninguno deja el aviso fuera o tapando una zona"), Checked), Bad, 0);
+
+	// Mayor que el viewport: la esquina del viewport, sin romper nada.
+	TestEqual(TEXT("Más grande que el viewport: su esquina"), PlaceNotice(FVector2f(500.f, 300.f), FVector2f(2000.f, 40.f), Bounds, TArray<FBox2f>(), Gap).X, 0.f);
 	return true;
 }
 
@@ -311,20 +327,28 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusDiceLineTest, "Soulbound.Game.Presentati
 
 bool FStatusDiceLineTest::RunTest(const FString& Parameters)
 {
-	// CA-HUD-14 (R-HUD-1, precisión de S-039): la línea de la tirada dice "Dado: 4" con un dado y "Dados: 8" con dos, y la Ayuda dice "clic en una
-	// casilla que late"; ya no dice "Tirada:" ni "blanca".
+	// CA-HUD-14 (R-HUD-1, precisión de S-039; corrección del autor del 15/11/2026): la línea de la tirada del panel de estado dice "Dado: 4" con un dado y
+	// "Dados: 8" con dos, con la Ayuda "clic en una casilla que late"; pero en el turno de tirada del humano, con el panel de decisión a la vista, no se
+	// repite (R-DEC-3, S-028: la petición ya está allí). La Ayuda solo sigue saliendo cuando el panel de decisión no está a la vista; en el turno de
+	// otro asiento, la línea sigue, sin Ayuda.
 	Soulbound::Presentation::FStatusContext Context;
 	Context.HumanSeat = MhHuman;
 	Context.SeatColors = {FLinearColor::Red, FLinearColor::Green, FLinearColor::Blue, FLinearColor::Yellow};
-	auto FirstLine = [&Context](const FMatchState& State)
+	auto Lines = [&Context](const FMatchState& State)
 	{
-		const TArray<Soulbound::Presentation::FPanelLine> Lines = Soulbound::Presentation::StatusLines(State, Context);
-		return Lines.IsEmpty() ? FString() : Lines[0].Text;
+		return Soulbound::Presentation::StatusLines(State, Context);
+	};
+	auto AnyContains = [](const TArray<Soulbound::Presentation::FPanelLine>& All, const TCHAR* Text)
+	{
+		return All.ContainsByPredicate([Text](const Soulbound::Presentation::FPanelLine& Line) { return Line.Text.Contains(Text); });
 	};
 
+	// Sin el panel de decisión a la vista: la línea de siempre, con la Ayuda.
 	FMatchState One = MhHumanRoll({4});
 	One.MatchPhase = EMatchPhase::BondRace;
-	const FString OneLine = FirstLine(One);
+	Context.bDecisionPanelShown = false;
+	const TArray<Soulbound::Presentation::FPanelLine> NoPanel = Lines(One);
+	const FString OneLine = NoPanel.IsEmpty() ? FString() : NoPanel[0].Text;
 	TestTrue(TEXT("Un dado: \"Dado: 4\""), OneLine.Contains(TEXT("Dado: 4")));
 	TestTrue(TEXT("Con el reloj de turno"), OneLine.Contains(TEXT("reloj de turno: 15 s")));
 	TestTrue(TEXT("La Ayuda: clic en una casilla que late"), OneLine.Contains(TEXT("clic en una casilla que late")));
@@ -333,9 +357,33 @@ bool FStatusDiceLineTest::RunTest(const FString& Parameters)
 
 	FMatchState Two = MhHumanRoll({3, 5});
 	Two.MatchPhase = EMatchPhase::BondRace;
-	const FString TwoLine = FirstLine(Two);
-	TestTrue(TEXT("Dos dados: \"Dados: 8\""), TwoLine.Contains(TEXT("Dados: 8")));
-	TestFalse(TEXT("Sin el \"(dos dados)\" de antes"), TwoLine.Contains(TEXT("dos dados")));
+	const TArray<Soulbound::Presentation::FPanelLine> TwoLines = Lines(Two);
+	TestTrue(TEXT("Dos dados: \"Dados: 8\""), AnyContains(TwoLines, TEXT("Dados: 8")));
+	TestFalse(TEXT("Sin el \"(dos dados)\" de antes"), AnyContains(TwoLines, TEXT("dos dados")));
+
+	// Con el panel de decisión a la vista, la línea del humano no sale, ni con un dado ni con dos, ni su Ayuda.
+	Context.bDecisionPanelShown = true;
+	const TArray<Soulbound::Presentation::FPanelLine> WithPanel = Lines(One);
+	TestFalse(TEXT("Con el panel de decisión, no se repite la tirada (un dado)"), AnyContains(WithPanel, TEXT("Dado:")));
+	TestFalse(TEXT("... ni su Ayuda"), AnyContains(WithPanel, TEXT("clic en una casilla que late")));
+	TestFalse(TEXT("... ni con dos dados"), AnyContains(Lines(Two), TEXT("Dados:")));
+	TestTrue(TEXT("El resto de líneas sigue ahí"), WithPanel.Num() >= 2);
+
+	// En el turno de otro asiento la línea sigue, con el panel a la vista o no, y sin la Ayuda.
+	FMatchState Other = MhHumanRoll({4});
+	Other.MatchPhase = EMatchPhase::BondRace;
+	Other.ActiveSeat = 1;
+	FMatchState OtherTwo = MhHumanRoll({3, 5});
+	OtherTwo.MatchPhase = EMatchPhase::BondRace;
+	OtherTwo.ActiveSeat = 1;
+	for (const bool bShown : {true, false})
+	{
+		Context.bDecisionPanelShown = bShown;
+		const TArray<Soulbound::Presentation::FPanelLine> OtherLines = Lines(Other);
+		TestTrue(TEXT("Otro asiento: \"Dado: 4\" sigue"), AnyContains(OtherLines, TEXT("Dado: 4")));
+		TestFalse(TEXT("... sin la Ayuda"), AnyContains(OtherLines, TEXT("clic en una casilla que late")));
+		TestTrue(TEXT("Otro asiento, dos dados: \"Dados: 8\" sigue"), AnyContains(Lines(OtherTwo), TEXT("Dados: 8")));
+	}
 	return true;
 }
 

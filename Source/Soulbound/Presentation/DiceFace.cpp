@@ -4,10 +4,11 @@
 
 TArray<FVector2f> Soulbound::Presentation::DiceFacePips(int32 Value)
 {
-	// Los tres ejes de la cara: cerca de cada borde, el centro y el borde contrario. Con ellos salen las seis caras de siempre.
-	constexpr float Near = 0.25f;
+	// Los tres ejes de la cara, por el lado de la cara. Corrección del autor del 15/11/2026: los puntos, más pequeños (DicePipDiameterRatio) y más
+	// separados: entre dos puntos queda al menos un diámetro libre y los del borde quedan a más de un diámetro y medio del borde.
+	constexpr float Near = 0.22f;
 	constexpr float Mid = 0.5f;
-	constexpr float Far = 0.75f;
+	constexpr float Far = 0.78f;
 	const FVector2f TopLeft(Near, Near), TopRight(Far, Near), BottomLeft(Near, Far), BottomRight(Far, Far), Center(Mid, Mid);
 	switch (Value)
 	{

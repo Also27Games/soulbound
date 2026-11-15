@@ -308,9 +308,9 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Halos")
 	float ReachablePulseSeconds = 1.2f;
 
-	/** Brillo mínimo del latido de los halos alcanzables, por el de ReachableColor (S-039, R-VIS-26). Valor inicial 0,35. */
+	/** Brillo mínimo del latido de los halos alcanzables, por el de ReachableColor (S-039, R-VIS-26). Valor inicial 0,12 (corrección del autor del 15/11/2026: con 0,35 el punto apagado se veía demasiado). */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Halos", meta = (ClampMin = "0", ClampMax = "1"))
-	float ReachablePulseMin = 0.35f;
+	float ReachablePulseMin = 0.12f;
 
 	/**
 	 * Textura de las caras del dado del panel de decisión (S-039, R-DEC-15): las seis caras en una fila, del 1 al 6 de izquierda a derecha, cada una un
@@ -1118,6 +1118,16 @@ private:
 
 	/** La vida del aviso de casilla inalcanzable (S-039, R-DEC-16): cuándo se ve y cuándo se quita; no es del motor ni una frase del Warden. */
 	Soulbound::Presentation::FUnreachableNotice UnreachableNotice;
+	/** La capa del aviso de casilla inalcanzable (S-039, R-DEC-16): llena el viewport, no recibe clics y pone el aviso donde lo coloca PlaceNotice. */
+	TSharedPtr<SWidget> NoticeOverlay;
+	/** El margen que coloca el aviso en la capa (PlaceNotice con el viewport, la columna de paneles y el panel de estado de este frame). */
+	FMargin NoticeMarginNow(int32 FontSize) const;
+	/** Margen del fondo del aviso por cada lado, y separación entre el punto del clic y el aviso, en unidades de Slate. */
+	static constexpr float NoticePadding = 8.f;
+	static constexpr float NoticeClickGap = 14.f;
+	/** El texto del aviso que se ve ahora (vacío si no hay), actualizado en TickHud, y el ancho al que se parte. */
+	FString NoticeText;
+	float NoticeWrapAt = 400.f;
 	/** El último rechazo del anfitrión que ya se ha mirado; INDEX_NONE hasta el primer TickHud, que se pone al día sin enseñar un aviso viejo. */
 	int32 SeenRejectionSerial = INDEX_NONE;
 	/** Si hay halos de casilla alcanzable a la vista, es decir, si el actor tiene que seguir ticando para que latan (S-039, R-VIS-26). */

@@ -46,8 +46,6 @@ public:
 		/** Color del cuadrado del dado dibujado por código y el de sus puntos (DiceFaceColor, DiceFacePipColor). */
 		SLATE_ATTRIBUTE(FLinearColor, DiceColor)
 		SLATE_ATTRIBUTE(FLinearColor, DicePipColor)
-		/** Color de la línea del aviso de casilla inalcanzable (S-039, R-DEC-16): el de la línea del Warden. */
-		SLATE_ATTRIBUTE(FLinearColor, NoticeColor)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -83,7 +81,6 @@ private:
 	TAttribute<float> DiceFaceSize;
 	TAttribute<FLinearColor> DiceColor;
 	TAttribute<FLinearColor> DicePipColor;
-	TAttribute<FLinearColor> NoticeColor;
 	/** Los pinceles de las caras de la decisión que se enseña, uno por dado: cada uno la copia del pincel de la imagen con el trozo de su valor. */
 	TArray<TSharedPtr<FSlateBrush>> FaceBrushes;
 	TSharedPtr<SVerticalBox> Content;

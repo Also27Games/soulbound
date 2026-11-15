@@ -77,13 +77,6 @@ namespace Soulbound::Presentation
 		 * si no hay tirada que enseñar con dados, o con una tirada fijada por depuración (el contexto lleva entonces "un N").
 		 */
 		TArray<int32> DiceValues;
-		/**
-		 * Si la vista deja sitio para el aviso de casilla inalcanzable (S-039, R-DEC-16, nombre propuesto): la decisión de casilla del humano, que
-		 * lo lleva siempre (con el texto vacío ocupa su línea y no se ve), para que al salir o quitarse el aviso nada salte.
-		 */
-		bool bReservesNotice = false;
-		/** El aviso de casilla inalcanzable que se enseña ahora, o vacío. Solo lo pone SetNotice, y solo si la vista deja sitio. No cuenta para Identity. */
-		FString Notice;
 		/** Líneas de detalle bajo el contexto (S-033, nombre propuesto): una por voto en el resultado de una votación; vacía en las demás. */
 		TArray<FString> Lines;
 		/** Si lleva barra de plazo (S-033): falso en la espera de una prueba de habilidad o de un duelo, que no tienen plazo, y en el resultado. */
@@ -174,14 +167,6 @@ namespace Soulbound::Presentation
 	 * @return El texto.
 	 */
 	FString UnreachableNoticeText(EUnreachableReason Reason, int32 Roll);
-
-	/**
-	 * Pone el aviso en la vista si deja sitio para él (bReservesNotice); si no, no hace nada. No toca la identidad ni ningún otro campo, así
-	 * que la barra del plazo no se reinicia ni los dados y la instrucción se mueven (R-DEC-16, S-039).
-	 * @param View La vista de la decisión.
-	 * @param NoticeText El texto del aviso, o vacío para quitarlo.
-	 */
-	void SetNotice(FDecisionView& View, const FString& NoticeText);
 
 	/**
 	 * La opción de la vista que contesta la tecla Key, para que la tecla y el botón entreguen lo mismo.
