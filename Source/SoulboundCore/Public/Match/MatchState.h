@@ -1355,6 +1355,15 @@ struct SOULBOUNDCORE_API FMatchState
 	UPROPERTY()
 	int32 Roll = 0;
 
+	/**
+	 * Valor de cada dado tirado en el turno en curso (R-TUR-16, S-039): tantos como DiceCount, en el orden del sorteo, y su suma
+	 * es Roll. Se escriben donde se escribe Roll (la tirada y la repetición de Apep) y se vacían donde Roll vuelve a 0. Con una
+	 * tirada fijada por depuración (ForcedRoll) quedan vacíos. Son los de la tirada ya hecha: ningún valor futuro del sorteo.
+	 * Nombre propuesto en S-039.
+	 */
+	UPROPERTY()
+	TArray<int32> DiceValues;
+
 	/** Casillas alcanzables con la tirada del turno en curso (R-TUR-7): contra ellas se valida la intención de destino. */
 	UPROPERTY()
 	TArray<int32> ReachableOptions;

@@ -49,6 +49,20 @@ namespace
 		return Sum;
 	}
 
+	/**
+	 * Guarda en el estado los valores de los primeros DiceCount dados de Dice y deja Roll como su suma (R-TUR-16, S-039). Se llama donde
+	 * se escribe Roll (la tirada y la repetición); el sorteo ya se ha consumido entero en DrawDice.
+	 */
+	void StoreDice(FMatchState& State, const FDiceDraw& Dice)
+	{
+		State.DiceValues.Reset();
+		for (int32 Die = 0; Die < FMath::Min(State.DiceCount, Dice.Num()); ++Die)
+		{
+			State.DiceValues.Add(Dice[Die]);
+		}
+		State.Roll = SumDice(Dice, State.DiceCount);
+	}
+
 	/** Casillas alcanzables por el asiento activo con la tirada del turno (R-TUR-7). */
 	void ComputeReachable(FMatchState& State)
 	{
@@ -190,6 +204,7 @@ namespace
 		State.TurnDeadlineSeconds = NowSeconds + State.Params.TurnClockSeconds;
 		State.DiceCount = 0;
 		State.Roll = 0;
+		State.DiceValues.Reset();
 		State.ReachableOptions.Reset();
 		CloseChoice(State);
 		State.bRerollValuesPending = false;
@@ -227,8 +242,13 @@ namespace
 	{
 		State.TurnPhase = ETurnPhase::RollAndChoose;
 		// S-011: con una tirada fijada por una edición de depuración, el sorteo se consume igual (DrawDice) y solo cambia la suma.
-		const int32 Drawn = SumDice(DrawDice(Random), State.DiceCount);
-		State.Roll = State.ForcedRoll > 0 ? State.ForcedRoll : Drawn;
+		// R-TUR-16 (S-039): los valores de los dados se guardan; con una tirada fijada no hay valores y Roll es la fijada.
+		StoreDice(State, DrawDice(Random));
+		if (State.ForcedRoll > 0)
+		{
+			State.DiceValues.Reset();
+			State.Roll = State.ForcedRoll;
+		}
 		State.ForcedRoll = 0;
 		ComputeReachable(State);
 		LogEvent(State, EMatchEventType::Rolled, NowSeconds, State.ActiveSeat, State.Roll);
@@ -546,6 +566,7 @@ namespace
 		}
 		State.DiceCount = 0;
 		State.Roll = 0;
+		State.DiceValues.Reset();
 		State.ReachableOptions.Reset();
 		// R-INS-2 (S-016): el castigo del reloj de turno, y lo que esperaba a que el asiento dejara de estar en juego, ahora.
 		Soulbound::Rules::DischargePendingPunishments(State, NowSeconds);
@@ -630,6 +651,7 @@ namespace
 		State.TurnPhase = ETurnPhase::BetweenTurns;
 		State.DiceCount = 0;
 		State.Roll = 0;
+		State.DiceValues.Reset();
 		State.ReachableOptions.Reset();
 		State.bRerollValuesPending = false;
 		Soulbound::Rules::DeclareWardenVictory(State, EMatchEndReason::TimeOut, NowSeconds);
@@ -1232,7 +1254,7 @@ namespace Soulbound::Rules
 				SettleRerollValues(State, Random);
 				break;
 			}
-			State.Roll = SumDice(DrawDice(Random), State.DiceCount);
+			StoreDice(State, DrawDice(Random));
 			State.bRerollValuesPending = false;
 			ComputeReachable(State);
 			LogEvent(State, EMatchEventType::Rerolled, NowSeconds, Seat, State.Roll);

@@ -20,6 +20,16 @@ struct SOULBOUNDCORE_API FMoverTraits
 namespace Soulbound::Rules
 {
 	/**
+	 * Si la casilla es de un Dominio con dueño y el jugador está confinado a los Olvidados (R-TAB-20). El Altar, no. Es la comprobación
+	 * del movimiento (ReachableTiles, MovementPath) y la que usa UnreachableReason (R-TAB-29, S-039): una sola, sin copias.
+	 * @param Board El tablero.
+	 * @param TileId Casilla válida del tablero.
+	 * @param Mover Los rasgos del jugador (MakeMoverTraits).
+	 * @return true si el confinamiento le impide pisar la casilla.
+	 */
+	SOULBOUNDCORE_API bool IsOutsideConfinement(const FBoardState& Board, int32 TileId, const FMoverTraits& Mover);
+
+	/**
 	 * Casillas alcanzables desde FromTile con una tirada Roll, por caminos sin repetir casilla cuyas casillas
 	 * son todas transitables para el jugador:
 	 *  - R-TAB-14: las casillas a las que llega un camino de longitud exactamente Roll.
