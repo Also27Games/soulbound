@@ -274,7 +274,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionTileTest, "Soulbound.Game.Presentation
 bool FDecisionTileTest::RunTest(const FString& Parameters)
 {
 	// CA-DEC-5 (R-DEC-1, R-DEC-2): con el humano en fase de elegir destino, el tipo es casilla, sin opciones, con el texto "Elige una casilla
-	// iluminada" y el plazo del reloj de turno.
+	// que late." (S-039) y el plazo del reloj de turno.
 	{
 		FMatchState State = DtMakeState();
 		DtOpenTile(State);
@@ -283,7 +283,7 @@ bool FDecisionTileTest::RunTest(const FString& Parameters)
 		{
 			TestTrue(TEXT("Tipo casilla"), View->Input == EDecisionInput::Tile);
 			TestEqual(TEXT("Sin opciones"), View->Options.Num(), 0);
-			TestTrue(TEXT("Elige una casilla iluminada"), View->Instruction.Contains(TEXT("Elige una casilla iluminada")));
+			TestTrue(TEXT("Elige una casilla que late"), View->Instruction.Contains(TEXT("Elige una casilla que late")));
 			TestEqual(TEXT("El plazo del reloj de turno"), View->DeadlineSeconds, DtNow + 15.0);
 		}
 	}
@@ -299,7 +299,7 @@ bool FDecisionTileTest::RunTest(const FString& Parameters)
 		if (TestTrue(TEXT("Hay vista con la repetición"), View.IsSet()))
 		{
 			TestTrue(TEXT("Tipo casilla"), View->Input == EDecisionInput::Tile);
-			TestTrue(TEXT("Elige una casilla iluminada"), View->Instruction.Contains(TEXT("Elige una casilla iluminada")));
+			TestTrue(TEXT("Elige una casilla que late"), View->Instruction.Contains(TEXT("Elige una casilla que late")));
 			if (TestEqual(TEXT("Un solo botón"), View->Options.Num(), 1))
 			{
 				TestEqual(TEXT("Repetir la tirada"), View->Options[0].Text, FString(TEXT("Repetir la tirada")));
@@ -751,7 +751,7 @@ bool FDecisionWaitTurnTest::RunTest(const FString& Parameters)
 	{
 		TestTrue(TEXT("De tipo espera"), View->Input == EDecisionInput::Wait);
 		TestEqual(TEXT("Nombra el turno del 1"), View->Title, FString(TEXT("Turno de Asiento 1 (Eco)")));
-		TestEqual(TEXT("Y la tirada"), View->Context, FString(TEXT("Tirada 5: elige casilla")));
+		TestEqual(TEXT("Y la tirada, sin dados que enseñar (S-039: \"Ha sacado un 5\")"), View->Context, FString(TEXT("Ha sacado un 5")));
 		TestEqual(TEXT("Plazo del reloj de turno"), View->DeadlineSeconds, DtNow + 15.0);
 		TestTrue(TEXT("Sin opciones"), View->Options.IsEmpty());
 	}

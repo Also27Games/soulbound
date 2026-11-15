@@ -42,12 +42,23 @@ namespace
 		return ChoiceOption(TEXT("No"), TEXT("0"), Kind, INDEX_NONE);
 	}
 
+	/** El contexto de la tirada (R-DEC-15): "Has sacado" o "Ha sacado" si hay valores de dados (las caras van detrás), o con "un N" si no los hay. */
+	FString RollContext(const FMatchState& State, const TCHAR* Verb)
+	{
+		return State.DiceValues.IsEmpty() ? FString::Printf(TEXT("%s un %d"), Verb, State.Roll) : FString(Verb);
+	}
+
 	/** La instrucción y el título del destino del humano en su turno de tirada. */
 	void FillTile(const FMatchState& State, FDecisionView& View)
 	{
 		View.Input = EDecisionInput::Tile;
-		View.Title = FString::Printf(TEXT("Tu turno: tirada %d%s"), State.Roll, State.DiceCount > 1 ? TEXT(" (dos dados)") : TEXT(""));
-		View.Instruction = TEXT("Elige una casilla iluminada");
+		// R-DEC-15 (S-039): la tirada se ve en dados. Sin valores de dados (tirada fijada por depuración) no hay caras y el contexto dice el número.
+		View.Title = TEXT("Tu turno");
+		View.Context = RollContext(State, TEXT("Has sacado"));
+		View.DiceValues = State.DiceValues;
+		View.Instruction = TEXT("Elige una casilla que late.");
+		// R-DEC-16: el sitio del aviso de casilla inalcanzable va reservado desde el principio.
+		View.bReservesNotice = true;
 		View.DeadlineSeconds = State.TurnDeadlineSeconds;
 	}
 
@@ -62,7 +73,7 @@ namespace
 		if (Choice.Kind == EChoiceKind::Reroll)
 		{
 			FillTile(State, View);
-			View.Instruction = TEXT("Elige una casilla iluminada o repite la tirada");
+			View.Instruction = TEXT("Elige una casilla que late o repite la tirada.");
 			View.DeadlineSeconds = Choice.DeadlineSeconds;
 			View.Options.Add(ChoiceOption(TEXT("Repetir la tirada"), TEXT("R"), EChoiceKind::Reroll, Choice.AnswerAt(0) != INDEX_NONE ? Choice.AnswerAt(0) : 1));
 			return View;
@@ -159,7 +170,8 @@ namespace
 	void FillTurnWait(const FMatchState& State, FDecisionView& View, double DeadlineSeconds)
 	{
 		View.Title = FString::Printf(TEXT("Turno de %s"), *SeatLabel(State, State.ActiveSeat));
-		View.Context = FString::Printf(TEXT("Tirada %d: elige casilla"), State.Roll);
+		View.Context = RollContext(State, TEXT("Ha sacado"));
+		View.DiceValues = State.DiceValues;
 		View.DeadlineSeconds = DeadlineSeconds;
 		View.Identity = FString::Printf(TEXT("W|T|%d"), State.ActiveSeat);
 	}
@@ -662,5 +674,25 @@ namespace Soulbound::Presentation
 	float BoardFreeWidth(float ViewportSlateWidth, float PanelColumnWidth, float Cap)
 	{
 		return FMath::Clamp(ViewportSlateWidth - PanelColumnWidth - 32.f, 0.f, FMath::Max(Cap, 0.f));
+	}
+}
+
+FString Soulbound::Presentation::UnreachableNoticeText(EUnreachableReason Reason, int32 Roll)
+{
+	// Los tres textos son del autor (15/11/2026) y van tal cual.
+	switch (Reason)
+	{
+	case EUnreachableReason::Sealed: return TEXT("Esa casilla la he sellado yo. Busca otro camino.");
+	case EUnreachableReason::Confined: return TEXT("Los Ecos no pisan el Dominio de un Elegido. Por ahora.");
+	case EUnreachableReason::Roll: break;
+	}
+	return FString::Printf(TEXT("Con un %d no llegas ahí. Qué lástima."), Roll);
+}
+
+void Soulbound::Presentation::SetNotice(FDecisionView& View, const FString& NoticeText)
+{
+	if (View.bReservesNotice)
+	{
+		View.Notice = NoticeText;
 	}
 }

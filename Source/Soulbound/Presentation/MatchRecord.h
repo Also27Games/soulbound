@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Match/MatchState.h"
 #include "Match/TurnRules.h"
+#include "Match/UnreachableRules.h"
 #include "../Match/RingTrialRun.h"
 
 /**
@@ -52,6 +53,12 @@ namespace Soulbound::Presentation
 
 	/** Lo que devolvió el motor a una intención (R-ACT-8), en texto: el nombre de EIntentResult tal cual. */
 	FString IntentResultText(EIntentResult Result);
+
+	/**
+	 * El motivo de un destino rechazado por inalcanzable, para la línea "humano" del acta (R-ACT-8, S-039): "dado", "Eco" o "sello" para Roll,
+	 * Confined y Sealed.
+	 */
+	FString UnreachableReasonText(EUnreachableReason Reason);
 
 	/**
 	 * El texto de una pulsación del anillo del humano (R-ACT-10), con lo que la consulta dijo de ella: si cuenta, el pulso (de 1 en

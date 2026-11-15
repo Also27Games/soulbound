@@ -263,8 +263,8 @@ namespace Soulbound::Presentation
 		const FString Left = FString::Printf(TEXT("quedan %.0f s"), FMath::Max(0.0, Choice.DeadlineSeconds - State.ClockSeconds));
 		if (Choice.Kind == EChoiceKind::Reroll)
 		{
-			// S-021 (A3): lo que ofrece (la tecla R) y el tiempo se muestran siempre; "o clic en una casilla blanca" es explicación y sigue el ajuste.
-			return bHuman ? FString::Printf(TEXT("REPETIR: [R] repite la tirada (una vez por turno)%s | %s"), bHints ? TEXT(", o clic en una casilla blanca") : TEXT(""), *Left)
+			// S-021 (A3): lo que ofrece (la tecla R) y el tiempo se muestran siempre; "o clic en una casilla que late" es explicación y sigue el ajuste.
+			return bHuman ? FString::Printf(TEXT("REPETIR: [R] repite la tirada (una vez por turno)%s | %s"), bHints ? TEXT(", o clic en una casilla que late") : TEXT(""), *Left)
 				: FString::Printf(TEXT("el asiento %d decide si repite la tirada | %s"), Choice.Seat, *Left);
 		}
 		const FString WhatText = ChoiceWhat(State);
@@ -620,8 +620,9 @@ namespace Soulbound::Presentation
 		else
 		{
 			const FString Clock = bWaiting ? FString::Printf(TEXT("%.0f s"), FMath::Max(0.0, State.TurnDeadlineSeconds - State.ClockSeconds)) : FString(TEXT("-"));
-			const FPanelLine Roll = {FString::Printf(TEXT("Tirada: %d%s | reloj de turno: %s%s"), State.Roll, State.DiceCount > 1 ? TEXT(" (dos dados)") : TEXT(""), *Clock,
-				bHumanTurn && bHints ? TEXT("  <- tu turno: clic en una casilla blanca") : TEXT("")), bHumanTurn ? StatusGreen : FLinearColor::White, bHumanTurn};
+			// S-039 (R-HUD-1): "Dado: N" con un dado y "Dados: N" con dos (N es la suma): "Tirada 1" se leía como el contador de turno.
+			const FPanelLine Roll = {FString::Printf(TEXT("%s: %d | reloj de turno: %s%s"), State.DiceCount > 1 ? TEXT("Dados") : TEXT("Dado"), State.Roll, *Clock,
+				bHumanTurn && bHints ? TEXT("  <- tu turno: clic en una casilla que late") : TEXT("")), bHumanTurn ? StatusGreen : FLinearColor::White, bHumanTurn};
 			// En su turno de tirada, la tirada es la petición al jugador: elegir casilla.
 			(bHumanTurn ? Top : Lines).Add(Roll);
 		}

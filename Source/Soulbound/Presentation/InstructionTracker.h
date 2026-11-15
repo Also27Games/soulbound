@@ -56,7 +56,7 @@ namespace Soulbound::Presentation
 	bool TeachAndRecord(EHintsMode Mode, TArray<FString>& Seen, EInstructionMoment Moment);
 
 	/**
-	 * Si el texto de petición ("← tu turno: clic en una casilla blanca" y equivalentes) se enseña: siempre en Siempre; en Automático, hasta que
+	 * Si el texto de petición ("← tu turno: clic en una casilla que late" y equivalentes) se enseña: siempre en Siempre; en Automático, hasta que
 	 * Seen tiene las diez instrucciones de S-021 (las cuatro Ayudas de S-027 no cuentan, decisión del autor del 9/11/2026); nunca en Nunca. Las
 	 * opciones numeradas y el tiempo se muestran siempre: son información de la partida.
 	 */

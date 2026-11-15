@@ -71,7 +71,7 @@ bool FStatusRequestFirstTest::RunTest(const FString& Parameters)
 		{
 			return false;
 		}
-		TestTrue(TEXT("La primera lleva la tirada"), Lines[0].Text.Contains(TEXT("Tirada: 4")));
+		TestTrue(TEXT("La primera lleva la tirada"), Lines[0].Text.Contains(TEXT("Dado: 4")));
 		TestTrue(TEXT("Y el reloj de turno"), Lines[0].Text.Contains(TEXT("reloj de turno: 15 s")));
 		TestTrue(TEXT("Y la petición al jugador"), Lines[0].Text.Contains(TEXT("tu turno")));
 		TestTrue(TEXT("Con la letra grande"), Lines[0].bLarge);
@@ -92,7 +92,7 @@ bool FStatusRequestFirstTest::RunTest(const FString& Parameters)
 		{
 			TestTrue(TEXT("La primera es la elección del humano"), Lines[0].Text.StartsWith(TEXT("ELIGE dados")));
 			TestTrue(TEXT("Con la letra grande"), Lines[0].bLarge);
-			TestTrue(TEXT("La tirada está detrás"), StAnyContains(Lines, TEXT("Tirada: 4")));
+			TestTrue(TEXT("La tirada está detrás"), StAnyContains(Lines, TEXT("Dado: 4")));
 		}
 	}
 	{

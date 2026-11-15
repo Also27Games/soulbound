@@ -77,3 +77,9 @@ FRotator Soulbound::Presentation::LabelFacingRotation(const FRotator& CameraRota
 	// derecha, es la rotación de la cámara girada media vuelta sobre su eje vertical: adelante y derecha se invierten y el arriba se queda.
 	return (CameraRotation.Quaternion() * FRotator(0.f, 180.f, 0.f).Quaternion()).Rotator();
 }
+
+FLinearColor Soulbound::Presentation::ReachableHaloColor(const FLinearColor& BaseColor, double Seconds, float PeriodSeconds, float MinIntensity)
+{
+	const float Intensity = RingPulse(Seconds, PeriodSeconds, MinIntensity);
+	return FLinearColor(BaseColor.R * Intensity, BaseColor.G * Intensity, BaseColor.B * Intensity, BaseColor.A);
+}
