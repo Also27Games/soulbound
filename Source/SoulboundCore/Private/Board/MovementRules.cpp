@@ -5,14 +5,14 @@
 
 namespace Soulbound::Rules
 {
+	bool IsOutsideConfinement(const FBoardState& Board, int32 TileId, const FMoverTraits& Mover)
+	{
+		const int32 DomainId = Board.Tiles[TileId].DomainId;
+		return Mover.bConfinedToForgotten && Board.Domains.IsValidIndex(DomainId) && Board.Domains[DomainId].State != EDomainState::Forgotten;
+	}
+
 	namespace
 	{
-		/** Si la casilla es de un Dominio con dueño y el jugador está confinado a los Olvidados (R-TAB-20). El Altar, no. */
-		bool IsOutsideConfinement(const FBoardState& Board, int32 TileId, const FMoverTraits& Mover)
-		{
-			const int32 DomainId = Board.Tiles[TileId].DomainId;
-			return Mover.bConfinedToForgotten && Board.Domains.IsValidIndex(DomainId) && Board.Domains[DomainId].State != EDomainState::Forgotten;
-		}
 
 		/**
 		 * Búsqueda en profundidad de caminos simples, la de ReachableTiles y MovementPath (S-020: una sola, nada duplicado). Un

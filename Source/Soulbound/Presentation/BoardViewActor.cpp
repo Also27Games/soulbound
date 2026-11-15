@@ -346,6 +346,17 @@ void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		WardenLineOverlay.Reset();
 		WardenLineContent.Reset();
 	}
+	if (NoticeOverlay.IsValid())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UGameViewportClient* Viewport = World->GetGameViewport())
+			{
+				Viewport->RemoveViewportWidgetContent(NoticeOverlay.ToSharedRef());
+			}
+		}
+		NoticeOverlay.Reset();
+	}
 	if (ElectCardOverlay.IsValid())
 	{
 		if (UWorld* World = GetWorld())
@@ -976,7 +987,7 @@ void ABoardViewActor::BuildOverlay()
 	Rows.Add({TEXT("Nichos"),
 		{{NicheFreeColor, TEXT("Libre")}, {SeatColor(0), TEXT("Reclamado: aro y número de su dueño")}, {NicheClosedColor, TEXT("Cerrado")}}});
 	Rows.Add({TEXT("Tablero"),
-		{{ReachableColor, TEXT("Halo blanco: puedes ir ahí")},
+		{{ReachableColor, TEXT("Halo blanco que late: puedes ir ahí")},
 			{SealMarkColor, bKit ? TEXT("Aro rojo y cadenas: sellada, no se pasa") : TEXT("Aro rojo y SELLO: sellada, no se pasa")},
 			{ForgottenRingColor, TEXT("Casillas apagadas: Dominio Olvidado")}}});
 	// Una fila por asiento, con su rol al día: Eco o Elegido, y el Dominio que lleva.
@@ -1249,6 +1260,12 @@ void ABoardViewActor::BuildOverlay()
 					SAssignNew(DecisionPanel, SDecisionPanel)
 					.FontSize(PanelFont)
 					.LargeScale(StatusLargeFontScale)
+					// S-039 (R-DEC-15, R-DEC-16): la cara del dado (con imagen si existe, si no dibujada por código) y la línea del aviso, en el color de la
+					// línea del Warden.
+					.DiceBrush([this]() -> const FSlateBrush* { return DiceTexture ? &DiceBrush : nullptr; })
+					.DiceFaceSize_Lambda([this]() { return DiceFaceSize; })
+					.DiceColor_Lambda([this]() { return DiceFaceColor; })
+					.DicePipColor_Lambda([this]() { return DiceFacePipColor; })
 					.TimeFraction_Lambda([this]() { return DecisionTimeFractionNow(); })
 					// Lo más ancho que puede ser el panel: el hueco del tablero (la capa deja 16 a la izquierda y la columna más 16 a la derecha), con el
 					// tope de la caja. Con él decide si sus botones caben en fila (corrección del autor del 11/11/2026).
@@ -1294,6 +1311,46 @@ void ABoardViewActor::BuildOverlay()
 		]
 	];
 	Viewport->AddViewportWidgetContent(WardenLineOverlay.ToSharedRef(), 11);
+
+	// S-039 (R-DEC-16; corrección del autor del 15/11/2026 tras las pruebas en PIE): el aviso de casilla inalcanzable sale junto al punto del clic, no en
+	// el panel de decisión: los ojos están en la casilla pulsada. Una capa que llena el viewport, sin clics (la casilla de debajo sigue respondiendo), con
+	// el aviso en la esquina que le da PlaceNotice: dentro del viewport y sin quedar debajo de la columna de paneles ni del panel de estado. Mismo texto y
+	// color que la línea del Warden; fondo oscuro como los paneles, para leerse sobre el tablero. Se recoloca cada frame con los mismos datos, así que
+	// se queda quieto; el texto y su vida los pone TickHud.
+	{
+		const int32 NoticeFont = FMath::Max(FMath::RoundToInt(static_cast<float>(PanelSlateFontSize) * 1.2f), 10);
+		NoticeOverlay = SNew(SBox)
+			.Visibility_Lambda([this]()
+			{
+				const UMatchHostSubsystem* HostPtr = Host.Get();
+				return NoticeText.IsEmpty() || (HostPtr && HostPtr->IsCurtainDown()) ? EVisibility::Collapsed : EVisibility::HitTestInvisible;
+			})
+			[
+				SNew(SOverlay)
+				+ SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Top)
+				[
+					SNew(SBox)
+					.Padding_Lambda([this, NoticeFont]()
+					{
+						return NoticeMarginNow(NoticeFont);
+					})
+					[
+					SNew(SBorder)
+					.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+					.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.78f))
+					.Padding(FMargin(NoticePadding))
+					[
+						SNew(STextBlock)
+						.Text_Lambda([this]() { return FText::FromString(NoticeText); })
+						.Font_Lambda([NoticeFont]() { return FCoreStyle::GetDefaultFontStyle("Bold", NoticeFont); })
+						.ColorAndOpacity_Lambda([this]() { return WardenLineColor; })
+						.WrapTextAt_Lambda([this]() { return NoticeWrapAt; })
+					]
+					]
+				]
+			];
+		Viewport->AddViewportWidgetContent(NoticeOverlay.ToSharedRef(), 13);
+	}
 
 	// S-022 (decisión del autor del 29/10/2026): con la partida terminada, un botón grande para volver al menú, con el ratón (el controlador
 	// deja el cursor visible y la entrada en juego y UI). El resultado es texto de depuración arriba a la izquierda, de altura variable: el botón
@@ -1351,6 +1408,27 @@ void ABoardViewActor::BuildOverlay()
 		else
 		{
 			UE_LOG(LogSoulboundView, Warning, TEXT("Anillo: no existe la textura de la runa %s; se pinta un disco relleno."), *RingRuneTexture.ToString());
+		}
+	}
+	// S-039 (R-DEC-15): la imagen de las caras del dado se carga aquí, una vez, como la runa. Sin imagen, el panel de decisión dibuja la cara por código.
+	DiceTexture = nullptr;
+	DiceBrush = FSlateBrush();
+	if (DiceFacesTexture.IsNull())
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Dado: DiceFacesTexture está vacío; la cara del dado se dibuja por código."));
+	}
+	else
+	{
+		DiceTexture = Cast<UTexture2D>(DiceFacesTexture.TryLoad());
+		if (DiceTexture)
+		{
+			DiceBrush.SetResourceObject(DiceTexture);
+			DiceBrush.ImageSize = FVector2f(DiceTexture->GetSizeX(), DiceTexture->GetSizeY());
+			DiceBrush.DrawAs = ESlateBrushDrawType::Image;
+		}
+		else
+		{
+			UE_LOG(LogSoulboundView, Warning, TEXT("Dado: no existe la textura de las caras %s; la cara del dado se dibuja por código."), *DiceFacesTexture.ToString());
 		}
 	}
 	RingOverlay = SNew(SBox)
@@ -1462,6 +1540,13 @@ void ABoardViewActor::Refresh()
 	else if (State.PendingChoice.Kind == EChoiceKind::PlanarJump)
 	{
 		Reachable.Append(State.PendingChoice.Options);
+	}
+
+	// S-039 (R-VIS-26): mientras hay halos a la vista el actor tica para que latan; Tick lo apaga cuando ya no hay halos ni destellos.
+	bReachableHalosShown = !Reachable.IsEmpty();
+	if (bReachableHalosShown)
+	{
+		SetActorTickEnabled(true);
 	}
 
 	// S-023 (R-PRO-1): en el prólogo, un Dominio Olvidado se ve en juego hasta que se enseña su frase de corrupción; después, lo del estado.
@@ -2158,11 +2243,17 @@ void ABoardViewActor::Tick(float DeltaSeconds)
 	const FMatchState& State = HostPtr->GetState();
 	const int32 Before = SourceFlashes.Num();
 	SourceFlashes.RemoveAll([Now](const FSourceFlash& Flash) { return Flash.End <= Now; });
+	// S-039 (R-VIS-26): las casillas cuyo halo está en un destello de Fuente en este instante; ahí manda el destello y el latido no pinta.
+	TSet<int32> FlashedHalos;
 	for (const FSourceFlash& Flash : SourceFlashes)
 	{
 		if (Flash.Start > Now)
 		{
 			continue;
+		}
+		if (!Flash.bTile)
+		{
+			FlashedHalos.Add(State.Board.FindPowerSource(Flash.RuneType));
 		}
 		const float Intensity = static_cast<float>(FMath::Sin(UE_DOUBLE_PI * (Now - Flash.Start) / FMath::Max(Flash.End - Flash.Start, static_cast<double>(KINDA_SMALL_NUMBER))));
 		if (Flash.bTile)
@@ -2232,11 +2323,27 @@ void ABoardViewActor::Tick(float DeltaSeconds)
 		SealMarkBaseScales.Reset();
 		Refresh();
 	}
+	// S-039 (R-VIS-26): el latido de los halos de casilla alcanzable. El color es ReachableColor por el pulso del aro del turno (ReachableHaloColor); el
+	// halo no cambia de tamaño ni de sitio. Solo los halos visibles, y no los que está pintando un destello.
+	if (bReachableHalosShown)
+	{
+		const FLinearColor Pulse = Soulbound::Presentation::ReachableHaloColor(ReachableColor, Now, ReachablePulseSeconds, ReachablePulseMin);
+		for (int32 TileId = 0; TileId < Halos.Num(); ++TileId)
+		{
+			if (UStaticMeshComponent* Halo = Halos[TileId].Get(); Halo && Halo->IsVisible() && !FlashedHalos.Contains(TileId))
+			{
+				Soulbound::Presentation::SetComponentColor(*Halo, BaseMaterial, Pulse);
+			}
+		}
+	}
 	if (SourceFlashes.IsEmpty())
 	{
 		SourceFlashBusy.Reset();
 		SealFlashBusy.Reset();
-		SetActorTickEnabled(false);
+		if (!bReachableHalosShown)
+		{
+			SetActorTickEnabled(false);
+		}
 	}
 }
 
@@ -2336,8 +2443,35 @@ void ABoardViewActor::TickHud()
 	// S-028 (R-DEC-1 a R-DEC-3): la decisión del humano, en su panel, con el reloj de la barra; con el panel a la vista, el de estado no repite
 	// la petición. S-033 (R-DEC-6): el mismo panel enseña, si el humano no tiene nada que decidir, el resultado de una votación reciente o a quién
 	// espera la mesa; el panel de estado solo deja de repetir la petición cuando lo que se ve es una decisión propia.
-	const TOptional<Soulbound::Presentation::FDecisionView> Panel = PanelViewNow();
+	TOptional<Soulbound::Presentation::FDecisionView> Panel = PanelViewNow();
 	Soulbound::Presentation::AdvanceDecisionClock(DecisionClock, Panel);
+	// S-039 (R-DEC-16): el aviso de casilla inalcanzable. Un rechazo nuevo del anfitrión (otro número de orden, aunque el motivo y la tirada se repitan) lo
+	// enseña o lo sustituye; se quita solo al pasar sus segundos, o ya si el turno de tirada deja de ser del humano (destino aceptado, turno cortado o
+	// terminado). Va en la vista sin cambiar su identidad: la barra del plazo no se reinicia. La primera vez solo se pone al día el número.
+	{
+		const UMatchHostSubsystem::FHumanRejection& Rejection = HostPtr->GetLastHumanRejection();
+		const double RealNow = FPlatformTime::Seconds();
+		if (SeenRejectionSerial == INDEX_NONE)
+		{
+			SeenRejectionSerial = Rejection.Serial;
+		}
+		else if (Rejection.Serial != SeenRejectionSerial)
+		{
+			// El punto lo capturó el anfitrión en el momento del clic (coordenadas absolutas de Slate); aquí solo se pasa al sistema de la capa del aviso.
+			SeenRejectionSerial = Rejection.Serial;
+			FVector2f At = Rejection.ScreenPosition;
+			if (NoticeOverlay.IsValid())
+			{
+				At = FVector2f(NoticeOverlay->GetTickSpaceGeometry().AbsoluteToLocal(FVector2D(Rejection.ScreenPosition)));
+			}
+			UnreachableNotice.Show(Soulbound::Presentation::UnreachableNoticeText(Rejection.Reason, Rejection.Roll), At, RealNow);
+		}
+		if (!Panel.IsSet() || Panel->Input != Soulbound::Presentation::EDecisionInput::Tile)
+		{
+			UnreachableNotice.Dismiss();
+		}
+		NoticeText = UnreachableNotice.Current(RealNow, UnreachableNoticeSeconds);
+	}
 	DecisionDeadlineSeconds = Panel.IsSet() ? Panel->DeadlineSeconds : 0.0;
 	const bool bRingOpen = HostPtr->GetRingRun() != nullptr;
 	bDecisionShown = Soulbound::Presentation::IsDecisionPanelShown(Panel, bRingOpen);
@@ -2454,6 +2588,50 @@ TOptional<Soulbound::Presentation::FDecisionView> ABoardViewActor::PanelViewNow(
 		return {};
 	}
 	return Soulbound::Presentation::PanelView(HostPtr->GetState(), HostPtr->GetHumanSeat(), HostPtr->IsWardenSpeaking(), VoteResultSeconds, OutcomeSeconds);
+}
+
+FMargin ABoardViewActor::NoticeMarginNow(int32 FontSize) const
+{
+	if (!NoticeOverlay.IsValid() || NoticeText.IsEmpty())
+	{
+		return FMargin(0.f);
+	}
+	const FGeometry& Layer = NoticeOverlay->GetTickSpaceGeometry();
+	const FVector2f ViewportSize(Layer.GetLocalSize());
+	if (ViewportSize.X < 1.f || ViewportSize.Y < 1.f)
+	{
+		return FMargin(0.f);
+	}
+	const bool bPanels = !bPanelsHidden;
+	// El tablero visible acaba donde empieza la columna de paneles (con ella oculta, es todo el viewport).
+	const FBox2f Bounds(FVector2f(0.f, 0.f), FVector2f(FMath::Max(ViewportSize.X - (bPanels ? PanelSlateWidth : 0.f), 1.f), ViewportSize.Y));
+	TArray<FBox2f> Avoid;
+	auto AddZone = [&](const TSharedPtr<SStatusPanel>& Panel, bool bShown)
+	{
+		if (bPanels && bShown && Panel.IsValid() && Panel->GetVisibility().IsVisible())
+		{
+			const FGeometry& Zone = Panel->GetTickSpaceGeometry();
+			const FVector2f At(Layer.AbsoluteToLocal(Zone.GetAbsolutePosition()));
+			Avoid.Add(FBox2f(At, At + FVector2f(Zone.GetLocalSize())));
+		}
+	};
+	AddZone(StatusPanel, !bDebugTextHidden);
+	AddZone(DebugPanel, bDebugPanelShown);
+
+	// El tamaño del aviso: el texto medido con su letra, partido al ancho libre, más el margen del fondo.
+	const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Bold", FontSize);
+	FVector2f TextSize(static_cast<float>(NoticeText.Len() * FontSize) * 0.6f, static_cast<float>(FontSize) * 1.3f);
+	if (FSlateApplication::IsInitialized() && FSlateApplication::Get().GetRenderer())
+	{
+		TextSize = FVector2f(FSlateApplication::Get().GetRenderer()->GetFontMeasureService()->Measure(NoticeText, Font));
+	}
+	const float WrapAt = FMath::Max(FMath::Min(TextSize.X, Bounds.GetSize().X - 2.f * NoticePadding - 16.f), 1.f);
+	const int32 Lines = FMath::Max(FMath::CeilToInt(TextSize.X / WrapAt), 1);
+	const FVector2f Size(WrapAt + 2.f * NoticePadding, TextSize.Y * Lines + 2.f * NoticePadding);
+	const_cast<ABoardViewActor*>(this)->NoticeWrapAt = WrapAt;
+
+	const FVector2f Corner = Soulbound::Presentation::PlaceNotice(UnreachableNotice.Position(), Size, Bounds, Avoid, NoticeClickGap);
+	return FMargin(Corner.X, Corner.Y, 0.f, 0.f);
 }
 
 float ABoardViewActor::LayerSlateWidth() const

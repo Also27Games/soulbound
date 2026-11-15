@@ -4,6 +4,7 @@
 #include "Decider/Decider.h"
 #include "Match/MatchState.h"
 #include "Match/TurnRules.h"
+#include "Match/UnreachableRules.h"
 #include "AdvanceGuard.h"
 #include "StepClock.h"
 #include "Curtain.h"
@@ -102,6 +103,28 @@ public:
 	 * el motor decide si vale; una intención inválida se descarta sin castigo. Devuelve lo que dijo el motor.
 	 */
 	EIntentResult SubmitHumanIntent(int32 TileId);
+
+	/**
+	 * El último destino del humano que el motor rechazó por inalcanzable (S-039, R-DEC-16; nombre propuesto): lo que la vista necesita para
+	 * enseñar el aviso. Serial sube en cada rechazo, también si el motivo y la tirada son los de antes: dos rechazos seguidos iguales se
+	 * distinguen, y el segundo sustituye al primero y vuelve a contar. Antes del primer rechazo, Serial vale 0. Es presentación: no se
+	 * guarda en el estado de la partida y el motor no lo sabe.
+	 */
+	struct FHumanRejection
+	{
+		int32 Serial = 0;
+		EUnreachableReason Reason = EUnreachableReason::Roll;
+		/** La tirada del turno (la suma de los dados) cuando se rechazó. */
+		int32 Roll = 0;
+		/**
+		 * Dónde estaba el cursor al hacer clic, en coordenadas absolutas de Slate, leído en la misma llamada que el clic (no en el siguiente refresco del
+		 * HUD, que ya podría ser otro punto). La vista lo pasa a coordenadas de su capa. Cero si no hay Slate o no hay cursor.
+		 */
+		FVector2f ScreenPosition = FVector2f::ZeroVector;
+	};
+
+	/** El último rechazo por inalcanzable del humano (FHumanRejection). */
+	const FHumanRejection& GetLastHumanRejection() const { return LastHumanRejection; }
 
 	/**
 	 * Intención de avance del asiento Seat (S-020), sea humano o dummy (decisión del autor del 21/10/2026): la vista la entrega al
@@ -602,6 +625,8 @@ private:
 	int32 WardenLinesScanned = 0;
 	int32 UsedSeed = 0;
 	bool bHasMatch = false;
+	/** El último destino del humano rechazado por inalcanzable (S-039). */
+	FHumanRejection LastHumanRejection;
 	/** Ruta completa del archivo del acta (S-030); vacía si no se abrió. */
 	FString RecordPath;
 	/** Si el acta está abierta: se escribe hasta que se cierra (el cierre, o un fallo de escritura). */

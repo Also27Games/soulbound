@@ -35,6 +35,17 @@ namespace Soulbound::Presentation
 	 */
 	SOULBOUND_API float RingPulse(double Seconds, float PeriodSeconds, float MinIntensity = 0.35f);
 
+	/**
+	 * El color con que se pinta el halo de una casilla alcanzable en el instante Seconds (S-039, R-VIS-26): el color base por la intensidad del
+	 * pulso (RingPulse, la misma función que el aro del turno), sin tocar el alfa. Sin periodo válido, el color base entero.
+	 * @param BaseColor El color del halo (ABoardViewActor::ReachableColor).
+	 * @param Seconds Reloj de la vista.
+	 * @param PeriodSeconds Periodo del latido (ABoardViewActor::ReachablePulseSeconds).
+	 * @param MinIntensity Intensidad mínima, de 0 a 1 (ReachablePulseMin).
+	 * @return El color a pintar.
+	 */
+	SOULBOUND_API FLinearColor ReachableHaloColor(const FLinearColor& BaseColor, double Seconds, float PeriodSeconds, float MinIntensity);
+
 	/** Margen entre el borde del disco de rol y el borde interior del aro del turno, en cm (S-029, corrección del 13/11/2026). */
 	inline constexpr float RoleDiscRingMargin = 0.1f;
 

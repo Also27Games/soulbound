@@ -10,6 +10,7 @@
 #include "ElectCard.h"
 #include "FlashCues.h"
 #include "InstructionTracker.h"
+#include "UnreachableNotice.h"
 #include "Match/RingRules.h"
 #include "Styling/SlateBrush.h"
 #include "StatusText.h"
@@ -299,6 +300,41 @@ public:
 	/** Intensidad mínima del pulso del aro del turno, por la del color del asiento (S-029). Valor inicial 0,35. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Asiento activo", meta = (ClampMin = "0", ClampMax = "1"))
 	float ActiveRingPulseMin = 0.35f;
+
+	/**
+	 * Periodo del latido de los halos de casilla alcanzable (S-039, R-VIS-26), en segundos; 0 o menos, sin latido (brillo fijo). Es la función del pulso
+	 * del aro del turno (RingPulse). Valor inicial 1,2 (Config/DefaultGame.ini).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Halos")
+	float ReachablePulseSeconds = 1.2f;
+
+	/** Brillo mínimo del latido de los halos alcanzables, por el de ReachableColor (S-039, R-VIS-26). Valor inicial 0,12 (corrección del autor del 15/11/2026: con 0,35 el punto apagado se veía demasiado). */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Halos", meta = (ClampMin = "0", ClampMax = "1"))
+	float ReachablePulseMin = 0.12f;
+
+	/**
+	 * Textura de las caras del dado del panel de decisión (S-039, R-DEC-15): las seis caras en una fila, del 1 al 6 de izquierda a derecha, cada una un
+	 * sexto del ancho. Vacía, o con un asset que no existe, el panel dibuja la cara por código (un cuadrado con sus puntos) y lo dice una vez en el
+	 * registro. Valor inicial /Game/Art/Dados/T_DadoCaras.T_DadoCaras (Config/DefaultGame.ini); el asset lo importa el autor más adelante.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (AllowedClasses = "/Script/Engine.Texture2D"))
+	FSoftObjectPath DiceFacesTexture;
+
+	/** Lado de la cara del dado del panel de decisión, en unidades de Slate (S-039, R-DEC-15). Valor inicial 44; el autor lo ajusta en PIE a 1024x768. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "8"))
+	float DiceFaceSize = 44.f;
+
+	/** Color del cuadrado del dado dibujado por código (S-039, R-DEC-15). Valor inicial (0,92, 0,92, 0,88), un marfil. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FLinearColor DiceFaceColor = FLinearColor(0.92f, 0.92f, 0.88f);
+
+	/** Color de los puntos del dado dibujado por código (S-039, R-DEC-15). Valor inicial (0,08, 0,08, 0,1), casi negro. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FLinearColor DiceFacePipColor = FLinearColor(0.08f, 0.08f, 0.1f);
+
+	/** Segundos que se enseña el aviso de casilla inalcanzable (S-039, R-DEC-16); se quita antes con otro clic de destino o al acabar el turno de tirada. Valor inicial 4. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
+	float UnreachableNoticeSeconds = 4.f;
 
 	// ---- Destellos (S-029, R-VIS-12) ----
 
@@ -1070,6 +1106,32 @@ private:
 	TObjectPtr<UTexture2D> RuneTexture;
 	/** El pincel de la runa: apunta a RuneTexture; vacío si no hay textura (entonces el panel pinta un disco). */
 	FSlateBrush RuneBrush;
+
+	/**
+	 * La textura de las caras del dado, cargada al montar el panel de decisión (S-039, R-DEC-15). UPROPERTY por lo mismo que RuneTexture: el pincel que
+	 * la apunta (DiceBrush) no es UObject.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> DiceTexture;
+	/** El pincel de las caras del dado: apunta a DiceTexture; vacío si no hay textura (entonces el panel dibuja la cara por código). */
+	FSlateBrush DiceBrush;
+
+	/** La vida del aviso de casilla inalcanzable (S-039, R-DEC-16): cuándo se ve y cuándo se quita; no es del motor ni una frase del Warden. */
+	Soulbound::Presentation::FUnreachableNotice UnreachableNotice;
+	/** La capa del aviso de casilla inalcanzable (S-039, R-DEC-16): llena el viewport, no recibe clics y pone el aviso donde lo coloca PlaceNotice. */
+	TSharedPtr<SWidget> NoticeOverlay;
+	/** El margen que coloca el aviso en la capa (PlaceNotice con el viewport, la columna de paneles y el panel de estado de este frame). */
+	FMargin NoticeMarginNow(int32 FontSize) const;
+	/** Margen del fondo del aviso por cada lado, y separación entre el punto del clic y el aviso, en unidades de Slate. */
+	static constexpr float NoticePadding = 8.f;
+	static constexpr float NoticeClickGap = 14.f;
+	/** El texto del aviso que se ve ahora (vacío si no hay), actualizado en TickHud, y el ancho al que se parte. */
+	FString NoticeText;
+	float NoticeWrapAt = 400.f;
+	/** El último rechazo del anfitrión que ya se ha mirado; INDEX_NONE hasta el primer TickHud, que se pone al día sin enseñar un aviso viejo. */
+	int32 SeenRejectionSerial = INDEX_NONE;
+	/** Si hay halos de casilla alcanzable a la vista, es decir, si el actor tiene que seguir ticando para que latan (S-039, R-VIS-26). */
+	bool bReachableHalosShown = false;
 
 	Soulbound::Presentation::FWardenLineQueue WardenLineQueue;
 	/** Cuántos eventos del registro se han mirado en busca de frases. */

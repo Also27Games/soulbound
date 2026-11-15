@@ -188,3 +188,14 @@ namespace Soulbound::Presentation
 		return FString::Printf(TEXT("Anillo cerrado: %s; %.1f fotogramas por segundo (%lld fotogramas en %.1f s)."), *Why, FramesPerSecond, Frames, FMath::Max(Seconds, 0.0));
 	}
 }
+
+FString Soulbound::Presentation::UnreachableReasonText(EUnreachableReason Reason)
+{
+	switch (Reason)
+	{
+	case EUnreachableReason::Roll: return TEXT("dado");
+	case EUnreachableReason::Confined: return TEXT("Eco");
+	case EUnreachableReason::Sealed: return TEXT("sello");
+	}
+	return TEXT("desconocido");
+}
