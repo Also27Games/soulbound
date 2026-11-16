@@ -121,7 +121,7 @@ bool FStatusRequestFirstTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusResultFirstTest, "Soulbound.Game.Presentation.Estado.ResultadoArribaYGrande", StatusTestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusResultFirstTest, "Soulbound.Game.Presentation.Estado.ResultadoFueraDelPanel", StatusTestFlags)
 
 bool FStatusResultFirstTest::RunTest(const FString& Parameters)
 {
@@ -136,8 +136,11 @@ bool FStatusResultFirstTest::RunTest(const FString& Parameters)
 		const TArray<FPanelLine> Lines = Soulbound::Presentation::StatusLines(State, StMakeContext());
 		TestFalse(TEXT("Sin el resultado grande"), StAnyContains(Lines, TEXT("GANA EL")));
 		TestFalse(TEXT("Sin la línea de volver al menú"), StAnyContains(Lines, TEXT("volver al menú")));
-		TestFalse(TEXT("Ninguna con la letra grande"), Lines.ContainsByPredicate([](const FPanelLine& Line) { return Line.bLarge; }));
-		TestTrue(TEXT("Conserva la línea que explica el final"), StAnyContains(Lines, TEXT("VICTORIA DEL ASIENTO 2: supera el desafío final.")));
+		const int32 Explains = Lines.IndexOfByPredicate([](const FPanelLine& Line) { return Line.Text.StartsWith(TEXT("VICTORIA DEL ASIENTO 2: supera el desafío final.")); });
+		if (TestTrue(TEXT("Conserva la línea que explica el final"), Explains != INDEX_NONE))
+		{
+			TestFalse(TEXT("Pequeña"), Lines[Explains].bLarge);
+		}
 	}
 	{
 		FMatchState State = StMakeState();

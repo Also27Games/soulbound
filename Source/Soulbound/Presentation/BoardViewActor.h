@@ -594,6 +594,17 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
 	int32 ReturnToMenuFontSize = 28;
 
+	/**
+	 * Tamaño de la letra del resultado de la partida, encima del botón "Volver al menú" (S-041, R-HUD-8; añadido del autor del 17/11/2026: antes iba
+	 * arriba a la izquierda, en el panel de estado). Valor inicial 40, mayor que el botón.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	int32 MatchResultFontSize = 40;
+
+	/** Tamaño de la letra de "o pulsa Intro", debajo del botón "Volver al menú" (S-041, R-HUD-8). Valor inicial 18, como la línea pequeña del corte. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	int32 ReturnToMenuHintFontSize = 18;
+
 	/** Tecla que oculta y muestra etiquetas para las capturas. Valor inicial L. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey OverlayToggleKey = EKeys::L;
@@ -906,6 +917,8 @@ private:
 	void ApplyViewTarget();
 	/** Si la partida ha terminado: entonces existe el botón "Volver al menú" y vale la tecla (S-022). */
 	bool IsMatchOverShown() const;
+	/** El resultado de la partida en grande, encima del botón (S-041, R-HUD-8; MatchResultLine); vacío sin partida o si no ha terminado. */
+	Soulbound::Presentation::FPanelLine MatchResultLineNow() const;
 	/**
 	 * Vuelve al menú (S-022), por el botón o por la tecla: solo con la partida terminada y una sola vez; cierra la sesión en línea si la hay
 	 * y viaja al menú.

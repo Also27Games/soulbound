@@ -163,10 +163,10 @@ namespace Soulbound::Presentation
 				}
 				if (Event.Type == EMatchEventType::WardenEventStarted && EventIndex == INDEX_NONE && State.WardenEvents.Events.IsValidIndex(Event.Value))
 				{
-					// Lo decretado: al cortado, el texto del evento (escrito para quien lo recibe); a otro asiento, su nombre (respuesta del autor al plan).
+					// Lo decretado: al humano, el texto del evento (escrito para quien lo recibe). A otro asiento, solo que se le corta el turno
+					// (corrección del autor del 17/11/2026 tras PIE: el nombre del evento, suelto, no explicaba nada).
 					EventIndex = Event.Value;
-					const FWardenEventDef& Def = State.WardenEvents.Events[EventIndex];
-					const FString What = Cut.Seat == HumanSeat ? Def.Text : Def.DisplayName();
+					const FString What = Cut.Seat == HumanSeat ? State.WardenEvents.Events[EventIndex].Text : FString();
 					OutCut.Note = What.IsEmpty() ? Opening + TEXT(".") : Opening + TEXT(". ") + What;
 					continue;
 				}
@@ -284,7 +284,17 @@ namespace Soulbound::Presentation
 
 	float CutDimOpacity(double NowReal, double CutStartReal, float MaxOpacity, int32 PulseCount, double PulseSeconds)
 	{
-		// TODO(R-VOZ-8): cuerpo vacío para ver el test en rojo.
-		return 0.f;
+		if (CutStartReal < 0.0 || PulseCount <= 0 || PulseSeconds <= 0.0 || NowReal < CutStartReal)
+		{
+			return 0.f;
+		}
+		// Corrección del autor del 17/11/2026: varios pulsos seguidos. Cada uno aparece de golpe con el máximo y baja en línea recta hasta cero.
+		const double Elapsed = (NowReal - CutStartReal) / PulseSeconds;
+		if (Elapsed >= PulseCount)
+		{
+			return 0.f;
+		}
+		const double InPulse = Elapsed - FMath::FloorToDouble(Elapsed);
+		return static_cast<float>(MaxOpacity * (1.0 - InPulse));
 	}
 }

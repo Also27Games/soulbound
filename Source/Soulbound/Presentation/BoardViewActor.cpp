@@ -1390,7 +1390,8 @@ void ABoardViewActor::BuildOverlay()
 	Viewport->AddViewportWidgetContent(WardenLineOverlay.ToSharedRef(), 11);
 
 	// S-041 (R-VOZ-8): la capa oscura del corte. Llena el viewport sobre el tablero y por debajo de todas las demás capas (la de los paneles va en el 10):
-	// negra con la opacidad de CutDimOpacityNow, que aparece de golpe en el corte y se desvanece. Sin posproceso (restricción de rendimiento) y sin clics.
+	// negra con la opacidad de CutDimOpacityNow: desde la corrección del autor del 17/11/2026, varios pulsos seguidos que aparecen de golpe y se
+	// desvanecen. Sin posproceso (restricción de rendimiento) y sin clics.
 	CutDimOverlay = SNew(SImage)
 		.Image(FCoreStyle::Get().GetBrush("WhiteBrush"))
 		.ColorAndOpacity_Lambda([this]() { return FSlateColor(FLinearColor(0.f, 0.f, 0.f, CutDimOpacityNow())); })
@@ -1438,8 +1439,8 @@ void ABoardViewActor::BuildOverlay()
 	}
 
 	// S-022 (decisión del autor del 29/10/2026): con la partida terminada, un botón grande para volver al menú, con el ratón (el controlador
-	// deja el cursor visible y la entrada en juego y UI). El resultado es texto de depuración arriba a la izquierda, de altura variable: el botón
-	// va en el centro del hueco del tablero, a la izquierda de la columna de paneles. Antes del final no existe; pedido, se desactiva.
+	// deja el cursor visible y la entrada en juego y UI). El botón va en el centro del hueco del tablero, a la izquierda de la columna de paneles;
+	// desde S-041 (R-HUD-8), con el resultado encima y la tecla debajo. Antes del final no existe; pedido, se desactiva.
 	// R-VIS-20 (S-031, corrección del autor del 12/11/2026): como la capa de la frase (R-DEC-13), la capa ocupa el hueco libre (HAlign_Fill, con sus
 	// márgenes) y el botón se centra dentro, sin márgenes laterales; con HAlign_Center y márgenes desiguales, AlignChild lo dejaba media columna a la
 	// izquierda del centro del hueco. La caja interior, que no recibe clics por sí misma, solo centra.
@@ -1454,19 +1455,47 @@ void ABoardViewActor::BuildOverlay()
 			.VAlign(VAlign_Center)
 			.Visibility(EVisibility::SelfHitTestInvisible)
 			[
-				SNew(SButton)
-				.ContentPadding(FMargin(32.f, 14.f))
-				.IsEnabled_Lambda([this]() { return !bReturningToMenu; })
-				.OnClicked_Lambda([this]()
-				{
-					ReturnToMenu();
-					return FReply::Handled();
-				})
+				// S-041 (R-HUD-8, añadido del autor del 17/11/2026): el resultado en grande encima del botón, con su color (MatchResultLine), y la tecla
+				// debajo, en pequeño; antes los dos iban arriba a la izquierda, en el panel de estado. Los textos no reciben clics.
+				SNew(SVerticalBox)
+				.Visibility(EVisibility::SelfHitTestInvisible)
+				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, 16.f)
 				[
 					SNew(STextBlock)
-					.Text(FText::FromString(TEXT("Volver al menú")))
-					.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(ReturnToMenuFontSize, 8)))
+					.Text_Lambda([this]() { return FText::FromString(MatchResultLineNow().Text); })
+					.ColorAndOpacity_Lambda([this]() { return FSlateColor(MatchResultLineNow().Color); })
+					.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(MatchResultFontSize, 8)))
+					.ShadowOffset(FVector2D(2.f, 2.f))
+					.ShadowColorAndOpacity(FLinearColor(0.f, 0.f, 0.f, 0.8f))
 					.Justification(ETextJustify::Center)
+					.Visibility(EVisibility::HitTestInvisible)
+				]
+				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+				[
+					SNew(SButton)
+					.ContentPadding(FMargin(32.f, 14.f))
+					.IsEnabled_Lambda([this]() { return !bReturningToMenu; })
+					.OnClicked_Lambda([this]()
+					{
+						ReturnToMenu();
+						return FReply::Handled();
+					})
+					[
+						SNew(STextBlock)
+						.Text(FText::FromString(TEXT("Volver al menú")))
+						.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(ReturnToMenuFontSize, 8)))
+						.Justification(ETextJustify::Center)
+					]
+				]
+				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 8.f, 0.f, 0.f)
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(Soulbound::Presentation::ReturnToMenuHint(ReturnToMenuKey.GetDisplayName().ToString())))
+					.Font(FCoreStyle::GetDefaultFontStyle("Regular", FMath::Max(ReturnToMenuHintFontSize, 8)))
+					.ShadowOffset(FVector2D(1.f, 1.f))
+					.ShadowColorAndOpacity(FLinearColor(0.f, 0.f, 0.f, 0.8f))
+					.Justification(ETextJustify::Center)
+					.Visibility(EVisibility::HitTestInvisible)
 				]
 			]
 		];
@@ -2129,6 +2158,12 @@ bool ABoardViewActor::IsMatchOverShown() const
 {
 	const UMatchHostSubsystem* HostPtr = Host.Get();
 	return HostPtr && HostPtr->HasMatch() && HostPtr->GetState().IsMatchOver();
+}
+
+Soulbound::Presentation::FPanelLine ABoardViewActor::MatchResultLineNow() const
+{
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	return HostPtr && HostPtr->HasMatch() ? Soulbound::Presentation::MatchResultLine(HostPtr->GetState(), MakeStatusContext()) : Soulbound::Presentation::FPanelLine();
 }
 
 void ABoardViewActor::ReturnToMenu()

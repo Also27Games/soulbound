@@ -64,9 +64,11 @@ namespace Soulbound::Presentation
 
 	/**
 	 * Las líneas del panel de estado (R-HUD-1): fase de la partida y prólogo, tirada y reloj de turno, Sellos activos, carrera, la petición al
-	 * jugador, trilero, duelo, evento del Warden, Noche de los Ecos, Oráculo, votación, aspirantes y, con la partida terminada, el resultado.
-	 * Los textos y colores de antes de S-027, sin las teclas de depuración. Van primero, con la letra grande, el resultado si la partida ha
-	 * terminado y la petición al jugador: su elección pendiente o, en su turno de tirada, la línea de la tirada con "tu turno".
+	 * jugador, trilero, duelo, evento del Warden, Noche de los Ecos, Oráculo, votación y aspirantes. Los textos y colores de antes de S-027, sin
+	 * las teclas de depuración. Va primero, con la letra grande, la petición al jugador: su elección pendiente o, en su turno de tirada, la línea
+	 * de la tirada con "tu turno". Con el panel de decisión a la vista (Context.bDecisionPanelShown), la petición que el panel enseña no se repite
+	 * (R-DEC-3, S-028; desde S-041, R-DEC-18, también la consulta del Oráculo y el voto). Desde S-041 (R-HUD-8) el resultado grande no va aquí
+	 * (MatchResultLine); con la partida terminada queda la línea de la carrera que explica el final.
 	 * @param State El estado de la partida.
 	 * @param Context Lo que no está en el estado.
 	 * @return Las líneas, de arriba abajo; ninguna lleva la semilla.
