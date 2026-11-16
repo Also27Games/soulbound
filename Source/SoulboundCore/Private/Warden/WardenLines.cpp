@@ -102,6 +102,8 @@ namespace Soulbound::Rules
 		Keys.Add(Soulbound::Warden::LineTimeOut);
 		Keys.Add(Soulbound::Warden::LineVictory);
 		Keys.Add(Soulbound::Warden::LineNobodyBonded);
+		// S-043 (R-VOZ-9): el fin de la Noche de los Ecos por el tope de rondas.
+		Keys.Add(Soulbound::Warden::LineEchoNightEnd);
 		for (int32 Domain = 0; Domain < Elects.Elects.Num(); ++Domain)
 		{
 			Keys.Add(IntroductionKey(Domain));
