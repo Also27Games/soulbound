@@ -13,8 +13,10 @@ namespace Soulbound::Presentation
 	{
 	public:
 		/**
-		 * Enseña Text desde el instante NowReal (segundos reales) en el punto Position (el del clic rechazado, en coordenadas de la capa). Un aviso
-		 * nuevo sustituye al que hubiera, aunque sea el mismo texto, lo lleva al punto nuevo y vuelve a contar desde cero.
+		 * Enseña Text desde el instante NowReal (segundos reales) en el punto Position: el del clic rechazado, tal como lo da quien lo enseña, sin
+		 * convertir; la vista le da el absoluto de Slate y lo pasa a su capa al colocarlo (corrección tras PIE del 16/11/2026, en S-040, de un defecto de
+		 * S-039: convertirlo al enseñarlo usaba la geometría de una capa que antes del primer aviso no se había pintado nunca). Un aviso nuevo sustituye
+		 * al que hubiera, aunque sea el mismo texto, lo lleva al punto nuevo y vuelve a contar desde cero.
 		 */
 		void Show(const FString& NewText, const FVector2f& NewPosition, double NowReal);
 
@@ -27,7 +29,7 @@ namespace Soulbound::Presentation
 		 */
 		FString Current(double NowReal, double Seconds) const;
 
-		/** El punto del último aviso enseñado (el del clic), sea cual sea su estado; cero si no se ha enseñado ninguno. */
+		/** El punto del último aviso enseñado (el del clic, tal como se le dio), sea cual sea su estado; cero si no se ha enseñado ninguno. */
 		FVector2f Position() const;
 
 	private:

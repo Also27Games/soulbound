@@ -2499,14 +2499,11 @@ void ABoardViewActor::TickHud()
 		}
 		else if (Rejection.Serial != SeenRejectionSerial)
 		{
-			// El punto lo capturó el anfitrión en el momento del clic (coordenadas absolutas de Slate); aquí solo se pasa al sistema de la capa del aviso.
+			// El punto lo capturó el anfitrión en el momento del clic (coordenadas absolutas de Slate) y se guarda así: lo pasa a la capa NoticeMarginNow,
+			// con la geometría del frame. S-040, corrección tras PIE de un defecto de S-039: convertirlo aquí usaba la geometría de la capa del aviso, que
+			// está plegada sin aviso y, antes del primero, no se había pintado nunca: el primer aviso de la partida salía desplazado.
 			SeenRejectionSerial = Rejection.Serial;
-			FVector2f At = Rejection.ScreenPosition;
-			if (NoticeOverlay.IsValid())
-			{
-				At = FVector2f(NoticeOverlay->GetTickSpaceGeometry().AbsoluteToLocal(FVector2D(Rejection.ScreenPosition)));
-			}
-			UnreachableNotice.Show(Soulbound::Presentation::UnreachableNoticeText(Rejection.Reason, Rejection.Roll), At, RealNow);
+			UnreachableNotice.Show(Soulbound::Presentation::UnreachableNoticeText(Rejection.Reason, Rejection.Roll), Rejection.ScreenPosition, RealNow);
 		}
 		if (!Panel.IsSet() || Panel->Input != Soulbound::Presentation::EDecisionInput::Tile)
 		{
@@ -2695,7 +2692,9 @@ FMargin ABoardViewActor::NoticeMarginNow(int32 FontSize) const
 	const FVector2f Size(WrapAt + 2.f * NoticePadding, TextSize.Y * Lines + 2.f * NoticePadding);
 	const_cast<ABoardViewActor*>(this)->NoticeWrapAt = WrapAt;
 
-	const FVector2f Corner = Soulbound::Presentation::PlaceNotice(UnreachableNotice.Position(), Size, Bounds, Avoid, NoticeClickGap);
+	// El punto del clic, absoluto, en las coordenadas de la capa con la geometría de este frame (S-040, corrección del defecto de S-039 del primer aviso).
+	const FVector2f Click(Layer.AbsoluteToLocal(FVector2D(UnreachableNotice.Position())));
+	const FVector2f Corner = Soulbound::Presentation::PlaceNotice(Click, Size, Bounds, Avoid, NoticeClickGap);
 	return FMargin(Corner.X, Corner.Y, 0.f, 0.f);
 }
 
