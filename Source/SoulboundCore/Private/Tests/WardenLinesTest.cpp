@@ -100,7 +100,10 @@ bool FVoiceLinesLoaderTest::RunTest(const FString& Parameters)
 	{
 		return false;
 	}
-	TestEqual(TEXT("Entran todas las entradas del archivo"), Loaded.Table.Entries.Num(), Required.Num());
+	// S-041 (R-VOZ-8, respuesta del autor al plan): además de las exigidas, el archivo trae la palabra de corte (`corte`), opcional: la lee la
+	// presentación y el núcleo no la exige.
+	TestTrue(TEXT("El archivo trae la palabra de corte"), Loaded.Table.IndexOf(TEXT("corte")) != INDEX_NONE);
+	TestEqual(TEXT("Entran todas las entradas del archivo: las exigidas y la palabra de corte"), Loaded.Table.Entries.Num(), Required.Num() + 1);
 
 	// Las frases de los eventos fuera de los sacos son opcionales: sin ellas carga, y con ellas también.
 	FWardenLineTable WithoutOptional = Loaded.Table;

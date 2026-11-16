@@ -86,6 +86,6 @@ FLinearColor Soulbound::Presentation::ReachableHaloColor(const FLinearColor& Bas
 
 float Soulbound::Presentation::OracleOrbScale(double Seconds, float PeriodSeconds, float MinScale)
 {
-	// S-041: cuerpo vacío para ver el test en rojo.
-	return 0.f;
+	// R-VIS-29: el mismo pulso que el aro del turno y los halos, aquí sobre el tamaño.
+	return RingPulse(Seconds, PeriodSeconds, MinScale);
 }

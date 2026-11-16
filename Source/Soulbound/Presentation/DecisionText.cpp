@@ -676,8 +676,8 @@ namespace Soulbound::Presentation
 
 	float WardenLineBandHeight(float ReservedHeight, bool bHasLine, float NeededHeight)
 	{
-		// S-041: cuerpo vacío para ver el test en rojo.
-		return 0.f;
+		// R-DEC-17: sin frase, lo reservado (R-DEC-9: el panel no se mueve); con frase, lo que necesite si no cabe, para no tapar el panel.
+		return bHasLine ? FMath::Max(ReservedHeight, NeededHeight) : ReservedHeight;
 	}
 }
 
