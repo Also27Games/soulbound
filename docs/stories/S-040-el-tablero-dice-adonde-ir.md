@@ -47,8 +47,9 @@ Decidido por el autor el 15/11/2026, con el criterio "que se entienda mejor, no 
   - `Runes`, Eco: "Consigue runas en las Fuentes de los Olvidados, o róbalas (N/6)"
   - `Altar`: "Vuelve al Altar"
   - N es el número de tipos de runa distintos que tiene (`RuneTypeCount`). Con `None`, la línea no sale.
-  - El texto del Eco es una concreción del tutor (un Eco solo obtiene runa en las Fuentes de los Olvidados, R-ECO-3, y robando, R-ECO-4): el autor lo confirma o lo cambia al leer la story.
-- **La leyenda.** En el bloque "Tablero", una línea nueva con la muestra del color de la luz: "Luz: tu meta ahora". La línea de los Olvidados pasa a "Suelo agrietado y casillas apagadas: Dominio Olvidado".
+  - **Precisión del 16/11/2026, en el plan**: en el prólogo la línea tampoco sale, como la luz (R-VIS-28): aparece cuando la partida empieza a contar.
+  - El texto del Eco es una concreción del tutor (un Eco solo obtiene runa en las Fuentes de los Olvidados, R-ECO-3, y robando, R-ECO-4). Confirmado por el autor el 16/11/2026.
+- **La leyenda.** En el bloque "Tablero", una línea nueva con la muestra del color de la luz: "Luz: tu meta ahora". La línea de los Olvidados pasa a "Suelo agrietado y casillas apagadas: Dominio Olvidado". Sin el material cargado sigue diciendo "Casillas apagadas: Dominio Olvidado" (decisión del autor del 16/11/2026, en el plan: la leyenda no describe un suelo que no se ve).
 - **Lo que no cambia.** Ninguna regla de carrera, de runas ni de victoria; el aro y el apagado de las casillas de un Dominio Olvidado; las marcas de Nicho libre, reclamado y cerrado; los halos y su latido; los destellos.
 
 ## Assets (los crea el autor en el editor; commit aparte)
@@ -68,13 +69,13 @@ En `SoulboundCore`:
 - **CA-VIC-8** (R-VIC-5, runas del Eco). Para un Eco, tras la carrera, las casillas son solo las Fuentes con reserva de los Dominios Olvidados cuya runa le falta. Si no hay ninguna, la meta sigue siendo `Runes`, con la lista vacía. Durante la Noche de los Ecos la lista no cambia (puede entrar en un Dominio con dueño, pero no obtiene en su Fuente).
 - **CA-VIC-9** (R-VIC-5, vinculado en la carrera). Durante la carrera, un asiento ya vinculado tiene la meta `Runes`, no `Niche`. Con el tablero en Primordial, la lista de `Runes` está vacía.
 - **CA-VIC-10** (R-VIC-5, Altar y final). Con las seis runas distintas, la meta es `Altar` y su única casilla es el Altar. Con la partida terminada, `None` y ninguna casilla.
-- **CA-RUN-6** (R-VIC-5, una sola condición). Para cada caso de CA-VIC-7 y CA-VIC-8, la casilla está en la meta si y solo si llevar al asiento a esa Fuente y resolver la llegada (`ResolvePowerSourceLanding`) da `Obtained` o `TrialPending`. Los tests de runas que ya existen siguen en verde sin tocarlos.
+- **CA-RUN-6** (R-VIC-5, una sola condición). Para cada caso de CA-VIC-7 y CA-VIC-8, la casilla está en la meta si y solo si llevar al asiento a esa Fuente y resolver la llegada (`ResolvePowerSourceLanding`) da `Obtained` o `TrialPending` **y la runa de esa Fuente le falta**. (Corrección detectada en el plan, 16/11/2026: con la redacción anterior, una Fuente de una runa que ya tiene daría `Obtained`, R-RUN-5, y no está en la meta según R-VIC-5.) Los tests de runas que ya existen siguen en verde sin tocarlos.
 
 En `Soulbound`:
 
 - **CA-VIS-28** (R-VIS-27). La función que dice con qué factor se apaga el suelo de una cuña devuelve 1 para un Dominio con dueño; `ForgottenFloorDim` para un Olvidado con el material propio disponible; y `ForgottenDim` para un Olvidado sin él. El tinte del Dominio (`WedgeFloorTint`) se aplica igual en los tres casos.
 - **CA-VIS-29** (R-VIS-28). La función que dice qué casillas llevan luz (del estado y del asiento humano) devuelve las de la meta del humano y ninguna de otro asiento; ninguna con la partida terminada; ninguna en el prólogo.
-- **CA-HUD-15** (R-HUD-7). La línea de objetivo dice, letra por letra, los cuatro textos de la regla en sus cuatro casos, con N igual a las runas distintas del humano; con la meta `None`, no hay línea.
+- **CA-HUD-15** (R-HUD-7). La línea de objetivo dice, letra por letra, los cuatro textos de la regla en sus cuatro casos, con N igual a las runas distintas del humano; con la meta `None`, no hay línea; en el prólogo, tampoco (precisión de R-HUD-7 del 16/11/2026).
 
 Manuales, por el autor, en PIE, en la vista sentada y en la cenital, a 1920x1080 y a 1024x768, con captura:
 
@@ -86,6 +87,7 @@ Manuales, por el autor, en PIE, en la vista sentada y en la cenital, a 1920x1080
 - Con seis runas (`SbGiveRune`): solo hay luz en el Altar y la línea dice "Vuelve al Altar".
 - La luz no tapa la pieza de la casilla ni la ficha que esté en ella, no se confunde con el halo que late y se ve desde la vista sentada en las casillas del fondo.
 - La leyenda tiene la línea de la luz y la nueva de los Olvidados.
+- Añadidas en el plan (16/11/2026): con la base de la luz en el aire (`GoalLightBaseScale`), se entiende qué casilla marca; y se ve como una luz, no como una barra apagada (`BaseMaterial` no es emisivo). Si no, se anota y se decide; no se rehace a ciegas.
 
 ## Notas para quien lo implemente
 
