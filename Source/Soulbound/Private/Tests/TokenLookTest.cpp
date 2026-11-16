@@ -122,6 +122,20 @@ bool FRingPulseTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FOracleOrbPulseTest, "Soulbound.Game.Presentation.Ficha.LatidoDelOrbe", TokenLookFlags)
+
+bool FOracleOrbPulseTest::RunTest(const FString& Parameters)
+{
+	// CA-VIS-30 (R-VIS-29, S-041): la escala del orbe del Oráculo es el mínimo al empezar el periodo y 1 a mitad de periodo; con periodo cero o
+	// negativo, 1 fijo.
+	TestEqual(TEXT("Empieza en el mínimo"), Soulbound::Presentation::OracleOrbScale(0.0, 0.9f, 0.8f), 0.8f, 0.001f);
+	TestEqual(TEXT("A mitad de periodo, su tamaño entero"), Soulbound::Presentation::OracleOrbScale(0.45, 0.9f, 0.8f), 1.f, 0.001f);
+	TestEqual(TEXT("Al cerrar el periodo, otra vez el mínimo"), Soulbound::Presentation::OracleOrbScale(0.9, 0.9f, 0.8f), 0.8f, 0.001f);
+	TestEqual(TEXT("Periodo cero, 1 fijo"), Soulbound::Presentation::OracleOrbScale(0.3, 0.f, 0.8f), 1.f, 0.001f);
+	TestEqual(TEXT("Periodo negativo, 1 fijo"), Soulbound::Presentation::OracleOrbScale(0.3, -1.f, 0.8f), 1.f, 0.001f);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRoleDiscTest, "Soulbound.Game.Presentation.Ficha.DiscoDeRol", TokenLookFlags)
 
 bool FRoleDiscTest::RunTest(const FString& Parameters)

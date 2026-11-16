@@ -131,9 +131,11 @@ public:
 	 * SbStrike <id>: lanza el evento del Warden con ese identificador como golpe ahora (S-020): corta el turno en curso, también a
 	 * medio camino, y el evento entra en el hueco con el cortado como activo; sin turno en curso, como SbEvent. En un duelo, un
 	 * trilero o un minijuego se rechaza. Para probar el corte a medio camino sin esperar al cerebro. Cuerpo vacío en Shipping.
+	 * Desde S-041, SbStrike <id> oraculo: el golpe va por el Oráculo (EOracleOrigin::Strike), como lo decide el cerebro: corta el turno y abre la
+	 * consulta del cortado con ese evento de sentencia, sin frase (UMatchHostSubsystem::DebugStrikeViaOracle).
 	 */
 	UFUNCTION(Exec)
-	void SbStrike(FString Id);
+	void SbStrike(FString Id, FString Via);
 
 	/**
 	 * SbClock <segundos>: adelanta el reloj de partida a esos segundos (S-018), para probar el fin a los 40 minutos sin esperarlo

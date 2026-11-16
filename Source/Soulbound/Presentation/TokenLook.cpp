@@ -83,3 +83,9 @@ FLinearColor Soulbound::Presentation::ReachableHaloColor(const FLinearColor& Bas
 	const float Intensity = RingPulse(Seconds, PeriodSeconds, MinIntensity);
 	return FLinearColor(BaseColor.R * Intensity, BaseColor.G * Intensity, BaseColor.B * Intensity, BaseColor.A);
 }
+
+float Soulbound::Presentation::OracleOrbScale(double Seconds, float PeriodSeconds, float MinScale)
+{
+	// R-VIS-29: el mismo pulso que el aro del turno y los halos, aquí sobre el tamaño.
+	return RingPulse(Seconds, PeriodSeconds, MinScale);
+}

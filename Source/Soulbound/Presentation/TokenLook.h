@@ -36,6 +36,16 @@ namespace Soulbound::Presentation
 	SOULBOUND_API float RingPulse(double Seconds, float PeriodSeconds, float MinIntensity = 0.35f);
 
 	/**
+	 * La escala del orbe del Oráculo en el instante Seconds (S-041, R-VIS-29, nombre propuesto): late de MinScale a su tamaño entero (1) y vuelta,
+	 * con periodo PeriodSeconds, empezando en el mínimo; es el pulso de la vista (RingPulse). Sin periodo válido (cero o menos), 1 fijo.
+	 * @param Seconds Reloj de la vista.
+	 * @param PeriodSeconds Periodo del latido (ABoardViewActor::OracleOrbPulseSeconds, 0,9 s).
+	 * @param MinScale Escala mínima, de 0 a 1 (ABoardViewActor::OracleOrbPulseMin, 0,8).
+	 * @return Escala de MinScale a 1, que multiplica el diámetro del orbe.
+	 */
+	SOULBOUND_API float OracleOrbScale(double Seconds, float PeriodSeconds, float MinScale);
+
+	/**
 	 * El color con que se pinta el halo de una casilla alcanzable en el instante Seconds (S-039, R-VIS-26): el color base por la intensidad del
 	 * pulso (RingPulse, la misma función que el aro del turno), sin tocar el alfa. Sin periodo válido, el color base entero.
 	 * @param BaseColor El color del halo (ABoardViewActor::ReachableColor).

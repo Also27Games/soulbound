@@ -82,7 +82,6 @@ namespace
 	{
 		FStatusContext Context;
 		Context.HumanSeat = GhHuman;
-		Context.ReturnKey = TEXT("Intro");
 		Context.SeatColors = {FLinearColor::Red, FLinearColor::Green, FLinearColor::Blue, FLinearColor::Yellow};
 		Context.GoalLineColor = GhGoalLineColor;
 		return Context;

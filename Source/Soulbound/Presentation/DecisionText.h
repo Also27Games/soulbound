@@ -224,4 +224,14 @@ namespace Soulbound::Presentation
 	 * @return El ancho libre, entre 0 y Cap.
 	 */
 	float BoardFreeWidth(float ViewportSlateWidth, float PanelColumnWidth, float Cap);
+
+	/**
+	 * El alto de la franja del Warden bajo el panel de decisión (S-041, R-DEC-17, nombre propuesto): lo reservado (R-DEC-9) si la frase y su línea
+	 * pequeña caben en él, y lo que necesitan si no caben, para que la frase no tape el panel; sin frase, lo reservado.
+	 * @param ReservedHeight Lo reservado siempre (ABoardViewActor::WardenLineReservedHeight).
+	 * @param bHasLine Si hay frase (o línea pequeña) en pantalla.
+	 * @param NeededHeight Lo que ocupan la frase y su línea pequeña, partidas al ancho de la franja, con sus márgenes.
+	 * @return El alto de la franja, en unidades de Slate.
+	 */
+	float WardenLineBandHeight(float ReservedHeight, bool bHasLine, float NeededHeight);
 }

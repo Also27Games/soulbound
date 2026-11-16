@@ -53,8 +53,6 @@ namespace Soulbound::Presentation
 		int32 Seed = 0;
 		/** Las teclas de la vista en una línea (DescribeViewKeys), para la línea del paso a paso. */
 		FString ViewKeys;
-		/** La tecla de volver al menú, para el resultado de la partida (MatchResultText). */
-		FString ReturnKey;
 		/** Color de cada asiento, el de la vista. */
 		TArray<FLinearColor> SeatColors;
 		/** Color de la línea de objetivo (S-040, R-HUD-7): ABoardViewActor::GoalLineColor. */
@@ -66,14 +64,26 @@ namespace Soulbound::Presentation
 
 	/**
 	 * Las líneas del panel de estado (R-HUD-1): fase de la partida y prólogo, tirada y reloj de turno, Sellos activos, carrera, la petición al
-	 * jugador, trilero, duelo, evento del Warden, Noche de los Ecos, Oráculo, votación, aspirantes y, con la partida terminada, el resultado.
-	 * Los textos y colores de antes de S-027, sin las teclas de depuración. Van primero, con la letra grande, el resultado si la partida ha
-	 * terminado y la petición al jugador: su elección pendiente o, en su turno de tirada, la línea de la tirada con "tu turno".
+	 * jugador, trilero, duelo, evento del Warden, Noche de los Ecos, Oráculo, votación y aspirantes. Los textos y colores de antes de S-027, sin
+	 * las teclas de depuración. Va primero, con la letra grande, la petición al jugador: su elección pendiente o, en su turno de tirada, la línea
+	 * de la tirada con "tu turno". Con el panel de decisión a la vista (Context.bDecisionPanelShown), la petición que el panel enseña no se repite
+	 * (R-DEC-3, S-028; desde S-041, R-DEC-18, también la consulta del Oráculo y el voto). Desde S-041 (R-HUD-8) el resultado grande no va aquí
+	 * (MatchResultLine); con la partida terminada queda la línea de la carrera que explica el final.
 	 * @param State El estado de la partida.
 	 * @param Context Lo que no está en el estado.
 	 * @return Las líneas, de arriba abajo; ninguna lleva la semilla.
 	 */
 	TArray<FPanelLine> StatusLines(const FMatchState& State, const FStatusContext& Context);
+
+	/**
+	 * El resultado de la partida en grande (S-041, R-HUD-8, nombre propuesto; añadido del autor del 17/11/2026): el texto de MatchResultText con el
+	 * color de antes, el del ganador (Context.SeatColor) si gana un jugador y rojo si gana el Warden. Lo pinta la vista en el centro, encima del
+	 * botón "Volver al menú"; el panel de estado ya no lo lleva. Vacío (sin texto) si la partida no ha terminado.
+	 * @param State El estado de la partida.
+	 * @param Context Los colores de los asientos.
+	 * @return La línea, con la letra grande.
+	 */
+	FPanelLine MatchResultLine(const FMatchState& State, const FStatusContext& Context);
 
 	/**
 	 * La línea de objetivo del asiento humano (S-040, R-HUD-7, nombre propuesto): su meta (SeatGoal, R-VIC-5) con palabras. "Llega a un Nicho libre";

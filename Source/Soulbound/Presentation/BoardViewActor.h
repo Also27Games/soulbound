@@ -389,13 +389,24 @@ public:
 
 	// ---- Oráculo (S-017) ----
 
-	/** Diámetro del orbe de la consulta, en cm. Valor inicial 3 (es la vista de depuración, no el orbe del GDD 07). */
-	UPROPERTY(EditAnywhere, Category = "Vista|Oráculo")
-	float OracleOrbDiameter = 3.f;
+	/**
+	 * Diámetro del orbe de la consulta, en cm, a su tamaño entero. Desde S-041 (R-VIS-29) en Config: valor inicial 5 (antes 3, constante; P4 no lo vio
+	 * la primera vez en la prueba del 15/11/2026). Es la vista de depuración, no el orbe del GDD 07.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Oráculo", meta = (ClampMin = "0.1"))
+	float OracleOrbDiameter = 5.f;
 
-	/** Altura del centro del orbe sobre la base de la ficha del consultante, en cm. Valor inicial 7. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Oráculo")
+	/** Altura del centro del orbe sobre la base de la ficha del consultante, en cm. Desde S-041 (R-VIS-29) en Config; valor inicial 7, por ajustar en PIE. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Oráculo")
 	float OracleOrbHeight = 7.f;
+
+	/** Periodo del latido del orbe mientras la consulta espera (S-041, R-VIS-29; OracleOrbScale), en segundos. Valor inicial 0,9. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Oráculo")
+	float OracleOrbPulseSeconds = 0.9f;
+
+	/** Escala mínima del latido del orbe, de 0 a 1 de su diámetro (S-041, R-VIS-29). Valor inicial 0,8. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Oráculo", meta = (ClampMin = "0", ClampMax = "1"))
+	float OracleOrbPulseMin = 0.8f;
 
 	// ---- Paneles ----
 
@@ -430,10 +441,48 @@ public:
 
 	/**
 	 * Segundos que se enseña cada frase de la línea del Warden, grande en la parte baja de la pantalla, o hasta la siguiente línea (S-021,
-	 * R-VOZ-1 sin audio). Valor inicial 6; en DefaultGame.ini.
+	 * R-VOZ-1 sin audio). Valor inicial 6; en DefaultGame.ini. Desde S-041 (R-VOZ-6) es el mínimo: una frase larga dura más (WardenLineSecondsPerChar).
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
 	float WardenLineSeconds = 6.f;
+
+	/**
+	 * Segundos por carácter de una frase del Warden (S-041, R-VOZ-6, nombre propuesto): una frase dura el mayor entre WardenLineSeconds y sus
+	 * caracteres, con el prefijo, la palabra de corte y, en un corte, su línea pequeña, por este valor (WardenLineDuration). Valor inicial 0,065 s,
+	 * unas quince letras por segundo; cero, todas duran WardenLineSeconds.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
+	float WardenLineSecondsPerChar = 0.065f;
+
+	/** Tamaño de la letra de la línea pequeña de un corte, bajo la frase del Warden (S-041, R-VOZ-8). Valor inicial 18, menor que la de la frase (28). */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	int32 CutNoteFontSize = 18;
+
+	/** Color de la línea pequeña de un corte (S-041, R-VOZ-8): neutro, no el del Warden. Valor inicial un gris claro (0,8). */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FLinearColor CutNoteColor = FLinearColor(0.8f, 0.8f, 0.8f);
+
+	/**
+	 * Opacidad de la capa oscura del tablero al empezar cada pulso cuando el Warden corta un turno (S-041, R-VOZ-8; CutDimOpacity): aparece de golpe
+	 * y se desvanece en CutDimPulseSeconds, CutDimPulseCount veces seguidas. Sin posproceso: una capa de Slate negra, por debajo de los paneles. Valor
+	 * inicial 0,85 (corrección del autor del 17/11/2026, probada en PIE; antes 0,5, demasiado sutil).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0", ClampMax = "1"))
+	float CutDimMaxOpacity = 0.85f;
+
+	/**
+	 * Cuántos pulsos da la capa oscura del corte (S-041, R-VOZ-8; corrección del autor del 17/11/2026). Valor inicial 2, probado en PIE (antes 3: con
+	 * tres de un tercio de segundo seguía parpadeando mientras la ficha se colocaba).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
+	int32 CutDimPulseCount = 2;
+
+	/**
+	 * Lo que dura cada pulso de la capa oscura del corte, en segundos reales (S-041, R-VOZ-8; corrección del autor del 17/11/2026). Valor inicial
+	 * 0,08, probado en PIE (antes un tercio de segundo).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
+	float CutDimPulseSeconds = 0.08f;
 
 	/** Tamaño de la letra de la línea del Warden (S-021). Valor inicial 28. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
@@ -550,6 +599,17 @@ public:
 	/** Tamaño de la letra del botón "Volver al menú" (S-022). Valor inicial 28, como la línea del Warden. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
 	int32 ReturnToMenuFontSize = 28;
+
+	/**
+	 * Tamaño de la letra del resultado de la partida, encima del botón "Volver al menú" (S-041, R-HUD-8; añadido del autor del 17/11/2026: antes iba
+	 * arriba a la izquierda, en el panel de estado). Valor inicial 40, mayor que el botón.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	int32 MatchResultFontSize = 40;
+
+	/** Tamaño de la letra de "o pulsa Intro", debajo del botón "Volver al menú" (S-041, R-HUD-8). Valor inicial 18, como la línea pequeña del corte. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	int32 ReturnToMenuHintFontSize = 18;
 
 	/** Tecla que oculta y muestra etiquetas para las capturas. Valor inicial L. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
@@ -863,6 +923,8 @@ private:
 	void ApplyViewTarget();
 	/** Si la partida ha terminado: entonces existe el botón "Volver al menú" y vale la tecla (S-022). */
 	bool IsMatchOverShown() const;
+	/** El resultado de la partida en grande, encima del botón (S-041, R-HUD-8; MatchResultLine); vacío sin partida o si no ha terminado. */
+	Soulbound::Presentation::FPanelLine MatchResultLineNow() const;
 	/**
 	 * Vuelve al menú (S-022), por el botón o por la tecla: solo con la partida terminada y una sola vez; cierra la sesión en línea si la hay
 	 * y viaja al menú.
@@ -892,6 +954,9 @@ private:
 	void RefreshTokens(const FMatchState& State);
 	/** El orbe de la consulta del Oráculo (S-017): visible mientras alguien consulta, del color de su asiento; oculto si no. */
 	void RefreshOracleOrb(const FMatchState& State);
+
+	/** El tamaño del orbe del Oráculo en el instante Seconds del reloj de la vista: su diámetro por el latido (S-041, R-VIS-29; OracleOrbScale). */
+	void ScaleOracleOrb(double Seconds);
 	/** Los halos del aspirante (S-018): bajo el Altar, uno del color de cada asiento aspirante, de dentro afuera por asiento; ocultos si no. */
 	void RefreshAspirantHalos(const FMatchState& State);
 
@@ -925,8 +990,17 @@ private:
 	/** Si la carta del Elegido se ve ahora: a tiempo, sin telón, sin paneles ocultos y sin el Grimorio abierto. */
 	bool IsElectCardShown() const;
 
-	/** La frase que toca enseñar ahora en la línea del Warden (vacía si ninguna): avanza la cola con el reloj real. */
-	FString WardenLineNow();
+	/**
+	 * La frase que toca enseñar ahora en la línea del Warden, con su línea pequeña si es un corte (vacía si ninguna): avanza la cola con el reloj
+	 * real. Desde S-041 devuelve la entrada entera (FWardenLineItem).
+	 */
+	Soulbound::Presentation::FWardenLineItem WardenLineNow();
+
+	/** El alto de la franja de la frase bajo el panel de decisión (S-041, R-DEC-17): lo reservado, o lo que ocupa la frase si no cabe. */
+	float WardenLineBandHeightNow();
+
+	/** La opacidad de la capa oscura del corte ahora (S-041, R-VOZ-8; CutDimOpacity), con el telón bajado, cero. */
+	float CutDimOpacityNow() const;
 
 	/**
 	 * Se abre una prueba del anillo del humano (S-026): registra la entrada del anillo (RingInput) en Slate. Condición del autor del
@@ -1099,6 +1173,12 @@ private:
 	 */
 	TSharedPtr<SWidget> WardenLineOverlay;
 
+	/** El fondo de la frase del Warden, con la frase y su línea pequeña: su alto deseado es lo que necesita la franja (S-041, R-DEC-17). */
+	TSharedPtr<SWidget> WardenLineBox;
+
+	/** La capa oscura del corte (S-041, R-VOZ-8): sobre el tablero, por debajo de todos los paneles y sin recibir clics. */
+	TSharedPtr<SWidget> CutDimOverlay;
+
 	/** El panel de decisión (S-028, R-DEC-2), sobre la línea del Warden. */
 	TSharedPtr<SDecisionPanel> DecisionPanel;
 	/** El reloj de su barra: qué decisión mide y su total (AdvanceDecisionClock, en cada TickHud). */
@@ -1168,6 +1248,11 @@ private:
 	int32 SeenRejectionSerial = INDEX_NONE;
 	/** Si hay halos de casilla alcanzable a la vista, es decir, si el actor tiene que seguir ticando para que latan (S-039, R-VIS-26). */
 	bool bReachableHalosShown = false;
+	/** Si el orbe del Oráculo está a la vista, es decir, si el actor tiene que seguir ticando para que lata (S-041, R-VIS-29). */
+	bool bOracleOrbShown = false;
+
+	/** El instante real del último corte de turno del Warden, para la capa oscura (S-041, R-VOZ-8); negativo si no ha habido ninguno. */
+	double CutDimStartReal = -1.0;
 
 	Soulbound::Presentation::FWardenLineQueue WardenLineQueue;
 	/** Cuántos eventos del registro se han mirado en busca de frases. */

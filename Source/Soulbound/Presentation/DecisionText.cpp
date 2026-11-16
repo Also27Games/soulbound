@@ -673,6 +673,12 @@ namespace Soulbound::Presentation
 	{
 		return FMath::Clamp(ViewportSlateWidth - PanelColumnWidth - 32.f, 0.f, FMath::Max(Cap, 0.f));
 	}
+
+	float WardenLineBandHeight(float ReservedHeight, bool bHasLine, float NeededHeight)
+	{
+		// R-DEC-17: sin frase, lo reservado (R-DEC-9: el panel no se mueve); con frase, lo que necesite si no cabe, para no tapar el panel.
+		return bHasLine ? FMath::Max(ReservedHeight, NeededHeight) : ReservedHeight;
+	}
 }
 
 FString Soulbound::Presentation::UnreachableNoticeText(EUnreachableReason Reason, int32 Roll)

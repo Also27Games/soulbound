@@ -70,15 +70,24 @@ FString Soulbound::Presentation::ViewKeysText(bool bSeated, const FString& ViewK
 		*ViewKey, bSeated ? TEXT("cenital") : TEXT("sentada"), *OverlayKey, *PanelsKey, *DebugTextKey, *GrimoireKey, *DebugPanelKey);
 }
 
-FString Soulbound::Presentation::MatchResultText(const FMatchState& State, const FString& ReturnKey)
+FString Soulbound::Presentation::MatchResultText(const FMatchState& State)
 {
 	if (!State.IsMatchOver())
 	{
 		return FString();
 	}
-	const FString Winner = State.Outcome == EMatchOutcome::PlayerVictory ? FString::Printf(TEXT("GANA EL ASIENTO %d"), State.WinnerSeat)
+	return State.Outcome == EMatchOutcome::PlayerVictory ? FString::Printf(TEXT("GANA EL ASIENTO %d"), State.WinnerSeat)
 		: State.EndReason == EMatchEndReason::TimeOut ? FString(TEXT("GANA EL WARDEN: SE ACABÓ EL TIEMPO")) : FString(TEXT("GANA EL WARDEN: NADIE SE VINCULÓ"));
-	return FString::Printf(TEXT("%s\n%s o el botón: volver al menú"), *Winner, *ReturnKey);
+}
+
+FString Soulbound::Presentation::ReturnToMenuHint(const FString& KeyDisplayName)
+{
+	if (KeyDisplayName.IsEmpty())
+	{
+		return FString();
+	}
+	// Unreal llama "Enter" a la tecla Intro; el texto del juego va en español.
+	return TEXT("o pulsa ") + (KeyDisplayName == TEXT("Enter") ? FString(TEXT("Intro")) : KeyDisplayName);
 }
 
 TArray<bool> Soulbound::Presentation::ForgottenDomainsShown(const FMatchState& State, bool bInPrologue, int32 OpeningLinesShown)

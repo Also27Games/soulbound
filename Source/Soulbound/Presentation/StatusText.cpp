@@ -1,6 +1,7 @@
 #include "StatusText.h"
 
 #include "BoardViewState.h"
+#include "DecisionText.h"
 #include "Dom/JsonObject.h"
 #include "EventText.h"
 #include "RingPanelModel.h"
@@ -612,6 +613,10 @@ namespace Soulbound::Presentation
 		const bool bHumanTurn = bWaiting && State.ActiveSeat == HumanSeat;
 		const bool bHints = Context.bHints;
 		const int32 TurnNumber = State.TurnPhase == ETurnPhase::BetweenTurns ? State.TurnCount : State.TurnCount + 1;
+		// R-DEC-18 (corrección del autor del 17/11/2026 tras PIE): la regla de R-DEC-3 vale para cada decisión del humano que enseña el panel. Cuál
+		// enseña lo dice DecisionView, con la misma precedencia que el panel: la consulta del Oráculo y el voto no se repiten solo si son esa.
+		const TOptional<FDecisionView> Shown = Context.bDecisionPanelShown ? DecisionView(State, HumanSeat, false) : TOptional<FDecisionView>();
+		const auto IsShown = [&Shown](EDecisionInput Input) { return Shown.IsSet() && Shown->Input == Input; };
 
 		// Fase de la partida (línea 0): la última que aplica manda, como cuando una sustituía a otra en la misma clave. Sin las teclas de la vista:
 		// están en "Cómo se juega" y en SbHelp.
@@ -761,8 +766,8 @@ namespace Soulbound::Presentation
 				StatusLineColor(FColor(150, 120, 255))});
 		}
 
-		// Oráculo (línea 13, S-017).
-		if (State.Oracle.IsWaiting() && !bOver)
+		// Oráculo (línea 13, S-017). R-DEC-18: con la consulta del humano en el panel de decisión, ya está allí; aquí no se repite.
+		if (State.Oracle.IsWaiting() && !bOver && !IsShown(EDecisionInput::Orb))
 		{
 			const int32 Consultant = State.Oracle.Consultant;
 			const bool bHumanOracle = Consultant == HumanSeat;
@@ -772,8 +777,9 @@ namespace Soulbound::Presentation
 				FMath::Max(0.0, State.Oracle.DeadlineSeconds - State.ClockSeconds), *Action), bHumanOracle ? StatusGreen : StatusOrange});
 		}
 
-		// Votación (línea 14, S-017).
-		if (State.Vote.IsOpen() && !bOver)
+		// Votación (línea 14, S-017). R-DEC-18: con el voto del humano en el panel de decisión, ya está allí; aquí no se repite. Cuando ha votado,
+		// el panel ya no lo enseña y la línea (quién ha votado y lo que queda) vuelve.
+		if (State.Vote.IsOpen() && !bOver && !IsShown(EDecisionInput::Token))
 		{
 			Lines.Add({VoteLine(State, HumanSeat, bHints), StatusOrange});
 		}
@@ -787,16 +793,24 @@ namespace Soulbound::Presentation
 			}
 		}
 
-		// El resultado (línea 19, S-018 y S-022): arriba del todo y grande.
-		if (bOver)
-		{
-			Top.Insert({MatchResultText(State, Context.ReturnKey), RaceColor, true}, 0);
-		}
+		// El resultado grande y "volver al menú" (línea 19, S-018 y S-022) no van aquí desde S-041 (R-HUD-8, añadido del autor del 17/11/2026): van
+		// en el centro, encima y debajo del botón (MatchResultLine). Aquí queda la línea pequeña de la carrera, que explica el final.
 
 		// La línea de objetivo (R-HUD-7, S-040) no va aquí desde la corrección del 16/11/2026 tras PIE: tiene su caja encima (GoalPanelLines).
 
 		Top.Append(Lines);
 		return Top;
+	}
+
+	FPanelLine MatchResultLine(const FMatchState& State, const FStatusContext& Context)
+	{
+		if (!State.IsMatchOver())
+		{
+			return FPanelLine();
+		}
+		// El color de antes de S-041 (el de la línea de la carrera): el del ganador, o rojo si gana el Warden.
+		const FLinearColor Color = State.Outcome == EMatchOutcome::PlayerVictory ? Context.SeatColor(State.WinnerSeat) : StatusLineColor(FColor::Red);
+		return {MatchResultText(State), Color, true};
 	}
 
 	TArray<FPanelLine> DebugLines(const FMatchState& State, const FStatusContext& Context)

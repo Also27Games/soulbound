@@ -48,7 +48,6 @@ namespace
 		Context.HumanSeat = StHuman;
 		Context.Seed = StSeed;
 		Context.ViewKeys = StViewKeys;
-		Context.ReturnKey = TEXT("Intro");
 		Context.SeatColors = {FLinearColor::Red, FLinearColor::Green, FLinearColor::Blue, FLinearColor::Yellow};
 		return Context;
 	}
@@ -122,23 +121,25 @@ bool FStatusRequestFirstTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusResultFirstTest, "Soulbound.Game.Presentation.Estado.ResultadoArribaYGrande", StatusTestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusResultFirstTest, "Soulbound.Game.Presentation.Estado.ResultadoFueraDelPanel", StatusTestFlags)
 
 bool FStatusResultFirstTest::RunTest(const FString& Parameters)
 {
 	// Decisión del autor del 9/11/2026 (R-HUD-1): las líneas que la story no repartía (votación, aspirantes y resultado) van al panel de
-	// estado, con el resultado de la partida arriba y con la letra grande.
+	// estado. CA-HUD-16 (R-HUD-8, añadido del autor del 17/11/2026 en S-041): el resultado grande ya no va aquí, va en el centro, encima del botón
+	// (MatchResultLine); el panel de estado conserva la línea pequeña que explica el final, sin letra grande.
 	{
 		FMatchState State = StMakeState();
 		State.MatchPhase = EMatchPhase::MatchOver;
 		State.Outcome = EMatchOutcome::PlayerVictory;
 		State.WinnerSeat = 2;
 		const TArray<FPanelLine> Lines = Soulbound::Presentation::StatusLines(State, StMakeContext());
-		if (TestTrue(TEXT("Hay líneas"), Lines.Num() > 0))
+		TestFalse(TEXT("Sin el resultado grande"), StAnyContains(Lines, TEXT("GANA EL")));
+		TestFalse(TEXT("Sin la línea de volver al menú"), StAnyContains(Lines, TEXT("volver al menú")));
+		const int32 Explains = Lines.IndexOfByPredicate([](const FPanelLine& Line) { return Line.Text.StartsWith(TEXT("VICTORIA DEL ASIENTO 2: supera el desafío final.")); });
+		if (TestTrue(TEXT("Conserva la línea que explica el final"), Explains != INDEX_NONE))
 		{
-			TestEqual(TEXT("La primera es el resultado"), Lines[0].Text, FString(TEXT("GANA EL ASIENTO 2\nIntro o el botón: volver al menú")));
-			TestTrue(TEXT("Con la letra grande"), Lines[0].bLarge);
-			TestEqual(TEXT("Del color del ganador"), Lines[0].Color, FLinearColor::Blue);
+			TestFalse(TEXT("Pequeña"), Lines[Explains].bLarge);
 		}
 	}
 	{
@@ -149,6 +150,34 @@ bool FStatusResultFirstTest::RunTest(const FString& Parameters)
 		State.Vote.DeadlineSeconds = 40.0;
 		TestTrue(TEXT("La votación abierta va al panel de estado"), StAnyContains(Soulbound::Presentation::StatusLines(State, StMakeContext()), TEXT("VOTACIÓN")));
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusResultLineTest, "Soulbound.Game.Presentation.Estado.ResultadoEnElCentro", StatusTestFlags)
+
+bool FStatusResultLineTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-16 (R-HUD-8, añadido del autor del 17/11/2026 en S-041): el texto grande del resultado, el que va encima del botón "Volver al menú",
+	// con su color de hoy: el del ganador si gana un jugador y rojo si gana el Warden, en los tres finales. Sin final, vacío.
+	using Soulbound::Presentation::MatchResultLine;
+	FMatchState State = StMakeState();
+	TestTrue(TEXT("Partida en curso: vacío"), MatchResultLine(State, StMakeContext()).Text.IsEmpty());
+	State.MatchPhase = EMatchPhase::MatchOver;
+	State.Outcome = EMatchOutcome::PlayerVictory;
+	State.WinnerSeat = 2;
+	const FPanelLine Player = MatchResultLine(State, StMakeContext());
+	TestEqual(TEXT("Gana un jugador"), Player.Text, FString(TEXT("GANA EL ASIENTO 2")));
+	TestEqual(TEXT("Del color del ganador"), Player.Color, FLinearColor::Blue);
+	TestTrue(TEXT("Grande"), Player.bLarge);
+	State.Outcome = EMatchOutcome::WardenVictory;
+	State.WinnerSeat = INDEX_NONE;
+	State.EndReason = EMatchEndReason::TimeOut;
+	const FPanelLine TimeOut = MatchResultLine(State, StMakeContext());
+	TestEqual(TEXT("Gana el Warden por tiempo"), TimeOut.Text, FString(TEXT("GANA EL WARDEN: SE ACABÓ EL TIEMPO")));
+	State.EndReason = EMatchEndReason::NobodyBonded;
+	const FPanelLine Nobody = MatchResultLine(State, StMakeContext());
+	TestEqual(TEXT("Gana el Warden: nadie se vinculó"), Nobody.Text, FString(TEXT("GANA EL WARDEN: NADIE SE VINCULÓ")));
+	TestTrue(TEXT("El Warden, en rojo, en los dos"), TimeOut.Color == Nobody.Color && Nobody.Color.R > Nobody.Color.G && Nobody.Color.R > Nobody.Color.B);
 	return true;
 }
 

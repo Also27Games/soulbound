@@ -153,8 +153,10 @@ bool UMatchHostSubsystem::StartFromData(UWorld& World)
 	OpenRecord();
 
 	// S-022 (R-PRO-1, decisión del autor del 29/10/2026): el prólogo. La partida no empieza hasta que el Warden termina la apertura; los
-	// segundos de línea son los de la vista, que es quien la enseña. Sin frases no hay apertura ni prólogo.
-	PrologueSeconds = Soulbound::Presentation::OpeningSeconds(State, GetDefault<ABoardViewActor>()->WardenLineSeconds);
+	// segundos de línea son los de la vista, que es quien la enseña. Sin frases no hay apertura ni prólogo. Desde S-041 (R-VOZ-6), cada frase dura
+	// según su longitud, con el prefijo con que la enseña la vista.
+	const ABoardViewActor* ViewDefaults = GetDefault<ABoardViewActor>();
+	PrologueSeconds = Soulbound::Presentation::OpeningSeconds(State, HumanSeat, ViewDefaults->WardenLineSeconds, ViewDefaults->WardenLineSecondsPerChar);
 	bInPrologue = PrologueSeconds > 0.0;
 	// S-023: la apertura es del prólogo; la espera del Warden mira lo que se diga desde aquí.
 	bWardenSpeaking = false;
@@ -332,7 +334,9 @@ void UMatchHostSubsystem::LiftCurtain(const TCHAR* Why)
 
 bool UMatchHostSubsystem::NoteWardenLines()
 {
-	const double Extra = Soulbound::Presentation::WardenWaitSeconds(State, WardenLinesScanned, GetDefault<ABoardViewActor>()->WardenLineSeconds);
+	// S-041 (R-VOZ-6): la suma de las duraciones de lo que detiene la mesa, las mismas frases y duraciones que enseña la vista (WardenLineItems).
+	const ABoardViewActor* ViewDefaults = GetDefault<ABoardViewActor>();
+	const double Extra = Soulbound::Presentation::WardenWaitSeconds(State, WardenLinesScanned, HumanSeat, ViewDefaults->WardenLineSeconds, ViewDefaults->WardenLineSecondsPerChar);
 	WardenLinesScanned = State.EventLog.Num();
 	if (Extra <= 0.0)
 	{
@@ -344,13 +348,13 @@ bool UMatchHostSubsystem::NoteWardenLines()
 		bWardenSpeaking = true;
 		WardenWaitStartedWorldSeconds = WorldNow;
 		WardenWaitEndsWorldSeconds = WorldNow + Extra;
-		Note(ELogVerbosity::Log, FString::Printf(TEXT("El Warden habla: la mesa espera %.0f s (t=%.1f s; el reloj de partida sigue)."), Extra, MatchSeconds()));
+		Note(ELogVerbosity::Log, FString::Printf(TEXT("El Warden habla: la mesa espera %.1f s (t=%.1f s; el reloj de partida sigue)."), Extra, MatchSeconds()));
 	}
 	else
 	{
 		// Decisión del autor del 29/10/2026: una frase dicha más tarde sustituye en pantalla a las que quedaban; la espera acaba con ella.
 		WardenWaitEndsWorldSeconds = FMath::Max(WardenWaitEndsWorldSeconds, WorldNow + Extra);
-		Note(ELogVerbosity::Log, FString::Printf(TEXT("El Warden sigue hablando: la mesa espera hasta dentro de %.0f s."), WardenWaitEndsWorldSeconds - WorldNow));
+		Note(ELogVerbosity::Log, FString::Printf(TEXT("El Warden sigue hablando: la mesa espera hasta dentro de %.1f s."), WardenWaitEndsWorldSeconds - WorldNow));
 	}
 	return true;
 }
@@ -1394,7 +1398,7 @@ FDebugEditOutcome UMatchHostSubsystem::DebugLaunchEvent(const FString& EventId)
 	return Outcome;
 }
 
-FDebugEditOutcome UMatchHostSubsystem::DebugStrikeEvent(const FString& EventId)
+FDebugEditOutcome UMatchHostSubsystem::DebugStrikeEvent(const FString& EventId, bool bViaOracle)
 {
 	if (!bHasMatch)
 	{
@@ -1404,6 +1408,10 @@ FDebugEditOutcome UMatchHostSubsystem::DebugStrikeEvent(const FString& EventId)
 	EndPrologue(TEXT("SbStrike"));
 	State.ClockSeconds = MatchSeconds();
 	const bool bTurnInProgress = State.TurnPhase != ETurnPhase::BetweenTurns;
+	if (bViaOracle)
+	{
+		return DebugStrikeViaOracle(EventId, bTurnInProgress);
+	}
 	FRandomStream WardenRandom = Soulbound::Rules::WardenDraw(State);
 	const EWardenEventStart Result = Soulbound::Debug::StrikeEvent(State, EventId, State.ClockSeconds, MatchRng, WardenRandom);
 	const bool bApplied = Result == EWardenEventStart::Started;
@@ -1419,6 +1427,48 @@ FDebugEditOutcome UMatchHostSubsystem::DebugStrikeEvent(const FString& EventId)
 		? FString::Printf(TEXT("golpe \"%s\" %s%s"), *EventId, bTurnInProgress ? TEXT("corta el turno") : TEXT("lanzado entre turnos"),
 			State.CurrentEvent.IsActive() ? TEXT(": espera una elección") : TEXT(" y aplicado"))
 		: Rejection);
+	if (bApplied)
+	{
+		Advance();
+	}
+	return Outcome;
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugStrikeViaOracle(const FString& EventId, bool bTurnInProgress)
+{
+	// S-041 (herramienta de depuración pedida en el plan, 16/11/2026): el golpe por el Oráculo (EOracleOrigin::Strike) como lo decide el cerebro, con
+	// ApplyWardenDecision y sin tocar el núcleo: corta el turno en curso y abre la consulta del cortado con ese evento de sentencia, sin frase.
+	const int32 EventIndex = State.WardenEvents.IndexOf(EventId);
+	if (EventIndex == INDEX_NONE)
+	{
+		return FinishDebugEdit(false, FString::Printf(TEXT("no hay ningún evento \"%s\" (SbEvents lista los eventos)"), *EventId));
+	}
+	if (!State.WardenParams.HasWarden())
+	{
+		return FinishDebugEdit(false, TEXT("la partida no tiene Warden: sin él no hay Oráculo"));
+	}
+	// Una consulta o un evento en curso se pisarían: el cerebro tampoco golpea entonces (aplaza, R-WAR-7).
+	if (State.Oracle.IsActive() || State.CurrentEvent.IsActive())
+	{
+		return FinishDebugEdit(false, TEXT("hay una consulta del Oráculo o un evento del Warden en curso: prueba cuando termine"));
+	}
+	if (bTurnInProgress && !Soulbound::Rules::CanInterruptTurn(State))
+	{
+		return FinishDebugEdit(false, TEXT("el turno está en un duelo, un trilero o un minijuego, que no se cortan: prueba cuando termine"));
+	}
+	FWardenDecision Decision;
+	Decision.Kind = EWardenDecisionKind::Strike;
+	Decision.EventIndex = EventIndex;
+	Decision.bViaOracle = true;
+	Soulbound::Rules::ApplyWardenDecision(State, Decision, State.ClockSeconds, MatchRng);
+	const bool bApplied = State.Oracle.IsWaiting() && State.Oracle.Origin == EOracleOrigin::Strike;
+	if (bApplied && StepClock.bHeld)
+	{
+		StepClock.Resume(GetWorld()->GetTimeSeconds());
+	}
+	const FDebugEditOutcome Outcome = FinishDebugEdit(bApplied, bApplied
+		? FString::Printf(TEXT("golpe \"%s\" por el Oráculo %s: consulta del asiento %d"), *EventId, bTurnInProgress ? TEXT("corta el turno") : TEXT("entre turnos"), State.Oracle.Consultant)
+		: FString(TEXT("el Oráculo no se abrió")));
 	if (bApplied)
 	{
 		Advance();
