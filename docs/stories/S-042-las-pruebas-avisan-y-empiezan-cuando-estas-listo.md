@@ -61,6 +61,8 @@ Manuales, por el autor, en PIE, a 1920x1080 y a 1024x768, con captura:
 
 **Segunda prueba manual del autor (16/11/2026).** Superado: el prefijo del corte ("Warden, a ti: ¡Quietos! …" en su turno y "Warden, al asiento N: ¡Quietos! …" en el de un dummy) y el centro del anillo libre, con la runa y la franja verde a la vista. Falló: a 1920x1080 y en ventana pequeña, la fila de "Empezar" salía fuera del panel, por debajo, encima de la franja de la frase del Warden (el botón tapaba la frase y los dos textos se montaban). Causa: la vista ponía la fila en un hueco de `SOverlay` con margen y centrado, y Slate centra sumando el margen de arriba menos el de abajo, no la mitad. Arreglado: la fila es hija del panel, que la coloca con sus propias medidas (CA-MIN-17, test `FilaDeEmpezarDentroDelPanel`). Queda por mirar a mano en las dos resoluciones.
 
+**Tercera prueba manual del autor (16/11/2026).** Superado: la fila de "Empezar" queda dentro del panel, entre el círculo y la barra, a 1920x1080 y en ventana pequeña, y el botón responde al clic. Con esto, todas las pruebas manuales de la story están superadas, salvo los títulos de la Fuente de un Dominio Olvidado, del duelo y del desafío final, que siguen sin verificar a mano y cubre el test `TituloConLoQueTeJuegas`.
+
 ## Notas para quien lo implemente
 
 - **Dónde arranca hoy el anillo.** `UMatchHostSubsystem::OpenRing` hace `Ring.Run.Begin(secuencia, ahora + RingAnnounceSeconds)`: los pulsos se fechan al abrir. Para esperar al jugador, la secuencia se sigue sorteando al abrir (la misma semilla da los mismos pulsos) y `Begin` se llama al empezar. Si la clase del anillo necesitara un cambio para eso y está en `SoulboundCore`, se dice en el plan antes de tocarla.
