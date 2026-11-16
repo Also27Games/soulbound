@@ -49,6 +49,8 @@ struct FBoardKitFixedPieces
 	/** Suelos de cuña (`peana` y `suelo_liso`) que se tiñen por Dominio, y el Dominio de cada uno (mismo índice). */
 	TArray<TObjectPtr<UStaticMeshComponent>> WedgeFloors;
 	TArray<int32> WedgeFloorDomains;
+	/** La pieza de cada suelo de cuña (mismo índice): Pedestal o PlainFloor. Solo el suelo liso lleva el material de los Olvidados (S-040, R-VIS-27). */
+	TArray<EBoardKitPiece> WedgeFloorPieces;
 };
 
 /** Qué estructuras de casilla crea `FBoardKit::PlaceStructures`, y si salen a la vista. */
@@ -124,10 +126,15 @@ public:
 		const FBoardKitStructureOptions& Options, FBoardKitStructures& Out, EObjectFlags Flags = RF_NoFlags) const;
 
 	/**
-	 * Tiñe el suelo de cada cuña con el color de su Dominio, apagado si se pinta Olvidado (R-VIS-2, R-VIS-5). Forgotten: uno por Dominio,
-	 * el de ABoardViewActor::IsDomainShownForgotten (S-023: en el prólogo no es el estado).
+	 * Tiñe el suelo de cada cuña con el color de su Dominio, apagado si se pinta Olvidado (R-VIS-2, R-VIS-5). Desde S-040 (R-VIS-27), el suelo liso de
+	 * un Dominio que se pinta Olvidado lleva ForgottenFloor, si no es nulo, apagado por ForgottenFloorDim (WedgeFloorDim); la peana, y todo suelo cuando
+	 * ForgottenFloor es nulo, sigue con el material del kit. Vuelve al del kit si un Dominio deja de pintarse Olvidado.
+	 * @param Pieces Los suelos colocados por PlaceFixed.
+	 * @param Forgotten Uno por Dominio, el de ABoardViewActor::IsDomainShownForgotten (S-023: en el prólogo no es el estado).
+	 * @param Config Quien guarda colores y factores.
+	 * @param ForgottenFloor El material del suelo de los Olvidados cargado, o nulo (la vista previa, o el asset que falta).
 	 */
-	void TintWedgeFloors(const FBoardKitFixedPieces& Pieces, const TArray<bool>& Forgotten, const ABoardViewActor& Config) const;
+	void TintWedgeFloors(const FBoardKitFixedPieces& Pieces, const TArray<bool>& Forgotten, const ABoardViewActor& Config, UMaterialInterface* ForgottenFloor) const;
 
 	// FGCObject
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;

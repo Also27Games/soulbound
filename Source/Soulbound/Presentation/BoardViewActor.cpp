@@ -280,6 +280,21 @@ void ABoardViewActor::Initialize(UMatchHostSubsystem* InHost)
 
 	// S-019: la colocación es una función pura del tablero; la vista solo la lee.
 	Kit.Load(*this, TEXT("se usa la forma básica"));
+	// S-040 (R-VIS-27): el material del suelo de los Olvidados se carga una vez, como la runa del anillo (S-031) y el dado (S-039). Sin él, el suelo como antes.
+	ForgottenFloor = nullptr;
+	if (ForgottenFloorMaterial.IsNull())
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Suelo de los Olvidados: ForgottenFloorMaterial está vacío; el suelo se pinta con el material del kit, apagado por ForgottenDim."));
+	}
+	else
+	{
+		ForgottenFloor = Cast<UMaterialInterface>(ForgottenFloorMaterial.TryLoad());
+		if (!ForgottenFloor)
+		{
+			UE_LOG(LogSoulboundView, Warning, TEXT("Suelo de los Olvidados: no existe el material %s; el suelo se pinta con el material del kit, apagado por ForgottenDim."),
+				*ForgottenFloorMaterial.ToString());
+		}
+	}
 	Layout = Soulbound::Presentation::ComputeBoardLayout(InHost->GetState().Board, LayoutParams);
 	if (!Layout.bRadial)
 	{
@@ -522,6 +537,7 @@ void ABoardViewActor::BuildTiles()
 	InlayOutlinesB.Init(nullptr, Board.Tiles.Num());
 	Halos.Init(nullptr, Board.Tiles.Num());
 	SealMarks.Init(nullptr, Board.Tiles.Num());
+	GoalLights.Init(nullptr, Board.Tiles.Num());
 	ForgottenRings.Init(nullptr, Board.Tiles.Num());
 	NicheNames.Init(nullptr, Board.Tiles.Num());
 	NicheNumbers.Init(nullptr, Board.Tiles.Num());
@@ -609,6 +625,21 @@ void ABoardViewActor::BuildTiles()
 		Soulbound::Presentation::SetComponentColor(*SealMark, BaseMaterial, SealMarkColor);
 		SealMark->SetVisibility(false);
 		SealMarks[Tile.TileId] = SealMark;
+
+		// S-040 (R-VIS-28): la luz de la meta, un haz fino y alto sobre las casillas que pueden ser meta (Nichos, Fuentes y Altar). Su base queda por
+		// encima de la cara superior de la casilla (la del Altar, la de su pieza), para no tapar la pieza ni la ficha; todo, por el diámetro de una losa,
+		// también en el Altar, para que las luces sean iguales. Oculta hasta que Refresh la pide.
+		if (Tile.Type == ETileType::Niche || Tile.Type == ETileType::PowerSource || bAltar)
+		{
+			const float Unit = SlabSize();
+			const float BeamWidth = Unit * GoalLightWidthScale;
+			const float BeamHeight = Unit * GoalLightHeightScale;
+			const FVector BeamCenter = Position + FVector(0.f, 0.f, Thickness + Unit * GoalLightBaseScale + BeamHeight * 0.5f);
+			UStaticMeshComponent* Beam = AddShape(CylinderMesh, BeamCenter, FRotator::ZeroRotator, FVector(BeamWidth, BeamWidth, BeamHeight));
+			Soulbound::Presentation::SetComponentColor(*Beam, BaseMaterial, GoalLightColor);
+			Beam->SetVisibility(false);
+			GoalLights[Tile.TileId] = Beam;
+		}
 
 		// Marca del tipo sobre la losa, del tamaño justo para no tapar la ficha del centro, con contorno negro
 		// para que se distinga sobre cualquier Dominio. Con la losa del kit no hace falta: la pieza ya dice el tipo.
@@ -986,10 +1017,12 @@ void ABoardViewActor::BuildOverlay()
 			{NodeColor, bKit ? TEXT("X Nodo: losa con puntas. Tras la carrera lleva espadas (duelo), orbe (Oráculo) o arco (salto)") : TEXT("X Nodo: rombo con esfera. Tras la carrera lleva espadas (duelo), orbe (Oráculo) o arco (salto)")}}});
 	Rows.Add({TEXT("Nichos"),
 		{{NicheFreeColor, TEXT("Libre")}, {SeatColor(0), TEXT("Reclamado: aro y número de su dueño")}, {NicheClosedColor, TEXT("Cerrado")}}});
+	// S-040 (R-VIS-28, R-VIS-27): la luz de la meta y, con el material de los Olvidados cargado, su suelo agrietado.
 	Rows.Add({TEXT("Tablero"),
 		{{ReachableColor, TEXT("Halo blanco que late: puedes ir ahí")},
+			{GoalLightColor, TEXT("Luz: tu meta ahora")},
 			{SealMarkColor, bKit ? TEXT("Aro rojo y cadenas: sellada, no se pasa") : TEXT("Aro rojo y SELLO: sellada, no se pasa")},
-			{ForgottenRingColor, TEXT("Casillas apagadas: Dominio Olvidado")}}});
+			{ForgottenRingColor, ForgottenFloor ? TEXT("Suelo agrietado y casillas apagadas: Dominio Olvidado") : TEXT("Casillas apagadas: Dominio Olvidado")}}});
 	// Una fila por asiento, con su rol al día: Eco o Elegido, y el Dominio que lleva.
 	FLegendRow Seats;
 	Seats.Title = TEXT("Jugadores. Disco gris: Eco. Disco de color: Elegido de ese Dominio. A quien le toca le late un aro");
@@ -1554,8 +1587,12 @@ void ABoardViewActor::Refresh()
 	DomainsShownOpeningLines = WardenLineQueue.ShownCount();
 	DomainsShownForgotten = Soulbound::Presentation::ForgottenDomainsShown(State, bDomainsShownInPrologue, DomainsShownOpeningLines);
 
-	// El suelo de cada cuña lleva el color de su Dominio, apagado si está Olvidado (S-019, R-VIS-2, R-VIS-5).
-	Kit.TintWedgeFloors(KitFixed, DomainsShownForgotten, *this);
+	// El suelo de cada cuña lleva el color de su Dominio, apagado si está Olvidado (S-019, R-VIS-2, R-VIS-5); desde S-040 (R-VIS-27), el suelo liso de
+	// un Olvidado, con su material propio si está.
+	Kit.TintWedgeFloors(KitFixed, DomainsShownForgotten, *this, ForgottenFloor.Get());
+
+	// S-040 (R-VIS-28): la luz de la meta del humano; ninguna en el prólogo ni con la partida terminada.
+	const TSet<int32> GoalLit(Soulbound::Presentation::GoalLightTiles(State, HostPtr->GetHumanSeat(), bDomainsShownInPrologue));
 
 	for (const FTileState& Tile : State.Board.Tiles)
 	{
@@ -1578,6 +1615,10 @@ void ABoardViewActor::Refresh()
 		if (UStaticMeshComponent* ForgottenRing = ForgottenRings.IsValidIndex(Tile.TileId) ? ForgottenRings[Tile.TileId].Get() : nullptr)
 		{
 			ForgottenRing->SetVisibility(bForgotten);
+		}
+		if (UStaticMeshComponent* GoalLight = GoalLights.IsValidIndex(Tile.TileId) ? GoalLights[Tile.TileId].Get() : nullptr)
+		{
+			GoalLight->SetVisibility(GoalLit.Contains(Tile.TileId));
 		}
 		if (UStaticMeshComponent* SealMarkDisc = SealMarks.IsValidIndex(Tile.TileId) ? SealMarks[Tile.TileId].Get() : nullptr)
 		{
@@ -2370,6 +2411,7 @@ Soulbound::Presentation::FStatusContext ABoardViewActor::MakeStatusContext() con
 	Context.ViewKeys = DescribeViewKeys();
 	Context.ReturnKey = ReturnToMenuKey.GetDisplayName().ToString();
 	Context.SeatColors = SeatColors;
+	Context.GoalColor = GoalLightColor;
 	return Context;
 }
 

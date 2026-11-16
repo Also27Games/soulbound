@@ -177,6 +177,7 @@ void FBoardKit::PlaceFixed(AActor& Owner, const FBoardState& Board, const FBoard
 				Out.Fixed.Add(Floor);
 				Out.WedgeFloors.Add(Floor);
 				Out.WedgeFloorDomains.Add(Wedge.DomainId);
+				Out.WedgeFloorPieces.Add(Piece);
 			}
 		}
 	}
@@ -258,18 +259,30 @@ void FBoardKit::PlaceStructures(AActor& Owner, const FBoardState& Board, const F
 	}
 }
 
-void FBoardKit::TintWedgeFloors(const FBoardKitFixedPieces& Pieces, const TArray<bool>& Forgotten, const ABoardViewActor& Config) const
+void FBoardKit::TintWedgeFloors(const FBoardKitFixedPieces& Pieces, const TArray<bool>& Forgotten, const ABoardViewActor& Config, UMaterialInterface* ForgottenFloor) const
 {
 	for (int32 Index = 0; Index < Pieces.WedgeFloors.Num(); ++Index)
 	{
 		const int32 DomainId = Pieces.WedgeFloorDomains[Index];
 		UStaticMeshComponent* Floor = Pieces.WedgeFloors[Index];
-		if (Floor && Forgotten.IsValidIndex(DomainId))
+		if (!Floor || !Forgotten.IsValidIndex(DomainId))
 		{
-			const bool bForgotten = Forgotten[DomainId];
-			Soulbound::Presentation::SetComponentColor(*Floor, VertexColor.Get(),
-				Soulbound::Presentation::WedgeFloorTint(Config.DomainColor(DomainId), bForgotten, Config.FloorTintStrength, Config.ForgottenDim));
+			continue;
 		}
+		const bool bForgotten = Forgotten[DomainId];
+		// S-040 (R-VIS-27): solo el suelo liso cambia de material; la peana sigue con el del kit y con ForgottenDim.
+		const bool bPlain = Pieces.WedgeFloorPieces.IsValidIndex(Index) && Pieces.WedgeFloorPieces[Index] == EBoardKitPiece::PlainFloor;
+		const bool bOwnMaterial = bPlain && ForgottenFloor != nullptr;
+		UMaterialInterface* Parent = bForgotten && bOwnMaterial ? ForgottenFloor : VertexColor.Get();
+		// SetComponentColor reutiliza la instancia dinámica que ya tenga la pieza: al cambiar de material (al pintarse Olvidado, o al dejar de
+		// pintarse en el prólogo, S-023) se crea la instancia sobre el material que toca.
+		const UMaterialInstanceDynamic* Current = Cast<UMaterialInstanceDynamic>(Floor->GetMaterial(0));
+		if (Parent && (!Current || Current->Parent != Parent))
+		{
+			Floor->SetMaterial(0, UMaterialInstanceDynamic::Create(Parent, Floor));
+		}
+		const float FloorDim = Soulbound::Presentation::WedgeFloorDim(bForgotten, bOwnMaterial, Config.ForgottenFloorDim, Config.ForgottenDim);
+		Soulbound::Presentation::SetComponentColor(*Floor, Parent, Soulbound::Presentation::WedgeFloorTint(Config.DomainColor(DomainId), bForgotten, Config.FloorTintStrength, FloorDim));
 	}
 }
 

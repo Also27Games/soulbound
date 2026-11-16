@@ -58,7 +58,7 @@ void ABoardPreviewActor::BuildPreview()
 	// Recién cargado ningún Dominio está Olvidado (lo decide StartMatch): todas las cuñas, con su color entero.
 	TArray<bool> NoneForgotten;
 	NoneForgotten.Init(false, Loaded.Board.Domains.Num());
-	Kit.TintWedgeFloors(Fixed, NoneForgotten, Config);
+	Kit.TintWedgeFloors(Fixed, NoneForgotten, Config, nullptr);
 
 	FBoardKitStructureOptions Options;
 	Options.bVisible = true;
