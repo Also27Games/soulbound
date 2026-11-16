@@ -239,9 +239,12 @@ namespace Soulbound::Presentation
 			const FString Key = SpokenKey(State, Event);
 			const FTurnCut* Cut = CutOfSpoke.Find(Index);
 			FWardenLineItem Item;
-			// R-VOZ-8: tras el prefijo, la palabra de corte, y la frase ("Warden, a ti: ¡Quietos! …"; respuesta del autor al plan).
-			const FString Lead = Cut && Cut->bWarden && !Word.IsEmpty() ? Word + TEXT(" ") : FString();
-			Item.Text = WardenLinePrefix(Event.Seat, HumanSeat) + TEXT(" ") + Lead + Spoken;
+			// R-VOZ-8: tras el prefijo, la palabra de corte, y la frase ("Warden, a ti: ¡Quietos! …"; respuesta del autor al plan). En un corte del
+			// Warden el prefijo es el del asiento cortado, no el de la frase del evento, que el motor dice a la mesa (corrección de un defecto de S-041,
+			// autor, 16/11/2026, en S-042); con o sin palabra de corte. Las demás frases, incluida la del fin de la carrera, llevan el suyo.
+			const bool bWardenCut = Cut && Cut->bWarden;
+			const FString Lead = bWardenCut && !Word.IsEmpty() ? Word + TEXT(" ") : FString();
+			Item.Text = WardenLinePrefix(bWardenCut ? Cut->Seat : Event.Seat, HumanSeat) + TEXT(" ") + Lead + Spoken;
 			Item.CutNote = Cut ? Cut->Note : FString();
 			Item.GameClock = Event.ClockSeconds;
 			Item.bHoldsTable = LineHoldsTheTable(Key);

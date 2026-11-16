@@ -100,7 +100,8 @@ namespace Soulbound::Presentation
 	/**
 	 * Las frases que dice el registro de State desde FromIndex, listas para la cola (S-041, nombre propuesto): una por WardenSpoke, con su
 	 * prefijo, y cada corte de turno emparejado con su frase (R-VOZ-8). Un corte del Warden (TurnInterrupted con Detail INDEX_NONE, golpe o
-	 * escena) antepone a la frase de su evento la palabra de corte y le pone debajo qué ha pasado; si no trae frase (el Oráculo como golpe) es
+	 * escena) antepone a la frase de su evento la palabra de corte, con el prefijo del asiento cortado y no el de la frase (corrección de un
+	 * defecto de S-041 del 16/11/2026, en S-042), y le pone debajo qué ha pasado; si no trae frase (el Oráculo como golpe) es
 	 * una línea con la palabra de corte sola, que no detiene la mesa pero está protegida de las burlas. El corte del fin de la carrera
 	 * (Detail 1) pone solo la línea pequeña bajo su frase; el del fin de la partida (Detail 2), nada. Las duraciones, con WardenLineDuration.
 	 * @param State Estado de la partida, en solo lectura: el registro, las frases y los eventos del Warden.
