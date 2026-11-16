@@ -1343,7 +1343,7 @@ void ABoardViewActor::BuildOverlay()
 
 	// S-039 (R-DEC-16; corrección del autor del 15/11/2026 tras las pruebas en PIE): el aviso de casilla inalcanzable sale junto al punto del clic, no en
 	// el panel de decisión: los ojos están en la casilla pulsada. Una capa que llena el viewport, sin clics (la casilla de debajo sigue respondiendo), con
-	// el aviso en la esquina que le da PlaceNotice: dentro del viewport y sin quedar debajo de la columna de paneles ni del panel de estado. Mismo texto y
+	// el aviso en la esquina que le da PlaceNotice: dentro del viewport y sin quedar debajo de la columna de paneles, del panel de estado, de la caja de la línea de objetivo ni del panel de decisión (S-040). Mismo texto y
 	// color que la línea del Warden; fondo oscuro como los paneles, para leerse sobre el tablero. Se recoloca cada frame con los mismos datos, así que
 	// se queda quieto; el texto y su vida los pone TickHud.
 	{
@@ -2655,22 +2655,31 @@ FMargin ABoardViewActor::NoticeMarginNow(int32 FontSize) const
 	// El tablero visible acaba donde empieza la columna de paneles (con ella oculta, es todo el viewport).
 	const FBox2f Bounds(FVector2f(0.f, 0.f), FVector2f(FMath::Max(ViewportSize.X - (bPanels ? PanelSlateWidth : 0.f), 1.f), ViewportSize.Y));
 	TArray<FBox2f> Avoid;
-	auto AddZone = [&](const TSharedPtr<SStatusPanel>& Panel, bool bShown)
+	// La zona de un widget a la vista, en las coordenadas de la capa del aviso.
+	auto AddWidgetZone = [&](const TSharedPtr<SWidget>& Widget)
 	{
-		if (bPanels && bShown && Panel.IsValid() && Panel->GetVisibility().IsVisible())
+		if (Widget.IsValid() && Widget->GetVisibility().IsVisible())
 		{
-			const FGeometry& Zone = Panel->GetTickSpaceGeometry();
+			const FGeometry& Zone = Widget->GetTickSpaceGeometry();
 			const FVector2f At(Layer.AbsoluteToLocal(Zone.GetAbsolutePosition()));
 			Avoid.Add(FBox2f(At, At + FVector2f(Zone.GetLocalSize())));
 		}
 	};
+	auto AddZone = [&](const TSharedPtr<SStatusPanel>& Panel, bool bShown)
+	{
+		if (bPanels && bShown)
+		{
+			AddWidgetZone(Panel);
+		}
+	};
 	AddZone(StatusPanel, !bDebugTextHidden);
 	// S-040 (R-HUD-7): también la caja de la línea de objetivo, abajo a la izquierda. Ninguna tecla la oculta, así que cuenta aunque los paneles no se vean.
-	if (GoalPanel.IsValid() && GoalPanel->GetVisibility().IsVisible())
+	AddWidgetZone(GoalPanel);
+	// S-040, corrección tras PIE del 16/11/2026 de un defecto de S-039: el panel de decisión, mientras está a la vista. Sin él, un clic cerca del panel
+	// ponía el aviso encima de "Tu turno" y "Has sacado". Su visibilidad la lleva la caja que lo envuelve; IsDecisionPanelVisible dice lo mismo.
+	if (IsDecisionPanelVisible())
 	{
-		const FGeometry& Zone = GoalPanel->GetTickSpaceGeometry();
-		const FVector2f At(Layer.AbsoluteToLocal(Zone.GetAbsolutePosition()));
-		Avoid.Add(FBox2f(At, At + FVector2f(Zone.GetLocalSize())));
+		AddWidgetZone(DecisionPanel);
 	}
 	AddZone(DebugPanel, bDebugPanelShown);
 

@@ -1156,7 +1156,7 @@ private:
 	Soulbound::Presentation::FUnreachableNotice UnreachableNotice;
 	/** La capa del aviso de casilla inalcanzable (S-039, R-DEC-16): llena el viewport, no recibe clics y pone el aviso donde lo coloca PlaceNotice. */
 	TSharedPtr<SWidget> NoticeOverlay;
-	/** El margen que coloca el aviso en la capa (PlaceNotice con el viewport, la columna de paneles y el panel de estado de este frame). */
+	/** El margen que coloca el aviso en la capa (PlaceNotice con el viewport, la columna de paneles, el panel de estado, la caja de la línea de objetivo y el panel de decisión de este frame, S-040). */
 	FMargin NoticeMarginNow(int32 FontSize) const;
 	/** Margen del fondo del aviso por cada lado, y separación entre el punto del clic y el aviso, en unidades de Slate. */
 	static constexpr float NoticePadding = 8.f;

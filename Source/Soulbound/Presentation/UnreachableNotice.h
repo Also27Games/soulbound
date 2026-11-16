@@ -38,7 +38,7 @@ namespace Soulbound::Presentation
 
 	/**
 	 * Dónde pone el aviso su esquina superior izquierda para verse entero (S-039, R-DEC-16): dentro de Bounds y sin tapar ninguna de las zonas de
-	 * Avoid (la columna de paneles y el panel de estado). Prueba, en este orden, centrado encima del punto del clic, centrado debajo, a la izquierda
+	 * Avoid (la columna de paneles, el panel de estado y, desde S-040, la caja de la línea de objetivo y el panel de decisión). Prueba, en este orden, centrado encima del punto del clic, centrado debajo, a la izquierda
 	 * y a la derecha, cada uno recortado a Bounds, y se queda con el primero que no toque ninguna zona; si ninguno vale, la posición libre más cercana
 	 * al clic de una rejilla sobre Bounds. Con Size mayor que Bounds, la esquina de Bounds.
 	 * @param Click El punto del clic rechazado.
