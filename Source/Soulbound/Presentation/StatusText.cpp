@@ -554,6 +554,12 @@ namespace
 
 namespace Soulbound::Presentation
 {
+	FString GoalLineText(const FMatchState& State, int32 HumanSeat)
+	{
+		// TODO(R-HUD-7): stub para ver el test en rojo; se escribe tras verlo fallar.
+		return FString();
+	}
+
 	TArray<FPanelLine> StatusLines(const FMatchState& State, const FStatusContext& Context)
 	{
 		// Lo de antes de S-027 (ABoardViewActor::TickHud, líneas 0, 1, 3, 6 y de la 8 a la 19), en el mismo orden y con los mismos colores. Arriba

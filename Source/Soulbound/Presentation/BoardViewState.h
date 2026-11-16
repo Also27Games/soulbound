@@ -74,6 +74,28 @@ namespace Soulbound::Presentation
 		SOULBOUND_API FLinearColor WedgeFloorTint(const FLinearColor& DomainColor, bool bForgotten, float Strength, float ForgottenDim);
 
 	/**
+	 * Con qué factor se apaga el suelo liso de una cuña (S-040, R-VIS-27, nombre propuesto): 1 si el Dominio no se ve Olvidado; ForgottenFloorDim si se
+	 * ve Olvidado y se pinta con su material propio (la textura ya lo distingue); ForgottenDim si se ve Olvidado sin él, como antes de S-040. Es el
+	 * factor que se pasa a WedgeFloorTint, que mezcla el tinte del Dominio igual en los tres casos.
+	 * @param bForgotten Si el Dominio se ve Olvidado (ForgottenDomainsShown).
+	 * @param bForgottenMaterial Si el material del suelo de los Dominios Olvidados (ForgottenFloorMaterial) está cargado.
+	 * @param ForgottenFloorDim Factor con el material propio (valor inicial 0,6).
+	 * @param ForgottenDim Factor sin él, el de las casillas (valor inicial 0,3).
+	 * @return El factor.
+	 */
+	SOULBOUND_API float WedgeFloorDim(bool bForgotten, bool bForgottenMaterial, float ForgottenFloorDim, float ForgottenDim);
+
+	/**
+	 * Las casillas que llevan la luz de la meta (S-040, R-VIS-28, nombre propuesto): las de la meta del asiento humano (SeatGoal, R-VIC-5) y las de
+	 * ningún otro; ninguna con la partida terminada (la meta es None) ni en el prólogo (la partida aún no cuenta).
+	 * @param State Estado de la partida, en solo lectura.
+	 * @param HumanSeat El asiento humano de esta máquina; INDEX_NONE si no hay.
+	 * @param bInPrologue Si el prólogo está en marcha (UMatchHostSubsystem::IsInPrologue).
+	 * @return Los identificadores de casilla, en orden ascendente.
+	 */
+	SOULBOUND_API TArray<int32> GoalLightTiles(const FMatchState& State, int32 HumanSeat, bool bInPrologue);
+
+	/**
 	 * Las teclas de la vista para el HUD (S-022, R-CAM-1): qué vista está activa, sentada o cenital, y con qué tecla se cambia a la otra; y las
 	 * teclas de ocultar. Es lo que dice ABoardViewActor::DescribeViewKeys.
 	 * @param bSeated Si la vista activa es la sentada.

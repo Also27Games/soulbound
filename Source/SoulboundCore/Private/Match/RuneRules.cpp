@@ -74,6 +74,12 @@ namespace Soulbound::Rules
 		return ERuneLanding::Obtained;
 	}
 
+	ERuneLanding PreviewPowerSourceLanding(const FMatchState& State, int32 Seat, int32 TileId)
+	{
+		// TODO(R-VIC-5): stub para ver los tests en rojo; se extrae de ResolvePowerSourceLanding tras verlos fallar.
+		return ERuneLanding::None;
+	}
+
 	bool ApplySkillTrialResult(FMatchState& State, int32 Seat, bool bPassed, double NowSeconds)
 	{
 		const int32 TileId = State.Seats.IsValidIndex(Seat) ? State.Seats[Seat].TileId : INDEX_NONE;

@@ -45,6 +45,18 @@ FLinearColor Soulbound::Presentation::WedgeFloorTint(const FLinearColor& DomainC
 	return FLinearColor(Mixed.R * ForgottenDim, Mixed.G * ForgottenDim, Mixed.B * ForgottenDim, Mixed.A);
 }
 
+float Soulbound::Presentation::WedgeFloorDim(bool bForgotten, bool bForgottenMaterial, float ForgottenFloorDim, float ForgottenDim)
+{
+	// TODO(R-VIS-27): stub para ver el test en rojo; se escribe tras verlo fallar.
+	return 1.f;
+}
+
+TArray<int32> Soulbound::Presentation::GoalLightTiles(const FMatchState& State, int32 HumanSeat, bool bInPrologue)
+{
+	// TODO(R-VIS-28): stub para ver el test en rojo; se escribe tras verlo fallar.
+	return TArray<int32>();
+}
+
 FString Soulbound::Presentation::MenuMapPackage(const FString& ReturnToMenuMap, bool bReturnMapExists, const FString& GameDefaultMap)
 {
 	// R-MEN-1: el menú principal si está configurado y existe; si no, el de arranque, como en S-022.

@@ -56,6 +56,8 @@ namespace Soulbound::Presentation
 		FString ReturnKey;
 		/** Color de cada asiento, el de la vista. */
 		TArray<FLinearColor> SeatColors;
+		/** Color de la línea de objetivo (S-040, R-HUD-7): el de la luz de la meta (GoalLightColor). */
+		FLinearColor GoalColor = FLinearColor::White;
 
 		/** El color del asiento Seat; blanco si no lo hay. */
 		FLinearColor SeatColor(int32 Seat) const { return SeatColors.IsValidIndex(Seat) ? SeatColors[Seat] : FLinearColor::White; }
@@ -71,6 +73,17 @@ namespace Soulbound::Presentation
 	 * @return Las líneas, de arriba abajo; ninguna lleva la semilla.
 	 */
 	TArray<FPanelLine> StatusLines(const FMatchState& State, const FStatusContext& Context);
+
+	/**
+	 * La línea de objetivo del asiento humano (S-040, R-HUD-7, nombre propuesto): su meta (SeatGoal, R-VIC-5) con palabras. "Llega a un Nicho libre";
+	 * "Consigue runas en las Fuentes (N/6)" para un Elegido y "Consigue runas en las Fuentes de los Olvidados, o róbalas (N/6)" para un Eco, con N
+	 * los tipos de runa distintos que tiene (RuneTypeCount); "Vuelve al Altar". Vacía con la meta None. StatusLines la pone tras el resultado y la
+	 * petición, salvo en el prólogo.
+	 * @param State El estado de la partida.
+	 * @param HumanSeat El asiento humano.
+	 * @return La línea, o vacía.
+	 */
+	FString GoalLineText(const FMatchState& State, int32 HumanSeat);
 
 	/**
 	 * Las líneas del panel de depuración (R-HUD-2): paso a paso, evaluación del Warden, semilla con el tiempo y la ronda, y los asientos con su
