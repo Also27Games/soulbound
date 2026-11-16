@@ -326,9 +326,18 @@ public:
 	 * Lanza el evento del Warden EventId como golpe ahora (S-020, SbStrike, Soulbound::Debug::StrikeEvent): corta el turno en curso,
 	 * con el sorteo de la partida para el consumo fijo, y el evento entra en el hueco con el sorteo del Warden; sin turno en curso,
 	 * como DebugLaunchEvent. En un duelo, un trilero o un minijuego se rechaza. Como DebugLaunchEvent, reanuda el reloj del paso a
-	 * paso si el evento espera una elección, y acaba el prólogo antes de golpear (S-022).
+	 * paso si el evento espera una elección, y acaba el prólogo antes de golpear (S-022). Desde S-041, con bViaOracle, el golpe va por el
+	 * Oráculo (DebugStrikeViaOracle).
 	 */
-	FDebugEditOutcome DebugStrikeEvent(const FString& EventId);
+	FDebugEditOutcome DebugStrikeEvent(const FString& EventId, bool bViaOracle = false);
+
+	/**
+	 * El golpe por el Oráculo (S-041, `SbStrike <evento> oraculo`, herramienta de depuración pedida en el plan): como lo decide el cerebro
+	 * (ApplyWardenDecision con bViaOracle), corta el turno en curso y abre la consulta del cortado, con origen Strike y el evento EventId de
+	 * sentencia, sin frase. Sin turno en curso, abre la consulta del último que jugó. Se rechaza con una consulta o un evento en curso, sin
+	 * Warden, con un evento que no existe o en un duelo, un trilero o un minijuego. No toca SoulboundCore.
+	 */
+	FDebugEditOutcome DebugStrikeViaOracle(const FString& EventId, bool bTurnInProgress);
 
 	/**
 	 * Adelanta el reloj de partida a Seconds (S-018, SbClock, Soulbound::Debug::SetClock): el estado y el reloj del anfitrión

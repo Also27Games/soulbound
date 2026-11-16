@@ -1398,7 +1398,7 @@ FDebugEditOutcome UMatchHostSubsystem::DebugLaunchEvent(const FString& EventId)
 	return Outcome;
 }
 
-FDebugEditOutcome UMatchHostSubsystem::DebugStrikeEvent(const FString& EventId)
+FDebugEditOutcome UMatchHostSubsystem::DebugStrikeEvent(const FString& EventId, bool bViaOracle)
 {
 	if (!bHasMatch)
 	{
@@ -1408,6 +1408,10 @@ FDebugEditOutcome UMatchHostSubsystem::DebugStrikeEvent(const FString& EventId)
 	EndPrologue(TEXT("SbStrike"));
 	State.ClockSeconds = MatchSeconds();
 	const bool bTurnInProgress = State.TurnPhase != ETurnPhase::BetweenTurns;
+	if (bViaOracle)
+	{
+		return DebugStrikeViaOracle(EventId, bTurnInProgress);
+	}
 	FRandomStream WardenRandom = Soulbound::Rules::WardenDraw(State);
 	const EWardenEventStart Result = Soulbound::Debug::StrikeEvent(State, EventId, State.ClockSeconds, MatchRng, WardenRandom);
 	const bool bApplied = Result == EWardenEventStart::Started;
@@ -1423,6 +1427,48 @@ FDebugEditOutcome UMatchHostSubsystem::DebugStrikeEvent(const FString& EventId)
 		? FString::Printf(TEXT("golpe \"%s\" %s%s"), *EventId, bTurnInProgress ? TEXT("corta el turno") : TEXT("lanzado entre turnos"),
 			State.CurrentEvent.IsActive() ? TEXT(": espera una elección") : TEXT(" y aplicado"))
 		: Rejection);
+	if (bApplied)
+	{
+		Advance();
+	}
+	return Outcome;
+}
+
+FDebugEditOutcome UMatchHostSubsystem::DebugStrikeViaOracle(const FString& EventId, bool bTurnInProgress)
+{
+	// S-041 (herramienta de depuración pedida en el plan, 16/11/2026): el golpe por el Oráculo (EOracleOrigin::Strike) como lo decide el cerebro, con
+	// ApplyWardenDecision y sin tocar el núcleo: corta el turno en curso y abre la consulta del cortado con ese evento de sentencia, sin frase.
+	const int32 EventIndex = State.WardenEvents.IndexOf(EventId);
+	if (EventIndex == INDEX_NONE)
+	{
+		return FinishDebugEdit(false, FString::Printf(TEXT("no hay ningún evento \"%s\" (SbEvents lista los eventos)"), *EventId));
+	}
+	if (!State.WardenParams.HasWarden())
+	{
+		return FinishDebugEdit(false, TEXT("la partida no tiene Warden: sin él no hay Oráculo"));
+	}
+	// Una consulta o un evento en curso se pisarían: el cerebro tampoco golpea entonces (aplaza, R-WAR-7).
+	if (State.Oracle.IsActive() || State.CurrentEvent.IsActive())
+	{
+		return FinishDebugEdit(false, TEXT("hay una consulta del Oráculo o un evento del Warden en curso: prueba cuando termine"));
+	}
+	if (bTurnInProgress && !Soulbound::Rules::CanInterruptTurn(State))
+	{
+		return FinishDebugEdit(false, TEXT("el turno está en un duelo, un trilero o un minijuego, que no se cortan: prueba cuando termine"));
+	}
+	FWardenDecision Decision;
+	Decision.Kind = EWardenDecisionKind::Strike;
+	Decision.EventIndex = EventIndex;
+	Decision.bViaOracle = true;
+	Soulbound::Rules::ApplyWardenDecision(State, Decision, State.ClockSeconds, MatchRng);
+	const bool bApplied = State.Oracle.IsWaiting() && State.Oracle.Origin == EOracleOrigin::Strike;
+	if (bApplied && StepClock.bHeld)
+	{
+		StepClock.Resume(GetWorld()->GetTimeSeconds());
+	}
+	const FDebugEditOutcome Outcome = FinishDebugEdit(bApplied, bApplied
+		? FString::Printf(TEXT("golpe \"%s\" por el Oráculo %s: consulta del asiento %d"), *EventId, bTurnInProgress ? TEXT("corta el turno") : TEXT("entre turnos"), State.Oracle.Consultant)
+		: FString(TEXT("el Oráculo no se abrió")));
 	if (bApplied)
 	{
 		Advance();
