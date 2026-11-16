@@ -87,9 +87,9 @@ namespace Soulbound::Presentation
 	FString GoalLineText(const FMatchState& State, int32 HumanSeat);
 
 	/**
-	 * Lo que pinta la caja de la línea de objetivo (S-040, R-HUD-7, nombre propuesto), arriba a la izquierda y encima del panel de estado (corrección del
-	 * autor del 16/11/2026 tras PIE: entre las líneas del panel quedaba escondida). Una sola línea, GoalLineText, con la letra grande y el color
-	 * Context.GoalLineColor; ninguna en el prólogo (Context.bPrologue) ni con la meta None. Sin líneas, la vista oculta la caja.
+	 * Lo que pinta la caja de la línea de objetivo (S-040, R-HUD-7, nombre propuesto), fuera del panel de estado (correcciones del autor del 16/11/2026
+	 * tras PIE: entre sus líneas quedaba escondida; va abajo a la izquierda, en la franja de la frase del Warden). Una sola línea, GoalLineText, con la
+	 * letra grande y el color Context.GoalLineColor; ninguna en el prólogo (Context.bPrologue) ni con la meta None. Cuándo se ve, IsGoalPanelShown.
 	 * @param State El estado de la partida.
 	 * @param Context Lo que no está en el estado: el asiento humano, el prólogo y el color.
 	 * @return La línea de la caja, o ninguna.
