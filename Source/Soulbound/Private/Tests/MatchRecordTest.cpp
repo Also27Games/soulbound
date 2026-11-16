@@ -98,8 +98,8 @@ bool FActaSpokenLineTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Y el texto de la variante sin corchetes"), Known.EndsWith(TEXT("Prisa, prisa.")));
 	TestFalse(TEXT("Sin acotaciones de audio"), Known.Contains(TEXT("[risa]")));
 	TestTrue(TEXT("Una entrada inexistente dice frase desconocida"), Soulbound::Presentation::MatchRecordLine(State, 1, 0, INDEX_NONE).Contains(TEXT("frase desconocida")));
-	TestTrue(TEXT("A otro asiento, el prefijo lo nombra"), Soulbound::Presentation::MatchRecordLine(State, 2, 0, INDEX_NONE).Contains(TEXT("Warden, al asiento 2:")));
-	TestTrue(TEXT("Al asiento humano, a ti"), Soulbound::Presentation::MatchRecordLine(State, 2, 2, INDEX_NONE).Contains(TEXT("Warden, a ti:")));
+	TestTrue(TEXT("A otro asiento, el prefijo lo nombra"), Soulbound::Presentation::MatchRecordLine(State, 2, 0, INDEX_NONE).Contains(TEXT("Warden (al asiento 2):")));
+	TestTrue(TEXT("Al asiento humano, a ti"), Soulbound::Presentation::MatchRecordLine(State, 2, 2, INDEX_NONE).Contains(TEXT("Warden (a ti):")));
 	return true;
 }
 

@@ -4,6 +4,7 @@
 
 #include "Match/BondRaceRules.h"
 #include "Match/DebugEdits.h"
+#include "Match/EffectRules.h"
 #include "Match/InsolenceRules.h"
 #include "Match/MatchStart.h"
 #include "Match/OracleRules.h"
@@ -520,6 +521,107 @@ bool FVoiceWarningsTest::RunTest(const FString& Parameters)
 		F.Now = 2395.0;
 		F.Advance();
 		TestEqual(TEXT("Sin Warden, ningún aviso"), F.Since(From, EMatchEventType::MatchEndWarning).Num(), 0);
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceEchoNightEndTest, "Soulbound.Core.Voice.RegistroDelFinDeLaNoche",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+namespace
+{
+	/** Lanza la Noche de los Ecos y deja pasar rondas hasta su tope; devuelve la posición del registro desde la que termina. */
+	int32 RunEchoNightToRoundLimit(Soulbound::Tests::FEventFixture& F)
+	{
+		F.Director(Fenrir);
+		F.Launch(TEXT("noche-de-los-ecos"));
+		for (int32 Round = 1; Round < F.State.Params.EchoNightMaxRounds; ++Round)
+		{
+			Soulbound::Rules::StartRound(F.State, F.Now);
+		}
+		const int32 From = F.State.EventLog.Num();
+		F.Now += 1.0;
+		Soulbound::Rules::StartRound(F.State, F.Now);
+		return From;
+	}
+
+	/** Los tipos de evento del registro desde From, sin las frases. */
+	TArray<EMatchEventType> TypesWithoutSpoke(const FMatchState& State, int32 From)
+	{
+		TArray<EMatchEventType> Types;
+		for (int32 Index = From; Index < State.EventLog.Num(); ++Index)
+		{
+			if (State.EventLog[Index].Type != EMatchEventType::WardenSpoke)
+			{
+				Types.Add(State.EventLog[Index].Type);
+			}
+		}
+		return Types;
+	}
+}
+
+bool FVoiceEchoNightEndTest::RunTest(const FString& Parameters)
+{
+	// CA-VOZ-11 (R-VOZ-9, S-043): al terminar la Noche por el tope de rondas, el registro lleva EchoNightEnded y, justo después y en el mismo
+	// instante, el WardenSpoke de programado:fin-noche-ecos, a la mesa. Por la Ley de Sombras, no: ese evento ya trae su frase. Sin tabla de frases,
+	// no hay WardenSpoke y el resto del registro es el de antes.
+	TArray<EMatchEventType> WithVoice;
+	{
+		FVoiceFixture F;
+		if (!F.StartWithVoice(*this))
+		{
+			return false;
+		}
+		const int32 From = RunEchoNightToRoundLimit(F);
+		TestFalse(TEXT("La Noche ha terminado"), F.State.IsEchoNight());
+		const int32 Ended = IndexOfEvent(F.State, EMatchEventType::EchoNightEnded, From);
+		if (!TestTrue(TEXT("Queda EchoNightEnded"), Ended != INDEX_NONE))
+		{
+			return false;
+		}
+		TestEqual(TEXT("Por el tope de rondas"), F.State.EventLog[Ended].Detail, AsInt(EEchoNightEnd::RoundLimit));
+		TestTrue(TEXT("Justo después, programado:fin-noche-ecos"), IsFollowedBySpoke(F.State, Ended, Soulbound::Warden::LineEchoNightEnd));
+		if (F.State.EventLog.IsValidIndex(Ended + 1))
+		{
+			TestEqual(TEXT("En el mismo instante"), F.State.EventLog[Ended + 1].ClockSeconds, F.State.EventLog[Ended].ClockSeconds);
+			TestEqual(TEXT("A la mesa"), F.State.EventLog[Ended + 1].Seat, INDEX_NONE);
+			TestTrue(TEXT("Con una de sus variantes"), HasValidVariant(F.State, F.State.EventLog[Ended + 1]));
+		}
+		TestEqual(TEXT("Y es la única frase"), SpokenSince(F.State, From), 1);
+		WithVoice = TypesWithoutSpoke(F.State, From);
+	}
+	{
+		FVoiceFixture F;
+		if (!F.StartWithVoice(*this))
+		{
+			return false;
+		}
+		F.Director(Fenrir);
+		F.Launch(TEXT("noche-de-los-ecos"));
+		const int32 From = F.State.EventLog.Num();
+		F.Director(Fenrir);
+		F.Launch(TEXT("la-ley-de-sombras"));
+		const int32 Ended = IndexOfEvent(F.State, EMatchEventType::EchoNightEnded, From);
+		TestTrue(TEXT("La Ley de Sombras termina la Noche"), Ended != INDEX_NONE
+			&& F.State.EventLog[Ended].Detail == AsInt(EEchoNightEnd::ShadowLaw));
+		bool bSaidNightEnd = false;
+		for (int32 Index = From; Index < F.State.EventLog.Num(); ++Index)
+		{
+			bSaidNightEnd |= SpokenKey(F.State, F.State.EventLog[Index]) == Soulbound::Warden::LineEchoNightEnd;
+		}
+		TestFalse(TEXT("Por la Ley de Sombras no dice programado:fin-noche-ecos"), bSaidNightEnd);
+	}
+	{
+		Soulbound::Tests::FEventFixture F;
+		if (!F.StartAfterRace(*this))
+		{
+			return false;
+		}
+		TestTrue(TEXT("Sin tabla de frases"), F.State.WardenLines.IsEmpty());
+		const int32 From = RunEchoNightToRoundLimit(F);
+		TestEqual(TEXT("Sin tabla, ninguna frase"), SpokenSince(F.State, From), 0);
+		TestTrue(TEXT("Sin tabla, el mismo registro que con voz quitando la frase"), TypesWithoutSpoke(F.State, From) == WithVoice);
+		TestTrue(TEXT("Y acaba en EchoNightEnded, como antes"), !F.State.EventLog.IsEmpty() && F.State.EventLog.Last().Type == EMatchEventType::EchoNightEnded);
 	}
 	return true;
 }

@@ -237,11 +237,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceLinePrefixTest, "Soulbound.Game.Presentat
 bool FVoiceLinePrefixTest::RunTest(const FString& Parameters)
 {
 	// R-VOZ-3b (S-021): el Warden no pronuncia nombres; a quién habla lo dice la interfaz con el prefijo de la línea: "Warden:" a la mesa,
-	// "Warden, al asiento 2:" a un asiento y "Warden, a ti:" al asiento humano de esta máquina.
+	// "Warden (al asiento 2):" a un asiento y "Warden (a ti):" al asiento humano de esta máquina. CA-VOZ-14 (R-VOZ-11, S-043): entre paréntesis y
+	// sin coma, como en un guion; sustituye a "Warden, a ti:" y "Warden, al asiento 2:".
 	TestEqual(TEXT("A la mesa"), Soulbound::Presentation::WardenLinePrefix(INDEX_NONE, 0), FString(TEXT("Warden:")));
-	TestEqual(TEXT("A un asiento"), Soulbound::Presentation::WardenLinePrefix(2, 0), FString(TEXT("Warden, al asiento 2:")));
-	TestEqual(TEXT("Al humano de esta máquina"), Soulbound::Presentation::WardenLinePrefix(0, 0), FString(TEXT("Warden, a ti:")));
-	TestEqual(TEXT("Sin humano, a un asiento"), Soulbound::Presentation::WardenLinePrefix(0, INDEX_NONE), FString(TEXT("Warden, al asiento 0:")));
+	TestEqual(TEXT("A un asiento"), Soulbound::Presentation::WardenLinePrefix(2, 0), FString(TEXT("Warden (al asiento 2):")));
+	TestEqual(TEXT("Al humano de esta máquina"), Soulbound::Presentation::WardenLinePrefix(0, 0), FString(TEXT("Warden (a ti):")));
+	TestEqual(TEXT("Sin humano, a un asiento"), Soulbound::Presentation::WardenLinePrefix(0, INDEX_NONE), FString(TEXT("Warden (al asiento 0):")));
 	return true;
 }
 
@@ -521,7 +522,7 @@ bool FVoiceWaitDurationsTest::RunTest(const FString& Parameters)
 {
 	// CA-VOZ-7 (R-VOZ-6, S-041): con 6 s de mínimo y 0,065 s por carácter, la espera de la mesa por dos frases que la detienen es la suma de
 	// sus dos duraciones; un comentario entre ellas no suma. El prólogo dura la suma de las duraciones de las frases del instante cero. Cada
-	// duración cuenta el texto tal como se enseña, con su prefijo: "Warden: " son 8 caracteres y "Warden, al asiento 2: ", 22.
+	// duración cuenta el texto tal como se enseña, con su prefijo: "Warden: " son 8 caracteres y "Warden (al asiento 2): ", 23 (desde S-043, R-VOZ-11).
 	constexpr double Min = 6.0;
 	constexpr double PerChar = 0.065;
 	FMatchState Wait;
@@ -533,10 +534,10 @@ bool FVoiceWaitDurationsTest::RunTest(const FString& Parameters)
 
 	FMatchState Opening;
 	SayText(Opening, Soulbound::Warden::LineStart, FString::ChrN(142, TEXT('a')), 0.0);
-	SayText(Opening, Soulbound::Rules::ScheduledOrderKey(1), FString::ChrN(128, TEXT('c')), 0.0, 2);
+	SayText(Opening, Soulbound::Rules::ScheduledOrderKey(1), FString::ChrN(127, TEXT('c')), 0.0, 2);
 	SayText(Opening, Soulbound::Warden::LineBegin, TEXT("Empezad."), 0.0);
 	SayText(Opening, TEXT("evento:prisa"), FString::ChrN(200, TEXT('d')), 30.0);
-	TestEqual(TEXT("Prólogo: 9,75 + 9,75 (128 con el prefijo de asiento) + 6; la de más tarde no cuenta"),
+	TestEqual(TEXT("Prólogo: 9,75 + 9,75 (127 con el prefijo de asiento) + 6; la de más tarde no cuenta"),
 		Soulbound::Presentation::OpeningSeconds(Opening, 0, Min, PerChar), 25.5, 1e-9);
 	return true;
 }
@@ -549,7 +550,7 @@ bool FVoiceCutTextsTest::RunTest(const FString& Parameters)
 	// otro asiento, solo con el asiento (corrección del autor del 16/11/2026); el Oráculo como golpe, sin frase (la línea es la palabra de corte sola, que no detiene la mesa
 	// pero está protegida); fin de la carrera (sin palabra de corte ni oscurecido); fin de la partida (nada); sin corte, la frase tal cual. La
 	// palabra de corte sale de la tabla de frases: con otra palabra, otra línea; sin la clave, no hay palabra. Corrección de un defecto de S-041
-	// (autor, 16/11/2026, en S-042): en un corte del Warden el prefijo es el del asiento cortado ("Warden, a ti:" o "Warden, al asiento N:"), no el
+	// (autor, 16/11/2026, en S-042): en un corte del Warden el prefijo es el del asiento cortado ("Warden (a ti):" o "Warden (al asiento N):"), no el
 	// de a quién va la frase del evento, que el motor dice a la mesa ("Warden:"); con o sin palabra de corte. Las demás frases, como antes.
 	using Soulbound::Presentation::FWardenLineItem;
 	using Soulbound::Presentation::WardenLineItems;
@@ -560,9 +561,9 @@ bool FVoiceCutTextsTest::RunTest(const FString& Parameters)
 	const TArray<FWardenLineItem> StrikeItems = WardenLineItems(Strike, 0, Human, 6.0, 0.0);
 	if (TestEqual(TEXT("Golpe al humano: el castigo y la frase del evento"), StrikeItems.Num(), 2))
 	{
-		TestEqual(TEXT("El castigo, tal cual"), StrikeItems[0].Text, FString(TEXT("Warden, al asiento 1: Eso no se hace.")));
+		TestEqual(TEXT("El castigo, tal cual"), StrikeItems[0].Text, FString(TEXT("Warden (al asiento 1): Eso no se hace.")));
 		TestTrue(TEXT("Sin línea pequeña ni oscurecido"), StrikeItems[0].CutNote.IsEmpty() && !StrikeItems[0].bWardenCut);
-		TestEqual(TEXT("La palabra de corte antes de la frase, tras el prefijo del cortado"), StrikeItems[1].Text, FString(TEXT("Warden, a ti: ¡Quietos! Quieto ahí.")));
+		TestEqual(TEXT("La palabra de corte antes de la frase, tras el prefijo del cortado"), StrikeItems[1].Text, FString(TEXT("Warden (a ti): ¡Quietos! Quieto ahí.")));
 		TestEqual(TEXT("Debajo, qué ha pasado, con el texto del evento"), StrikeItems[1].CutNote, FString(TEXT("Tu turno se corta. En tu próximo turno, la Prueba del Warden")));
 		TestTrue(TEXT("Oscurece"), StrikeItems[1].bWardenCut);
 		TestTrue(TEXT("Detiene la mesa y está protegida"), StrikeItems[1].bHoldsTable && StrikeItems[1].bShielded);
@@ -577,7 +578,7 @@ bool FVoiceCutTextsTest::RunTest(const FString& Parameters)
 	const TArray<FWardenLineItem> Other = WardenLineItems(CutState(CutKind::Warden, 2), 0, Human, 6.0, 0.0);
 	if (TestEqual(TEXT("Golpe a otro asiento: dos frases"), Other.Num(), 2))
 	{
-		TestEqual(TEXT("La misma línea, al asiento cortado"), Other[1].Text, FString(TEXT("Warden, al asiento 2: ¡Quietos! Quieto ahí.")));
+		TestEqual(TEXT("La misma línea, al asiento cortado"), Other[1].Text, FString(TEXT("Warden (al asiento 2): ¡Quietos! Quieto ahí.")));
 		// Corrección del autor del 16/11/2026 tras PIE: solo el asiento; el nombre del evento, suelto, no explicaba nada.
 		TestEqual(TEXT("Solo con el asiento, sin el nombre del evento"), Other[1].CutNote, FString(TEXT("Se corta el turno del asiento 2.")));
 		TestTrue(TEXT("También oscurece"), Other[1].bWardenCut);
@@ -586,7 +587,7 @@ bool FVoiceCutTextsTest::RunTest(const FString& Parameters)
 	const TArray<FWardenLineItem> Oracle = WardenLineItems(CutState(CutKind::Oracle, Human), 0, Human, 6.0, 0.0);
 	if (TestEqual(TEXT("El Oráculo como golpe: una línea"), Oracle.Num(), 1))
 	{
-		TestEqual(TEXT("La palabra de corte sola, a quien corta"), Oracle[0].Text, FString(TEXT("Warden, a ti: ¡Quietos!")));
+		TestEqual(TEXT("La palabra de corte sola, a quien corta"), Oracle[0].Text, FString(TEXT("Warden (a ti): ¡Quietos!")));
 		TestEqual(TEXT("El Oráculo te llama"), Oracle[0].CutNote, FString(TEXT("Tu turno se corta. El Oráculo te llama.")));
 		TestFalse(TEXT("No detiene la mesa: el plazo de 7 s no se mueve"), Oracle[0].bHoldsTable);
 		TestTrue(TEXT("Pero está protegida de las burlas y oscurece"), Oracle[0].bShielded && Oracle[0].bWardenCut);
@@ -594,7 +595,7 @@ bool FVoiceCutTextsTest::RunTest(const FString& Parameters)
 	const TArray<FWardenLineItem> OracleOther = WardenLineItems(CutState(CutKind::Oracle, 2), 0, Human, 6.0, 0.0);
 	if (TestEqual(TEXT("El Oráculo como golpe a otro: una línea"), OracleOther.Num(), 1))
 	{
-		TestEqual(TEXT("Al asiento"), OracleOther[0].Text, FString(TEXT("Warden, al asiento 2: ¡Quietos!")));
+		TestEqual(TEXT("Al asiento"), OracleOther[0].Text, FString(TEXT("Warden (al asiento 2): ¡Quietos!")));
 		TestEqual(TEXT("El Oráculo le llama"), OracleOther[0].CutNote, FString(TEXT("Se corta el turno del asiento 2. El Oráculo le llama.")));
 	}
 
@@ -633,7 +634,7 @@ bool FVoiceCutTextsTest::RunTest(const FString& Parameters)
 	const TArray<FWardenLineItem> Word = WardenLineItems(OtherWord, 0, Human, 6.0, 0.0);
 	if (TestEqual(TEXT("Con otra palabra: dos frases"), Word.Num(), 2))
 	{
-		TestEqual(TEXT("Otra palabra en la tabla, otra línea (sin acotaciones)"), Word[1].Text, FString(TEXT("Warden, a ti: ¡Alto ahí! Quieto ahí.")));
+		TestEqual(TEXT("Otra palabra en la tabla, otra línea (sin acotaciones)"), Word[1].Text, FString(TEXT("Warden (a ti): ¡Alto ahí! Quieto ahí.")));
 	}
 	// Sin la clave: se vacía la entrada de la palabra (quitarla movería las posiciones a las que apuntan los WardenSpoke).
 	FMatchState NoWord = CutState(CutKind::Warden, Human);
@@ -641,7 +642,7 @@ bool FVoiceCutTextsTest::RunTest(const FString& Parameters)
 	const TArray<FWardenLineItem> Without = WardenLineItems(NoWord, 0, Human, 6.0, 0.0);
 	if (TestEqual(TEXT("Sin la clave: dos frases"), Without.Num(), 2))
 	{
-		TestEqual(TEXT("Sin la clave, la frase sin palabra de corte, al cortado"), Without[1].Text, FString(TEXT("Warden, a ti: Quieto ahí.")));
+		TestEqual(TEXT("Sin la clave, la frase sin palabra de corte, al cortado"), Without[1].Text, FString(TEXT("Warden (a ti): Quieto ahí.")));
 		TestEqual(TEXT("Y la línea pequeña igual"), Without[1].CutNote, FString(TEXT("Tu turno se corta. En tu próximo turno, la Prueba del Warden")));
 	}
 	FMatchState NoWordOracle = CutState(CutKind::Oracle, Human);
@@ -747,6 +748,160 @@ bool FVoiceEndInPrologueTest::RunTest(const FString& Parameters)
 	TestNotEqual(TEXT("Justo antes de acabar la apertura, aún no sale"), Queue.Current(100.0 + OpeningSeconds - 0.01).Text, End[0].Text);
 	TestEqual(TEXT("Al acabar la apertura, sale la frase del final"), Queue.Current(100.0 + OpeningSeconds + 0.01).Text, End[0].Text);
 	AddInfo(FString::Printf(TEXT("Apertura: %d frases, %.1f s; la frase del final sale tras ella."), Opening.Num(), OpeningSeconds));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceEchoNightNoteTest, "Soulbound.Game.Presentation.Voz.LineaDeLaNoche", VoiceTestFlags)
+
+namespace
+{
+	/** Una partida con los eventos que abren y cierran la Noche, sus frases, la palabra de corte y la frase del fin por el tope de rondas (S-043). */
+	struct FEchoNightLog
+	{
+		FMatchState State;
+		int32 NightEvent = INDEX_NONE;
+		int32 ShadowEvent = INDEX_NONE;
+		int32 MutedNightEvent = INDEX_NONE;
+		int32 NightLine = INDEX_NONE;
+		int32 ShadowLine = INDEX_NONE;
+		int32 EndLine = INDEX_NONE;
+
+		FEchoNightLog()
+		{
+			State.Seats.SetNum(4);
+			NightEvent = AddEvent(TEXT("noche-de-los-ecos"), TEXT("Los Ecos caminan por cualquier Dominio"));
+			ShadowEvent = AddEvent(TEXT("la-ley-de-sombras"), TEXT("Los Ecos, a casa"));
+			// Como "noche" de S-014: fuera de los sacos y sin frase en la tabla.
+			MutedNightEvent = AddEvent(TEXT("noche"), TEXT("Ha llegado la noche"));
+			FWardenLineEntry& Word = State.WardenLines.Entries.AddDefaulted_GetRef();
+			Word.Id = Soulbound::Presentation::CutWordKey;
+			Word.Lines = {TEXT("¡Quietos!")};
+			NightLine = AddLine(State, TEXT("evento:noche-de-los-ecos"));
+			State.WardenLines.Entries[NightLine].Lines = {TEXT("Que llegue la oscuridad…")};
+			ShadowLine = AddLine(State, TEXT("evento:la-ley-de-sombras"));
+			State.WardenLines.Entries[ShadowLine].Lines = {TEXT("Se acabó la noche…")};
+			EndLine = AddLine(State, Soulbound::Warden::LineEchoNightEnd);
+			State.WardenLines.Entries[EndLine].Lines = {TEXT("Amanece.")};
+		}
+
+		int32 AddEvent(const TCHAR* Id, const TCHAR* Text)
+		{
+			FWardenEventDef& Event = State.WardenEvents.Events.AddDefaulted_GetRef();
+			Event.Id = Id;
+			Event.Text = Text;
+			return State.WardenEvents.Events.Num() - 1;
+		}
+
+		/** Como lo deja el motor: el evento, su frase a la mesa (si la tiene) y después su efecto, que abre la Noche. */
+		void Begin(double Clock, int32 Event, bool bSpoken)
+		{
+			LogAt(State, EMatchEventType::WardenEventStarted, Clock, 1, Event, 1);
+			if (bSpoken)
+			{
+				LogAt(State, EMatchEventType::WardenSpoke, Clock, INDEX_NONE, NightLine, 0);
+			}
+			LogAt(State, EMatchEventType::EchoNightBegan, Clock, INDEX_NONE, 9);
+		}
+	};
+}
+
+bool FVoiceEchoNightNoteTest::RunTest(const FString& Parameters)
+{
+	// CA-VOZ-13 (R-VOZ-10, S-043): la Noche empieza y termina con su línea pequeña, letra por letra, sin palabra de corte ni oscurecido: bajo la
+	// frase del evento que la abre ("Empieza…"), bajo la frase nueva al acabar por el tope de rondas y bajo la de la Ley de Sombras ("Termina…").
+	// La duración cuenta los caracteres de la línea pequeña. Decisiones del autor del 17/11/2026: si el evento además corta un turno, dos líneas
+	// pequeñas, primero la del corte como hoy y debajo la de la Noche; una Noche sin frase deja la línea pequeña sola, sin prefijo, sin detener la
+	// mesa y sin protección frente a las burlas. CA-VOZ-12 (R-VOZ-9): la frase del fin por el tope detiene la mesa.
+	using Soulbound::Presentation::FWardenLineItem;
+	using Soulbound::Presentation::WardenLineItems;
+	constexpr int32 Human = 0;
+	const FString BeginNote = TEXT("Empieza la Noche de los Ecos: los Ecos caminan por cualquier Dominio.");
+	const FString EndNote = TEXT("Termina la Noche de los Ecos: los Ecos vuelven a su hogar.");
+
+	// Empieza: WardenEventStarted, la frase del evento y EchoNightBegan, en el mismo instante.
+	FEchoNightLog Begin;
+	Begin.Begin(60.0, Begin.NightEvent, true);
+	const TArray<FWardenLineItem> BeginItems = WardenLineItems(Begin.State, 0, Human, 6.0, 0.0);
+	if (TestEqual(TEXT("Empieza: una frase"), BeginItems.Num(), 1))
+	{
+		TestEqual(TEXT("La frase del evento, tal cual y sin palabra de corte"), BeginItems[0].Text, FString(TEXT("Warden: Que llegue la oscuridad…")));
+		TestEqual(TEXT("Debajo, Empieza…"), BeginItems[0].CutNote, BeginNote);
+		TestFalse(TEXT("Sin oscurecido"), BeginItems[0].bWardenCut);
+		TestTrue(TEXT("Detiene la mesa como antes"), BeginItems[0].bHoldsTable);
+	}
+
+	// Termina por el tope de rondas: EchoNightEnded y justo después la frase nueva.
+	FEchoNightLog Limit;
+	LogAt(Limit.State, EMatchEventType::EchoNightEnded, 80.0, INDEX_NONE, INDEX_NONE, static_cast<int32>(EEchoNightEnd::RoundLimit));
+	LogAt(Limit.State, EMatchEventType::WardenSpoke, 80.0, INDEX_NONE, Limit.EndLine, 0);
+	const TArray<FWardenLineItem> LimitItems = WardenLineItems(Limit.State, 0, Human, 6.0, 0.0);
+	if (TestEqual(TEXT("Tope de rondas: una frase"), LimitItems.Num(), 1))
+	{
+		TestEqual(TEXT("La frase nueva"), LimitItems[0].Text, FString(TEXT("Warden: Amanece.")));
+		TestEqual(TEXT("Debajo, Termina…"), LimitItems[0].CutNote, EndNote);
+		TestFalse(TEXT("Sin oscurecido"), LimitItems[0].bWardenCut);
+		TestTrue(TEXT("CA-VOZ-12: detiene la mesa y está protegida"), LimitItems[0].bHoldsTable && LimitItems[0].bShielded);
+	}
+	TestTrue(TEXT("CA-VOZ-12: la clave detiene la mesa"), Soulbound::Presentation::LineHoldsTheTable(Soulbound::Warden::LineEchoNightEnd));
+
+	// Termina por la Ley de Sombras: el evento, su frase, los Ecos a casa y EchoNightEnded.
+	FEchoNightLog Shadow;
+	LogAt(Shadow.State, EMatchEventType::WardenEventStarted, 90.0, 1, Shadow.ShadowEvent, 1);
+	LogAt(Shadow.State, EMatchEventType::WardenSpoke, 90.0, INDEX_NONE, Shadow.ShadowLine, 0);
+	LogAt(Shadow.State, EMatchEventType::SentHome, 90.0, 2);
+	LogAt(Shadow.State, EMatchEventType::EchoNightEnded, 90.0, INDEX_NONE, INDEX_NONE, static_cast<int32>(EEchoNightEnd::ShadowLaw));
+	const TArray<FWardenLineItem> ShadowItems = WardenLineItems(Shadow.State, 0, Human, 6.0, 0.0);
+	if (TestEqual(TEXT("Ley de Sombras: una frase"), ShadowItems.Num(), 1))
+	{
+		TestEqual(TEXT("La frase de la Ley"), ShadowItems[0].Text, FString(TEXT("Warden: Se acabó la noche…")));
+		TestEqual(TEXT("Debajo, Termina…"), ShadowItems[0].CutNote, EndNote);
+		TestFalse(TEXT("Sin oscurecido"), ShadowItems[0].bWardenCut);
+	}
+
+	// La duración cuenta la línea pequeña: con 0,2 s por carácter, la frase sola daría el mínimo.
+	const TArray<FWardenLineItem> Slow = WardenLineItems(Begin.State, 0, Human, 6.0, 0.2);
+	if (TestEqual(TEXT("Despacio: una frase"), Slow.Num(), 1))
+	{
+		TestTrue(TEXT("Con su línea pequeña"), !Slow[0].CutNote.IsEmpty());
+		TestEqual(TEXT("Dura lo de la frase y la línea pequeña"), Slow[0].Seconds, (Slow[0].Text.Len() + Slow[0].CutNote.Len()) * 0.2, 1e-9);
+	}
+
+	// Un golpe que corta el turno del humano y abre la Noche: la palabra de corte y el oscurecido del corte, y dos líneas pequeñas.
+	FEchoNightLog Cut;
+	LogAt(Cut.State, EMatchEventType::TurnInterrupted, 100.0, Human, static_cast<int32>(ETurnPhase::RollAndChoose));
+	LogAt(Cut.State, EMatchEventType::TurnEnded, 100.0, Human);
+	Cut.Begin(100.0, Cut.NightEvent, true);
+	const TArray<FWardenLineItem> CutItems = WardenLineItems(Cut.State, 0, Human, 6.0, 0.0);
+	if (TestEqual(TEXT("Corte y Noche: una frase"), CutItems.Num(), 1))
+	{
+		TestEqual(TEXT("Con la palabra de corte, como un corte"), CutItems[0].Text, FString(TEXT("Warden (a ti): ¡Quietos! Que llegue la oscuridad…")));
+		TestEqual(TEXT("Primero lo del corte y debajo lo de la Noche"), CutItems[0].CutNote,
+			FString(TEXT("Tu turno se corta. Los Ecos caminan por cualquier Dominio")) + TEXT("\n") + BeginNote);
+		TestTrue(TEXT("Oscurece: es un corte"), CutItems[0].bWardenCut);
+	}
+
+	// Una Noche sin frase (la de S-014, fuera de los sacos): la línea pequeña sola.
+	FEchoNightLog Muted;
+	Muted.Begin(110.0, Muted.MutedNightEvent, false);
+	const TArray<FWardenLineItem> MutedItems = WardenLineItems(Muted.State, 0, Human, 6.0, 0.0);
+	if (TestEqual(TEXT("Sin frase: una línea"), MutedItems.Num(), 1))
+	{
+		TestTrue(TEXT("Sin texto ni prefijo"), MutedItems[0].Text.IsEmpty());
+		TestEqual(TEXT("Solo la línea pequeña"), MutedItems[0].CutNote, BeginNote);
+		TestFalse(TEXT("No detiene la mesa"), MutedItems[0].bHoldsTable);
+		TestFalse(TEXT("Ni está protegida de las burlas"), MutedItems[0].bShielded);
+		TestFalse(TEXT("Ni oscurece"), MutedItems[0].bWardenCut);
+	}
+	// Sin tabla de frases, el fin por el tope tampoco trae frase: la línea pequeña sola.
+	FEchoNightLog Silent;
+	Silent.State.WardenLines = FWardenLineTable();
+	LogAt(Silent.State, EMatchEventType::EchoNightEnded, 120.0, INDEX_NONE, INDEX_NONE, static_cast<int32>(EEchoNightEnd::RoundLimit));
+	const TArray<FWardenLineItem> SilentItems = WardenLineItems(Silent.State, 0, Human, 6.0, 0.0);
+	if (TestEqual(TEXT("Sin tabla: una línea"), SilentItems.Num(), 1))
+	{
+		TestTrue(TEXT("Sin texto"), SilentItems[0].Text.IsEmpty());
+		TestEqual(TEXT("Termina…"), SilentItems[0].CutNote, EndNote);
+	}
 	return true;
 }
 

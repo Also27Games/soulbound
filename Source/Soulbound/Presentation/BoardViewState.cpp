@@ -133,3 +133,21 @@ TArray<int32> Soulbound::Presentation::SealMarkedTiles(const FMatchState& State)
 	// R-VIS-24: la vista no decide nada, lee el orden de los Sellos tal como lo guarda el tablero.
 	return State.Board.SealedTiles;
 }
+
+bool Soulbound::Presentation::EchoNightDimShown(const FMatchState& State)
+{
+	// TODO(R-VIS-31): stub para ver el test en rojo (S-043).
+	return false;
+}
+
+float Soulbound::Presentation::EchoNightDimOpacity(bool bEchoNight, float FromOpacity, double SecondsSinceChange, float MaxOpacity, double FadeSeconds)
+{
+	// TODO(R-VIS-31): stub para ver el test en rojo (S-043).
+	return 0.f;
+}
+
+FLinearColor Soulbound::Presentation::BoardDimColor(const FLinearColor& NightColor, float NightOpacity, float CutOpacity)
+{
+	// TODO(R-VIS-31): stub para ver el test en rojo (S-043).
+	return FLinearColor::Transparent;
+}

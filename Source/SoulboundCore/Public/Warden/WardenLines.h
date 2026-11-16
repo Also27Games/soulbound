@@ -162,6 +162,8 @@ namespace Soulbound::Warden
 	/** La victoria de un jugador (`MatchWon`). La del Warden por no haber vínculos es `LineNobodyBonded` (decisión del autor del 28/10/2026). */
 	inline const FString LineVictory = TEXT("programado:victoria");
 	inline const FString LineNobodyBonded = TEXT("programado:nadie-vinculado");
+	/** El fin de la Noche de los Ecos por el tope de rondas (R-VOZ-9, S-043, nombre propuesto); por la Ley de Sombras habla su evento. */
+	inline const FString LineEchoNightEnd = TEXT("programado:fin-noche-ecos");
 	inline const FString LineFury = TEXT("furia");
 
 	/** Segundos que faltan para matchEndSeconds en cada aviso del final (R-PRO-5, decisión del autor del 27/10/2026). */
