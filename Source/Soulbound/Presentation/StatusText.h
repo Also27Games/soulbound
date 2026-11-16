@@ -56,8 +56,8 @@ namespace Soulbound::Presentation
 		FString ReturnKey;
 		/** Color de cada asiento, el de la vista. */
 		TArray<FLinearColor> SeatColors;
-		/** Color de la línea de objetivo (S-040, R-HUD-7): el de la luz de la meta (GoalLightColor). */
-		FLinearColor GoalColor = FLinearColor::White;
+		/** Color de la línea de objetivo (S-040, R-HUD-7): ABoardViewActor::GoalLineColor. */
+		FLinearColor GoalLineColor = FLinearColor::White;
 
 		/** El color del asiento Seat; blanco si no lo hay. */
 		FLinearColor SeatColor(int32 Seat) const { return SeatColors.IsValidIndex(Seat) ? SeatColors[Seat] : FLinearColor::White; }

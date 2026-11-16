@@ -221,21 +221,6 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Formas")
 	float SealMarkScale = 1.20f;
 
-	/**
-	 * La luz de la meta (S-040, R-VIS-28): un haz vertical fino de formas básicas sobre cada casilla de la meta del humano, sin latido. Medidas por el
-	 * diámetro de una casilla (SlabSize), también en el Altar: grosor GoalLightWidthScale (valor inicial 0,12), alto GoalLightHeightScale (8) y altura
-	 * de su base sobre la cara superior de la casilla GoalLightBaseScale (1,5: por encima de la ficha, para no taparla). Valores a ciegas, a ajustar en
-	 * PIE (Config/DefaultGame.ini).
-	 */
-	UPROPERTY(Config, EditAnywhere, Category = "Vista|Formas", meta = (ClampMin = "0.01"))
-	float GoalLightWidthScale = 0.12f;
-
-	UPROPERTY(Config, EditAnywhere, Category = "Vista|Formas", meta = (ClampMin = "0.1"))
-	float GoalLightHeightScale = 8.f;
-
-	UPROPERTY(Config, EditAnywhere, Category = "Vista|Formas", meta = (ClampMin = "0"))
-	float GoalLightBaseScale = 1.5f;
-
 	/** Radio del aro del asiento en un Nicho reclamado, por el diámetro de la casilla. Valor inicial 0,7. */
 	UPROPERTY(EditAnywhere, Category = "Vista|Formas")
 	float NicheRingRadiusScale = 0.7f;
@@ -802,12 +787,12 @@ public:
 	float ForgottenFloorDim = 0.6f;
 
 	/**
-	 * Color de la luz de la meta y de la línea de objetivo del panel de estado (S-040, R-VIS-28, R-HUD-7): uno solo para las tres metas, distinto del blanco
-	 * de las alcanzables, del rojo del Sello y del morado de perder una runa. Valor inicial (1, 0,82, 0,35), un dorado claro (Config/DefaultGame.ini). El
-	 * material básico no es emisivo: si en PIE se ve como una barra apagada, se anota, no se rehace a ciegas.
+	 * Color de la línea de objetivo del panel de estado (S-040, R-HUD-7): uno solo para las tres metas, distinto del blanco de las alcanzables, del rojo del
+	 * Sello y del morado de perder una runa. Valor inicial (1, 0,82, 0,35), un dorado claro (Config/DefaultGame.ini). Hasta la corrección del 16/11/2026 era
+	 * también el de la luz de la meta (R-VIS-28, retirada) y se llamaba GoalLightColor.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Colores")
-	FLinearColor GoalLightColor = FLinearColor(1.f, 0.82f, 0.35f);
+	FLinearColor GoalLineColor = FLinearColor(1.f, 0.82f, 0.35f);
 
 	/** Cuánto se apaga la cruz de una Fuente agotada (multiplica su color). Valor inicial 0,15 (S-008). */
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
@@ -1255,13 +1240,6 @@ private:
 	 * Visible mientras la casilla está sellada (SealMarkedTiles) y durante un destello de Sello (R-VIS-25), que lo escala.
 	 */
 	TArray<TObjectPtr<UStaticMeshComponent>> SealMarks;
-
-	/**
-	 * La luz de la meta (S-040, R-VIS-28): un haz por cada casilla que puede ser meta (Nichos, Fuentes y Altar; nulo en las demás), con BaseMaterial y
-	 * GoalLightColor. Visible si la casilla está en GoalLightTiles; cambia solo con el estado (Refresh), sin Tick. La tecla de etiquetas no lo oculta.
-	 */
-	UPROPERTY()
-	TArray<TObjectPtr<UStaticMeshComponent>> GoalLights;
 
 	/** El material del suelo de los Dominios Olvidados (ForgottenFloorMaterial) cargado al empezar (S-040, R-VIS-27), o nulo: el actor lo mantiene vivo. */
 	UPROPERTY(Transient)

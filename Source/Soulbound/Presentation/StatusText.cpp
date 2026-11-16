@@ -771,14 +771,14 @@ namespace Soulbound::Presentation
 			Top.Insert({MatchResultText(State, Context.ReturnKey), RaceColor, true}, 0);
 		}
 
-		// La línea de objetivo (R-HUD-7, S-040): tras el resultado y la petición, con el color de la luz de la meta. En el prólogo no sale
+		// La línea de objetivo (R-HUD-7, S-040): tras el resultado y la petición, con su color (GoalLineColor). En el prólogo no sale
 		// (precisión del 16/11/2026); con la meta None (la partida terminada), tampoco.
 		if (!Context.bPrologue)
 		{
 			const FString Goal = GoalLineText(State, HumanSeat);
 			if (!Goal.IsEmpty())
 			{
-				Top.Add({Goal, Context.GoalColor, false});
+				Top.Add({Goal, Context.GoalLineColor, false});
 			}
 		}
 

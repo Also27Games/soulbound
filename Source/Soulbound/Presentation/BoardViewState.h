@@ -86,16 +86,6 @@ namespace Soulbound::Presentation
 	SOULBOUND_API float WedgeFloorDim(bool bForgotten, bool bForgottenMaterial, float ForgottenFloorDim, float ForgottenDim);
 
 	/**
-	 * Las casillas que llevan la luz de la meta (S-040, R-VIS-28, nombre propuesto): las de la meta del asiento humano (SeatGoal, R-VIC-5) y las de
-	 * ningún otro; ninguna con la partida terminada (la meta es None) ni en el prólogo (la partida aún no cuenta).
-	 * @param State Estado de la partida, en solo lectura.
-	 * @param HumanSeat El asiento humano de esta máquina; INDEX_NONE si no hay.
-	 * @param bInPrologue Si el prólogo está en marcha (UMatchHostSubsystem::IsInPrologue).
-	 * @return Los identificadores de casilla, en orden ascendente.
-	 */
-	SOULBOUND_API TArray<int32> GoalLightTiles(const FMatchState& State, int32 HumanSeat, bool bInPrologue);
-
-	/**
 	 * Las teclas de la vista para el HUD (S-022, R-CAM-1): qué vista está activa, sentada o cenital, y con qué tecla se cambia a la otra; y las
 	 * teclas de ocultar. Es lo que dice ABoardViewActor::DescribeViewKeys.
 	 * @param bSeated Si la vista activa es la sentada.

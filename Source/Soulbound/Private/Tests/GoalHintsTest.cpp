@@ -1,6 +1,6 @@
-// Tests de S-040 (el tablero dice adónde ir): el apagado del suelo de un Dominio Olvidado, las casillas con la luz de la meta y la línea de
-// objetivo del panel de estado. Funciones puras, sin mundo, sin actor y sin assets: lo que se ve en pantalla (la textura del suelo, la luz)
-// solo tiene criterio manual. Filtros: "Soulbound.Game.Presentation.Tablero3D" y "Soulbound.Game.Presentation.Estado".
+// Tests de S-040 (se sabe adónde ir): el apagado del suelo de un Dominio Olvidado y la línea de objetivo del panel de estado. Funciones puras,
+// sin mundo, sin actor y sin assets: lo que se ve en pantalla (la textura del suelo) solo tiene criterio manual. La luz de la meta (R-VIS-28,
+// CA-VIS-29) se retiró tras las pruebas en PIE del 16/11/2026, con su test. Filtros: "Soulbound.Game.Presentation.Tablero3D" y "Soulbound.Game.Presentation.Estado".
 
 #include "../../Presentation/BoardViewState.h"
 #include "../../Presentation/StatusText.h"
@@ -24,8 +24,8 @@ namespace
 	constexpr int32 GhElectDomain = 2;
 	constexpr int32 GhForgottenA = 4;
 	constexpr int32 GhForgottenB = 5;
-	/** Un color de luz que no se confunde con ningún otro de las líneas. */
-	const FLinearColor GhGoalColor(1.f, 0.82f, 0.35f);
+	/** Un color de línea de objetivo que no se confunde con ningún otro de las líneas. */
+	const FLinearColor GhGoalLineColor(1.f, 0.82f, 0.35f);
 
 	/**
 	 * Partida armada a mano sobre tablero_35.json, en la carrera y con el tablero Despierto: el asiento 1 es Elegido del Dominio 2 (su Nicho
@@ -67,25 +67,6 @@ namespace
 		return true;
 	}
 
-	/** Las casillas del tipo Type, en orden ascendente; con Domains no vacío, solo las de esos Dominios. */
-	TArray<int32> GhTilesOfType(const FMatchState& State, ETileType Type, const TArray<int32>& Domains = {})
-	{
-		TArray<int32> Tiles;
-		for (const FTileState& Tile : State.Board.Tiles)
-		{
-			if (Tile.Type == Type && (Domains.IsEmpty() || Domains.Contains(Tile.DomainId)))
-			{
-				Tiles.Add(Tile.TileId);
-			}
-		}
-		return Tiles;
-	}
-
-	FString GhTilesText(const TArray<int32>& Tiles)
-	{
-		return FString::JoinBy(Tiles, TEXT(", "), [](int32 Tile) { return FString::FromInt(Tile); });
-	}
-
 	/** El humano (asiento 0) en su turno de tirada, como en StatusTextTest: tirada 4, quedan 15 s de reloj de turno. */
 	void GhHumanRolling(FMatchState& State)
 	{
@@ -103,7 +84,7 @@ namespace
 		Context.HumanSeat = GhHuman;
 		Context.ReturnKey = TEXT("Intro");
 		Context.SeatColors = {FLinearColor::Red, FLinearColor::Green, FLinearColor::Blue, FLinearColor::Yellow};
-		Context.GoalColor = GhGoalColor;
+		Context.GoalLineColor = GhGoalLineColor;
 		return Context;
 	}
 
@@ -143,44 +124,6 @@ bool FGoalFloorDimTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGoalLightTilesTest, "Soulbound.Game.Presentation.Tablero3D.LuzSoloEnLaMetaDelHumano", GoalHintsTestFlags)
-
-bool FGoalLightTilesTest::RunTest(const FString& Parameters)
-{
-	// CA-VIS-29 (R-VIS-28): la función que dice qué casillas llevan luz (del estado y del asiento humano) devuelve las de la meta del humano y
-	// ninguna de otro asiento; ninguna con la partida terminada; ninguna en el prólogo.
-	using Soulbound::Presentation::GoalLightTiles;
-	FMatchState State;
-	if (!GhMakeState(*this, State))
-	{
-		return false;
-	}
-	const TArray<int32> FreeNiches = GhTilesOfType(State, ETileType::Niche, {0, 1, 3});
-	const TArray<int32> Sources = GhTilesOfType(State, ETileType::PowerSource);
-	if (!TestTrue(TEXT("Hay Nichos Libres y Fuentes"), !FreeNiches.IsEmpty() && !Sources.IsEmpty()))
-	{
-		return false;
-	}
-
-	// El humano es un Eco en la carrera: luz en los Nichos Libres, y en ninguna de las Fuentes que busca el Elegido.
-	const TArray<int32> HumanLights = GoalLightTiles(State, GhHuman, false);
-	TestEqual(TEXT("Humano Eco en la carrera: luz en los Nichos Libres"), GhTilesText(HumanLights), GhTilesText(FreeNiches));
-	for (const int32 Source : Sources)
-	{
-		TestFalse(FString::Printf(TEXT("Ninguna luz en la Fuente %d, meta de otro asiento"), Source), HumanLights.Contains(Source));
-	}
-
-	// Si el humano es el asiento 1, el Elegido: luz en las Fuentes, no en los Nichos.
-	TestEqual(TEXT("Humano Elegido: luz en las Fuentes con reserva"), GhTilesText(GoalLightTiles(State, GhElect, false)), GhTilesText(Sources));
-
-	TestTrue(TEXT("En el prólogo, ninguna"), GoalLightTiles(State, GhHuman, true).IsEmpty());
-	TestTrue(TEXT("Sin asiento humano, ninguna"), GoalLightTiles(State, INDEX_NONE, false).IsEmpty());
-	State.MatchPhase = EMatchPhase::MatchOver;
-	TestTrue(TEXT("Con la partida terminada, ninguna"), GoalLightTiles(State, GhHuman, false).IsEmpty());
-	TestTrue(TEXT("... tampoco para el Elegido"), GoalLightTiles(State, GhElect, false).IsEmpty());
-	return true;
-}
-
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGoalLineTest, "Soulbound.Game.Presentation.Estado.LineaDeObjetivo", GoalHintsTestFlags)
 
 bool FGoalLineTest::RunTest(const FString& Parameters)
@@ -217,7 +160,7 @@ bool FGoalLineTest::RunTest(const FString& Parameters)
 	}
 	TestEqual(TEXT("Altar"), GoalLineText(State, GhElect), FString(TEXT("Vuelve al Altar")));
 
-	// En el panel de estado: tras la petición, con el color de la luz y la letra normal.
+	// En el panel de estado: tras la petición, con el color de la línea de objetivo y la letra normal.
 	GhHumanRolling(State);
 	const FString EchoLine = TEXT("Consigue runas en las Fuentes de los Olvidados, o róbalas (1/6)");
 	{
@@ -227,7 +170,7 @@ bool FGoalLineTest::RunTest(const FString& Parameters)
 		{
 			TestEqual(TEXT("Justo tras la petición, que va la primera"), Goal, 1);
 			TestTrue(TEXT("La petición sigue la primera"), Lines[0].Text.Contains(TEXT("tu turno")));
-			TestEqual(TEXT("Con el color de la luz"), Lines[Goal].Color, GhGoalColor);
+			TestEqual(TEXT("Con el color de la línea de objetivo"), Lines[Goal].Color, GhGoalLineColor);
 			TestFalse(TEXT("Con la letra normal"), Lines[Goal].bLarge);
 		}
 	}
