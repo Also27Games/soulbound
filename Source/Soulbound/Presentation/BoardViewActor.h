@@ -470,13 +470,19 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0", ClampMax = "1"))
 	float CutDimMaxOpacity = 0.85f;
 
-	/** Cuántos pulsos da la capa oscura del corte (S-041, R-VOZ-8; corrección del autor del 17/11/2026). Valor inicial 3. */
+	/**
+	 * Cuántos pulsos da la capa oscura del corte (S-041, R-VOZ-8; corrección del autor del 17/11/2026). Valor inicial 2, probado en PIE (antes 3: con
+	 * tres de un tercio de segundo seguía parpadeando mientras la ficha se colocaba).
+	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
-	int32 CutDimPulseCount = 3;
+	int32 CutDimPulseCount = 2;
 
-	/** Lo que dura cada pulso de la capa oscura del corte, en segundos reales (S-041, R-VOZ-8; corrección del autor del 17/11/2026). Valor inicial 1/3. */
+	/**
+	 * Lo que dura cada pulso de la capa oscura del corte, en segundos reales (S-041, R-VOZ-8; corrección del autor del 17/11/2026). Valor inicial
+	 * 0,08, probado en PIE (antes un tercio de segundo).
+	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
-	float CutDimPulseSeconds = 1.f / 3.f;
+	float CutDimPulseSeconds = 0.08f;
 
 	/** Tamaño de la letra de la línea del Warden (S-021). Valor inicial 28. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")

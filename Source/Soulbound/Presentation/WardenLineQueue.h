@@ -146,8 +146,8 @@ namespace Soulbound::Presentation
 	 * @param NowReal El instante real.
 	 * @param CutStartReal El instante real del último corte; negativo si no ha habido ninguno.
 	 * @param MaxOpacity La opacidad al empezar cada pulso (ABoardViewActor::CutDimMaxOpacity, 0,85).
-	 * @param PulseCount Cuántos pulsos (ABoardViewActor::CutDimPulseCount, 3); cero o menos, nunca se ve.
-	 * @param PulseSeconds Lo que dura cada pulso (ABoardViewActor::CutDimPulseSeconds, un tercio de segundo); cero o menos, nunca se ve.
+	 * @param PulseCount Cuántos pulsos (ABoardViewActor::CutDimPulseCount, 2); cero o menos, nunca se ve.
+	 * @param PulseSeconds Lo que dura cada pulso (ABoardViewActor::CutDimPulseSeconds, 0,08 s); cero o menos, nunca se ve.
 	 * @return La opacidad, de 0 a MaxOpacity.
 	 */
 	float CutDimOpacity(double NowReal, double CutStartReal, float MaxOpacity, int32 PulseCount, double PulseSeconds);

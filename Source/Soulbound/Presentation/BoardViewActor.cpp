@@ -1457,18 +1457,26 @@ void ABoardViewActor::BuildOverlay()
 			[
 				// S-041 (R-HUD-8, añadido del autor del 17/11/2026): el resultado en grande encima del botón, con su color (MatchResultLine), y la tecla
 				// debajo, en pequeño; antes los dos iban arriba a la izquierda, en el panel de estado. Los textos no reciben clics.
+				// Ajuste del autor del 17/11/2026 tras PIE: los dos textos llevan el fondo oscuro de los paneles (negro a 0,72, como StatusPanel), porque
+				// sin fondo el rojo se mezclaba con las casillas y sus números.
 				SNew(SVerticalBox)
 				.Visibility(EVisibility::SelfHitTestInvisible)
 				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 0.f, 0.f, 16.f)
 				[
-					SNew(STextBlock)
-					.Text_Lambda([this]() { return FText::FromString(MatchResultLineNow().Text); })
-					.ColorAndOpacity_Lambda([this]() { return FSlateColor(MatchResultLineNow().Color); })
-					.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(MatchResultFontSize, 8)))
-					.ShadowOffset(FVector2D(2.f, 2.f))
-					.ShadowColorAndOpacity(FLinearColor(0.f, 0.f, 0.f, 0.8f))
-					.Justification(ETextJustify::Center)
+					SNew(SBorder)
+					.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+					.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.72f))
+					.Padding(FMargin(16.f, 8.f))
 					.Visibility(EVisibility::HitTestInvisible)
+					[
+						SNew(STextBlock)
+						.Text_Lambda([this]() { return FText::FromString(MatchResultLineNow().Text); })
+						.ColorAndOpacity_Lambda([this]() { return FSlateColor(MatchResultLineNow().Color); })
+						.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(MatchResultFontSize, 8)))
+						.ShadowOffset(FVector2D(2.f, 2.f))
+						.ShadowColorAndOpacity(FLinearColor(0.f, 0.f, 0.f, 0.8f))
+						.Justification(ETextJustify::Center)
+					]
 				]
 				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
 				[
@@ -1489,13 +1497,19 @@ void ABoardViewActor::BuildOverlay()
 				]
 				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 8.f, 0.f, 0.f)
 				[
-					SNew(STextBlock)
-					.Text(FText::FromString(Soulbound::Presentation::ReturnToMenuHint(ReturnToMenuKey.GetDisplayName().ToString())))
-					.Font(FCoreStyle::GetDefaultFontStyle("Regular", FMath::Max(ReturnToMenuHintFontSize, 8)))
-					.ShadowOffset(FVector2D(1.f, 1.f))
-					.ShadowColorAndOpacity(FLinearColor(0.f, 0.f, 0.f, 0.8f))
-					.Justification(ETextJustify::Center)
+					SNew(SBorder)
+					.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+					.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.72f))
+					.Padding(FMargin(8.f, 4.f))
 					.Visibility(EVisibility::HitTestInvisible)
+					[
+						SNew(STextBlock)
+						.Text(FText::FromString(Soulbound::Presentation::ReturnToMenuHint(ReturnToMenuKey.GetDisplayName().ToString())))
+						.Font(FCoreStyle::GetDefaultFontStyle("Regular", FMath::Max(ReturnToMenuHintFontSize, 8)))
+						.ShadowOffset(FVector2D(1.f, 1.f))
+						.ShadowColorAndOpacity(FLinearColor(0.f, 0.f, 0.f, 0.8f))
+						.Justification(ETextJustify::Center)
+					]
 				]
 			]
 		];
