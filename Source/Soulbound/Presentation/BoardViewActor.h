@@ -12,6 +12,7 @@
 #include "InstructionTracker.h"
 #include "UnreachableNotice.h"
 #include "Match/RingRules.h"
+#include "Match/SeatGoalRules.h"
 #include "Styling/SlateBrush.h"
 #include "StatusText.h"
 #include "WardenLineQueue.h"
@@ -973,6 +974,9 @@ private:
 	/** El alto del hueco que se reserva siempre a la frase del Warden (S-033, R-DEC-9): WardenLineReservedLines líneas de su letra más sus márgenes. */
 	float WardenLineReservedHeight() const;
 
+	/** Si la caja de la línea de objetivo se ve ahora (S-040, R-HUD-7): IsGoalPanelShown con la frase del Warden de este frame, y nunca con el telón. */
+	bool IsGoalPanelVisibleNow();
+
 	/** Si la capa del panel de decisión se enseña (S-028, R-DEC-3): la regla de DecisionText, la tecla de los paneles (H) y el telón. */
 	bool IsDecisionPanelVisible() const;
 
@@ -1055,11 +1059,13 @@ private:
 	TSharedPtr<SStatusPanel> StatusPanel;
 	TSharedPtr<SStatusPanel> DebugPanel;
 	/**
-	 * La caja de la línea de objetivo (S-040, R-HUD-7; corrección del autor del 16/11/2026 tras PIE): en la misma capa, encima del panel de estado, con
-	 * GoalPanelLines. Se oculta con el panel de estado (T), con los paneles (H) y cuando no tiene línea (prólogo, meta None).
+	 * La caja de la línea de objetivo (S-040, R-HUD-7; correcciones del autor del 16/11/2026 tras PIE): en la capa de la frase del Warden, abajo a la
+	 * izquierda dentro de la franja que se le reserva, con GoalPanelLines. Ninguna tecla la oculta; se ve según IsGoalPanelShown (IsGoalPanelVisibleNow),
+	 * con el prólogo y la meta que TickHud guarda abajo.
 	 */
 	TSharedPtr<SStatusPanel> GoalPanel;
-	bool bGoalPanelHasLine = false;
+	bool bGoalPanelPrologue = false;
+	ESeatGoal GoalPanelGoal = ESeatGoal::None;
 	TSharedPtr<SWidget> StatusOverlay;
 
 	/** El Grimorio (S-027): una capa centrada, por encima de las demás. */

@@ -596,8 +596,8 @@ namespace Soulbound::Presentation
 
 	bool IsGoalPanelShown(bool bPrologue, ESeatGoal Goal, bool bWardenLineOnScreen)
 	{
-		// TODO(R-HUD-7): stub para ver el test en rojo; se escribe tras verlo fallar.
-		return false;
+		// R-HUD-7 (corrección del 16/11/2026): en partida, con meta, y sin frase del Warden en pantalla; ninguna tecla.
+		return !bPrologue && Goal != ESeatGoal::None && !bWardenLineOnScreen;
 	}
 
 	TArray<FPanelLine> StatusLines(const FMatchState& State, const FStatusContext& Context)

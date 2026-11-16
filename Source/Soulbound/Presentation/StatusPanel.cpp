@@ -8,6 +8,7 @@
 void SStatusPanel::Construct(const FArguments& InArgs)
 {
 	FontSize = InArgs._FontSize;
+	WrapWidth = InArgs._WrapWidth;
 	LargeScale = FMath::Max(InArgs._LargeScale, 1.f);
 	TSharedRef<SVerticalBox> Column = SNew(SVerticalBox);
 	if (!InArgs._Title.IsEmpty())
@@ -53,13 +54,17 @@ void SStatusPanel::SetLines(const TArray<Soulbound::Presentation::FPanelLine>& N
 		const TAttribute<int32> Size = FontSize;
 		const float Scale = Line.bLarge ? LargeScale : 1.f;
 		const bool bLarge = Line.bLarge;
+		// S-040: con WrapWidth, el texto se parte a ese ancho y no al de lo pintado antes; sin él, como siempre. Nunca los dos a la vez.
+		const TAttribute<float> Wrap = WrapWidth;
+		const bool bFixedWrap = Wrap.IsBound() || Wrap.Get() > 0.f;
 		LinesBox->AddSlot().AutoHeight().Padding(0.f, 1.f)
 		[
 			SNew(STextBlock)
 			.Text(FText::FromString(Line.Text))
 			.Font_Lambda([Size, Scale, bLarge]() { return FCoreStyle::GetDefaultFontStyle(bLarge ? "Bold" : "Regular", FMath::Max(FMath::RoundToInt(Size.Get() * Scale), 1)); })
 			.ColorAndOpacity(Line.Color)
-			.AutoWrapText(true)
+			.AutoWrapText(!bFixedWrap)
+			.WrapTextAt_Lambda([Wrap, bFixedWrap]() { return bFixedWrap ? FMath::Max(Wrap.Get(), 1.f) : 0.f; })
 		];
 	}
 }

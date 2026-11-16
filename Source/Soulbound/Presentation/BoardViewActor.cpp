@@ -1170,16 +1170,6 @@ void ABoardViewActor::BuildOverlay()
 		})
 		[
 			SNew(SVerticalBox)
-			// S-040 (R-HUD-7, corrección del 16/11/2026 tras PIE): la línea de objetivo en su caja, encima del panel de estado y con la letra de sus
-			// líneas grandes. Alineada a la izquierda para que la caja mida lo que su texto; el texto largo del Eco se parte al ancho del hueco, que
-			// acaba antes de la columna de paneles (el margen derecho de esta capa). Oculta, SVerticalBox no cuenta ni su margen.
-			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(0.f, 0.f, 0.f, 6.f)
-			[
-				SAssignNew(GoalPanel, SStatusPanel)
-				.FontSize(PanelFont)
-				.LargeScale(StatusLargeFontScale)
-				.Visibility_Lambda([this]() { return bDebugTextHidden || !bGoalPanelHasLine ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
-			]
 			+ SVerticalBox::Slot().AutoHeight()
 			[
 				SAssignNew(StatusPanel, SStatusPanel)
@@ -1308,6 +1298,19 @@ void ABoardViewActor::BuildOverlay()
 			[
 				SNew(SBox).HeightOverride_Lambda([this]() { return FOptionalSize(WardenLineReservedHeight()); })
 			]
+		]
+		// S-040 (R-HUD-7; corrección del autor del 16/11/2026 tras PIE): la caja de la línea de objetivo, abajo a la izquierda del hueco del tablero, dentro
+		// de la franja que se reserva a la frase (por debajo del panel de decisión, que va encima de esa franja: no se pisan). Fondo y letra grande de los
+		// paneles, con GoalLineColor. Alineada a la izquierda para medir lo que su texto, que se parte al ancho libre del hueco (WrapWidth, no AutoWrapText:
+		// tras un texto corto, el largo del Eco saldría estrecho) y nunca se mete bajo la columna (el margen derecho de esta capa). Ninguna tecla la oculta;
+		// IsGoalPanelVisibleNow la quita en el prólogo, con la meta None, mientras hay frase del Warden (cada frame: nunca se ven encimadas) y con el telón.
+		+ SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Bottom)
+		[
+			SAssignNew(GoalPanel, SStatusPanel)
+			.FontSize(TAttribute<int32>::CreateLambda([this]() { return PanelSlateFontSize; }))
+			.LargeScale(StatusLargeFontScale)
+			.WrapWidth_Lambda([this]() { return FMath::Max(BoardFreeWidthNow(DecisionPanelMaxWidth) - 16.f, 1.f); })
+			.Visibility_Lambda([this]() { return IsGoalPanelVisibleNow() ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
 		]
 		// Capa de arriba: la frase, anclada abajo con el mismo margen que el hueco. Crece hacia arriba, por encima del panel si hace falta (corrección
 		// del autor del 11/11/2026: en una caja de alto fijo se recortaba lo que sobraba). No recibe clics: el hueco vacío deja pasar los del tablero.
@@ -1758,6 +1761,17 @@ void ABoardViewActor::TeachInstructions(const FMatchState& State, const TArray<S
 		// La crónica se reconstruye solo si crece el registro: la nota no lo hace crecer.
 		ChronicleLineCount = -1;
 	}
+}
+
+bool ABoardViewActor::IsGoalPanelVisibleNow()
+{
+	// S-040 (R-HUD-7): la regla, en IsGoalPanelShown; el telón lo tapa todo, como a las demás capas.
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (!HostPtr || HostPtr->IsCurtainDown())
+	{
+		return false;
+	}
+	return Soulbound::Presentation::IsGoalPanelShown(bGoalPanelPrologue, GoalPanelGoal, !WardenLineNow().IsEmpty());
 }
 
 FString ABoardViewActor::WardenLineNow()
@@ -2516,10 +2530,10 @@ void ABoardViewActor::TickHud()
 	}
 	if (GoalPanel.IsValid())
 	{
-		// S-040 (R-HUD-7): la caja de la línea de objetivo; sin línea, oculta.
-		const TArray<Soulbound::Presentation::FPanelLine> GoalLines = Soulbound::Presentation::GoalPanelLines(State, Context);
-		bGoalPanelHasLine = !GoalLines.IsEmpty();
-		GoalPanel->SetLines(GoalLines);
+		// S-040 (R-HUD-7): el texto de la caja de la línea de objetivo, y lo que su visibilidad necesita del estado; la frase del Warden la mira cada frame.
+		GoalPanel->SetLines(Soulbound::Presentation::GoalPanelLines(State, Context));
+		bGoalPanelPrologue = Context.bPrologue;
+		GoalPanelGoal = Soulbound::Rules::SeatGoal(State, Context.HumanSeat).Kind;
 	}
 	if (DebugPanel.IsValid())
 	{
@@ -2651,8 +2665,13 @@ FMargin ABoardViewActor::NoticeMarginNow(int32 FontSize) const
 		}
 	};
 	AddZone(StatusPanel, !bDebugTextHidden);
-	// S-040 (R-HUD-7): también la caja de la línea de objetivo, encima del panel de estado.
-	AddZone(GoalPanel, !bDebugTextHidden && bGoalPanelHasLine);
+	// S-040 (R-HUD-7): también la caja de la línea de objetivo, abajo a la izquierda. Ninguna tecla la oculta, así que cuenta aunque los paneles no se vean.
+	if (GoalPanel.IsValid() && GoalPanel->GetVisibility().IsVisible())
+	{
+		const FGeometry& Zone = GoalPanel->GetTickSpaceGeometry();
+		const FVector2f At(Layer.AbsoluteToLocal(Zone.GetAbsolutePosition()));
+		Avoid.Add(FBox2f(At, At + FVector2f(Zone.GetLocalSize())));
+	}
 	AddZone(DebugPanel, bDebugPanelShown);
 
 	// El tamaño del aviso: el texto medido con su letra, partido al ancho libre, más el margen del fondo.
