@@ -4,14 +4,14 @@
 
 ## Contexto
 
-Visto por el autor el 18/11/2026, probando las stories anteriores: no queda claro cuándo está activa la Noche de los Ecos y cuándo no. Es el único momento en que un Eco puede entrar en el Dominio de un Elegido, así que cambia lo que puede hacer media mesa, y hoy casi no se enseña:
+Visto por el autor el 16/11/2026, probando las stories anteriores: no queda claro cuándo está activa la Noche de los Ecos y cuándo no. Es el único momento en que un Eco puede entrar en el Dominio de un Elegido, así que cambia lo que puede hacer media mesa, y hoy casi no se enseña:
 
 - Al empezar, el Warden dice su frase ("Que llegue la oscuridad…"), que no dice qué significa.
 - Mientras dura, solo hay una línea pequeña en el panel de estado, entre las demás.
 - El tablero no cambia.
 - Al terminar por el tope de rondas, que es el final normal, no lo anuncia nadie: queda una línea en la crónica y los Ecos vuelven a su hogar sin aviso.
 
-Decidido por el autor el 18/11/2026 (ninguna regla de la Noche cambia: ni cuándo empieza, ni cuánto dura, ni qué permite):
+Decidido por el autor el 16/11/2026 (ninguna regla de la Noche cambia: ni cuándo empieza, ni cuánto dura, ni qué permite):
 
 - Mientras dura, el tablero está en penumbra.
 - Una línea en la caja del objetivo dice qué significa.
@@ -24,7 +24,7 @@ Decidido por el autor el 18/11/2026 (ninguna regla de la Noche cambia: ni cuánd
 - **R-VOZ-9 (nueva). El Warden dice que la Noche ha terminado.** Cuando la Noche de los Ecos termina por el tope de rondas (`EEchoNightEnd::RoundLimit`), el motor dice la frase de clave `programado:fin-noche-ecos` (nombre a proponer), en el mismo instante que el evento `EchoNightEnded` y justo después de él, con la función con que ya dice las frases programadas (`SpeakWardenLine`). Cuando termina por la Ley de Sombras (`EEchoNightEnd::ShadowLaw`) no dice esta frase: ese evento ya trae la suya.
   - La clave pasa a ser una de las exigidas (`RequiredWardenLineKeys`) y detiene la mesa como las demás frases programadas (no se añade a las excepciones de `LineHoldsTheTable`).
   - Sin tabla de frases (partida sin voz), no se dice nada y nada más cambia.
-- **Datos.** En `frases.json`, la entrada nueva con estas tres variantes, del autor (18/11/2026):
+- **Datos.** En `frases.json`, la entrada nueva con estas tres variantes, del autor (16/11/2026):
   1. "Se acabó la noche. Ecos, a vuestras ruinas… el paseo ha terminado."
   2. "Amanece. Qué lástima… Volved a vuestros agujeros, Ecos."
   3. "La oscuridad se retira. Ecos: a casa. No me hagáis repetirlo."
