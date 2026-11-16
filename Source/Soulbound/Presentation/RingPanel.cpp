@@ -89,6 +89,17 @@ void SRingPanel::Construct(const FArguments& InArgs)
 	FontSize = FMath::Max(InArgs._FontSize, 8);
 	Model = InArgs._Model;
 	RuneBrush = InArgs._RuneBrush;
+	// TODO(R-MIN-19): stub para ver el test en rojo: la colocación que hacía la vista (hueco con margen y centrado), trasladada tal cual.
+	const float Width = Soulbound::Presentation::RingPanelWidth(FontSize);
+	const float Height = Width * Soulbound::Presentation::RingPanelHeightRatio;
+	const FRingPanelLayout Band = Soulbound::Presentation::RingPanelLayout(Width, Height, 0.f, FontSize / 18.f);
+	ChildSlot
+	.HAlign(HAlign_Center)
+	.VAlign(VAlign_Center)
+	.Padding(0.f, Band.StartBandTop, 0.f, Height - Band.StartBandBottom)
+	[
+		InArgs._StartRow.Widget
+	];
 }
 
 FLinearColor SRingPanel::PrecisionColor(double Precision)
@@ -216,5 +227,6 @@ int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 			DrawCircle(OutDrawElements, Layer, AllottedGeometry, DotCenter, Dot, FLinearColor(0.5f, 0.5f, 0.5f), 2.f * Scale);
 		}
 	}
-	return Layer + 2;
+	// S-042: la fila de "Empezar", encima de todo lo del panel; la coloca OnArrangeChildren.
+	return SCompoundWidget::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, Layer + 3, InWidgetStyle, bParentEnabled);
 }
