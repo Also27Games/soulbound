@@ -35,6 +35,12 @@ public:
 	/** El tamaño del panel, proporcional a la letra; la fila no lo cambia (va dentro, en su franja). */
 	virtual FVector2D ComputeDesiredSize(float LayoutScaleMultiplier) const override;
 
+	/**
+	 * Coloca la fila de "Empezar" en la franja de RingPanelLayout calculada con el tamaño que le toca al panel (AllottedGeometry), la misma con que
+	 * pinta: centrada a lo ancho y en el alto de la franja, con su tamaño, sin pasar del ancho del panel.
+	 */
+	virtual void OnArrangeChildren(const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren) const override;
+
 	/** Color de una precisión: de rojo (0) a verde (1), pasando por amarillo. */
 	static FLinearColor PrecisionColor(double Precision);
 

@@ -89,17 +89,30 @@ void SRingPanel::Construct(const FArguments& InArgs)
 	FontSize = FMath::Max(InArgs._FontSize, 8);
 	Model = InArgs._Model;
 	RuneBrush = InArgs._RuneBrush;
-	// TODO(R-MIN-19): stub para ver el test en rojo: la colocación que hacía la vista (hueco con margen y centrado), trasladada tal cual.
-	const float Width = Soulbound::Presentation::RingPanelWidth(FontSize);
-	const float Height = Width * Soulbound::Presentation::RingPanelHeightRatio;
-	const FRingPanelLayout Band = Soulbound::Presentation::RingPanelLayout(Width, Height, 0.f, FontSize / 18.f);
+	// S-042: la fila de "Empezar". Dónde va no lo dicen la alineación ni el margen del hueco: lo decide OnArrangeChildren con RingPanelLayout.
 	ChildSlot
-	.HAlign(HAlign_Center)
-	.VAlign(VAlign_Center)
-	.Padding(0.f, Band.StartBandTop, 0.f, Height - Band.StartBandBottom)
 	[
 		InArgs._StartRow.Widget
 	];
+}
+
+void SRingPanel::OnArrangeChildren(const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren) const
+{
+	// R-MIN-19 (corrección del autor del 16/11/2026 tras la segunda prueba en PIE): la fila va en la franja que calcula RingPanelLayout con el tamaño
+	// que le toca al panel, el mismo con que pinta el aro y la barra. Antes la ponía la vista en un hueco de SOverlay con margen y centrado, y Slate
+	// centra sumando el margen de arriba menos el de abajo (no la mitad): la fila salía por debajo del panel.
+	const TSharedRef<SWidget>& Row = ChildSlot.GetWidget();
+	const EVisibility RowVisibility = Row->GetVisibility();
+	if (!ArrangedChildren.Accepts(RowVisibility))
+	{
+		return;
+	}
+	const FVector2f Size = FVector2f(AllottedGeometry.GetLocalSize());
+	const FRingPanelLayout Layout = Soulbound::Presentation::RingPanelLayout(Size.X, Size.Y, 0.f, FontSize / 18.f);
+	const FVector2f Desired = FVector2f(Row->GetDesiredSize());
+	const FVector2f RowSize(FMath::Min(Desired.X, Size.X), Desired.Y);
+	const FVector2f Position((Size.X - RowSize.X) * 0.5f, (Layout.StartBandTop + Layout.StartBandBottom - RowSize.Y) * 0.5f);
+	ArrangedChildren.AddWidget(RowVisibility, AllottedGeometry.MakeChild(Row, RowSize, FSlateLayoutTransform(Position)));
 }
 
 FLinearColor SRingPanel::PrecisionColor(double Precision)
