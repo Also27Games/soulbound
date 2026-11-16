@@ -599,6 +599,58 @@ bool FDecisionStatusTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionStatusOracleVoteTest, "Soulbound.Game.Presentation.Decision.EstadoNoRepiteOraculoNiVoto", DecisionTestFlags)
+
+bool FDecisionStatusOracleVoteTest::RunTest(const FString& Parameters)
+{
+	// CA-DEC-34 (R-DEC-18, corrección del autor del 17/11/2026 tras PIE): la regla de R-DEC-3 vale para toda decisión del humano que enseña el panel.
+	// Con la consulta del Oráculo del humano en el panel, el panel de estado no repite su línea ("ORÁCULO: consulta el asiento 0… clic en el orbe");
+	// con su voto en el panel, tampoco la de la votación. Lo que el panel no enseña sigue en el panel de estado: la consulta del humano mientras el
+	// panel enseña otra decisión suya, y la votación cuando el humano ya ha votado.
+	using Soulbound::Presentation::FPanelLine;
+	auto Has = [](const TArray<FPanelLine>& Lines, const TCHAR* Start) { return Lines.ContainsByPredicate([Start](const FPanelLine& Line) { return Line.Text.StartsWith(Start); }); };
+	Soulbound::Presentation::FStatusContext Context;
+	Context.HumanSeat = DtHuman;
+
+	FMatchState Oracle = DtMakeState();
+	DtOpenOracle(Oracle, false);
+	const TArray<FPanelLine> OracleWithout = Soulbound::Presentation::StatusLines(Oracle, Context);
+	TestTrue(TEXT("Sin el panel, la línea del Oráculo"), Has(OracleWithout, TEXT("ORÁCULO")));
+	Context.bDecisionPanelShown = true;
+	const TArray<FPanelLine> OracleWith = Soulbound::Presentation::StatusLines(Oracle, Context);
+	TestFalse(TEXT("Con el panel enseñando la consulta, no se repite"), Has(OracleWith, TEXT("ORÁCULO")));
+	TestEqual(TEXT("Solo falta esa línea"), OracleWith.Num(), OracleWithout.Num() - 1);
+
+	// El panel enseña la elección de dados (va antes): la consulta no está en él y su línea se queda.
+	FMatchState Both = DtMakeState();
+	DtOpenDice(Both, DtHuman);
+	DtOpenOracle(Both, false);
+	const TArray<FPanelLine> BothWith = Soulbound::Presentation::StatusLines(Both, Context);
+	TestFalse(TEXT("La elección del panel no se repite"), Has(BothWith, TEXT("ELIGE")));
+	TestTrue(TEXT("La consulta, que el panel no enseña, sí"), Has(BothWith, TEXT("ORÁCULO")));
+
+	// La consulta de otro asiento no es una petición al humano: se queda.
+	FMatchState OtherOracle = DtMakeState();
+	DtOpenOracle(OtherOracle, false);
+	OtherOracle.Oracle.Consultant = 2;
+	TestTrue(TEXT("La consulta de otro asiento se queda"), Has(Soulbound::Presentation::StatusLines(OtherOracle, Context), TEXT("ORÁCULO")));
+
+	FMatchState Vote = DtMakeState();
+	DtOpenVote(Vote);
+	Context.bDecisionPanelShown = false;
+	const TArray<FPanelLine> VoteWithout = Soulbound::Presentation::StatusLines(Vote, Context);
+	TestTrue(TEXT("Sin el panel, la línea de la votación"), Has(VoteWithout, TEXT("VOTACIÓN")));
+	Context.bDecisionPanelShown = true;
+	const TArray<FPanelLine> VoteWith = Soulbound::Presentation::StatusLines(Vote, Context);
+	TestFalse(TEXT("Con el panel enseñando su voto, no se repite"), Has(VoteWith, TEXT("VOTACIÓN")));
+	TestEqual(TEXT("Solo falta esa línea"), VoteWith.Num(), VoteWithout.Num() - 1);
+
+	// Ya ha votado: el panel no enseña su voto y la línea (quién ha votado y lo que queda) se queda.
+	Vote.Vote.Votes[DtHuman] = 1;
+	TestTrue(TEXT("Votado, la línea vuelve"), Has(Soulbound::Presentation::StatusLines(Vote, Context), TEXT("VOTACIÓN")));
+	return true;
+}
+
 // ---- S-033: se ve a quién se espera (R-DEC-5 a R-DEC-8) ----
 
 namespace

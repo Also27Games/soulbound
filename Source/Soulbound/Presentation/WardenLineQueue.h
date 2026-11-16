@@ -139,14 +139,16 @@ namespace Soulbound::Presentation
 	double WardenWaitSeconds(const FMatchState& State, int32 FromIndex, int32 HumanSeat, double MinSeconds, double SecondsPerChar);
 
 	/**
-	 * La opacidad de la capa oscura del corte en el instante NowReal (S-041, R-VOZ-8, nombre propuesto): MaxOpacity en el instante del corte,
-	 * baja en línea recta hasta cero al cumplirse Seconds, y cero antes del corte, después y sin corte. Un corte nuevo la reinicia: quien
-	 * llama pasa el instante del último.
+	 * La opacidad de la capa oscura del corte en el instante NowReal (S-041, R-VOZ-8, nombre propuesto; corrección del autor del 17/11/2026 tras
+	 * PIE: un solo pulso era demasiado sutil). La capa da PulseCount pulsos seguidos de PulseSeconds cada uno: cada pulso vale MaxOpacity al
+	 * empezar y baja en línea recta hasta cero al cumplirse, y el siguiente empieza ahí. Cero antes del corte, después del último pulso y sin
+	 * corte. Un corte nuevo la reinicia: quien llama pasa el instante del último.
 	 * @param NowReal El instante real.
 	 * @param CutStartReal El instante real del último corte; negativo si no ha habido ninguno.
-	 * @param MaxOpacity La opacidad en el instante del corte (ABoardViewActor::CutDimMaxOpacity, 0,5).
-	 * @param Seconds Lo que tarda en desvanecerse (ABoardViewActor::CutDimSeconds, 0,8 s); cero o menos, nunca se ve.
+	 * @param MaxOpacity La opacidad al empezar cada pulso (ABoardViewActor::CutDimMaxOpacity, 0,85).
+	 * @param PulseCount Cuántos pulsos (ABoardViewActor::CutDimPulseCount, 3); cero o menos, nunca se ve.
+	 * @param PulseSeconds Lo que dura cada pulso (ABoardViewActor::CutDimPulseSeconds, un tercio de segundo); cero o menos, nunca se ve.
 	 * @return La opacidad, de 0 a MaxOpacity.
 	 */
-	float CutDimOpacity(double NowReal, double CutStartReal, float MaxOpacity, double Seconds);
+	float CutDimOpacity(double NowReal, double CutStartReal, float MaxOpacity, int32 PulseCount, double PulseSeconds);
 }

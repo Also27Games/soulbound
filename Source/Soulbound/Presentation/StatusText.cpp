@@ -790,13 +790,19 @@ namespace Soulbound::Presentation
 		// El resultado (línea 19, S-018 y S-022): arriba del todo y grande.
 		if (bOver)
 		{
-			Top.Insert({MatchResultText(State, Context.ReturnKey), RaceColor, true}, 0);
+			Top.Insert({MatchResultText(State), RaceColor, true}, 0);
 		}
 
 		// La línea de objetivo (R-HUD-7, S-040) no va aquí desde la corrección del 16/11/2026 tras PIE: tiene su caja encima (GoalPanelLines).
 
 		Top.Append(Lines);
 		return Top;
+	}
+
+	FPanelLine MatchResultLine(const FMatchState& State, const FStatusContext& Context)
+	{
+		// TODO(R-HUD-8): cuerpo vacío para ver el test en rojo.
+		return FPanelLine();
 	}
 
 	TArray<FPanelLine> DebugLines(const FMatchState& State, const FStatusContext& Context)

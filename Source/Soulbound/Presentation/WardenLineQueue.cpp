@@ -282,14 +282,9 @@ namespace Soulbound::Presentation
 		return Seconds;
 	}
 
-	float CutDimOpacity(double NowReal, double CutStartReal, float MaxOpacity, double Seconds)
+	float CutDimOpacity(double NowReal, double CutStartReal, float MaxOpacity, int32 PulseCount, double PulseSeconds)
 	{
-		if (CutStartReal < 0.0 || Seconds <= 0.0 || NowReal < CutStartReal)
-		{
-			return 0.f;
-		}
-		// Aparece de golpe con el máximo y baja en línea recta hasta cero.
-		const double Elapsed = (NowReal - CutStartReal) / Seconds;
-		return Elapsed >= 1.0 ? 0.f : static_cast<float>(MaxOpacity * (1.0 - Elapsed));
+		// TODO(R-VOZ-8): cuerpo vacío para ver el test en rojo.
+		return 0.f;
 	}
 }

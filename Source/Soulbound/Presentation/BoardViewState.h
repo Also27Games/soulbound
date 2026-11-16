@@ -111,11 +111,19 @@ namespace Soulbound::Presentation
 	SOULBOUND_API FString MenuMapPackage(const FString& ReturnToMenuMap, bool bReturnMapExists, const FString& GameDefaultMap);
 
 	/**
-	 * La pantalla del resultado (S-018, R-PRO-4; desde S-022, con la vuelta al menú): quién gana y por qué, y en la línea siguiente cómo se
-	 * vuelve al menú ("Intro o el botón: volver al menú"). Vacía si la partida no ha terminado.
+	 * El resultado de la partida (S-018, R-PRO-4): quién gana y por qué, en una línea ("GANA EL ASIENTO 2", "GANA EL WARDEN: SE ACABÓ EL TIEMPO",
+	 * "GANA EL WARDEN: NADIE SE VINCULÓ"). Desde S-041 (R-HUD-8, añadido del autor del 17/11/2026) va en el centro, encima del botón "Volver al
+	 * menú", y la tecla va aparte, debajo del botón (ReturnToMenuHint). Vacío si la partida no ha terminado.
 	 * @param State Estado de la partida, en solo lectura.
-	 * @param ReturnKey Nombre de la tecla que vuelve al menú (ReturnToMenuKey).
-	 * @return El texto del resultado, en dos líneas, o vacío.
+	 * @return El texto del resultado, o vacío.
 	 */
-	SOULBOUND_API FString MatchResultText(const FMatchState& State, const FString& ReturnKey);
+	SOULBOUND_API FString MatchResultText(const FMatchState& State);
+
+	/**
+	 * La línea pequeña bajo el botón "Volver al menú" (S-041, R-HUD-8, nombre propuesto): "o pulsa" y la tecla. Unreal llama "Enter" a Intro: con
+	 * esa tecla dice "o pulsa Intro"; con otra, su nombre. Vacía sin tecla.
+	 * @param KeyDisplayName El nombre que da Unreal a la tecla de volver al menú (ReturnToMenuKey).
+	 * @return La línea, o vacía.
+	 */
+	SOULBOUND_API FString ReturnToMenuHint(const FString& KeyDisplayName);
 }

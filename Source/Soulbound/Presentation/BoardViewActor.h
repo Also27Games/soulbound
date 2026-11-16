@@ -463,15 +463,20 @@ public:
 	FLinearColor CutNoteColor = FLinearColor(0.8f, 0.8f, 0.8f);
 
 	/**
-	 * Opacidad de la capa oscura del tablero en el instante en que el Warden corta un turno (S-041, R-VOZ-8; CutDimOpacity): aparece de golpe y se
-	 * desvanece en CutDimSeconds. Sin posproceso: una capa de Slate negra, por debajo de los paneles. Valor inicial 0,5.
+	 * Opacidad de la capa oscura del tablero al empezar cada pulso cuando el Warden corta un turno (S-041, R-VOZ-8; CutDimOpacity): aparece de golpe
+	 * y se desvanece en CutDimPulseSeconds, CutDimPulseCount veces seguidas. Sin posproceso: una capa de Slate negra, por debajo de los paneles. Valor
+	 * inicial 0,85 (corrección del autor del 17/11/2026, probada en PIE; antes 0,5, demasiado sutil).
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0", ClampMax = "1"))
-	float CutDimMaxOpacity = 0.5f;
+	float CutDimMaxOpacity = 0.85f;
 
-	/** Lo que tarda en desvanecerse la capa oscura del corte, en segundos reales (S-041, R-VOZ-8). Valor inicial 0,8. */
+	/** Cuántos pulsos da la capa oscura del corte (S-041, R-VOZ-8; corrección del autor del 17/11/2026). Valor inicial 3. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
-	float CutDimSeconds = 0.8f;
+	int32 CutDimPulseCount = 3;
+
+	/** Lo que dura cada pulso de la capa oscura del corte, en segundos reales (S-041, R-VOZ-8; corrección del autor del 17/11/2026). Valor inicial 1/3. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
+	float CutDimPulseSeconds = 1.f / 3.f;
 
 	/** Tamaño de la letra de la línea del Warden (S-021). Valor inicial 28. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")

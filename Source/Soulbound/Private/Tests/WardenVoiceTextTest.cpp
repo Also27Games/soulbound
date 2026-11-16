@@ -6,9 +6,17 @@
 
 #include "../../Presentation/EventText.h"
 #include "../../Presentation/WardenLineQueue.h"
+#include "Board/BoardLoader.h"
+#include "Elects/ElectsLoader.h"
+#include "Match/DebugEdits.h"
+#include "Match/MatchParams.h"
+#include "Match/MatchStart.h"
 #include "Match/MatchState.h"
+#include "Match/WardenEvents.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/Paths.h"
 #include "Warden/WardenLines.h"
+#include "Warden/WardenParams.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -538,7 +546,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceCutTextsTest, "Soulbound.Game.Presentatio
 bool FVoiceCutTextsTest::RunTest(const FString& Parameters)
 {
 	// CA-VOZ-9 (R-VOZ-8, S-041): la línea y la línea pequeña de un corte, letra por letra. Golpe al humano con frase y texto de evento; golpe a
-	// otro asiento, con el nombre del evento; el Oráculo como golpe, sin frase (la línea es la palabra de corte sola, que no detiene la mesa
+	// otro asiento, solo con el asiento (corrección del autor del 17/11/2026); el Oráculo como golpe, sin frase (la línea es la palabra de corte sola, que no detiene la mesa
 	// pero está protegida); fin de la carrera (sin palabra de corte ni oscurecido); fin de la partida (nada); sin corte, la frase tal cual. La
 	// palabra de corte sale de la tabla de frases: con otra palabra, otra línea; sin la clave, no hay palabra.
 	using Soulbound::Presentation::FWardenLineItem;
@@ -568,7 +576,8 @@ bool FVoiceCutTextsTest::RunTest(const FString& Parameters)
 	if (TestEqual(TEXT("Golpe a otro asiento: dos frases"), Other.Num(), 2))
 	{
 		TestEqual(TEXT("La misma línea"), Other[1].Text, FString(TEXT("Warden: ¡Quietos! Quieto ahí.")));
-		TestEqual(TEXT("Con el asiento y el nombre del evento"), Other[1].CutNote, FString(TEXT("Se corta el turno del asiento 2. El tropiezo")));
+		// Corrección del autor del 17/11/2026 tras PIE: solo el asiento; el nombre del evento, suelto, no explicaba nada.
+		TestEqual(TEXT("Solo con el asiento, sin el nombre del evento"), Other[1].CutNote, FString(TEXT("Se corta el turno del asiento 2.")));
 		TestTrue(TEXT("También oscurece"), Other[1].bWardenCut);
 	}
 
@@ -651,19 +660,91 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceCutDimTest, "Soulbound.Game.Presentation.
 
 bool FVoiceCutDimTest::RunTest(const FString& Parameters)
 {
-	// CA-VOZ-10 (R-VOZ-8, S-041): la opacidad de la capa vale el máximo en el instante del corte, baja hasta cero al cumplirse la duración y
-	// es cero antes y después. Un corte nuevo mientras dura la reinicia.
+	// CA-VOZ-10 (R-VOZ-8, S-041; corrección del autor del 17/11/2026 tras PIE: un solo pulso de 0,5 era demasiado sutil): la capa da varios pulsos
+	// seguidos. Cada uno vale el máximo al empezar y baja en línea recta hasta cero al cumplir su duración, y el siguiente empieza ahí; después del
+	// último, y antes del corte, cero. Un corte nuevo mientras dura la reinicia. Con tres pulsos de 0,25 s (números exactos en binario; los valores
+	// iniciales son 0,85 y tres de un tercio de segundo).
 	using Soulbound::Presentation::CutDimOpacity;
-	TestEqual(TEXT("En el corte, el máximo"), CutDimOpacity(10.0, 10.0, 0.5f, 0.8), 0.5f, 1e-5f);
-	TestEqual(TEXT("A mitad, la mitad"), CutDimOpacity(10.4, 10.0, 0.5f, 0.8), 0.25f, 1e-5f);
-	TestEqual(TEXT("Al cumplirse, cero"), CutDimOpacity(10.8, 10.0, 0.5f, 0.8), 0.f, 1e-5f);
-	TestEqual(TEXT("Antes del corte, cero"), CutDimOpacity(9.9, 10.0, 0.5f, 0.8), 0.f, 1e-5f);
-	TestEqual(TEXT("Después, cero"), CutDimOpacity(12.0, 10.0, 0.5f, 0.8), 0.f, 1e-5f);
-	TestEqual(TEXT("Sin corte, cero"), CutDimOpacity(10.0, -1.0, 0.5f, 0.8), 0.f, 1e-5f);
-	TestEqual(TEXT("Sin duración, cero"), CutDimOpacity(10.0, 10.0, 0.5f, 0.0), 0.f, 1e-5f);
-	// Un corte nuevo a los 10,6 (el anterior iba por 0,125): vuelve al máximo y cuenta desde ahí.
-	TestEqual(TEXT("Un corte nuevo la reinicia"), CutDimOpacity(10.6, 10.6, 0.5f, 0.8), 0.5f, 1e-5f);
-	TestEqual(TEXT("Y baja desde el nuevo"), CutDimOpacity(11.0, 10.6, 0.5f, 0.8), 0.25f, 1e-5f);
+	TestEqual(TEXT("En el corte, el máximo"), CutDimOpacity(10.0, 10.0, 0.8f, 3, 0.25), 0.8f, 1e-5f);
+	TestEqual(TEXT("A mitad del primer pulso, la mitad"), CutDimOpacity(10.125, 10.0, 0.8f, 3, 0.25), 0.4f, 1e-5f);
+	TestEqual(TEXT("El segundo pulso vuelve al máximo"), CutDimOpacity(10.25, 10.0, 0.8f, 3, 0.25), 0.8f, 1e-5f);
+	TestEqual(TEXT("Y baja igual"), CutDimOpacity(10.375, 10.0, 0.8f, 3, 0.25), 0.4f, 1e-5f);
+	TestEqual(TEXT("El tercero, otra vez el máximo"), CutDimOpacity(10.5, 10.0, 0.8f, 3, 0.25), 0.8f, 1e-5f);
+	TestEqual(TEXT("A mitad del tercero, la mitad"), CutDimOpacity(10.625, 10.0, 0.8f, 3, 0.25), 0.4f, 1e-5f);
+	TestEqual(TEXT("Al cumplirse los tres, cero"), CutDimOpacity(10.75, 10.0, 0.8f, 3, 0.25), 0.f, 1e-5f);
+	TestEqual(TEXT("Antes del corte, cero"), CutDimOpacity(9.9, 10.0, 0.8f, 3, 0.25), 0.f, 1e-5f);
+	TestEqual(TEXT("Después, cero"), CutDimOpacity(12.0, 10.0, 0.8f, 3, 0.25), 0.f, 1e-5f);
+	TestEqual(TEXT("Sin corte, cero"), CutDimOpacity(10.0, -1.0, 0.8f, 3, 0.25), 0.f, 1e-5f);
+	TestEqual(TEXT("Sin duración de pulso, cero"), CutDimOpacity(10.0, 10.0, 0.8f, 3, 0.0), 0.f, 1e-5f);
+	TestEqual(TEXT("Sin pulsos, cero"), CutDimOpacity(10.0, 10.0, 0.8f, 0, 0.25), 0.f, 1e-5f);
+	TestEqual(TEXT("Con un pulso, al cumplirlo ya es cero"), CutDimOpacity(10.25, 10.0, 0.8f, 1, 0.25), 0.f, 1e-5f);
+	// Un corte nuevo a los 10,6 (el anterior iba por la mitad de su tercer pulso): vuelve al máximo y cuenta tres pulsos desde ahí.
+	TestEqual(TEXT("Un corte nuevo la reinicia"), CutDimOpacity(10.6, 10.6, 0.8f, 3, 0.25), 0.8f, 1e-5f);
+	TestEqual(TEXT("Y pulsa desde el nuevo"), CutDimOpacity(11.1, 10.6, 0.8f, 3, 0.25), 0.8f, 1e-5f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceEndInPrologueTest, "Soulbound.Game.Presentation.Voz.FinalEnElPrologoNoSePierde", VoiceTestFlags)
+
+bool FVoiceEndInPrologueTest::RunTest(const FString& Parameters)
+{
+	// Punto 4 de las correcciones del autor del 17/11/2026 (investigación; no es regla nueva): SbEndRace en el turno 0, con el prólogo en marcha y
+	// nadie vinculado. Con los datos reales, el fin de la carrera durante el prólogo se registra en el instante cero (el reloj de partida está
+	// parado hasta que acaba la apertura), así que su frase (`programado:nadie-vinculado`) no sustituye a la apertura: hace cola detrás de ella.
+	// Se comprueba que la cola de S-041 no la pierde: sale cuando termina la última frase de la apertura. Test de regresión.
+	constexpr int32 Human = 0;
+	constexpr double Min = 6.0;
+	constexpr double PerChar = 0.065;
+	const FString Data = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data"));
+	const FBoardLoadResult Board = Soulbound::Rules::LoadBoardFromFile(FPaths::Combine(Data, TEXT("Boards/tablero_35.json")));
+	const FMatchParamsLoadResult Params = Soulbound::Rules::LoadMatchParamsFromFile(FPaths::Combine(Data, TEXT("Match/partida.json")));
+	const FElectsLoadResult Elects = Soulbound::Rules::LoadElectsFromFile(FPaths::Combine(Data, TEXT("Elects/elegidos.json")));
+	const FWardenEventsLoadResult Events = Soulbound::Rules::LoadWardenEventsFromFile(FPaths::Combine(Data, TEXT("Events/eventos.json")));
+	const FWardenParamsLoadResult Warden = Soulbound::Rules::LoadWardenParamsFromFile(FPaths::Combine(Data, TEXT("Warden/warden.json")));
+	if (!TestTrue(TEXT("Los datos cargan"), Board.IsSuccess() && Params.IsSuccess() && Elects.IsSuccess() && Events.IsSuccess() && Warden.IsSuccess()))
+	{
+		return false;
+	}
+	const FWardenLinesLoadResult Lines = Soulbound::Rules::LoadWardenLinesFromFile(FPaths::Combine(Data, TEXT("Warden/frases.json")),
+		Soulbound::Rules::RequiredWardenLineKeys(Events.Table, Elects.Table));
+	if (!TestTrue(TEXT("Las frases cargan"), Lines.IsSuccess()))
+	{
+		return false;
+	}
+	FRandomStream Random(17);
+	FMatchStartResult Start = Soulbound::Rules::StartMatch(Board.Board, Params.Params, Elects.Table, Soulbound::Match::MaxPlayers, Random, Events.Table, Warden.Params,
+		Lines.Table);
+	if (!TestTrue(TEXT("La partida empieza"), Start.IsSuccess()))
+	{
+		return false;
+	}
+	FMatchState State = MoveTemp(Start.State);
+	const TArray<Soulbound::Presentation::FWardenLineItem> Opening = Soulbound::Presentation::WardenLineItems(State, 0, Human, Min, PerChar);
+	const double OpeningSeconds = Soulbound::Presentation::OpeningSeconds(State, Human, Min, PerChar);
+	const int32 Scanned = State.EventLog.Num();
+
+	// SbEndRace durante el prólogo: el anfitrión pone el reloj de la partida, que sigue en cero.
+	TestEqual(TEXT("El fin de la carrera se aplica"), static_cast<int32>(Soulbound::Debug::EndRace(State, 0.0, Random)), static_cast<int32>(EDebugEditResult::Applied));
+	TestTrue(TEXT("Gana el Warden: nadie se vinculó"), State.Outcome == EMatchOutcome::WardenVictory && State.EndReason == EMatchEndReason::NobodyBonded);
+	const TArray<Soulbound::Presentation::FWardenLineItem> End = Soulbound::Presentation::WardenLineItems(State, Scanned, Human, Min, PerChar);
+	if (!TestEqual(TEXT("El final dice una frase"), End.Num(), 1))
+	{
+		return false;
+	}
+	TestEqual(TEXT("En el instante cero, como la apertura"), End[0].GameClock, 0.0);
+
+	// La vista: la apertura entra al subir el telón (a los 100 s reales) y el final llega un segundo después.
+	Soulbound::Presentation::FWardenLineQueue Queue;
+	for (const Soulbound::Presentation::FWardenLineItem& Item : Opening)
+	{
+		Queue.Push(Item, 100.0);
+	}
+	TestEqual(TEXT("Se enseña la apertura"), Queue.Current(100.0).Text, Opening[0].Text);
+	Queue.Push(End[0], 101.0);
+	TestEqual(TEXT("El final no corta la apertura"), Queue.Current(101.0).Text, Opening[0].Text);
+	TestNotEqual(TEXT("Justo antes de acabar la apertura, aún no sale"), Queue.Current(100.0 + OpeningSeconds - 0.01).Text, End[0].Text);
+	TestEqual(TEXT("Al acabar la apertura, sale la frase del final"), Queue.Current(100.0 + OpeningSeconds + 0.01).Text, End[0].Text);
+	AddInfo(FString::Printf(TEXT("Apertura: %d frases, %.1f s; la frase del final sale tras ella."), Opening.Num(), OpeningSeconds));
 	return true;
 }
 

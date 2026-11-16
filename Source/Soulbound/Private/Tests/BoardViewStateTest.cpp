@@ -289,23 +289,26 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchResultTextTest, "Soulbound.Game.Presentat
 
 bool FMatchResultTextTest::RunTest(const FString& Parameters)
 {
-	// Texto de S-022: la pantalla del resultado (S-018, R-PRO-4) dice quién gana y, debajo, "Intro o el botón: volver al menú" (decisión del autor del
-	// 29/10/2026: Escape es la pausa de UGT y en PIE lo captura el editor). Sin final, nada.
+	// Texto de S-022: la pantalla del resultado (S-018, R-PRO-4) dice quién gana (decisión del autor del 29/10/2026 para la tecla: Escape es la
+	// pausa de UGT y en PIE lo captura el editor). CA-HUD-16 (R-HUD-8, añadido del autor del 17/11/2026 en S-041): el resultado va encima del botón,
+	// en una línea, y la tecla debajo, en pequeño: "o pulsa Intro". Sin final, nada.
 	FMatchState State;
-	TestTrue(TEXT("Partida en curso: sin resultado"), Soulbound::Presentation::MatchResultText(State, TEXT("Intro")).IsEmpty());
+	TestTrue(TEXT("Partida en curso: sin resultado"), Soulbound::Presentation::MatchResultText(State).IsEmpty());
 	State.MatchPhase = EMatchPhase::MatchOver;
 	State.Outcome = EMatchOutcome::PlayerVictory;
 	State.WinnerSeat = 2;
-	TestEqual(TEXT("Victoria de un jugador"), Soulbound::Presentation::MatchResultText(State, TEXT("Intro")),
-		FString(TEXT("GANA EL ASIENTO 2\nIntro o el botón: volver al menú")));
+	TestEqual(TEXT("Victoria de un jugador"), Soulbound::Presentation::MatchResultText(State), FString(TEXT("GANA EL ASIENTO 2")));
 	State.Outcome = EMatchOutcome::WardenVictory;
 	State.WinnerSeat = INDEX_NONE;
 	State.EndReason = EMatchEndReason::TimeOut;
-	TestEqual(TEXT("Victoria del Warden por tiempo"), Soulbound::Presentation::MatchResultText(State, TEXT("Intro")),
-		FString(TEXT("GANA EL WARDEN: SE ACABÓ EL TIEMPO\nIntro o el botón: volver al menú")));
+	TestEqual(TEXT("Victoria del Warden por tiempo"), Soulbound::Presentation::MatchResultText(State), FString(TEXT("GANA EL WARDEN: SE ACABÓ EL TIEMPO")));
 	State.EndReason = EMatchEndReason::NobodyBonded;
-	TestEqual(TEXT("Victoria del Warden: nadie se vinculó"), Soulbound::Presentation::MatchResultText(State, TEXT("Intro")),
-		FString(TEXT("GANA EL WARDEN: NADIE SE VINCULÓ\nIntro o el botón: volver al menú")));
+	TestEqual(TEXT("Victoria del Warden: nadie se vinculó"), Soulbound::Presentation::MatchResultText(State), FString(TEXT("GANA EL WARDEN: NADIE SE VINCULÓ")));
+
+	// La tecla, con su nombre en español: Unreal llama "Enter" a Intro.
+	TestEqual(TEXT("Intro"), Soulbound::Presentation::ReturnToMenuHint(TEXT("Enter")), FString(TEXT("o pulsa Intro")));
+	TestEqual(TEXT("Otra tecla, con su nombre"), Soulbound::Presentation::ReturnToMenuHint(TEXT("F5")), FString(TEXT("o pulsa F5")));
+	TestTrue(TEXT("Sin tecla, nada"), Soulbound::Presentation::ReturnToMenuHint(FString()).IsEmpty());
 	return true;
 }
 

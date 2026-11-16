@@ -1866,7 +1866,7 @@ float ABoardViewActor::CutDimOpacityNow() const
 	{
 		return 0.f;
 	}
-	return Soulbound::Presentation::CutDimOpacity(FPlatformTime::Seconds(), CutDimStartReal, CutDimMaxOpacity, CutDimSeconds);
+	return Soulbound::Presentation::CutDimOpacity(FPlatformTime::Seconds(), CutDimStartReal, CutDimMaxOpacity, CutDimPulseCount, CutDimPulseSeconds);
 }
 
 void ABoardViewActor::RefreshAspirantHalos(const FMatchState& State)
@@ -2498,7 +2498,6 @@ Soulbound::Presentation::FStatusContext ABoardViewActor::MakeStatusContext() con
 	Context.bWardenOn = WardenHost && WardenHost->GetMode() == EWardenHostMode::Auto;
 	Context.Seed = HostPtr->GetSeed();
 	Context.ViewKeys = DescribeViewKeys();
-	Context.ReturnKey = ReturnToMenuKey.GetDisplayName().ToString();
 	Context.SeatColors = SeatColors;
 	Context.GoalLineColor = GoalLineColor;
 	return Context;

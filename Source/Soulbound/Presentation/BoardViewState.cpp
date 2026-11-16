@@ -70,15 +70,16 @@ FString Soulbound::Presentation::ViewKeysText(bool bSeated, const FString& ViewK
 		*ViewKey, bSeated ? TEXT("cenital") : TEXT("sentada"), *OverlayKey, *PanelsKey, *DebugTextKey, *GrimoireKey, *DebugPanelKey);
 }
 
-FString Soulbound::Presentation::MatchResultText(const FMatchState& State, const FString& ReturnKey)
+FString Soulbound::Presentation::MatchResultText(const FMatchState& State)
 {
-	if (!State.IsMatchOver())
-	{
-		return FString();
-	}
-	const FString Winner = State.Outcome == EMatchOutcome::PlayerVictory ? FString::Printf(TEXT("GANA EL ASIENTO %d"), State.WinnerSeat)
-		: State.EndReason == EMatchEndReason::TimeOut ? FString(TEXT("GANA EL WARDEN: SE ACABÓ EL TIEMPO")) : FString(TEXT("GANA EL WARDEN: NADIE SE VINCULÓ"));
-	return FString::Printf(TEXT("%s\n%s o el botón: volver al menú"), *Winner, *ReturnKey);
+	// TODO(R-HUD-8): cuerpo vacío para ver el test en rojo.
+	return FString();
+}
+
+FString Soulbound::Presentation::ReturnToMenuHint(const FString& KeyDisplayName)
+{
+	// TODO(R-HUD-8): cuerpo vacío para ver el test en rojo.
+	return FString();
 }
 
 TArray<bool> Soulbound::Presentation::ForgottenDomainsShown(const FMatchState& State, bool bInPrologue, int32 OpeningLinesShown)
