@@ -40,13 +40,37 @@ namespace Soulbound::Rules
 {
 	ERuneLanding ResolvePowerSourceLanding(FMatchState& State, int32 Seat, double NowSeconds)
 	{
-		// R-RUN-3: una runa por llegada; quedarse sin casillas alcanzables no es llegar. R-TAB-8: en Primordial, nada.
-		if (!State.Seats.IsValidIndex(Seat) || !State.bActiveSeatMoved || State.Board.Phase != EBoardPhase::Awakened)
+		// R-RUN-3: una runa por llegada; quedarse sin casillas alcanzables no es llegar.
+		if (!State.Seats.IsValidIndex(Seat) || !State.bActiveSeatMoved)
 		{
 			return ERuneLanding::None;
 		}
+		// S-040 (R-VIC-5): la condición vive en PreviewPowerSourceLanding, que la meta del asiento consulta sin copiarla. Aquí solo se aplica.
 		const int32 TileId = State.Seats[Seat].TileId;
-		if (!IsPowerSource(State.Board, TileId))
+		const ERuneLanding Landing = PreviewPowerSourceLanding(State, Seat, TileId);
+		switch (Landing)
+		{
+		case ERuneLanding::Depleted:
+			// R-RUN-4: sin reserva no hay runa ni minijuego; ObtainRune solo registra SourceDepleted, como antes de S-040.
+			ObtainRune(State, Seat, TileId, NowSeconds);
+			break;
+		case ERuneLanding::TrialPending:
+			State.PendingTrial = ESkillTrial::ForgottenSource;
+			State.PendingDifficulty = ESkillDifficulty::Easy;
+			break;
+		case ERuneLanding::Obtained:
+			ObtainRune(State, Seat, TileId, NowSeconds);
+			break;
+		default:
+			break;
+		}
+		return Landing;
+	}
+
+	ERuneLanding PreviewPowerSourceLanding(const FMatchState& State, int32 Seat, int32 TileId)
+	{
+		// R-TAB-8: en Primordial, nada.
+		if (!State.Seats.IsValidIndex(Seat) || State.Board.Phase != EBoardPhase::Awakened || !IsPowerSource(State.Board, TileId))
 		{
 			return ERuneLanding::None;
 		}
@@ -60,24 +84,10 @@ namespace Soulbound::Rules
 		// R-RUN-4: sin reserva no hay runa ni minijuego que jugar.
 		if (State.Board.Tiles[TileId].RuneReserve <= 0)
 		{
-			ObtainRune(State, Seat, TileId, NowSeconds);
 			return ERuneLanding::Depleted;
 		}
 		// R-TAB-7: un Elegido en la Fuente de un Olvidado juega el minijuego; el Eco, no.
-		if (bElect && bForgotten)
-		{
-			State.PendingTrial = ESkillTrial::ForgottenSource;
-			State.PendingDifficulty = ESkillDifficulty::Easy;
-			return ERuneLanding::TrialPending;
-		}
-		ObtainRune(State, Seat, TileId, NowSeconds);
-		return ERuneLanding::Obtained;
-	}
-
-	ERuneLanding PreviewPowerSourceLanding(const FMatchState& State, int32 Seat, int32 TileId)
-	{
-		// TODO(R-VIC-5): stub para ver los tests en rojo; se extrae de ResolvePowerSourceLanding tras verlos fallar.
-		return ERuneLanding::None;
+		return bElect && bForgotten ? ERuneLanding::TrialPending : ERuneLanding::Obtained;
 	}
 
 	bool ApplySkillTrialResult(FMatchState& State, int32 Seat, bool bPassed, double NowSeconds)
