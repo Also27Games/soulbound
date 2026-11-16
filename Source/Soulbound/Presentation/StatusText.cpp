@@ -7,6 +7,7 @@
 #include "Match/BondRaceRules.h"
 #include "Match/MatchState.h"
 #include "Match/RuneRules.h"
+#include "Match/SeatGoalRules.h"
 #include "Match/VictoryRules.h"
 #include "Match/WardenEventRules.h"
 #include "Misc/FileHelper.h"
@@ -556,8 +557,25 @@ namespace Soulbound::Presentation
 {
 	FString GoalLineText(const FMatchState& State, int32 HumanSeat)
 	{
-		// TODO(R-HUD-7): stub para ver el test en rojo; se escribe tras verlo fallar.
-		return FString();
+		// R-HUD-7: un texto por meta (R-VIC-5); N son las runas distintas del Brazal del humano.
+		const FSeatGoal Goal = Soulbound::Rules::SeatGoal(State, HumanSeat);
+		switch (Goal.Kind)
+		{
+		case ESeatGoal::Niche:
+			return TEXT("Llega a un Nicho libre");
+		case ESeatGoal::Runes:
+		{
+			const FSeatState& Seat = State.Seats[HumanSeat];
+			const int32 Count = Soulbound::Rules::RuneTypeCount(Seat);
+			return Seat.Role == ESeatRole::Elect
+				? FString::Printf(TEXT("Consigue runas en las Fuentes (%d/%d)"), Count, Soulbound::Board::DomainCount)
+				: FString::Printf(TEXT("Consigue runas en las Fuentes de los Olvidados, o róbalas (%d/%d)"), Count, Soulbound::Board::DomainCount);
+		}
+		case ESeatGoal::Altar:
+			return TEXT("Vuelve al Altar");
+		default:
+			return FString();
+		}
 	}
 
 	TArray<FPanelLine> StatusLines(const FMatchState& State, const FStatusContext& Context)
@@ -751,6 +769,17 @@ namespace Soulbound::Presentation
 		if (bOver)
 		{
 			Top.Insert({MatchResultText(State, Context.ReturnKey), RaceColor, true}, 0);
+		}
+
+		// La línea de objetivo (R-HUD-7, S-040): tras el resultado y la petición, con el color de la luz de la meta. En el prólogo no sale
+		// (precisión del 16/11/2026); con la meta None (la partida terminada), tampoco.
+		if (!Context.bPrologue)
+		{
+			const FString Goal = GoalLineText(State, HumanSeat);
+			if (!Goal.IsEmpty())
+			{
+				Top.Add({Goal, Context.GoalColor, false});
+			}
 		}
 
 		Top.Append(Lines);

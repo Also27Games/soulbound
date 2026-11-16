@@ -1,6 +1,7 @@
 #include "BoardViewState.h"
 
 #include "Match/MatchState.h"
+#include "Match/SeatGoalRules.h"
 #include "Misc/PackageName.h"
 #include "Warden/WardenLines.h"
 
@@ -47,14 +48,22 @@ FLinearColor Soulbound::Presentation::WedgeFloorTint(const FLinearColor& DomainC
 
 float Soulbound::Presentation::WedgeFloorDim(bool bForgotten, bool bForgottenMaterial, float ForgottenFloorDim, float ForgottenDim)
 {
-	// TODO(R-VIS-27): stub para ver el test en rojo; se escribe tras verlo fallar.
-	return 1.f;
+	// R-VIS-27: el material propio ya dice "Olvidado" con su textura; se apaga menos. Sin él, como antes de S-040.
+	if (!bForgotten)
+	{
+		return 1.f;
+	}
+	return bForgottenMaterial ? ForgottenFloorDim : ForgottenDim;
 }
 
 TArray<int32> Soulbound::Presentation::GoalLightTiles(const FMatchState& State, int32 HumanSeat, bool bInPrologue)
 {
-	// TODO(R-VIS-28): stub para ver el test en rojo; se escribe tras verlo fallar.
-	return TArray<int32>();
+	// R-VIS-28: solo la meta del humano; en el prólogo, ninguna (la partida aún no cuenta). SeatGoal ya da None sin asiento o con la partida terminada.
+	if (bInPrologue)
+	{
+		return TArray<int32>();
+	}
+	return Soulbound::Rules::SeatGoal(State, HumanSeat).Tiles;
 }
 
 FString Soulbound::Presentation::MenuMapPackage(const FString& ReturnToMenuMap, bool bReturnMapExists, const FString& GameDefaultMap)
