@@ -202,4 +202,24 @@ bool FGoalLineTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGoalPanelShownTest, "Soulbound.Game.Presentation.Estado.CajaDeObjetivoSeVe", GoalHintsTestFlags)
+
+bool FGoalPanelShownTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-15 (R-HUD-7, corrección del autor del 16/11/2026 tras PIE): la caja de la línea de objetivo, abajo a la izquierda en la franja de la frase
+	// del Warden, se ve con cualquier meta salvo None; deja de verse en el prólogo, con la meta None y mientras hay una frase del Warden en pantalla.
+	// Ninguna tecla interviene: la función no recibe ninguna.
+	using Soulbound::Presentation::IsGoalPanelShown;
+	for (const ESeatGoal Goal : {ESeatGoal::Niche, ESeatGoal::Runes, ESeatGoal::Altar})
+	{
+		const FString Name = StaticEnum<ESeatGoal>()->GetNameStringByValue(static_cast<int64>(Goal));
+		TestTrue(FString::Printf(TEXT("%s, en partida y sin frase: se ve"), *Name), IsGoalPanelShown(false, Goal, false));
+		TestFalse(FString::Printf(TEXT("%s, con una frase del Warden en pantalla: no se ve"), *Name), IsGoalPanelShown(false, Goal, true));
+		TestFalse(FString::Printf(TEXT("%s, en el prólogo: no se ve"), *Name), IsGoalPanelShown(true, Goal, false));
+	}
+	TestFalse(TEXT("None: no se ve"), IsGoalPanelShown(false, ESeatGoal::None, false));
+	TestFalse(TEXT("None con frase: no se ve"), IsGoalPanelShown(false, ESeatGoal::None, true));
+	return true;
+}
+
 #endif

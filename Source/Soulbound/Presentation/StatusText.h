@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Elects/Elects.h"
+#include "Match/SeatGoalRules.h"
 
 struct FMatchState;
 struct FPendingChoice;
@@ -94,6 +95,17 @@ namespace Soulbound::Presentation
 	 * @return La línea de la caja, o ninguna.
 	 */
 	TArray<FPanelLine> GoalPanelLines(const FMatchState& State, const FStatusContext& Context);
+
+	/**
+	 * Si la caja de la línea de objetivo se ve (S-040, R-HUD-7, nombre propuesto; corrección del autor del 16/11/2026 tras PIE): abajo a la izquierda,
+	 * en la franja de la frase del Warden, deja de verse en el prólogo, con la meta None y mientras hay una frase del Warden en pantalla, para que los
+	 * dos textos nunca se vean encimados. Ninguna tecla la oculta: es información importante, no un panel de consulta.
+	 * @param bPrologue Si el prólogo está en marcha.
+	 * @param Goal La meta del asiento humano (SeatGoal).
+	 * @param bWardenLineOnScreen Si hay una frase del Warden en pantalla.
+	 * @return Si la caja se ve.
+	 */
+	bool IsGoalPanelShown(bool bPrologue, ESeatGoal Goal, bool bWardenLineOnScreen);
 
 	/**
 	 * Las líneas del panel de depuración (R-HUD-2): paso a paso, evaluación del Warden, semilla con el tiempo y la ronda, y los asientos con su
