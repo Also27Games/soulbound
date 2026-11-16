@@ -44,14 +44,15 @@ Decidido por el autor el 15/11/2026, con el criterio "que se entienda mejor, no 
   - **No late.** El latido significa "puedes ir aquí ahora" (R-VIS-26); la luz significa "aquí quieres llegar". Una casilla puede llevar las dos cosas.
   - Se enciende y se apaga con el estado: al vincularse alguien en un Nicho, ese Nicho deja de estar libre y su luz se apaga; al coger el humano una runa, se apaga la luz de esa Fuente; al agotarse la reserva de una Fuente, se apaga; con las seis runas, solo queda la del Altar. Con la partida terminada, ninguna.
   - Las luces son del jugador local: los dummies no tienen luces. La tecla de etiquetas no las oculta. En el prólogo no se ven hasta que la partida empieza a contar.
-- **R-HUD-7 (nueva). La línea de objetivo.** El panel de estado lleva una línea con la meta del humano, siempre a la vista durante la partida, con su color (Config, `GoalLineColor`, valor inicial un dorado claro (1, 0,82, 0,35); era el de la luz hasta que se retiró R-VIS-28):
+- **R-HUD-7 (nueva). La línea de objetivo.** Una línea con la meta del humano, siempre a la vista durante la partida, con su color (Config, `GoalLineColor`, valor inicial un dorado claro (1, 0,82, 0,35); era el de la luz hasta que se retiró R-VIS-28):
   - `Niche`: "Llega a un Nicho libre"
   - `Runes`, Elegido: "Consigue runas en las Fuentes (N/6)"
   - `Runes`, Eco: "Consigue runas en las Fuentes de los Olvidados, o róbalas (N/6)"
-  - `Altar`: "Vuelve al Altar"
+  - `Altar`: "Vuelve al Altar"; si ya está en el Altar con los seis tipos (aspirante, `IsAspirant`), "Supera el desafío final en tu próximo turno" (corrección del autor del 16/11/2026 tras PIE; `SeatGoal` no cambia, es solo el texto)
   - N es el número de tipos de runa distintos que tiene (`RuneTypeCount`). Con `None`, la línea no sale.
   - **Precisión del 16/11/2026, en el plan**: en el prólogo la línea no sale: aparece cuando la partida empieza a contar.
   - El texto del Eco es una concreción del tutor (un Eco solo obtiene runa en las Fuentes de los Olvidados, R-ECO-3, y robando, R-ECO-4). Confirmado por el autor el 16/11/2026.
+  - **Corrección del autor del 16/11/2026, tras PIE: dónde va.** La línea sale del panel de estado (entre sus líneas quedaba escondida, y es otra clase de información) y va en una caja propia arriba a la izquierda, encima del panel de estado, que queda justo debajo. Fondo como los paneles, la letra grande de las líneas grandes del panel de estado y `GoalLineColor`. Mismas condiciones (ni en el prólogo ni con `None`), y se oculta con la misma tecla que el panel de estado. A 1024x768 cabe sin meterse debajo de la columna de paneles: el texto del Eco puede partirse en dos líneas. El aviso de casilla inalcanzable (`PlaceNotice`) también la esquiva.
 - **La leyenda.** En el bloque "Tablero", la línea de los Olvidados pasa a "Suelo agrietado y casillas apagadas: Dominio Olvidado". Sin el material cargado sigue diciendo "Casillas apagadas: Dominio Olvidado" (decisión del autor del 16/11/2026, en el plan: la leyenda no describe un suelo que no se ve). La línea "Luz: tu meta ahora" se quitó con R-VIS-28.
 - **Lo que no cambia.** Ninguna regla de carrera, de runas ni de victoria; el aro y el apagado de las casillas de un Dominio Olvidado; las marcas de Nicho libre, reclamado y cerrado; los halos y su latido; los destellos.
 
@@ -79,7 +80,7 @@ En `Soulbound`:
 
 - **CA-VIS-28** (R-VIS-27). La función que dice con qué factor se apaga el suelo de una cuña devuelve 1 para un Dominio con dueño; `ForgottenFloorDim` para un Olvidado con el material propio disponible; y `ForgottenDim` para un Olvidado sin él. El tinte del Dominio (`WedgeFloorTint`) se aplica igual en los tres casos.
 - **CA-VIS-29** (R-VIS-28): **retirado el 16/11/2026 con R-VIS-28**, con su test. ~~La función que dice qué casillas llevan luz (del estado y del asiento humano) devuelve las de la meta del humano y ninguna de otro asiento; ninguna con la partida terminada; ninguna en el prólogo.~~
-- **CA-HUD-15** (R-HUD-7). La línea de objetivo dice, letra por letra, los cuatro textos de la regla en sus cuatro casos, con N igual a las runas distintas del humano; con la meta `None`, no hay línea; en el prólogo, tampoco (precisión de R-HUD-7 del 16/11/2026).
+- **CA-HUD-15** (R-HUD-7). La línea de objetivo dice, letra por letra, los textos de la regla en sus casos, con N igual a las runas distintas del humano, y "Supera el desafío final en tu próximo turno" para el aspirante en el Altar; va en su caja, una sola línea con la letra grande y `GoalLineColor`, y el panel de estado no la lleva; con la meta `None`, no hay línea; en el prólogo, tampoco (precisión de R-HUD-7 del 16/11/2026; caja y aspirante, corrección del mismo día tras PIE).
 
 Manuales, por el autor, en PIE, en la vista sentada y en la cenital, a 1920x1080 y a 1024x768, con captura:
 
@@ -89,6 +90,7 @@ Manuales, por el autor, en PIE, en la vista sentada y en la cenital, a 1920x1080
 - Tras vincularse (o tras `SbEndRace`): la línea dice "Consigue runas en las Fuentes (N/6)". Al coger una runa (`SbGiveRune` o cayendo en la Fuente), sube N.
 - Como Eco tras la carrera: la línea dice el texto del Eco.
 - Con seis runas (`SbGiveRune`): la línea dice "Vuelve al Altar".
+- Añadidas con la corrección del 16/11/2026: la línea va en su caja encima del panel de estado, con la letra grande, y se oculta con la tecla del panel de estado; a 1024x768, como Eco, el texto se parte y la caja no se mete bajo la columna de paneles; ya en el Altar con los seis, dice "Supera el desafío final en tu próximo turno"; el aviso de casilla inalcanzable no tapa la caja.
 - La leyenda tiene la nueva línea de los Olvidados.
 - (Retiradas el 16/11/2026 con R-VIS-28: las de la luz sobre los Nichos, las Fuentes y el Altar, que no tape la pieza ni la ficha, y las dos añadidas en el plan sobre la base en el aire y el material no emisivo.)
 
