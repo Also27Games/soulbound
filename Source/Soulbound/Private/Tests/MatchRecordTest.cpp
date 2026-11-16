@@ -271,7 +271,7 @@ bool FActaRingStartTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// CA-MIN-18 (corrección del autor del 18/11/2026 tras PIE: salió "empieza por el botón tras 8.0 s de espera"), R-MIN-19. Como lo escribe el anfitrión
+// CA-MIN-18 (corrección del autor del 16/11/2026 tras PIE: salió "empieza por el botón tras 8.0 s de espera"), R-MIN-19. Como lo escribe el anfitrión
 // (StartRing: FRingTrialRun::Start y luego RingStartLine con su causa y su espera): si "Empezar" llega con la cuenta ya a cero y sin que el tick lo
 // haya notado, la prueba empezó sola y el acta dice "sola", con la espera máxima. Si llega justo antes de cero, es por el botón y el acta nunca dice la
 // espera máxima: los segundos se cortan a la décima, no se redondean (7,96 s dicen 7.9). Montaje: se abre en el 1000,3 con espera de 8 s (vence

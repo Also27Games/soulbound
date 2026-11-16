@@ -112,7 +112,7 @@ namespace Soulbound::Presentation
 
 	/**
 	 * El resultado de la partida (S-018, R-PRO-4): quién gana y por qué, en una línea ("GANA EL ASIENTO 2", "GANA EL WARDEN: SE ACABÓ EL TIEMPO",
-	 * "GANA EL WARDEN: NADIE SE VINCULÓ"). Desde S-041 (R-HUD-8, añadido del autor del 17/11/2026) va en el centro, encima del botón "Volver al
+	 * "GANA EL WARDEN: NADIE SE VINCULÓ"). Desde S-041 (R-HUD-8, añadido del autor del 16/11/2026) va en el centro, encima del botón "Volver al
 	 * menú", y la tecla va aparte, debajo del botón (ReturnToMenuHint). Vacío si la partida no ha terminado.
 	 * @param State Estado de la partida, en solo lectura.
 	 * @return El texto del resultado, o vacío.

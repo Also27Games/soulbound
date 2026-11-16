@@ -53,7 +53,7 @@ struct FRingPanelModel
 struct FRingTrialRun;
 
 /**
- * Dónde va cada cosa del panel del anillo, de arriba abajo, en unidades del panel (S-042, corrección del autor del 18/11/2026; nombre propuesto). Lo
+ * Dónde va cada cosa del panel del anillo, de arriba abajo, en unidades del panel (S-042, corrección del autor del 16/11/2026; nombre propuesto). Lo
  * calcula RingPanelLayout; lo usan SRingPanel para pintar y la vista para poner la fila de "Empezar" en su franja.
  */
 struct FRingPanelLayout
@@ -148,7 +148,7 @@ namespace Soulbound::Presentation
 	float RingPanelWidth(int32 FontSize);
 
 	/**
-	 * Dónde va cada cosa del panel del anillo (S-042, R-MIN-19; corrección del autor del 18/11/2026 tras PIE: el botón "Empezar" no tapa la runa ni
+	 * Dónde va cada cosa del panel del anillo (S-042, R-MIN-19; corrección del autor del 16/11/2026 tras PIE: el botón "Empezar" no tapa la runa ni
 	 * la franja verde; nombre propuesto). Desde abajo: las marcas de los pulsos, la barra y, encima, la franja de "Empezar", que no depende del
 	 * título (el botón va siempre en el mismo sitio). El aro, entre el final de los textos y esa franja, centrado; tan grande como siempre (0,36 del
 	 * lado menor) si cabe, y más pequeño si no. La franja se reserva también con la prueba empezada, para que el aro no se mueva al desaparecer el botón.

@@ -164,7 +164,7 @@ namespace Soulbound::Presentation
 				if (Event.Type == EMatchEventType::WardenEventStarted && EventIndex == INDEX_NONE && State.WardenEvents.Events.IsValidIndex(Event.Value))
 				{
 					// Lo decretado: al humano, el texto del evento (escrito para quien lo recibe). A otro asiento, solo que se le corta el turno
-					// (corrección del autor del 17/11/2026 tras PIE: el nombre del evento, suelto, no explicaba nada).
+					// (corrección del autor del 16/11/2026 tras PIE: el nombre del evento, suelto, no explicaba nada).
 					EventIndex = Event.Value;
 					const FString What = Cut.Seat == HumanSeat ? State.WardenEvents.Events[EventIndex].Text : FString();
 					OutCut.Note = What.IsEmpty() ? Opening + TEXT(".") : Opening + TEXT(". ") + What;
@@ -288,7 +288,7 @@ namespace Soulbound::Presentation
 		{
 			return 0.f;
 		}
-		// Corrección del autor del 17/11/2026: varios pulsos seguidos. Cada uno aparece de golpe con el máximo y baja en línea recta hasta cero.
+		// Corrección del autor del 16/11/2026: varios pulsos seguidos. Cada uno aparece de golpe con el máximo y baja en línea recta hasta cero.
 		const double Elapsed = (NowReal - CutStartReal) / PulseSeconds;
 		if (Elapsed >= PulseCount)
 		{

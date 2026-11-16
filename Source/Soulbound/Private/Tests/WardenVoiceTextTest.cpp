@@ -546,7 +546,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceCutTextsTest, "Soulbound.Game.Presentatio
 bool FVoiceCutTextsTest::RunTest(const FString& Parameters)
 {
 	// CA-VOZ-9 (R-VOZ-8, S-041): la línea y la línea pequeña de un corte, letra por letra. Golpe al humano con frase y texto de evento; golpe a
-	// otro asiento, solo con el asiento (corrección del autor del 17/11/2026); el Oráculo como golpe, sin frase (la línea es la palabra de corte sola, que no detiene la mesa
+	// otro asiento, solo con el asiento (corrección del autor del 16/11/2026); el Oráculo como golpe, sin frase (la línea es la palabra de corte sola, que no detiene la mesa
 	// pero está protegida); fin de la carrera (sin palabra de corte ni oscurecido); fin de la partida (nada); sin corte, la frase tal cual. La
 	// palabra de corte sale de la tabla de frases: con otra palabra, otra línea; sin la clave, no hay palabra.
 	using Soulbound::Presentation::FWardenLineItem;
@@ -576,7 +576,7 @@ bool FVoiceCutTextsTest::RunTest(const FString& Parameters)
 	if (TestEqual(TEXT("Golpe a otro asiento: dos frases"), Other.Num(), 2))
 	{
 		TestEqual(TEXT("La misma línea"), Other[1].Text, FString(TEXT("Warden: ¡Quietos! Quieto ahí.")));
-		// Corrección del autor del 17/11/2026 tras PIE: solo el asiento; el nombre del evento, suelto, no explicaba nada.
+		// Corrección del autor del 16/11/2026 tras PIE: solo el asiento; el nombre del evento, suelto, no explicaba nada.
 		TestEqual(TEXT("Solo con el asiento, sin el nombre del evento"), Other[1].CutNote, FString(TEXT("Se corta el turno del asiento 2.")));
 		TestTrue(TEXT("También oscurece"), Other[1].bWardenCut);
 	}
@@ -660,7 +660,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceCutDimTest, "Soulbound.Game.Presentation.
 
 bool FVoiceCutDimTest::RunTest(const FString& Parameters)
 {
-	// CA-VOZ-10 (R-VOZ-8, S-041; corrección del autor del 17/11/2026 tras PIE: un solo pulso de 0,5 era demasiado sutil): la capa da varios pulsos
+	// CA-VOZ-10 (R-VOZ-8, S-041; corrección del autor del 16/11/2026 tras PIE: un solo pulso de 0,5 era demasiado sutil): la capa da varios pulsos
 	// seguidos. Cada uno vale el máximo al empezar y baja en línea recta hasta cero al cumplir su duración, y el siguiente empieza ahí; después del
 	// último, y antes del corte, cero. Un corte nuevo mientras dura la reinicia. Con tres pulsos de 0,25 s (números exactos en binario; los valores
 	// iniciales son 0,85 y tres de un tercio de segundo).
@@ -688,7 +688,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceEndInPrologueTest, "Soulbound.Game.Presen
 
 bool FVoiceEndInPrologueTest::RunTest(const FString& Parameters)
 {
-	// Punto 4 de las correcciones del autor del 17/11/2026 (investigación; no es regla nueva): SbEndRace en el turno 0, con el prólogo en marcha y
+	// Punto 4 de las correcciones del autor del 16/11/2026 (investigación; no es regla nueva): SbEndRace en el turno 0, con el prólogo en marcha y
 	// nadie vinculado. Con los datos reales, el fin de la carrera durante el prólogo se registra en el instante cero (el reloj de partida está
 	// parado hasta que acaba la apertura), así que su frase (`programado:nadie-vinculado`) no sustituye a la apertura: hace cola detrás de ella.
 	// Se comprueba que la cola de S-041 no la pierde: sale cuando termina la última frase de la apertura. Test de regresión.

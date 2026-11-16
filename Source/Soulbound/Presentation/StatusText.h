@@ -78,7 +78,7 @@ namespace Soulbound::Presentation
 	TArray<FPanelLine> StatusLines(const FMatchState& State, const FStatusContext& Context);
 
 	/**
-	 * El resultado de la partida en grande (S-041, R-HUD-8, nombre propuesto; añadido del autor del 17/11/2026): el texto de MatchResultText con el
+	 * El resultado de la partida en grande (S-041, R-HUD-8, nombre propuesto; añadido del autor del 16/11/2026): el texto de MatchResultText con el
 	 * color de antes, el del ganador (Context.SeatColor) si gana un jugador y rojo si gana el Warden. Lo pinta la vista en el centro, encima del
 	 * botón "Volver al menú"; el panel de estado ya no lo lleva. Vacío (sin texto) si la partida no ha terminado.
 	 * @param State El estado de la partida.

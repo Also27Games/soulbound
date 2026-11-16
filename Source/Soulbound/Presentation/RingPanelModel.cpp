@@ -53,7 +53,7 @@ FString Soulbound::Presentation::RingStakeTitle(ESkillTrial Trial, bool bDuel)
 	// R-VIS-30: lo que hace el motor al fallar o perder, con las frases aprobadas por el autor el 16/11/2026. Fuente: R-TAB-7 y R-RUN-3
 	// (ApplySkillTrialResult); Prueba del Warden: R-EFE-10 (ApplyWardenTrialResult); escape: R-VAC-2 (ApplyVoidEscapeResult); desafío final:
 	// R-VIC-3 y R-RUN-6 (ApplyFinalChallengeResult); duelo: R-DUE-5, R-DUE-6, R-EFE-13 y el duelo contra el Warden de S-015. La del duelo, la exacta
-	// (corrección del autor del 18/11/2026): quien pierde sin runas vuelve a su hogar, y las runas no siempre van al ganador.
+	// (corrección del autor del 16/11/2026): quien pierde sin runas vuelve a su hogar, y las runas no siempre van al ganador.
 	return bDuel ? TEXT("Duelo: si pierdes, te quitan runas o vuelves a tu hogar")
 		: Trial == ESkillTrial::ForgottenSource ? TEXT("Fuente de un Dominio Olvidado: si fallas, no consigues la runa")
 		: Trial == ESkillTrial::WardenTrial ? TEXT("Prueba del Warden: si fallas, pierdes el turno")
@@ -104,7 +104,7 @@ FRingPanelLayout Soulbound::Presentation::RingPanelLayout(float Width, float Hei
 	Layout.BarTop = Layout.DotsY - (DotRadius + BarToDots + BarHeight) * Scale;
 	Layout.StartBandBottom = Layout.BarTop - BandToBar * Scale;
 	Layout.StartBandTop = Layout.StartBandBottom - BandHeight * Scale;
-	// R-MIN-19 (corrección del autor del 18/11/2026): el aro va entre los textos y la franja, centrado en ese hueco, sin pisar ninguno de los dos. El
+	// R-MIN-19 (corrección del autor del 16/11/2026): el aro va entre los textos y la franja, centrado en ese hueco, sin pisar ninguno de los dos. El
 	// centro (la runa y la franja verde) queda libre durante la espera.
 	const float RingTop = TextBottom + RingGap * Scale;
 	const float RingBottom = Layout.StartBandTop - RingGap * Scale;

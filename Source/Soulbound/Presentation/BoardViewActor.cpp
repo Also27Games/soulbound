@@ -1397,7 +1397,7 @@ void ABoardViewActor::BuildOverlay()
 	Viewport->AddViewportWidgetContent(WardenLineOverlay.ToSharedRef(), 11);
 
 	// S-041 (R-VOZ-8): la capa oscura del corte. Llena el viewport sobre el tablero y por debajo de todas las demás capas (la de los paneles va en el 10):
-	// negra con la opacidad de CutDimOpacityNow: desde la corrección del autor del 17/11/2026, varios pulsos seguidos que aparecen de golpe y se
+	// negra con la opacidad de CutDimOpacityNow: desde la corrección del autor del 16/11/2026, varios pulsos seguidos que aparecen de golpe y se
 	// desvanecen. Sin posproceso (restricción de rendimiento) y sin clics.
 	CutDimOverlay = SNew(SImage)
 		.Image(FCoreStyle::Get().GetBrush("WhiteBrush"))
@@ -1462,9 +1462,9 @@ void ABoardViewActor::BuildOverlay()
 			.VAlign(VAlign_Center)
 			.Visibility(EVisibility::SelfHitTestInvisible)
 			[
-				// S-041 (R-HUD-8, añadido del autor del 17/11/2026): el resultado en grande encima del botón, con su color (MatchResultLine), y la tecla
+				// S-041 (R-HUD-8, añadido del autor del 16/11/2026): el resultado en grande encima del botón, con su color (MatchResultLine), y la tecla
 				// debajo, en pequeño; antes los dos iban arriba a la izquierda, en el panel de estado. Los textos no reciben clics.
-				// Ajuste del autor del 17/11/2026 tras PIE: los dos textos llevan el fondo oscuro de los paneles (negro a 0,72, como StatusPanel), porque
+				// Ajuste del autor del 16/11/2026 tras PIE: los dos textos llevan el fondo oscuro de los paneles (negro a 0,72, como StatusPanel), porque
 				// sin fondo el rojo se mezclaba con las casillas y sus números.
 				SNew(SVerticalBox)
 				.Visibility(EVisibility::SelfHitTestInvisible)
@@ -1568,7 +1568,7 @@ void ABoardViewActor::BuildOverlay()
 		}
 	}
 	// S-042 (R-MIN-19): mientras la prueba espera, el botón "Empezar", su tecla y la cuenta atrás van encima del panel, en una fila en su franja bajo el
-	// aro, entre el círculo y la barra (corrección del autor del 18/11/2026: en el centro tapaban la runa y la franja verde). La franja la calcula
+	// aro, entre el círculo y la barra (corrección del autor del 16/11/2026: en el centro tapaban la runa y la franja verde). La franja la calcula
 	// RingPanelLayout, igual que el panel, y no depende del título; el panel la reserva siempre, así que no cambia de tamaño ni se mueve al empezar.
 	// Solo el botón recibe clics: el resto de la capa los deja pasar.
 	const int32 StartHintFontSize = FMath::Max(FMath::RoundToInt(RingFontSize * 0.8f), 8);

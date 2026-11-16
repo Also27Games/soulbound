@@ -139,7 +139,7 @@ namespace Soulbound::Presentation
 	double WardenWaitSeconds(const FMatchState& State, int32 FromIndex, int32 HumanSeat, double MinSeconds, double SecondsPerChar);
 
 	/**
-	 * La opacidad de la capa oscura del corte en el instante NowReal (S-041, R-VOZ-8, nombre propuesto; corrección del autor del 17/11/2026 tras
+	 * La opacidad de la capa oscura del corte en el instante NowReal (S-041, R-VOZ-8, nombre propuesto; corrección del autor del 16/11/2026 tras
 	 * PIE: un solo pulso era demasiado sutil). La capa da PulseCount pulsos seguidos de PulseSeconds cada uno: cada pulso vale MaxOpacity al
 	 * empezar y baja en línea recta hasta cero al cumplirse, y el siguiente empieza ahí. Cero antes del corte, después del último pulso y sin
 	 * corte. Un corte nuevo la reinicia: quien llama pasa el instante del último.

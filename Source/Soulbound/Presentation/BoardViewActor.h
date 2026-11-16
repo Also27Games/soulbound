@@ -465,20 +465,20 @@ public:
 	/**
 	 * Opacidad de la capa oscura del tablero al empezar cada pulso cuando el Warden corta un turno (S-041, R-VOZ-8; CutDimOpacity): aparece de golpe
 	 * y se desvanece en CutDimPulseSeconds, CutDimPulseCount veces seguidas. Sin posproceso: una capa de Slate negra, por debajo de los paneles. Valor
-	 * inicial 0,85 (corrección del autor del 17/11/2026, probada en PIE; antes 0,5, demasiado sutil).
+	 * inicial 0,85 (corrección del autor del 16/11/2026, probada en PIE; antes 0,5, demasiado sutil).
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0", ClampMax = "1"))
 	float CutDimMaxOpacity = 0.85f;
 
 	/**
-	 * Cuántos pulsos da la capa oscura del corte (S-041, R-VOZ-8; corrección del autor del 17/11/2026). Valor inicial 2, probado en PIE (antes 3: con
+	 * Cuántos pulsos da la capa oscura del corte (S-041, R-VOZ-8; corrección del autor del 16/11/2026). Valor inicial 2, probado en PIE (antes 3: con
 	 * tres de un tercio de segundo seguía parpadeando mientras la ficha se colocaba).
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
 	int32 CutDimPulseCount = 2;
 
 	/**
-	 * Lo que dura cada pulso de la capa oscura del corte, en segundos reales (S-041, R-VOZ-8; corrección del autor del 17/11/2026). Valor inicial
+	 * Lo que dura cada pulso de la capa oscura del corte, en segundos reales (S-041, R-VOZ-8; corrección del autor del 16/11/2026). Valor inicial
 	 * 0,08, probado en PIE (antes un tercio de segundo).
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
@@ -609,7 +609,7 @@ public:
 	int32 ReturnToMenuFontSize = 28;
 
 	/**
-	 * Tamaño de la letra del resultado de la partida, encima del botón "Volver al menú" (S-041, R-HUD-8; añadido del autor del 17/11/2026: antes iba
+	 * Tamaño de la letra del resultado de la partida, encima del botón "Volver al menú" (S-041, R-HUD-8; añadido del autor del 16/11/2026: antes iba
 	 * arriba a la izquierda, en el panel de estado). Valor inicial 40, mayor que el botón.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")

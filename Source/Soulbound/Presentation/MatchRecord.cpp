@@ -188,7 +188,7 @@ namespace Soulbound::Presentation
 	{
 		// R-MIN-19: cómo empezó y cuánto esperó desde que se abrió; empezar sola no es un castigo, y la línea no lo presenta como tal.
 		const bool bButton = Cause == ERingStartCause::Button;
-		// Corrección del autor del 18/11/2026: los segundos se cortan a la décima, no se redondean, para que "Empezar" pulsado a los 7,96 s no se lea
+		// Corrección del autor del 16/11/2026: los segundos se cortan a la décima, no se redondean, para que "Empezar" pulsado a los 7,96 s no se lea
 		// como la espera máxima ("8.0"). El margen mínimo (1e-6 décimas) absorbe el error de coma flotante de restar dos instantes del reloj real.
 		const double Tenths = FMath::FloorToDouble(FMath::Max(WaitedSeconds, 0.0) * 10.0 + 1e-6) / 10.0;
 		return FString::Printf(TEXT("Anillo: empieza %s tras %.1f s de espera%s."), bButton ? TEXT("por el botón") : TEXT("sola"), Tenths,

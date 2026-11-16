@@ -173,7 +173,7 @@ bool FRingInstructionLinesTest::RunTest(const FString& Parameters)
 }
 
 // CA-VIS-31, R-VIS-30: el título dice qué te juegas. La Prueba del Warden, letra por letra la del autor; las otras cuatro, las aprobadas por el autor
-// el 16/11/2026 en el plan; el duelo gana a la prueba; ninguna de las cinco queda sin frase. Corrección del autor del 18/11/2026: la del duelo, la
+// el 16/11/2026 en el plan; el duelo gana a la prueba; ninguna de las cinco queda sin frase. Corrección del autor del 16/11/2026: la del duelo, la
 // exacta ("te quitan runas o vuelves a tu hogar"): quien pierde sin runas vuelve a su hogar (R-DUE-6) y no siempre se las queda el ganador.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingStakeTitleTest, "Soulbound.Game.Presentation.Anillo.TituloConLoQueTeJuegas", RingModelTestFlags)
 bool FRingStakeTitleTest::RunTest(const FString& Parameters)
@@ -257,7 +257,7 @@ bool FRingStartPromptTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// CA-MIN-17 (el panel; corrección del autor del 18/11/2026 tras PIE), R-MIN-19: el botón "Empezar", su tecla y la cuenta van debajo del aro, entre el
+// CA-MIN-17 (el panel; corrección del autor del 16/11/2026 tras PIE), R-MIN-19: el botón "Empezar", su tecla y la cuenta van debajo del aro, entre el
 // círculo y la barra de progreso; el centro (la runa y la franja verde, dentro del radio mayor del aro) queda libre. A 1024x768 y con un título de dos
 // líneas, el aro no encoge y todo cabe en el panel; el panel no pasa del 60 % del alto de la pantalla (con la curva de escala de Unreal, de 720 a 1080
 // líneas la proporción es la misma). Montaje: la letra de la configuración (RingFontSize, 20). Las alturas de línea son una estimación por lo alto
