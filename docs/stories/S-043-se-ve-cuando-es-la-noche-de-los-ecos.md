@@ -41,6 +41,7 @@ Decidido por el autor el 16/11/2026 (ninguna regla de la Noche cambia: ni cuánd
   - Sin posproceso (restricción de rendimiento de la skill). Con la partida terminada no hay penumbra.
   - Los halos que laten, las fichas y los números tienen que seguir leyéndose con la penumbra: se comprueba en la prueba manual y la opacidad se ajusta ahí.
 - **La línea fija de la Noche no es de esta story.** La que hoy lleva el panel de estado ("NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio (como mucho hasta la ronda N)") se queda como está; su sitio nuevo, bajo el reloj, lo pone S-045.
+- **R-VOZ-11 (nueva, añadida por el autor el 16/11/2026; no es de la Noche, pero toca las mismas líneas). El prefijo de la frase, como en un guion.** A quién habla el Warden va entre paréntesis y sin coma: "Warden (a ti): …", "Warden (al asiento 2): …" y, cuando habla a toda la mesa, "Warden: …". Sustituye a "Warden, a ti: …" y "Warden, al asiento 2: …", que se leían rígidos. Vale para todas las frases que llevan prefijo (`WardenLinePrefix`): la línea del Warden, la crónica y el acta. El orden con la palabra de corte no cambia: "Warden (a ti): ¡Quietos! …".
 - **Lo que no cambia.** Cuándo lanza el Warden la Noche, cuánto dura, qué permite a los Ecos, que no obtengan runa en las Fuentes de los Dominios con Elegido y que vuelvan a su hogar al terminar.
 
 ## Criterios de aceptación
@@ -54,6 +55,7 @@ En `SoulboundCore`:
 
 En `Soulbound`:
 
+- **CA-VOZ-14** (R-VOZ-11). El prefijo es "Warden (a ti):" para el asiento humano, "Warden (al asiento 2):" para el asiento 2 y "Warden:" sin asiento. Los tests que hoy esperan "Warden, a ti:" o "Warden, al asiento N:" se actualizan en el mismo commit.
 - **CA-VOZ-13** (R-VOZ-10). La función que empareja frases y líneas pequeñas devuelve, letra por letra: la línea de "Empieza…" bajo la frase del evento que abre la Noche; la de "Termina…" bajo la frase nueva al acabar por el tope de rondas; y la de "Termina…" bajo la frase de la Ley de Sombras. Ninguna lleva palabra de corte. Su duración cuenta los caracteres de la línea pequeña.
 - **CA-VIS-32** (R-VIS-31). La función que da la opacidad de la penumbra en el tiempo vale 0 sin Noche, sube hasta la opacidad configurada al cumplirse la transición desde que empieza y baja hasta 0 al cumplirse desde que termina. La función que combina penumbra y pulso del corte devuelve el mayor de los dos.
 
@@ -64,6 +66,7 @@ Manuales, por el autor, en PIE, en la vista sentada y en la cenital, a 1920x1080
 - **Termina por el tope de rondas** (dejando pasar las rondas): el Warden dice una de las tres frases nuevas, con "Termina la Noche de los Ecos: los Ecos vuelven a su hogar." debajo; vuelve la luz; los Ecos están en su hogar.
 - **Termina por la Ley de Sombras** (`SbEvent la-ley-de-sombras` con la Noche activa): la frase de ese evento con la misma línea pequeña debajo; vuelve la luz.
 - **Un golpe durante la Noche** (`SbStrike tropiezo`): los pulsos del corte se ven sobre la penumbra.
+- **El prefijo**: las frases dirigidas a ti dicen "Warden (a ti): …", las de otro jugador "Warden (al asiento N): …" y las de la mesa "Warden: …", en la línea del Warden y en la crónica.
 
 ## Notas para quien lo implemente
 
