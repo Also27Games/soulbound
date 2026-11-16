@@ -1,4 +1,6 @@
-# S-040. El tablero dice adónde ir: los Dominios Olvidados se reconocen por el suelo y una luz marca la meta de cada momento
+# S-040. Se sabe adónde ir: los Dominios Olvidados se reconocen por el suelo y una línea dice la meta de cada momento
+
+> **Corrección del autor del 16/11/2026, tras las pruebas en PIE**: la luz de la meta (R-VIS-28, CA-VIS-29) se retira. En PIE se veía como palos amarillos, y la decisión de fondo es que marcar sobre el tablero adónde ir es llevar al jugador de la mano; se valorará de nuevo tras la prueba con otro probador. Se quedan el suelo de los Olvidados, la meta del asiento (R-VIC-5) y la línea de objetivo (R-HUD-7). El título era "El tablero dice adónde ir: los Dominios Olvidados se reconocen por el suelo y una luz marca la meta de cada momento"; el nombre del archivo y de la rama no cambian.
 
 **Sistema**: interfaz en plano (GDD 07; pilar 3, caos legible): suelo de las cuñas (R-VIS-2, R-VIS-5), marcas del tablero y panel de estado (R-HUD-1). Se apoya en las reglas de carrera (GDD 03), de runas (GDD 04) y de victoria (R-VIC-1), sin cambiarlas. **Módulos**: `SoulboundCore` (una consulta nueva: la meta de un asiento) y `Soulbound` (presentación: `BoardKit`, `BoardViewActor`, `BoardViewState`, `StatusText`). **Rama base**: `main`, con S-039 fusionada. **Tamaño**: mediano. **Con assets del autor**: una textura y un material para el suelo de los Dominios Olvidados, que crea e importa el autor en el editor, en commit aparte. El código se escribe y se prueba antes de que existan: sin ellos, el suelo se ve como hoy.
 
@@ -15,6 +17,7 @@ Decidido por el autor el 15/11/2026, con el criterio "que se entienda mejor, no 
 - Una luz, visible desde lejos, marca la meta del jugador en cada momento: durante la carrera, los Nichos libres; después, las Fuentes cuya runa le falta; con las seis, el Altar. Cada jugador ve la suya.
 - Una línea de objetivo en su panel dice lo mismo con palabras. En el tablero no se añade texto.
 - El rótulo "Olvidado" escrito sobre el Dominio queda fuera: se decide más adelante.
+- Corrección del 16/11/2026 tras PIE: la luz se retira (ver la nota del principio y R-VIS-28).
 
 ## Reglas a implementar
 
@@ -36,20 +39,20 @@ Decidido por el autor el 15/11/2026, con el criterio "que se entienda mejor, no 
   - Si la ruta está vacía o el material no existe, el suelo se pinta como hoy (material del kit, apagado por `ForgottenDim`) y se dice una vez en el registro. Es el patrón de `RingRuneTexture` y `DiceFacesTexture`.
   - Sigue las mismas condiciones de cuándo se ve un Dominio como Olvidado: en el prólogo, cuando se enseña su frase de corrupción (S-023); al terminar la carrera, cuando un Dominio sin dueño pasa a Olvidado (R-TAB-10). Un Dominio que no es Olvidado conserva el material del kit.
   - Si el plan ve que también debe cambiar la peana de la cuña, lo propone; por defecto, solo el suelo liso.
-- **R-VIS-28 (nueva). La luz de la meta.** Sobre cada casilla de la meta **del asiento humano** (R-VIC-5) hay una luz: un haz vertical fino y alto, visible desde la vista sentada y desde la cenital, por encima de la pieza del kit de esa casilla.
+- **R-VIS-28 (retirada el 16/11/2026, corrección del autor tras PIE: se veía como palos amarillos, y marcar sobre el tablero adónde ir es llevar al jugador de la mano; se valorará de nuevo tras la prueba con otro probador). Se conserva el texto original.** ~~La luz de la meta.~~ Sobre cada casilla de la meta **del asiento humano** (R-VIC-5) hay una luz: un haz vertical fino y alto, visible desde la vista sentada y desde la cenital, por encima de la pieza del kit de esa casilla.
   - Se hace con una forma básica y el material básico (`BaseMaterial`), sin asset nuevo y sin luces dinámicas (restricción de rendimiento de la skill). Un solo color para las tres metas (Config, nombre a proponer; por ejemplo `GoalLightColor`, valor inicial un dorado claro, a proponer), distinto del blanco de las alcanzables, del rojo del Sello y del morado de perder una runa. Grosor y altura en Config, con valor inicial documentado, relativos a la casilla.
   - **No late.** El latido significa "puedes ir aquí ahora" (R-VIS-26); la luz significa "aquí quieres llegar". Una casilla puede llevar las dos cosas.
   - Se enciende y se apaga con el estado: al vincularse alguien en un Nicho, ese Nicho deja de estar libre y su luz se apaga; al coger el humano una runa, se apaga la luz de esa Fuente; al agotarse la reserva de una Fuente, se apaga; con las seis runas, solo queda la del Altar. Con la partida terminada, ninguna.
   - Las luces son del jugador local: los dummies no tienen luces. La tecla de etiquetas no las oculta. En el prólogo no se ven hasta que la partida empieza a contar.
-- **R-HUD-7 (nueva). La línea de objetivo.** El panel de estado lleva una línea con la meta del humano, siempre a la vista durante la partida, con el color de la luz:
+- **R-HUD-7 (nueva). La línea de objetivo.** El panel de estado lleva una línea con la meta del humano, siempre a la vista durante la partida, con su color (Config, `GoalLineColor`, valor inicial un dorado claro (1, 0,82, 0,35); era el de la luz hasta que se retiró R-VIS-28):
   - `Niche`: "Llega a un Nicho libre"
   - `Runes`, Elegido: "Consigue runas en las Fuentes (N/6)"
   - `Runes`, Eco: "Consigue runas en las Fuentes de los Olvidados, o róbalas (N/6)"
   - `Altar`: "Vuelve al Altar"
   - N es el número de tipos de runa distintos que tiene (`RuneTypeCount`). Con `None`, la línea no sale.
-  - **Precisión del 16/11/2026, en el plan**: en el prólogo la línea tampoco sale, como la luz (R-VIS-28): aparece cuando la partida empieza a contar.
+  - **Precisión del 16/11/2026, en el plan**: en el prólogo la línea no sale: aparece cuando la partida empieza a contar.
   - El texto del Eco es una concreción del tutor (un Eco solo obtiene runa en las Fuentes de los Olvidados, R-ECO-3, y robando, R-ECO-4). Confirmado por el autor el 16/11/2026.
-- **La leyenda.** En el bloque "Tablero", una línea nueva con la muestra del color de la luz: "Luz: tu meta ahora". La línea de los Olvidados pasa a "Suelo agrietado y casillas apagadas: Dominio Olvidado". Sin el material cargado sigue diciendo "Casillas apagadas: Dominio Olvidado" (decisión del autor del 16/11/2026, en el plan: la leyenda no describe un suelo que no se ve).
+- **La leyenda.** En el bloque "Tablero", la línea de los Olvidados pasa a "Suelo agrietado y casillas apagadas: Dominio Olvidado". Sin el material cargado sigue diciendo "Casillas apagadas: Dominio Olvidado" (decisión del autor del 16/11/2026, en el plan: la leyenda no describe un suelo que no se ve). La línea "Luz: tu meta ahora" se quitó con R-VIS-28.
 - **Lo que no cambia.** Ninguna regla de carrera, de runas ni de victoria; el aro y el apagado de las casillas de un Dominio Olvidado; las marcas de Nicho libre, reclamado y cerrado; los halos y su latido; los destellos.
 
 ## Assets (los crea el autor en el editor; commit aparte)
@@ -57,6 +60,7 @@ Decidido por el autor el 15/11/2026, con el criterio "que se entienda mejor, no 
 - `Content/Art/Tablero/T_SueloOlvidado`: textura de 1024 x 1024, piedra agrietada en gris neutro, arte generado con IA, placeholder.
 - `Content/Art/Tablero/M_SueloOlvidado`: material con el parámetro vectorial `Color`. Base Color = la textura por `Color` (y por el color por vértice, si `M_ColorVertice` lo usa así: lo más seguro es duplicar `M_ColorVertice` y multiplicar su Base Color por la textura). La textura se proyecta por posición en el mundo, no por las coordenadas de la malla, para que el dibujo tenga el mismo tamaño en las seis cuñas.
 - El agente no crea ni toca estos assets. El PR los describe en texto y el autor los verifica en el editor antes de fusionar.
+- **Creados por el autor el 16/11/2026** y probados en PIE: `T_SueloOlvidado` con el contraste subido; `M_SueloOlvidado` es una copia de `M_ColorVertice` con la textura multiplicada en Base Color, proyectada por posición en el mundo, con el parámetro escalar `TamanoDibujo` (valor 30) y el parámetro `Color` de siempre.
 
 ## Criterios de aceptación
 
@@ -74,20 +78,19 @@ En `SoulboundCore`:
 En `Soulbound`:
 
 - **CA-VIS-28** (R-VIS-27). La función que dice con qué factor se apaga el suelo de una cuña devuelve 1 para un Dominio con dueño; `ForgottenFloorDim` para un Olvidado con el material propio disponible; y `ForgottenDim` para un Olvidado sin él. El tinte del Dominio (`WedgeFloorTint`) se aplica igual en los tres casos.
-- **CA-VIS-29** (R-VIS-28). La función que dice qué casillas llevan luz (del estado y del asiento humano) devuelve las de la meta del humano y ninguna de otro asiento; ninguna con la partida terminada; ninguna en el prólogo.
+- **CA-VIS-29** (R-VIS-28): **retirado el 16/11/2026 con R-VIS-28**, con su test. ~~La función que dice qué casillas llevan luz (del estado y del asiento humano) devuelve las de la meta del humano y ninguna de otro asiento; ninguna con la partida terminada; ninguna en el prólogo.~~
 - **CA-HUD-15** (R-HUD-7). La línea de objetivo dice, letra por letra, los cuatro textos de la regla en sus cuatro casos, con N igual a las runas distintas del humano; con la meta `None`, no hay línea; en el prólogo, tampoco (precisión de R-HUD-7 del 16/11/2026).
 
 Manuales, por el autor, en PIE, en la vista sentada y en la cenital, a 1920x1080 y a 1024x768, con captura:
 
 - Con los assets importados: los Dominios Olvidados se distinguen de un vistazo de los que tienen Elegido, también en la vista sentada. El dibujo del suelo se lee y tiene el mismo tamaño en todas las cuñas. Sin costuras llamativas.
 - Sin los assets (ruta vacía en Config): el suelo se ve como antes y el registro lo dice una vez.
-- Al empezar: hay una luz sobre cada Nicho libre y ninguna en los Dominios Olvidados. Al vincularse un dummy, la luz de ese Nicho se apaga.
-- Tras vincularse (o tras `SbEndRace`): las luces pasan a las Fuentes. Al coger una runa (`SbGiveRune` o cayendo en la Fuente), se apaga la de esa Fuente y la línea de objetivo sube de N.
-- Como Eco tras la carrera: solo hay luz en las Fuentes de los Dominios Olvidados, y la línea dice el texto del Eco.
-- Con seis runas (`SbGiveRune`): solo hay luz en el Altar y la línea dice "Vuelve al Altar".
-- La luz no tapa la pieza de la casilla ni la ficha que esté en ella, no se confunde con el halo que late y se ve desde la vista sentada en las casillas del fondo.
-- La leyenda tiene la línea de la luz y la nueva de los Olvidados.
-- Añadidas en el plan (16/11/2026): con la base de la luz en el aire (`GoalLightBaseScale`), se entiende qué casilla marca; y se ve como una luz, no como una barra apagada (`BaseMaterial` no es emisivo). Si no, se anota y se decide; no se rehace a ciegas.
+- Al empezar, sin vincular: la línea de objetivo dice "Llega a un Nicho libre".
+- Tras vincularse (o tras `SbEndRace`): la línea dice "Consigue runas en las Fuentes (N/6)". Al coger una runa (`SbGiveRune` o cayendo en la Fuente), sube N.
+- Como Eco tras la carrera: la línea dice el texto del Eco.
+- Con seis runas (`SbGiveRune`): la línea dice "Vuelve al Altar".
+- La leyenda tiene la nueva línea de los Olvidados.
+- (Retiradas el 16/11/2026 con R-VIS-28: las de la luz sobre los Nichos, las Fuentes y el Altar, que no tape la pieza ni la ficha, y las dos añadidas en el plan sobre la base en el aire y el material no emisivo.)
 
 ## Notas para quien lo implemente
 
@@ -104,7 +107,7 @@ Manuales, por el autor, en PIE, en la vista sentada y en la cenital, a 1920x1080
 ## Fuera de esta story
 
 - El rótulo "Olvidado" y el nombre del Dominio en grande sobre el tablero (pendiente de decisión del autor).
-- Luces para los dummies o para otros jugadores.
+- La luz de la meta (R-VIS-28, retirada el 16/11/2026): se valorará de nuevo tras la prueba con otro probador. Luces para los dummies o para otros jugadores.
 - Marcar por dónde se llega a la meta, o qué casillas alcanzables acercan a ella.
 - Cambiar las marcas de los Nichos o el aro de las casillas de un Dominio Olvidado.
 - La señal de corte del Warden, el botón "Empezar" de las pruebas y el orbe del Oráculo (story aparte).
