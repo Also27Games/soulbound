@@ -1399,10 +1399,11 @@ void ABoardViewActor::BuildOverlay()
 	// S-041 (R-VOZ-8): la capa oscura del corte. Llena el viewport sobre el tablero y por debajo de todas las demás capas (la de los paneles va en el 10):
 	// negra con la opacidad de CutDimOpacityNow: desde la corrección del autor del 16/11/2026, varios pulsos seguidos que aparecen de golpe y se
 	// desvanecen. Sin posproceso (restricción de rendimiento) y sin clics.
+	// S-043 (R-VIS-31): la misma capa lleva la penumbra de la Noche de los Ecos; BoardDimColorNow da el más oscuro de los dos con su color.
 	CutDimOverlay = SNew(SImage)
 		.Image(FCoreStyle::Get().GetBrush("WhiteBrush"))
-		.ColorAndOpacity_Lambda([this]() { return FSlateColor(FLinearColor(0.f, 0.f, 0.f, CutDimOpacityNow())); })
-		.Visibility_Lambda([this]() { return CutDimOpacityNow() > 0.f ? EVisibility::HitTestInvisible : EVisibility::Collapsed; });
+		.ColorAndOpacity_Lambda([this]() { return FSlateColor(BoardDimColorNow()); })
+		.Visibility_Lambda([this]() { return BoardDimColorNow().A > 0.f ? EVisibility::HitTestInvisible : EVisibility::Collapsed; });
 	Viewport->AddViewportWidgetContent(CutDimOverlay.ToSharedRef(), 9);
 
 	// S-039 (R-DEC-16; corrección del autor del 15/11/2026 tras las pruebas en PIE): el aviso de casilla inalcanzable sale junto al punto del clic, no en
@@ -1868,6 +1869,7 @@ void ABoardViewActor::Refresh()
 	RefreshOracleOrb(State);
 	RefreshAspirantHalos(State);
 	RefreshWardenLine(State);
+	RefreshEchoNightDim(State);
 	RefreshFlashes(State);
 	RefreshElectCard(State);
 	RefreshChronicle(State);
@@ -1974,6 +1976,34 @@ float ABoardViewActor::CutDimOpacityNow() const
 		return 0.f;
 	}
 	return Soulbound::Presentation::CutDimOpacity(FPlatformTime::Seconds(), CutDimStartReal, CutDimMaxOpacity, CutDimPulseCount, CutDimPulseSeconds);
+}
+
+float ABoardViewActor::EchoNightDimOpacityNow() const
+{
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (EchoNightDimChangedReal < 0.0 || (HostPtr && HostPtr->IsCurtainDown()))
+	{
+		return 0.f;
+	}
+	return Soulbound::Presentation::EchoNightDimOpacity(bEchoNightDimOn, EchoNightDimFrom, FPlatformTime::Seconds() - EchoNightDimChangedReal,
+		EchoNightDimMaxOpacity, EchoNightDimFadeSeconds);
+}
+
+FLinearColor ABoardViewActor::BoardDimColorNow() const
+{
+	return Soulbound::Presentation::BoardDimColor(EchoNightDimColor, EchoNightDimOpacityNow(), CutDimOpacityNow());
+}
+
+void ABoardViewActor::RefreshEchoNightDim(const FMatchState& State)
+{
+	// R-VIS-31: la transición empieza desde la opacidad que hay ahora, así una Noche que termina mientras aún sube no salta.
+	const bool bShown = Soulbound::Presentation::EchoNightDimShown(State);
+	if (bShown != bEchoNightDimOn)
+	{
+		EchoNightDimFrom = EchoNightDimOpacityNow();
+		EchoNightDimChangedReal = FPlatformTime::Seconds();
+		bEchoNightDimOn = bShown;
+	}
 }
 
 void ABoardViewActor::RefreshAspirantHalos(const FMatchState& State)

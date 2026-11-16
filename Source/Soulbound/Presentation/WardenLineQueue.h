@@ -21,9 +21,13 @@ namespace Soulbound::Presentation
 	 */
 	struct FWardenLineItem
 	{
-		/** La línea, con su prefijo ("Warden, a ti:") y, en un corte del Warden, la palabra de corte. Vacía si solo hay línea pequeña. */
+		/** La línea, con su prefijo ("Warden (a ti):") y, en un corte del Warden, la palabra de corte. Vacía si solo hay línea pequeña. */
 		FString Text;
-		/** La línea pequeña de un corte (R-VOZ-8), en letra menor y color neutro; vacía si no es un corte. */
+		/**
+		 * La línea pequeña (R-VOZ-8), en letra menor y color neutro: la de un corte y, desde S-043 (R-VOZ-10), la de la Noche de los Ecos al empezar
+		 * o terminar; si van las dos, la del corte primero y la de la Noche debajo, en otra línea. Vacía si no hay ninguna. Conserva su nombre de S-041
+		 * (decisión del autor del 17/11/2026).
+		 */
 		FString CutNote;
 		/** Cuánto se enseña, en segundos reales (WardenLineDuration). */
 		double Seconds = 0.0;
@@ -81,9 +85,10 @@ namespace Soulbound::Presentation
 
 	/**
 	 * Cuánto dura una frase en pantalla (S-041, R-VOZ-6, nombre propuesto): el mayor entre MinSeconds y sus caracteres por SecondsPerChar. En
-	 * un corte cuentan también los de su línea pequeña, porque hay que leer las dos (respuesta del autor al plan, 16/11/2026).
+	 * un corte cuentan también los de su línea pequeña, porque hay que leer las dos (respuesta del autor al plan, 16/11/2026); desde S-043, también
+	 * la de la Noche.
 	 * @param Text La línea tal como se enseña, con su prefijo y la palabra de corte.
-	 * @param CutNote La línea pequeña de un corte; vacía si no lo es.
+	 * @param CutNote La línea pequeña (de un corte o de la Noche); vacía si no la hay.
 	 * @param MinSeconds El mínimo (ABoardViewActor::WardenLineSeconds, 6 s).
 	 * @param SecondsPerChar Segundos por carácter (ABoardViewActor::WardenLineSecondsPerChar, 0,065 s); cero o menos, todas duran el mínimo.
 	 * @return Los segundos que se enseña.
@@ -103,10 +108,13 @@ namespace Soulbound::Presentation
 	 * escena) antepone a la frase de su evento la palabra de corte, con el prefijo del asiento cortado y no el de la frase (corrección de un
 	 * defecto de S-041 del 16/11/2026, en S-042), y le pone debajo qué ha pasado; si no trae frase (el Oráculo como golpe) es
 	 * una línea con la palabra de corte sola, que no detiene la mesa pero está protegida de las burlas. El corte del fin de la carrera
-	 * (Detail 1) pone solo la línea pequeña bajo su frase; el del fin de la partida (Detail 2), nada. Las duraciones, con WardenLineDuration.
+	 * (Detail 1) pone solo la línea pequeña bajo su frase; el del fin de la partida (Detail 2), nada. Desde S-043 (R-VOZ-10), la Noche de los Ecos
+	 * pone su línea pequeña ("Empieza…" o "Termina…") bajo la frase con que empieza o termina (la de su evento o, por el tope de rondas,
+	 * `programado:fin-noche-ecos`), debajo de la del corte si la hay, sin palabra de corte ni oscurecido; sin frase, la línea pequeña sola, que ni
+	 * detiene la mesa ni está protegida. Las duraciones, con WardenLineDuration.
 	 * @param State Estado de la partida, en solo lectura: el registro, las frases y los eventos del Warden.
 	 * @param FromIndex Primera posición del registro que se mira: las anteriores ya se miraron.
-	 * @param HumanSeat El asiento humano de esta máquina: "Warden, a ti:" y "Tu turno se corta".
+	 * @param HumanSeat El asiento humano de esta máquina: "Warden (a ti):" y "Tu turno se corta".
 	 * @param MinSeconds El mínimo de cada frase.
 	 * @param SecondsPerChar Segundos por carácter.
 	 * @return Las frases, en el orden del registro.

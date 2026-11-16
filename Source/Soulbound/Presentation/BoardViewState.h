@@ -143,8 +143,9 @@ namespace Soulbound::Presentation
 	SOULBOUND_API bool EchoNightDimShown(const FMatchState& State);
 
 	/**
-	 * La opacidad de la penumbra en el tiempo (S-043, R-VIS-31, nombre propuesto): desde la opacidad que tenía al cambiar, en línea recta hasta la
-	 * configurada si hay Noche, o hasta cero si no, al cumplirse FadeSeconds. Así, si la Noche termina mientras aún sube, baja desde donde iba.
+	 * La opacidad de la penumbra en el tiempo (S-043, R-VIS-31, nombre propuesto): desde la opacidad que tenía al cambiar, a velocidad constante,
+	 * hacia la configurada si hay Noche o hacia cero si no; de cero a la configurada (o al revés) tarda FadeSeconds. Así, si la Noche termina
+	 * mientras aún sube, baja desde donde iba y tarda solo lo que le queda.
 	 * @param bEchoNight Si ahora hay penumbra (EchoNightDimShown).
 	 * @param FromOpacity La opacidad en el instante del último cambio.
 	 * @param SecondsSinceChange Segundos reales desde el último cambio.

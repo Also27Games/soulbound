@@ -484,6 +484,24 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
 	float CutDimPulseSeconds = 0.08f;
 
+	/**
+	 * Color de la penumbra del tablero mientras dura la Noche de los Ecos (S-043, R-VIS-31): la misma capa de Slate que el pulso del corte, por
+	 * debajo de los paneles y sin clics, sin posproceso. Valor inicial un azul noche (R 0,02, G 0,04, B 0,15), por ajustar en PIE.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FLinearColor EchoNightDimColor = FLinearColor(0.02f, 0.04f, 0.15f);
+
+	/**
+	 * Opacidad de la penumbra con la Noche de los Ecos ya puesta (S-043, R-VIS-31; EchoNightDimOpacity). Valor inicial 0,3, por ajustar en PIE: los
+	 * halos que laten, las fichas y los números de las casillas tienen que seguir leyéndose.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0", ClampMax = "1"))
+	float EchoNightDimMaxOpacity = 0.3f;
+
+	/** Lo que tarda la penumbra en aparecer o en irse, en segundos reales (S-043, R-VIS-31). Valor inicial 0,8. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
+	float EchoNightDimFadeSeconds = 0.8f;
+
 	/** Tamaño de la letra de la línea del Warden (S-021). Valor inicial 28. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
 	int32 WardenLineFontSize = 28;
@@ -1010,6 +1028,15 @@ private:
 	/** La opacidad de la capa oscura del corte ahora (S-041, R-VOZ-8; CutDimOpacity), con el telón bajado, cero. */
 	float CutDimOpacityNow() const;
 
+	/** La opacidad de la penumbra de la Noche ahora (S-043, R-VIS-31; EchoNightDimOpacity), con el telón bajado, cero. */
+	float EchoNightDimOpacityNow() const;
+
+	/** El color de la capa oscura del tablero ahora (S-043, R-VIS-31; BoardDimColor): el más oscuro entre la penumbra y el pulso del corte. */
+	FLinearColor BoardDimColorNow() const;
+
+	/** Sigue si hay penumbra (EchoNightDimShown) y, al cambiar, apunta el instante y desde qué opacidad empieza la transición (S-043, R-VIS-31). */
+	void RefreshEchoNightDim(const FMatchState& State);
+
 	/**
 	 * Se abre una prueba del anillo del humano (S-026): registra la entrada del anillo (RingInput) en Slate. Condición del autor del
 	 * 06/11/2026: solo está registrada mientras hay anillo.
@@ -1190,7 +1217,10 @@ private:
 	/** El fondo de la frase del Warden, con la frase y su línea pequeña: su alto deseado es lo que necesita la franja (S-041, R-DEC-17). */
 	TSharedPtr<SWidget> WardenLineBox;
 
-	/** La capa oscura del corte (S-041, R-VOZ-8): sobre el tablero, por debajo de todos los paneles y sin recibir clics. */
+	/**
+	 * La capa oscura del tablero (S-041, R-VOZ-8): sobre el tablero, por debajo de todos los paneles y sin recibir clics. Desde S-043 (R-VIS-31) lleva
+	 * también la penumbra de la Noche de los Ecos: una sola capa, para que se vea el más oscuro de los dos y no la suma.
+	 */
 	TSharedPtr<SWidget> CutDimOverlay;
 
 	/** El panel de decisión (S-028, R-DEC-2), sobre la línea del Warden. */
@@ -1267,6 +1297,12 @@ private:
 
 	/** El instante real del último corte de turno del Warden, para la capa oscura (S-041, R-VOZ-8); negativo si no ha habido ninguno. */
 	double CutDimStartReal = -1.0;
+	/** Si la penumbra de la Noche está puesta (S-043, R-VIS-31), según la última vez que se miró el estado. */
+	bool bEchoNightDimOn = false;
+	/** El instante real en que la penumbra cambió por última vez (S-043); negativo si nunca. */
+	double EchoNightDimChangedReal = -1.0;
+	/** La opacidad de la penumbra en ese instante, desde la que empieza la transición (S-043). */
+	float EchoNightDimFrom = 0.f;
 
 	Soulbound::Presentation::FWardenLineQueue WardenLineQueue;
 	/** Cuántos eventos del registro se han mirado en busca de frases. */

@@ -136,18 +136,28 @@ TArray<int32> Soulbound::Presentation::SealMarkedTiles(const FMatchState& State)
 
 bool Soulbound::Presentation::EchoNightDimShown(const FMatchState& State)
 {
-	// TODO(R-VIS-31): stub para ver el test en rojo (S-043).
-	return false;
+	// R-VIS-31: con la partida terminada no hay penumbra, aunque la Noche siguiera activa.
+	return State.IsEchoNight() && !State.IsMatchOver();
 }
 
 float Soulbound::Presentation::EchoNightDimOpacity(bool bEchoNight, float FromOpacity, double SecondsSinceChange, float MaxOpacity, double FadeSeconds)
 {
-	// TODO(R-VIS-31): stub para ver el test en rojo (S-043).
-	return 0.f;
+	// R-VIS-31: una transición corta a velocidad constante, desde donde estaba al cambiar: de cero a la configurada (o al revés) en FadeSeconds;
+	// si cambia a medias, tarda solo lo que le queda.
+	if (FadeSeconds <= 0.0)
+	{
+		return bEchoNight ? MaxOpacity : 0.f;
+	}
+	const float Step = static_cast<float>(MaxOpacity * FMath::Max(SecondsSinceChange, 0.0) / FadeSeconds);
+	return bEchoNight ? FMath::Min(FromOpacity + Step, MaxOpacity) : FMath::Max(FromOpacity - Step, 0.f);
 }
 
 FLinearColor Soulbound::Presentation::BoardDimColor(const FLinearColor& NightColor, float NightOpacity, float CutOpacity)
 {
-	// TODO(R-VIS-31): stub para ver el test en rojo (S-043).
-	return FLinearColor::Transparent;
+	// R-VIS-31: el más oscuro de los dos, no la suma; el pulso del corte gana los empates, que es el aviso más urgente.
+	if (CutOpacity >= NightOpacity)
+	{
+		return FLinearColor(0.f, 0.f, 0.f, CutOpacity);
+	}
+	return FLinearColor(NightColor.R, NightColor.G, NightColor.B, NightOpacity);
 }

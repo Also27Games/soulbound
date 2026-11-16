@@ -46,7 +46,8 @@ namespace Soulbound::Presentation
 
 	/**
 	 * El prefijo de la línea del Warden (S-021, R-VOZ-3b): a quién habla, porque el Warden no pronuncia nombres. "Warden:" a la mesa (Seat
-	 * INDEX_NONE), "Warden, a ti:" al asiento humano de esta máquina y "Warden, al asiento 2:" a cualquier otro. HumanSeat: el asiento humano.
+	 * INDEX_NONE), "Warden (a ti):" al asiento humano de esta máquina y "Warden (al asiento 2):" a cualquier otro; desde S-043 (R-VOZ-11), entre
+	 * paréntesis y sin coma, como en un guion (antes, "Warden, a ti:"). HumanSeat: el asiento humano.
 	 */
 	FString WardenLinePrefix(int32 Seat, int32 HumanSeat);
 

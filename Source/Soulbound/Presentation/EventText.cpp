@@ -49,7 +49,8 @@ namespace Soulbound::Presentation
 		{
 			return TEXT("Warden:");
 		}
-		return Seat == HumanSeat ? FString(TEXT("Warden, a ti:")) : FString::Printf(TEXT("Warden, al asiento %d:"), Seat);
+		// R-VOZ-11 (S-043): como en un guion, a quién habla entre paréntesis y sin coma.
+		return Seat == HumanSeat ? FString(TEXT("Warden (a ti):")) : FString::Printf(TEXT("Warden (al asiento %d):"), Seat);
 	}
 
 	namespace
