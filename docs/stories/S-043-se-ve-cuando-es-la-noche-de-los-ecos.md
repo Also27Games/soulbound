@@ -44,6 +44,15 @@ Decidido por el autor el 16/11/2026 (ninguna regla de la Noche cambia: ni cuánd
 - **R-VOZ-11 (nueva, añadida por el autor el 16/11/2026; no es de la Noche, pero toca las mismas líneas). El prefijo de la frase, como en un guion.** A quién habla el Warden va entre paréntesis y sin coma: "Warden (a ti): …", "Warden (al asiento 2): …" y, cuando habla a toda la mesa, "Warden: …". Sustituye a "Warden, a ti: …" y "Warden, al asiento 2: …", que se leían rígidos. Vale para todas las frases que llevan prefijo (`WardenLinePrefix`): la línea del Warden, la crónica y el acta. El orden con la palabra de corte no cambia: "Warden (a ti): ¡Quietos! …".
 - **Lo que no cambia.** Cuándo lanza el Warden la Noche, cuánto dura, qué permite a los Ecos, que no obtengan runa en las Fuentes de los Dominios con Elegido y que vuelvan a su hogar al terminar.
 
+### Decisiones del autor sobre el plan (17/11/2026)
+
+- **Corte y Noche en la misma frase**: dos líneas pequeñas, primero la del corte como hoy y debajo la de la Noche.
+- **Noche sin frase** (un evento que no la tiene, como `noche` de S-014, o una partida sin voz): la línea pequeña sale sola, sin prefijo, sin detener la mesa y sin protección frente a las burlas.
+- **`FWardenLineItem::CutNote`** conserva el nombre y lleva también la línea de la Noche.
+- **Con la partida terminada y la Noche activa**, la penumbra se va con su transición.
+- Una sola capa para la penumbra y los pulsos del corte; la línea pequeña cuelga del principio y del final reales de la Noche, sea cual sea el evento que la abra o la cierre.
+- Nombres: la clave es `programado:fin-noche-ecos` (`Soulbound::Warden::LineEchoNightEnd`); la Config de la penumbra, `EchoNightDimColor`, `EchoNightDimMaxOpacity` y `EchoNightDimFadeSeconds`.
+
 ## Criterios de aceptación
 
 Automáticos, sin mundo.
