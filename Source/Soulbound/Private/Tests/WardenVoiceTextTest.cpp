@@ -548,7 +548,9 @@ bool FVoiceCutTextsTest::RunTest(const FString& Parameters)
 	// CA-VOZ-9 (R-VOZ-8, S-041): la línea y la línea pequeña de un corte, letra por letra. Golpe al humano con frase y texto de evento; golpe a
 	// otro asiento, solo con el asiento (corrección del autor del 16/11/2026); el Oráculo como golpe, sin frase (la línea es la palabra de corte sola, que no detiene la mesa
 	// pero está protegida); fin de la carrera (sin palabra de corte ni oscurecido); fin de la partida (nada); sin corte, la frase tal cual. La
-	// palabra de corte sale de la tabla de frases: con otra palabra, otra línea; sin la clave, no hay palabra.
+	// palabra de corte sale de la tabla de frases: con otra palabra, otra línea; sin la clave, no hay palabra. Corrección de un defecto de S-041
+	// (autor, 16/11/2026, en S-042): en un corte del Warden el prefijo es el del asiento cortado ("Warden, a ti:" o "Warden, al asiento N:"), no el
+	// de a quién va la frase del evento, que el motor dice a la mesa ("Warden:"); con o sin palabra de corte. Las demás frases, como antes.
 	using Soulbound::Presentation::FWardenLineItem;
 	using Soulbound::Presentation::WardenLineItems;
 	constexpr int32 Human = 0;
@@ -560,7 +562,7 @@ bool FVoiceCutTextsTest::RunTest(const FString& Parameters)
 	{
 		TestEqual(TEXT("El castigo, tal cual"), StrikeItems[0].Text, FString(TEXT("Warden, al asiento 1: Eso no se hace.")));
 		TestTrue(TEXT("Sin línea pequeña ni oscurecido"), StrikeItems[0].CutNote.IsEmpty() && !StrikeItems[0].bWardenCut);
-		TestEqual(TEXT("La palabra de corte antes de la frase, tras el prefijo"), StrikeItems[1].Text, FString(TEXT("Warden: ¡Quietos! Quieto ahí.")));
+		TestEqual(TEXT("La palabra de corte antes de la frase, tras el prefijo del cortado"), StrikeItems[1].Text, FString(TEXT("Warden, a ti: ¡Quietos! Quieto ahí.")));
 		TestEqual(TEXT("Debajo, qué ha pasado, con el texto del evento"), StrikeItems[1].CutNote, FString(TEXT("Tu turno se corta. En tu próximo turno, la Prueba del Warden")));
 		TestTrue(TEXT("Oscurece"), StrikeItems[1].bWardenCut);
 		TestTrue(TEXT("Detiene la mesa y está protegida"), StrikeItems[1].bHoldsTable && StrikeItems[1].bShielded);
@@ -575,7 +577,7 @@ bool FVoiceCutTextsTest::RunTest(const FString& Parameters)
 	const TArray<FWardenLineItem> Other = WardenLineItems(CutState(CutKind::Warden, 2), 0, Human, 6.0, 0.0);
 	if (TestEqual(TEXT("Golpe a otro asiento: dos frases"), Other.Num(), 2))
 	{
-		TestEqual(TEXT("La misma línea"), Other[1].Text, FString(TEXT("Warden: ¡Quietos! Quieto ahí.")));
+		TestEqual(TEXT("La misma línea, al asiento cortado"), Other[1].Text, FString(TEXT("Warden, al asiento 2: ¡Quietos! Quieto ahí.")));
 		// Corrección del autor del 16/11/2026 tras PIE: solo el asiento; el nombre del evento, suelto, no explicaba nada.
 		TestEqual(TEXT("Solo con el asiento, sin el nombre del evento"), Other[1].CutNote, FString(TEXT("Se corta el turno del asiento 2.")));
 		TestTrue(TEXT("También oscurece"), Other[1].bWardenCut);
@@ -631,7 +633,7 @@ bool FVoiceCutTextsTest::RunTest(const FString& Parameters)
 	const TArray<FWardenLineItem> Word = WardenLineItems(OtherWord, 0, Human, 6.0, 0.0);
 	if (TestEqual(TEXT("Con otra palabra: dos frases"), Word.Num(), 2))
 	{
-		TestEqual(TEXT("Otra palabra en la tabla, otra línea (sin acotaciones)"), Word[1].Text, FString(TEXT("Warden: ¡Alto ahí! Quieto ahí.")));
+		TestEqual(TEXT("Otra palabra en la tabla, otra línea (sin acotaciones)"), Word[1].Text, FString(TEXT("Warden, a ti: ¡Alto ahí! Quieto ahí.")));
 	}
 	// Sin la clave: se vacía la entrada de la palabra (quitarla movería las posiciones a las que apuntan los WardenSpoke).
 	FMatchState NoWord = CutState(CutKind::Warden, Human);
@@ -639,7 +641,7 @@ bool FVoiceCutTextsTest::RunTest(const FString& Parameters)
 	const TArray<FWardenLineItem> Without = WardenLineItems(NoWord, 0, Human, 6.0, 0.0);
 	if (TestEqual(TEXT("Sin la clave: dos frases"), Without.Num(), 2))
 	{
-		TestEqual(TEXT("Sin la clave, la frase sin palabra de corte"), Without[1].Text, FString(TEXT("Warden: Quieto ahí.")));
+		TestEqual(TEXT("Sin la clave, la frase sin palabra de corte, al cortado"), Without[1].Text, FString(TEXT("Warden, a ti: Quieto ahí.")));
 		TestEqual(TEXT("Y la línea pequeña igual"), Without[1].CutNote, FString(TEXT("Tu turno se corta. En tu próximo turno, la Prueba del Warden")));
 	}
 	FMatchState NoWordOracle = CutState(CutKind::Oracle, Human);
