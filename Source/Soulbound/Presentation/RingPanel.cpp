@@ -102,10 +102,10 @@ FLinearColor SRingPanel::PrecisionColor(double Precision)
 
 FVector2D SRingPanel::ComputeDesiredSize(float LayoutScaleMultiplier) const
 {
-	// Proporcional a la letra: a 18 puntos, 420 píxeles de ancho. Desde S-042, 1,25 veces más alto que ancho (antes 1,15): el título con lo que te
-	// juegas puede ocupar dos o tres líneas (R-VIS-30) y el aro baja para no pisarlo.
-	const float Side = 420.f * FontSize / 18.f;
-	return FVector2D(Side, Side * 1.25f);
+	// Proporcional a la letra: a 18 puntos, 420 píxeles de ancho. Desde S-042, más alto que ancho (RingPanelHeightRatio; antes 1,15): el título con
+	// lo que te juegas puede ocupar dos o tres líneas (R-VIS-30) y bajo el aro va la franja de "Empezar" (R-MIN-19).
+	const float Side = Soulbound::Presentation::RingPanelWidth(FontSize);
+	return FVector2D(Side, Side * Soulbound::Presentation::RingPanelHeightRatio);
 }
 
 int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
@@ -137,11 +137,12 @@ int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 	}
 	Top += DrawCenteredText(OutDrawElements, Layer, AllottedGeometry, Now.Note, SmallFont, Top, FLinearColor(0.8f, 0.8f, 0.8f));
 
-	// La franja verde de la zona buena, la runa y el aro (R-VIS-14, R-VIS-18, R-VIS-19). Orden de pintado: franja, runa, aro. Desde S-042, si el título
-	// ocupa más de una línea, el aro baja lo justo para no pisar los textos de arriba.
+	// La franja verde de la zona buena, la runa y el aro (R-VIS-14, R-VIS-18, R-VIS-19). Orden de pintado: franja, runa, aro. Desde S-042 el aro va
+	// entre los textos y la franja de "Empezar", que la vista llena con el botón mientras la prueba espera (RingPanelLayout).
+	const FRingPanelLayout Layout = Soulbound::Presentation::RingPanelLayout(Size.X, Size.Y, Top, Scale);
 	const float RuneRadius = 34.f * Scale;
-	const float MaxRadius = FMath::Min(Size.X, Size.Y) * 0.36f;
-	const FVector2f Center(Size.X * 0.5f, FMath::Max(Size.Y * 0.5f, Top + MaxRadius + 8.f * Scale));
+	const float MaxRadius = Layout.MaxRadius;
+	const FVector2f Center(Size.X * 0.5f, Layout.CenterY);
 	if (Now.bShowRing)
 	{
 		// La franja va del borde de la runa al radio en que el aro entra en la zona (el cierre 1 - ZoneFraction): un círculo grueso a media distancia. Su color y opacidad vienen de la configuración (RingZoneColor).
@@ -178,7 +179,7 @@ int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 	const FSlateBrush* White = FCoreStyle::Get().GetBrush("WhiteBrush");
 	const float BarWidth = Size.X * 0.7f;
 	const float BarHeight = 12.f * Scale;
-	const FVector2f BarPosition((Size.X - BarWidth) * 0.5f, Center.Y + MaxRadius + 18.f * Scale);
+	const FVector2f BarPosition((Size.X - BarWidth) * 0.5f, Layout.BarTop);
 	FSlateDrawElement::MakeBox(OutDrawElements, Layer, AllottedGeometry.ToPaintGeometry(FVector2f(BarWidth, BarHeight), FSlateLayoutTransform(BarPosition)), White,
 		ESlateDrawEffect::None, FLinearColor(0.25f, 0.25f, 0.25f, 0.9f));
 	const float FillWidth = BarWidth * static_cast<float>(FMath::Clamp(Now.ProgressFill, 0.0, 1.0));
@@ -201,7 +202,7 @@ int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 	const float Dot = 9.f * Scale;
 	const float Gap = 10.f * Scale;
 	const float RowWidth = Count * (2.f * Dot) + FMath::Max(Count - 1, 0) * Gap;
-	const float DotsY = Size.Y - 22.f * Scale;
+	const float DotsY = Layout.DotsY;
 	for (int32 Pulse = 0; Pulse < Count; ++Pulse)
 	{
 		const FVector2f DotCenter((Size.X - RowWidth) * 0.5f + Dot + Pulse * (2.f * Dot + Gap), DotsY);

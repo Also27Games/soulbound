@@ -1567,9 +1567,15 @@ void ABoardViewActor::BuildOverlay()
 			UE_LOG(LogSoulboundView, Warning, TEXT("Dado: no existe la textura de las caras %s; la cara del dado se dibuja por código."), *DiceFacesTexture.ToString());
 		}
 	}
-	// S-042 (R-MIN-19): mientras la prueba espera, el botón "Empezar", su tecla y la cuenta atrás van encima del panel, en el centro del aro (sobre la
-	// runa), para que el panel no cambie de tamaño ni se mueva al empezar. Solo el botón recibe clics: el resto de la capa los deja pasar.
+	// S-042 (R-MIN-19): mientras la prueba espera, el botón "Empezar", su tecla y la cuenta atrás van encima del panel, en una fila en su franja bajo el
+	// aro, entre el círculo y la barra (corrección del autor del 18/11/2026: en el centro tapaban la runa y la franja verde). La franja la calcula
+	// RingPanelLayout, igual que el panel, y no depende del título; el panel la reserva siempre, así que no cambia de tamaño ni se mueve al empezar.
+	// Solo el botón recibe clics: el resto de la capa los deja pasar.
 	const int32 StartHintFontSize = FMath::Max(FMath::RoundToInt(RingFontSize * 0.8f), 8);
+	const int32 RingPanelFont = FMath::Max(RingFontSize, 8);
+	const float PanelWidth = Soulbound::Presentation::RingPanelWidth(RingPanelFont);
+	const float PanelHeight = PanelWidth * Soulbound::Presentation::RingPanelHeightRatio;
+	const FRingPanelLayout StartBand = Soulbound::Presentation::RingPanelLayout(PanelWidth, PanelHeight, 0.f, RingPanelFont / 18.f);
 	RingOverlay = SNew(SBox)
 		.HAlign(HAlign_Fill)
 		.VAlign(VAlign_Fill)
@@ -1591,17 +1597,19 @@ void ABoardViewActor::BuildOverlay()
 					.Model([this]() { return RingPanelModel(); })
 					.RuneBrush([this]() -> const FSlateBrush* { return RuneTexture ? &RuneBrush : nullptr; })
 				]
+				// El margen del hueco es la franja (el SOverlay mide lo que el panel); la fila va centrada en ella.
 				+ SOverlay::Slot()
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
+				.Padding(0.f, StartBand.StartBandTop, 0.f, PanelHeight - StartBand.StartBandBottom)
 				[
-					SNew(SVerticalBox)
+					SNew(SHorizontalBox)
 					.Visibility_Lambda([this]() { return RingPanelModel().StartLabel.IsEmpty() ? EVisibility::Collapsed : EVisibility::SelfHitTestInvisible; })
-					+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 					[
 						SNew(SButton)
 						.IsFocusable(false)
-						.ContentPadding(FMargin(32.f, 14.f))
+						.ContentPadding(FMargin(24.f, 8.f))
 						.OnClicked_Lambda([this]()
 						{
 							StartRingNow();
@@ -1610,11 +1618,11 @@ void ABoardViewActor::BuildOverlay()
 						[
 							SNew(STextBlock)
 							.Text_Lambda([this]() { return FText::FromString(RingPanelModel().StartLabel); })
-							.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(RingFontSize, 8)))
+							.Font(FCoreStyle::GetDefaultFontStyle("Bold", RingPanelFont))
 							.Justification(ETextJustify::Center)
 						]
 					]
-					+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 8.f, 0.f, 0.f)
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(12.f, 0.f, 0.f, 0.f)
 					[
 						SNew(SBorder)
 						.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
