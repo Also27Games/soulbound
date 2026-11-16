@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Elects/Elects.h"
+#include "Match/SeatGoalRules.h"
 
 struct FMatchState;
 struct FPendingChoice;
@@ -56,6 +57,8 @@ namespace Soulbound::Presentation
 		FString ReturnKey;
 		/** Color de cada asiento, el de la vista. */
 		TArray<FLinearColor> SeatColors;
+		/** Color de la línea de objetivo (S-040, R-HUD-7): ABoardViewActor::GoalLineColor. */
+		FLinearColor GoalLineColor = FLinearColor::White;
 
 		/** El color del asiento Seat; blanco si no lo hay. */
 		FLinearColor SeatColor(int32 Seat) const { return SeatColors.IsValidIndex(Seat) ? SeatColors[Seat] : FLinearColor::White; }
@@ -71,6 +74,38 @@ namespace Soulbound::Presentation
 	 * @return Las líneas, de arriba abajo; ninguna lleva la semilla.
 	 */
 	TArray<FPanelLine> StatusLines(const FMatchState& State, const FStatusContext& Context);
+
+	/**
+	 * La línea de objetivo del asiento humano (S-040, R-HUD-7, nombre propuesto): su meta (SeatGoal, R-VIC-5) con palabras. "Llega a un Nicho libre";
+	 * "Consigue runas en las Fuentes (N/6)" para un Elegido y "Consigue runas en las Fuentes de los Olvidados, o róbalas (N/6)" para un Eco, con N
+	 * los tipos de runa distintos que tiene (RuneTypeCount); con los seis, "Supera el desafío final en tu próximo turno" si ya es aspirante (IsAspirant:
+	 * en el Altar) y "Vuelve al Altar" si no (corrección del autor del 16/11/2026 tras PIE). Vacía con la meta None. La enseña GoalPanelLines.
+	 * @param State El estado de la partida.
+	 * @param HumanSeat El asiento humano.
+	 * @return La línea, o vacía.
+	 */
+	FString GoalLineText(const FMatchState& State, int32 HumanSeat);
+
+	/**
+	 * Lo que pinta la caja de la línea de objetivo (S-040, R-HUD-7, nombre propuesto), fuera del panel de estado (correcciones del autor del 16/11/2026
+	 * tras PIE: entre sus líneas quedaba escondida; va abajo a la izquierda, en la franja de la frase del Warden). Una sola línea, GoalLineText, con la
+	 * letra grande y el color Context.GoalLineColor; ninguna en el prólogo (Context.bPrologue) ni con la meta None. Cuándo se ve, IsGoalPanelShown.
+	 * @param State El estado de la partida.
+	 * @param Context Lo que no está en el estado: el asiento humano, el prólogo y el color.
+	 * @return La línea de la caja, o ninguna.
+	 */
+	TArray<FPanelLine> GoalPanelLines(const FMatchState& State, const FStatusContext& Context);
+
+	/**
+	 * Si la caja de la línea de objetivo se ve (S-040, R-HUD-7, nombre propuesto; corrección del autor del 16/11/2026 tras PIE): abajo a la izquierda,
+	 * en la franja de la frase del Warden, deja de verse en el prólogo, con la meta None y mientras hay una frase del Warden en pantalla, para que los
+	 * dos textos nunca se vean encimados. Ninguna tecla la oculta: es información importante, no un panel de consulta.
+	 * @param bPrologue Si el prólogo está en marcha.
+	 * @param Goal La meta del asiento humano (SeatGoal).
+	 * @param bWardenLineOnScreen Si hay una frase del Warden en pantalla.
+	 * @return Si la caja se ve.
+	 */
+	bool IsGoalPanelShown(bool bPrologue, ESeatGoal Goal, bool bWardenLineOnScreen);
 
 	/**
 	 * Las líneas del panel de depuración (R-HUD-2): paso a paso, evaluación del Warden, semilla con el tiempo y la ronda, y los asientos con su

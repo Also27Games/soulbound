@@ -280,6 +280,21 @@ void ABoardViewActor::Initialize(UMatchHostSubsystem* InHost)
 
 	// S-019: la colocación es una función pura del tablero; la vista solo la lee.
 	Kit.Load(*this, TEXT("se usa la forma básica"));
+	// S-040 (R-VIS-27): el material del suelo de los Olvidados se carga una vez, como la runa del anillo (S-031) y el dado (S-039). Sin él, el suelo como antes.
+	ForgottenFloor = nullptr;
+	if (ForgottenFloorMaterial.IsNull())
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Suelo de los Olvidados: ForgottenFloorMaterial está vacío; el suelo se pinta con el material del kit, apagado por ForgottenDim."));
+	}
+	else
+	{
+		ForgottenFloor = Cast<UMaterialInterface>(ForgottenFloorMaterial.TryLoad());
+		if (!ForgottenFloor)
+		{
+			UE_LOG(LogSoulboundView, Warning, TEXT("Suelo de los Olvidados: no existe el material %s; el suelo se pinta con el material del kit, apagado por ForgottenDim."),
+				*ForgottenFloorMaterial.ToString());
+		}
+	}
 	Layout = Soulbound::Presentation::ComputeBoardLayout(InHost->GetState().Board, LayoutParams);
 	if (!Layout.bRadial)
 	{
@@ -986,10 +1001,11 @@ void ABoardViewActor::BuildOverlay()
 			{NodeColor, bKit ? TEXT("X Nodo: losa con puntas. Tras la carrera lleva espadas (duelo), orbe (Oráculo) o arco (salto)") : TEXT("X Nodo: rombo con esfera. Tras la carrera lleva espadas (duelo), orbe (Oráculo) o arco (salto)")}}});
 	Rows.Add({TEXT("Nichos"),
 		{{NicheFreeColor, TEXT("Libre")}, {SeatColor(0), TEXT("Reclamado: aro y número de su dueño")}, {NicheClosedColor, TEXT("Cerrado")}}});
+	// S-040 (R-VIS-27): con el material de los Olvidados cargado, su suelo agrietado.
 	Rows.Add({TEXT("Tablero"),
 		{{ReachableColor, TEXT("Halo blanco que late: puedes ir ahí")},
 			{SealMarkColor, bKit ? TEXT("Aro rojo y cadenas: sellada, no se pasa") : TEXT("Aro rojo y SELLO: sellada, no se pasa")},
-			{ForgottenRingColor, TEXT("Casillas apagadas: Dominio Olvidado")}}});
+			{ForgottenRingColor, ForgottenFloor ? TEXT("Suelo agrietado y casillas apagadas: Dominio Olvidado") : TEXT("Casillas apagadas: Dominio Olvidado")}}});
 	// Una fila por asiento, con su rol al día: Eco o Elegido, y el Dominio que lleva.
 	FLegendRow Seats;
 	Seats.Title = TEXT("Jugadores. Disco gris: Eco. Disco de color: Elegido de ese Dominio. A quien le toca le late un aro");
@@ -1283,6 +1299,19 @@ void ABoardViewActor::BuildOverlay()
 				SNew(SBox).HeightOverride_Lambda([this]() { return FOptionalSize(WardenLineReservedHeight()); })
 			]
 		]
+		// S-040 (R-HUD-7; corrección del autor del 16/11/2026 tras PIE): la caja de la línea de objetivo, abajo a la izquierda del hueco del tablero, dentro
+		// de la franja que se reserva a la frase (por debajo del panel de decisión, que va encima de esa franja: no se pisan). Fondo y letra grande de los
+		// paneles, con GoalLineColor. Alineada a la izquierda para medir lo que su texto, que se parte al ancho libre del hueco (WrapWidth, no AutoWrapText:
+		// tras un texto corto, el largo del Eco saldría estrecho) y nunca se mete bajo la columna (el margen derecho de esta capa). Ninguna tecla la oculta;
+		// IsGoalPanelVisibleNow la quita en el prólogo, con la meta None, mientras hay frase del Warden (cada frame: nunca se ven encimadas) y con el telón.
+		+ SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Bottom)
+		[
+			SAssignNew(GoalPanel, SStatusPanel)
+			.FontSize(TAttribute<int32>::CreateLambda([this]() { return PanelSlateFontSize; }))
+			.LargeScale(StatusLargeFontScale)
+			.WrapWidth_Lambda([this]() { return FMath::Max(BoardFreeWidthNow(DecisionPanelMaxWidth) - 16.f, 1.f); })
+			.Visibility_Lambda([this]() { return IsGoalPanelVisibleNow() ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+		]
 		// Capa de arriba: la frase, anclada abajo con el mismo margen que el hueco. Crece hacia arriba, por encima del panel si hace falta (corrección
 		// del autor del 11/11/2026: en una caja de alto fijo se recortaba lo que sobraba). No recibe clics: el hueco vacío deja pasar los del tablero.
 		+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Bottom)
@@ -1314,7 +1343,7 @@ void ABoardViewActor::BuildOverlay()
 
 	// S-039 (R-DEC-16; corrección del autor del 15/11/2026 tras las pruebas en PIE): el aviso de casilla inalcanzable sale junto al punto del clic, no en
 	// el panel de decisión: los ojos están en la casilla pulsada. Una capa que llena el viewport, sin clics (la casilla de debajo sigue respondiendo), con
-	// el aviso en la esquina que le da PlaceNotice: dentro del viewport y sin quedar debajo de la columna de paneles ni del panel de estado. Mismo texto y
+	// el aviso en la esquina que le da PlaceNotice: dentro del viewport y sin quedar debajo de la columna de paneles, del panel de estado, de la caja de la línea de objetivo ni del panel de decisión (S-040). Mismo texto y
 	// color que la línea del Warden; fondo oscuro como los paneles, para leerse sobre el tablero. Se recoloca cada frame con los mismos datos, así que
 	// se queda quieto; el texto y su vida los pone TickHud.
 	{
@@ -1554,8 +1583,9 @@ void ABoardViewActor::Refresh()
 	DomainsShownOpeningLines = WardenLineQueue.ShownCount();
 	DomainsShownForgotten = Soulbound::Presentation::ForgottenDomainsShown(State, bDomainsShownInPrologue, DomainsShownOpeningLines);
 
-	// El suelo de cada cuña lleva el color de su Dominio, apagado si está Olvidado (S-019, R-VIS-2, R-VIS-5).
-	Kit.TintWedgeFloors(KitFixed, DomainsShownForgotten, *this);
+	// El suelo de cada cuña lleva el color de su Dominio, apagado si está Olvidado (S-019, R-VIS-2, R-VIS-5); desde S-040 (R-VIS-27), el suelo liso de
+	// un Olvidado, con su material propio si está.
+	Kit.TintWedgeFloors(KitFixed, DomainsShownForgotten, *this, ForgottenFloor.Get());
 
 	for (const FTileState& Tile : State.Board.Tiles)
 	{
@@ -1731,6 +1761,17 @@ void ABoardViewActor::TeachInstructions(const FMatchState& State, const TArray<S
 		// La crónica se reconstruye solo si crece el registro: la nota no lo hace crecer.
 		ChronicleLineCount = -1;
 	}
+}
+
+bool ABoardViewActor::IsGoalPanelVisibleNow()
+{
+	// S-040 (R-HUD-7): la regla, en IsGoalPanelShown; el telón lo tapa todo, como a las demás capas.
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (!HostPtr || HostPtr->IsCurtainDown())
+	{
+		return false;
+	}
+	return Soulbound::Presentation::IsGoalPanelShown(bGoalPanelPrologue, GoalPanelGoal, !WardenLineNow().IsEmpty());
 }
 
 FString ABoardViewActor::WardenLineNow()
@@ -2370,6 +2411,7 @@ Soulbound::Presentation::FStatusContext ABoardViewActor::MakeStatusContext() con
 	Context.ViewKeys = DescribeViewKeys();
 	Context.ReturnKey = ReturnToMenuKey.GetDisplayName().ToString();
 	Context.SeatColors = SeatColors;
+	Context.GoalLineColor = GoalLineColor;
 	return Context;
 }
 
@@ -2457,14 +2499,11 @@ void ABoardViewActor::TickHud()
 		}
 		else if (Rejection.Serial != SeenRejectionSerial)
 		{
-			// El punto lo capturó el anfitrión en el momento del clic (coordenadas absolutas de Slate); aquí solo se pasa al sistema de la capa del aviso.
+			// El punto lo capturó el anfitrión en el momento del clic (coordenadas absolutas de Slate) y se guarda así: lo pasa a la capa NoticeMarginNow,
+			// con la geometría del frame. S-040, corrección tras PIE de un defecto de S-039: convertirlo aquí usaba la geometría de la capa del aviso, que
+			// está plegada sin aviso y, antes del primero, no se había pintado nunca: el primer aviso de la partida salía desplazado.
 			SeenRejectionSerial = Rejection.Serial;
-			FVector2f At = Rejection.ScreenPosition;
-			if (NoticeOverlay.IsValid())
-			{
-				At = FVector2f(NoticeOverlay->GetTickSpaceGeometry().AbsoluteToLocal(FVector2D(Rejection.ScreenPosition)));
-			}
-			UnreachableNotice.Show(Soulbound::Presentation::UnreachableNoticeText(Rejection.Reason, Rejection.Roll), At, RealNow);
+			UnreachableNotice.Show(Soulbound::Presentation::UnreachableNoticeText(Rejection.Reason, Rejection.Roll), Rejection.ScreenPosition, RealNow);
 		}
 		if (!Panel.IsSet() || Panel->Input != Soulbound::Presentation::EDecisionInput::Tile)
 		{
@@ -2485,6 +2524,13 @@ void ABoardViewActor::TickHud()
 	if (StatusPanel.IsValid())
 	{
 		StatusPanel->SetLines(Soulbound::Presentation::StatusLines(State, Context));
+	}
+	if (GoalPanel.IsValid())
+	{
+		// S-040 (R-HUD-7): el texto de la caja de la línea de objetivo, y lo que su visibilidad necesita del estado; la frase del Warden la mira cada frame.
+		GoalPanel->SetLines(Soulbound::Presentation::GoalPanelLines(State, Context));
+		bGoalPanelPrologue = Context.bPrologue;
+		GoalPanelGoal = Soulbound::Rules::SeatGoal(State, Context.HumanSeat).Kind;
 	}
 	if (DebugPanel.IsValid())
 	{
@@ -2606,16 +2652,32 @@ FMargin ABoardViewActor::NoticeMarginNow(int32 FontSize) const
 	// El tablero visible acaba donde empieza la columna de paneles (con ella oculta, es todo el viewport).
 	const FBox2f Bounds(FVector2f(0.f, 0.f), FVector2f(FMath::Max(ViewportSize.X - (bPanels ? PanelSlateWidth : 0.f), 1.f), ViewportSize.Y));
 	TArray<FBox2f> Avoid;
-	auto AddZone = [&](const TSharedPtr<SStatusPanel>& Panel, bool bShown)
+	// La zona de un widget a la vista, en las coordenadas de la capa del aviso.
+	auto AddWidgetZone = [&](const TSharedPtr<SWidget>& Widget)
 	{
-		if (bPanels && bShown && Panel.IsValid() && Panel->GetVisibility().IsVisible())
+		if (Widget.IsValid() && Widget->GetVisibility().IsVisible())
 		{
-			const FGeometry& Zone = Panel->GetTickSpaceGeometry();
+			const FGeometry& Zone = Widget->GetTickSpaceGeometry();
 			const FVector2f At(Layer.AbsoluteToLocal(Zone.GetAbsolutePosition()));
 			Avoid.Add(FBox2f(At, At + FVector2f(Zone.GetLocalSize())));
 		}
 	};
+	auto AddZone = [&](const TSharedPtr<SStatusPanel>& Panel, bool bShown)
+	{
+		if (bPanels && bShown)
+		{
+			AddWidgetZone(Panel);
+		}
+	};
 	AddZone(StatusPanel, !bDebugTextHidden);
+	// S-040 (R-HUD-7): también la caja de la línea de objetivo, abajo a la izquierda. Ninguna tecla la oculta, así que cuenta aunque los paneles no se vean.
+	AddWidgetZone(GoalPanel);
+	// S-040, corrección tras PIE del 16/11/2026 de un defecto de S-039: el panel de decisión, mientras está a la vista. Sin él, un clic cerca del panel
+	// ponía el aviso encima de "Tu turno" y "Has sacado". Su visibilidad la lleva la caja que lo envuelve; IsDecisionPanelVisible dice lo mismo.
+	if (IsDecisionPanelVisible())
+	{
+		AddWidgetZone(DecisionPanel);
+	}
 	AddZone(DebugPanel, bDebugPanelShown);
 
 	// El tamaño del aviso: el texto medido con su letra, partido al ancho libre, más el margen del fondo.
@@ -2630,7 +2692,9 @@ FMargin ABoardViewActor::NoticeMarginNow(int32 FontSize) const
 	const FVector2f Size(WrapAt + 2.f * NoticePadding, TextSize.Y * Lines + 2.f * NoticePadding);
 	const_cast<ABoardViewActor*>(this)->NoticeWrapAt = WrapAt;
 
-	const FVector2f Corner = Soulbound::Presentation::PlaceNotice(UnreachableNotice.Position(), Size, Bounds, Avoid, NoticeClickGap);
+	// El punto del clic, absoluto, en las coordenadas de la capa con la geometría de este frame (S-040, corrección del defecto de S-039 del primer aviso).
+	const FVector2f Click(Layer.AbsoluteToLocal(FVector2D(UnreachableNotice.Position())));
+	const FVector2f Corner = Soulbound::Presentation::PlaceNotice(Click, Size, Bounds, Avoid, NoticeClickGap);
 	return FMargin(Corner.X, Corner.Y, 0.f, 0.f);
 }
 

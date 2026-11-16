@@ -235,7 +235,8 @@ bool FUnreachableNoticeLifeTest::RunTest(const FString& Parameters)
 {
 	// CA-DEC-32 (R-DEC-16, vida del aviso; corrección del autor del 15/11/2026): se ve desde el clic rechazado, en el punto del clic, hasta que pasan
 	// sus segundos; un segundo rechazo lo sustituye, lo lleva al punto nuevo y vuelve a contar, aunque sea el mismo texto; un clic aceptado o el final
-	// del turno de tirada (Dismiss) lo quitan.
+	// del turno de tirada (Dismiss) lo quitan. Desde S-040 (corrección tras PIE de un defecto de S-039) el punto es el absoluto del clic, sin convertir:
+	// el aviso lo guarda tal como se le da, y la vista lo pasa a su capa al colocarlo.
 	using Soulbound::Presentation::FUnreachableNotice;
 	const double Seconds = 4.0;
 	const FVector2f PointA(120.f, 340.f);

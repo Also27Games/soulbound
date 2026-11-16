@@ -38,6 +38,22 @@ namespace Soulbound::Rules
 	SOULBOUNDCORE_API ERuneLanding ResolvePowerSourceLanding(FMatchState& State, int32 Seat, double NowSeconds);
 
 	/**
+	 * Qué pasaría si el asiento Seat terminara su movimiento en la casilla TileId (S-040, R-VIC-5; nombre propuesto en S-040). Es la condición
+	 * que aplica ResolvePowerSourceLanding, sin el "se ha movido este turno" (R-RUN-3), y la usa también la meta del asiento (SeatGoal), para
+	 * que regla y consulta no se separen. Solo lee:
+	 *  - None si el asiento no existe, el tablero no está Despierto (R-TAB-8), la casilla no es una Fuente o el asiento es un Eco y la Fuente
+	 *    es de un Dominio con dueño (R-ECO-3, R-CAR-7b).
+	 *  - Depleted si la Fuente no tiene reserva (R-RUN-4).
+	 *  - TrialPending si el asiento es Elegido y la Fuente es de un Dominio Olvidado (R-TAB-7).
+	 *  - Obtained en el resto, aunque ya tenga runas de ese tipo (R-RUN-5).
+	 * @param State El estado de la partida.
+	 * @param Seat El asiento.
+	 * @param TileId La casilla.
+	 * @return Lo que pasaría, sin cambiar nada.
+	 */
+	SOULBOUNDCORE_API ERuneLanding PreviewPowerSourceLanding(const FMatchState& State, int32 Seat, int32 TileId);
+
+	/**
 	 * Aplica el resultado del minijuego pendiente del asiento Seat (lo llama SubmitSkillTrialResult): si se supera,
 	 * registra SkillMinigamePassed y obtiene la runa de la Fuente (RuneObtained); si no, registra SkillMinigameFailed y nada más. Limpia la prueba pendiente.
 	 * Devuelve true si el asiento obtuvo la runa.

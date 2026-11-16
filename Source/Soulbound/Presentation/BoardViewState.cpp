@@ -45,6 +45,16 @@ FLinearColor Soulbound::Presentation::WedgeFloorTint(const FLinearColor& DomainC
 	return FLinearColor(Mixed.R * ForgottenDim, Mixed.G * ForgottenDim, Mixed.B * ForgottenDim, Mixed.A);
 }
 
+float Soulbound::Presentation::WedgeFloorDim(bool bForgotten, bool bForgottenMaterial, float ForgottenFloorDim, float ForgottenDim)
+{
+	// R-VIS-27: el material propio ya dice "Olvidado" con su textura; se apaga menos. Sin él, como antes de S-040.
+	if (!bForgotten)
+	{
+		return 1.f;
+	}
+	return bForgottenMaterial ? ForgottenFloorDim : ForgottenDim;
+}
+
 FString Soulbound::Presentation::MenuMapPackage(const FString& ReturnToMenuMap, bool bReturnMapExists, const FString& GameDefaultMap)
 {
 	// R-MEN-1: el menú principal si está configurado y existe; si no, el de arranque, como en S-022.

@@ -12,6 +12,7 @@
 #include "InstructionTracker.h"
 #include "UnreachableNotice.h"
 #include "Match/RingRules.h"
+#include "Match/SeatGoalRules.h"
 #include "Styling/SlateBrush.h"
 #include "StatusText.h"
 #include "WardenLineQueue.h"
@@ -770,6 +771,30 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category = "Vista|Colores", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float FloorTintStrength = 0.35f;
 
+	/**
+	 * Material del suelo liso de la cuña de un Dominio Olvidado (S-040, R-VIS-27): piedra agrietada con el parámetro vectorial `Color`, como
+	 * M_ColorVertice, para que el tinte del Dominio se le siga aplicando (WedgeFloorTint). Vacío, o con un asset que no existe, el suelo se pinta como
+	 * antes (material del kit, apagado por ForgottenDim) y se dice una vez en el registro. Valor inicial /Game/Art/Tablero/M_SueloOlvidado.M_SueloOlvidado
+	 * (Config/DefaultGame.ini); el asset lo crea el autor. La peana de la cuña no cambia.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Kit", meta = (AllowedClasses = "/Script/Engine.MaterialInterface"))
+	FSoftObjectPath ForgottenFloorMaterial;
+
+	/**
+	 * Cuánto se apaga el suelo liso de un Dominio Olvidado cuando lleva su material propio (S-040, R-VIS-27): la textura ya lo distingue, y con ForgottenDim
+	 * (0,3) no se leería. Sin el material, el suelo usa ForgottenDim, como antes. Valor inicial 0,6 (Config/DefaultGame.ini).
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Colores", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float ForgottenFloorDim = 0.6f;
+
+	/**
+	 * Color de la línea de objetivo del panel de estado (S-040, R-HUD-7): uno solo para las tres metas, distinto del blanco de las alcanzables, del rojo del
+	 * Sello y del morado de perder una runa. Valor inicial (1, 0,82, 0,35), un dorado claro (Config/DefaultGame.ini). Hasta la corrección del 16/11/2026 era
+	 * también el de la luz de la meta (R-VIS-28, retirada) y se llamaba GoalLightColor.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Colores")
+	FLinearColor GoalLineColor = FLinearColor(1.f, 0.82f, 0.35f);
+
 	/** Cuánto se apaga la cruz de una Fuente agotada (multiplica su color). Valor inicial 0,15 (S-008). */
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	float SourceDepletedDim = 0.15f;
@@ -949,6 +974,9 @@ private:
 	/** El alto del hueco que se reserva siempre a la frase del Warden (S-033, R-DEC-9): WardenLineReservedLines líneas de su letra más sus márgenes. */
 	float WardenLineReservedHeight() const;
 
+	/** Si la caja de la línea de objetivo se ve ahora (S-040, R-HUD-7): IsGoalPanelShown con la frase del Warden de este frame, y nunca con el telón. */
+	bool IsGoalPanelVisibleNow();
+
 	/** Si la capa del panel de decisión se enseña (S-028, R-DEC-3): la regla de DecisionText, la tecla de los paneles (H) y el telón. */
 	bool IsDecisionPanelVisible() const;
 
@@ -1030,6 +1058,14 @@ private:
 	/** Los paneles de estado y de depuración (S-027): una capa arriba a la izquierda, que se oculta con los paneles (H) y con el telón. */
 	TSharedPtr<SStatusPanel> StatusPanel;
 	TSharedPtr<SStatusPanel> DebugPanel;
+	/**
+	 * La caja de la línea de objetivo (S-040, R-HUD-7; correcciones del autor del 16/11/2026 tras PIE): en la capa de la frase del Warden, abajo a la
+	 * izquierda dentro de la franja que se le reserva, con GoalPanelLines. Ninguna tecla la oculta; se ve según IsGoalPanelShown (IsGoalPanelVisibleNow),
+	 * con el prólogo y la meta que TickHud guarda abajo.
+	 */
+	TSharedPtr<SStatusPanel> GoalPanel;
+	bool bGoalPanelPrologue = false;
+	ESeatGoal GoalPanelGoal = ESeatGoal::None;
 	TSharedPtr<SWidget> StatusOverlay;
 
 	/** El Grimorio (S-027): una capa centrada, por encima de las demás. */
@@ -1120,7 +1156,7 @@ private:
 	Soulbound::Presentation::FUnreachableNotice UnreachableNotice;
 	/** La capa del aviso de casilla inalcanzable (S-039, R-DEC-16): llena el viewport, no recibe clics y pone el aviso donde lo coloca PlaceNotice. */
 	TSharedPtr<SWidget> NoticeOverlay;
-	/** El margen que coloca el aviso en la capa (PlaceNotice con el viewport, la columna de paneles y el panel de estado de este frame). */
+	/** El margen que coloca el aviso en la capa (PlaceNotice con el viewport, la columna de paneles, el panel de estado, la caja de la línea de objetivo y el panel de decisión de este frame, S-040). */
 	FMargin NoticeMarginNow(int32 FontSize) const;
 	/** Margen del fondo del aviso por cada lado, y separación entre el punto del clic y el aviso, en unidades de Slate. */
 	static constexpr float NoticePadding = 8.f;
@@ -1216,6 +1252,10 @@ private:
 	 * Visible mientras la casilla está sellada (SealMarkedTiles) y durante un destello de Sello (R-VIS-25), que lo escala.
 	 */
 	TArray<TObjectPtr<UStaticMeshComponent>> SealMarks;
+
+	/** El material del suelo de los Dominios Olvidados (ForgottenFloorMaterial) cargado al empezar (S-040, R-VIS-27), o nulo: el actor lo mantiene vivo. */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInterface> ForgottenFloor;
 
 	/** Segundo brazo de la cruz de la Fuente (nulo en las demás). */
 	UPROPERTY()
