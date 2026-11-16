@@ -271,6 +271,43 @@ bool FActaRingStartTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// CA-MIN-18 (corrección del autor del 18/11/2026 tras PIE: salió "empieza por el botón tras 8.0 s de espera"), R-MIN-19. Como lo escribe el anfitrión
+// (StartRing: FRingTrialRun::Start y luego RingStartLine con su causa y su espera): si "Empezar" llega con la cuenta ya a cero y sin que el tick lo
+// haya notado, la prueba empezó sola y el acta dice "sola", con la espera máxima. Si llega justo antes de cero, es por el botón y el acta nunca dice la
+// espera máxima: los segundos se cortan a la décima, no se redondean (7,96 s dicen 7.9). Montaje: se abre en el 1000,3 con espera de 8 s (vence
+// en el 1008,3; una suma que en coma flotante no da 8 exactos) y respiro de 0,5 s.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FActaRingLateStartTest, "Soulbound.Game.Presentation.Acta.InicioConLaCuentaVencida", ActaTestFlags)
+bool FActaRingLateStartTest::RunTest(const FString& Parameters)
+{
+	constexpr double Open = 1000.3;
+	FRingSequence Sequence;
+	Sequence.PulseStarts = {0.0, 2.0};
+	Sequence.CloseSeconds = 1.0;
+	Sequence.SweetZoneSeconds = 0.2;
+	const auto StartAt = [&](double Now)
+	{
+		FRingTrialRun Run;
+		Run.Open(Sequence, Open, 8.0, 0.5);
+		Run.Start(Now);
+		return Soulbound::Presentation::RingStartLine(Run.StartCause, Run.WaitedSeconds());
+	};
+
+	for (const double Late : {Open + 8.0, Open + 8.02, Open + 9.5})
+	{
+		const FString Line = StartAt(Late);
+		const FString Case = FString::Printf(TEXT("\"Empezar\" a los %.2f s, con la cuenta a cero sin notar"), Late - Open);
+		TestTrue(Case + TEXT(": dice \"sola\""), Line.Contains(TEXT("sola")) && !Line.Contains(TEXT("por el botón")));
+		TestTrue(Case + TEXT(": con la espera máxima"), Line.Contains(TEXT("tras 8.0 s")));
+	}
+
+	const FString JustBefore = StartAt(Open + 7.96);
+	TestTrue(TEXT("A los 7,96 s: por el botón"), JustBefore.Contains(TEXT("por el botón")));
+	TestTrue(TEXT("Y la espera cortada a la décima: 7.9, nunca la máxima"), JustBefore.Contains(TEXT("tras 7.9 s")));
+	TestTrue(TEXT("A los 2,04 s: 2.0"), StartAt(Open + 2.04).Contains(TEXT("tras 2.0 s")));
+	TestTrue(TEXT("A los 2,99 s: 2.9"), StartAt(Open + 2.99).Contains(TEXT("tras 2.9 s")));
+	return true;
+}
+
 // R-ACT-7, R-ACT-8: las líneas que no son del registro llevan marca de tiempo y prefijo; el resultado del motor, en texto.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FActaHostLineTest, "Soulbound.Game.Presentation.Acta.LineaDelAnfitrion", ActaTestFlags)
 bool FActaHostLineTest::RunTest(const FString& Parameters)

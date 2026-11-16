@@ -52,6 +52,25 @@ struct FRingPanelModel
 
 struct FRingTrialRun;
 
+/**
+ * Dónde va cada cosa del panel del anillo, de arriba abajo, en unidades del panel (S-042, corrección del autor del 18/11/2026; nombre propuesto). Lo
+ * calcula RingPanelLayout; lo usan SRingPanel para pintar y la vista para poner la fila de "Empezar" en su franja.
+ */
+struct FRingPanelLayout
+{
+	/** Altura del centro del aro y de la runa. */
+	float CenterY = 0.f;
+	/** Radio mayor del aro (el de la espera y el de cada pulso al empezar). */
+	float MaxRadius = 0.f;
+	/** Franja del botón "Empezar", su tecla y la cuenta: debajo del aro y encima de la barra. Arriba y abajo. */
+	float StartBandTop = 0.f;
+	float StartBandBottom = 0.f;
+	/** Borde de arriba de la barra de progreso (R-VIS-16). */
+	float BarTop = 0.f;
+	/** Altura del centro de las marcas de los pulsos. */
+	float DotsY = 0.f;
+};
+
 /** Relleno de la barra y, si la hay, posición de su marca (R-VIS-16). */
 struct FRingProgress
 {
@@ -117,6 +136,29 @@ namespace Soulbound::Presentation
 	 * @param KeyDisplayName El nombre que da Unreal a la tecla de empezar (RingStartKey): "Enter" dice "o pulsa Intro".
 	 */
 	void AddRingStartPrompt(FRingPanelModel& Model, const FRingTrialRun& Run, double Now, const FString& KeyDisplayName);
+
+	/** Alto del panel del anillo respecto a su ancho (S-042): deja sitio al título partido y a la franja de "Empezar" bajo el aro. */
+	inline constexpr float RingPanelHeightRatio = 1.35f;
+
+	/**
+	 * Ancho del panel del anillo (S-026; S-042 lo saca de SRingPanel para que la vista y los tests lo compartan; nombre propuesto).
+	 * @param FontSize La letra del título (RingFontSize); por debajo de 8, 8.
+	 * @return 420 a 18 puntos, proporcional a la letra.
+	 */
+	float RingPanelWidth(int32 FontSize);
+
+	/**
+	 * Dónde va cada cosa del panel del anillo (S-042, R-MIN-19; corrección del autor del 18/11/2026 tras PIE: el botón "Empezar" no tapa la runa ni
+	 * la franja verde; nombre propuesto). Desde abajo: las marcas de los pulsos, la barra y, encima, la franja de "Empezar", que no depende del
+	 * título (el botón va siempre en el mismo sitio). El aro, entre el final de los textos y esa franja, centrado; tan grande como siempre (0,36 del
+	 * lado menor) si cabe, y más pequeño si no. La franja se reserva también con la prueba empezada, para que el aro no se mueva al desaparecer el botón.
+	 * @param Width Ancho del panel.
+	 * @param Height Alto del panel.
+	 * @param TextBottom Dónde acaban los textos de arriba (título e instrucción, o la nota del resultado).
+	 * @param Scale La letra del panel entre 18: escala los márgenes.
+	 * @return Las posiciones; con un panel sin sitio para el aro, MaxRadius 0.
+	 */
+	FRingPanelLayout RingPanelLayout(float Width, float Height, float TextBottom, float Scale);
 
 	/**
 	 * Las líneas de la instrucción del anillo (R-VIS-17): dos, que el panel pinta cada una centrada y por separado bajo el título mientras la prueba

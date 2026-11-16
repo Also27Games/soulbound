@@ -81,6 +81,16 @@ void Soulbound::Presentation::AddRingStartPrompt(FRingPanelModel& Model, const F
 	Model.StartCountdown = RingStartCountdownText(Run.CountdownSeconds(Now));
 }
 
+float Soulbound::Presentation::RingPanelWidth(int32 FontSize)
+{
+	return 0.f; // TODO(R-MIN-19): stub para ver el test en rojo
+}
+
+FRingPanelLayout Soulbound::Presentation::RingPanelLayout(float Width, float Height, float TextBottom, float Scale)
+{
+	return FRingPanelLayout(); // TODO(R-MIN-19): stub para ver el test en rojo
+}
+
 TArray<FString> Soulbound::Presentation::RingInstructionLines()
 {
 	return {TEXT("Haz clic cuando el aro toque la runa."), TEXT("En la franja verde cuenta; cuanto más cerca, mejor.")};
