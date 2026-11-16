@@ -319,4 +319,16 @@ bool FActaHostLineTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-#endif
+// Corrección del autor del 17/11/2026 (S-043): la crónica y el panel de estado dejan de decir la ronda tope de la Noche de los Ecos, pero el acta
+// la sigue diciendo, porque sirve para leer partidas.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FActaEchoNightRoundTest, "Soulbound.Game.Presentation.Acta.NocheConRonda", ActaTestFlags)
+bool FActaEchoNightRoundTest::RunTest(const FString& Parameters)
+{
+	FMatchState State = ActaState();
+	State.EventLog.Add(MakeActaEvent(EMatchEventType::EchoNightBegan, 300.0, INDEX_NONE, INDEX_NONE, 9));
+	const FString Line = Soulbound::Presentation::MatchRecordLine(State, 0, 0, INDEX_NONE);
+	TestTrue(TEXT("El acta dice la ronda tope"), Line.EndsWith(TEXT("| NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio (como mucho hasta la ronda 9)")));
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

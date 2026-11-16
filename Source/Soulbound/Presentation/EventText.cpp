@@ -167,6 +167,12 @@ namespace Soulbound::Presentation
 				}
 			}
 		}
+		// Corrección del autor del 17/11/2026 (S-043): la crónica no dice la ronda tope de la Noche, que no le interesa al jugador; el acta, que usa
+		// DescribeEvent, la sigue diciendo para leer partidas.
+		if (Event.Type == EMatchEventType::EchoNightBegan)
+		{
+			return TEXT("NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio");
+		}
 		return DescribeEvent(Event, State.Board, &State.WardenEvents, &State.WardenLines, RingSeat);
 	}
 
