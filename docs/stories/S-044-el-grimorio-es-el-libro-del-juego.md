@@ -1,0 +1,71 @@
+# S-044. El Grimorio es el libro del juego: cinco pestañas, un botón a la vista y el Warden que lo nombra
+
+**Sistema**: interfaz en plano (GDD 07; pilar 3, caos legible): Grimorio (R-HUD-4, S-027), leyenda, crónica y "Cómo se juega" (S-022). **Módulos**: `Soulbound` (presentación: `GrimoirePanel`, `StatusText`, `LegendPanel`, `ChroniclePanel`, `HowToPlay`, `InstructionTracker`, `BoardViewActor`) y datos (`Content/Data/Warden/frases.json`). `SoulboundCore` no cambia. **Rama base**: `main`, con S-043 fusionada. **Tamaño**: mediano. **Sin assets**.
+
+## Contexto
+
+En la prueba del 15/11/2026 con la build de probadores, una persona que no juega a videojuegos (P4) no supo qué era el Grimorio, ni cómo usarlo, ni cuándo consultarlo; tuvo la leyenda delante toda la partida y no supo cuáles eran las casillas especiales; y leyó el "Cómo se juega" en el menú, antes de jugar, y cuando le hizo falta ya no lo tenía.
+
+El autor quiere además una pantalla limpia: lo que es de consulta no debe estar siempre a la vista. Decidido por el autor el 16/11/2026:
+
+- El Grimorio pasa a ser el único sitio de consulta durante la partida, con pestañas: tú, la mesa, el tablero, cómo se juega y la crónica.
+- Se abre siempre en la pestaña "Tú".
+- Hay un botón "Grimorio (G)" a la vista, abajo a la derecha.
+
+Esta story construye el Grimorio nuevo **sin quitar todavía nada de la pantalla**: la columna de la leyenda y el panel de estado siguen como hoy. Quitarlos es la story siguiente (S-045). Así cada una se puede probar y fusionar por separado.
+
+## Reglas a implementar (`Soulbound`, `Presentation/`)
+
+- **R-HUD-10 (nueva, sustituye el contenido de R-HUD-4). El Grimorio tiene cinco pestañas.** En este orden:
+  1. **Tú.** Lo que enseña hoy el Grimorio (tu rol, tu Elegido y su afinidad, tus runas y el poder que da cada una, tus poderes activos) y además tu insolencia ("Insolencia: N de 5"). Si eres Eco tras la carrera, dice lo único que te da una runa: "La runa de tu hogar (DN, nombre del Dominio) te da Celeridad: tiras dos dados" (R-ECO-7).
+  2. **La mesa.** Los cuatro jugadores, cada uno con su color: rol y Elegido u hogar, runas que tiene de cada Dominio, poderes activos, insolencia, y si tiene pendiente la Prueba del Warden o es aspirante. Y los seis Dominios: de quién es cada uno o si está Olvidado. Es lo que hoy reparten los bloques "Los seis Dominios y su Elegido", "Jugadores" y "Runas de cada jugador" de la leyenda.
+  3. **El tablero.** La leyenda de casillas y marcas: los bloques "Casillas", "Nichos", "Tablero" y la explicación de los destellos, con sus muestras de color.
+  4. **Cómo se juega.** El mismo texto del menú (`Content/Data/Textos/como-se-juega.md`, con el mismo cargador), y al final las teclas.
+  5. **Crónica.** Lo que ha pasado, lo último arriba, como la crónica de hoy.
+  - **Se abre siempre en "Tú"** (decisión del autor): no recuerda la última pestaña.
+  - Se cambia de pestaña con el ratón, haciendo clic en su nombre, y con el teclado (teclas a proponer en el plan, sin chocar con las del panel de decisión ni con las de la vista).
+  - El contenido de cada pestaña sale de las funciones que ya lo calculan hoy (las del Grimorio, las filas de la leyenda, las líneas de la crónica, el cargador de "Cómo se juega"): se reutilizan, no se reescriben. Lo que haya que partir o reordenar para repartirlo en pestañas se hace en funciones puras, con test.
+  - El texto que no quepa se desplaza con la rueda dentro de la pestaña. El panel cabe a 1024x768.
+- **R-HUD-11 (nueva). El Grimorio no tapa una decisión.** Como hoy, con el Grimorio abierto la partida sigue y los clics sobre el tablero no cuentan. Desde esta story, si mientras está abierto se abre una decisión del humano (elección, destino en su turno, Oráculo, voto) o un anillo suyo, el Grimorio se cierra solo. El plan dice qué pasa hoy en ese caso, para que se vea qué cambia.
+- **R-HUD-12 (nueva). El botón del Grimorio.** Abajo a la derecha del hueco del tablero hay un botón siempre a la vista: "Grimorio (G)", con el nombre de la tecla configurada. Abre y cierra el Grimorio, igual que la tecla. No se ve en el prólogo ni con la partida terminada. Ninguna tecla lo oculta. El aviso de casilla inalcanzable (S-039) lo esquiva.
+- **R-HUD-13 (nueva). El Warden nombra el Grimorio.** Una instrucción nueva (`instruccion:grimorio`, con el mecanismo de las instrucciones de S-021: una vez por jugador, según su perfil y el ajuste de Ayudas) la primera vez que el humano tiene algo que consultar: al vincularse a un Elegido o al conseguir su primera runa, lo que pase antes. No detiene la mesa, como las demás instrucciones. Texto inicial, borrador del tutor que el autor confirma o cambia al leer la story: "Tienes poderes y no sabes cuáles. Pulsa G y lee tu Grimorio… si es que sabes leer."
+- **Datos: una instrucción que se quedó vieja.** `instruccion:elegir-casilla` dice "Las casillas que brillan son tuyas por un momento"; desde S-039 laten. Pasa a "Las casillas que laten son tuyas por un momento. Elige una. Solo una." (a confirmar por el autor al leer la story).
+- **Lo que no cambia en esta story.** La columna de la leyenda y la crónica, el panel de estado y sus teclas siguen como hoy (los quita S-045). El menú y su "Cómo se juega". Ninguna regla.
+
+## Criterios de aceptación
+
+Automáticos, sin mundo.
+
+- **CA-HUD-18** (R-HUD-10, pestañas). La lista de pestañas es, en este orden, Tú, La mesa, El tablero, Cómo se juega y Crónica. Al abrir el Grimorio la activa es Tú, también si antes se cerró en otra. Pasar a la siguiente desde la última vuelve a la primera (o se queda, según lo que se proponga en el plan; el test fija lo decidido).
+- **CA-HUD-19** (R-HUD-10, Tú). Para un Elegido, la pestaña lleva lo que llevaba el Grimorio y su insolencia. Para un Eco tras la carrera con hogar en el Dominio 4, lleva la línea de la runa de su hogar con Celeridad, con el número y el nombre de ese Dominio; durante la carrera, sin hogar, no la lleva.
+- **CA-HUD-20** (R-HUD-10, La mesa). Lleva una entrada por asiento, con su rol, sus runas por Dominio, sus poderes activos, su insolencia y las marcas de Prueba del Warden pendiente y de aspirante cuando tocan; y una entrada por Dominio con su dueño o "Olvidado".
+- **CA-HUD-21** (R-HUD-10, El tablero, Cómo se juega y Crónica). El tablero lleva las filas de casillas, Nichos, marcas y destellos, y ninguna de jugadores ni de runas. Cómo se juega lleva el texto del archivo y, si el archivo falta, el mensaje del cargador en vez de quedarse vacía. Crónica lleva las mismas líneas y en el mismo orden que la crónica de hoy.
+- **CA-HUD-22** (R-HUD-11). La función que decide si el Grimorio sigue abierto devuelve que se cierra al abrirse una decisión del humano o un anillo suyo, y que sigue abierto con una decisión de otro asiento o con el Warden hablando.
+- **CA-HUD-23** (R-HUD-12). El texto del botón es "Grimorio (G)" con la tecla por defecto y lleva el nombre de otra tecla si se configura. La función que decide si se ve devuelve que no en el prólogo ni con la partida terminada, y que sí en el resto, con cualquier combinación de teclas de ocultar.
+- **CA-HUD-24** (R-HUD-13). El seguimiento de instrucciones da el momento del Grimorio al vincularse el humano y, si no se vinculó, al conseguir su primera runa; una sola vez; no lo da por lo que les pase a otros asientos.
+
+Manuales, por el autor, en PIE, a 1920x1080 y a 1024x768, con captura:
+
+- El botón "Grimorio (G)" se ve abajo a la derecha, no tapa casillas importantes ni se pisa con el panel de decisión ni con la frase del Warden, y abre y cierra el Grimorio; la tecla G hace lo mismo.
+- Las cinco pestañas se leen, se cambia entre ellas con el ratón y con el teclado, y siempre se abre en "Tú".
+- "Tú" como Elegido y como Eco (tras `SbEndRace` con alguien vinculado); "La mesa" refleja un robo o una runa nueva sin cerrar el Grimorio; "El tablero" tiene sus muestras de color; "Cómo se juega" se lee entero con la rueda; "Crónica" va creciendo.
+- Con el Grimorio abierto, al llegar una decisión propia (por ejemplo `SbStrike ojos-en-ti oraculo` en su turno) se cierra solo y se ve el panel de decisión.
+- La primera vez que se vincula o consigue una runa, el Warden dice la instrucción del Grimorio (con `SbForgetInstructions` para repetirla).
+
+## Notas para quien lo implemente
+
+- **Lo que ya existe.** `SGrimoirePanel` y sus datos (`GrimoireRows`, `GrimoirePowerLines`, `grimorio.json`); `SLegendPanel` con `FLegendRow` (las filas se montan en `ABoardViewActor::BuildOverlay`); `SChroniclePanel` con `FChronicleLine`; el cargador de `HowToPlay.h`; `FInstructionTracker` y `TeachInstructions` para las instrucciones. La columna usa hoy `SLegendPanel` y `SChroniclePanel`: en esta story se usan también dentro del Grimorio sin quitarlos de la columna.
+- **Los títulos de "Cómo se juega".** `HowToPlayHeadings()` exige unos títulos concretos y en orden. El autor está reordenando ese texto: si cambia los títulos, hay que cambiar esa lista. No es de esta story; se anota en el PR para que no sorprenda.
+- **El botón** convive con la entrada del tablero: un clic en él no debe llegar a las casillas. Durante un anillo del humano el clic lo recoge antes la entrada del anillo (`FRingInputProcessor`): el botón no hace falta ahí.
+- **`frases.json`**: la instrucción nueva es opcional para el cargador, como las demás instrucciones; el seguimiento ya trata la frase que falta (no se enseña ni se anota).
+- Lo que no se pueda ver sin PIE se anota para la prueba manual y no se rehace a ciegas. Tamaños y colores, en Config con su valor inicial documentado. Los nombres nuevos se proponen en el plan y van al glosario en un commit aparte.
+- Tests primero, en rojo.
+- Mientras el autor prueba en PIE o trabaja en el editor, no se compila ni se lanza nada.
+
+## Fuera de esta story
+
+- Quitar la columna de la leyenda, el panel de estado y sus teclas, y poner el reloj arriba a la izquierda (S-045).
+- Reescribir o reordenar el texto de "Cómo se juega" (lo hace el autor) y darle imágenes o formato de tarjetas.
+- Ayuda que salta sola según el momento, más allá de las instrucciones del Warden que ya existen.
+- Pausar la partida con el Grimorio abierto.
+- Cambiar el Grimorio del menú, si lo hubiera, o cualquier pantalla de UGT.
