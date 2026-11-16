@@ -83,3 +83,9 @@ FLinearColor Soulbound::Presentation::ReachableHaloColor(const FLinearColor& Bas
 	const float Intensity = RingPulse(Seconds, PeriodSeconds, MinIntensity);
 	return FLinearColor(BaseColor.R * Intensity, BaseColor.G * Intensity, BaseColor.B * Intensity, BaseColor.A);
 }
+
+float Soulbound::Presentation::OracleOrbScale(double Seconds, float PeriodSeconds, float MinScale)
+{
+	// S-041: cuerpo vacío para ver el test en rojo.
+	return 0.f;
+}

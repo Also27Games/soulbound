@@ -5,8 +5,18 @@
 #include "../../Presentation/DecisionText.h"
 #include "../../Presentation/EventText.h"
 #include "../../Presentation/StatusText.h"
+#include "Board/BoardLoader.h"
+#include "Elects/ElectsLoader.h"
+#include "Match/MatchParams.h"
+#include "Match/MatchStart.h"
 #include "Match/MatchState.h"
+#include "Match/TurnRules.h"
+#include "Match/WardenEvents.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/Paths.h"
+#include "Warden/WardenBrain.h"
+#include "Warden/WardenParams.h"
+#include "Warden/WardenRules.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -1444,5 +1454,103 @@ bool FDecisionOptionForPlayerTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionWardenBandTest, "Soulbound.Game.Presentation.Decision.FranjaDelWarden", DecisionTestFlags)
+
+bool FDecisionWardenBandTest::RunTest(const FString& Parameters)
+{
+	// CA-DEC-33 (R-DEC-17, S-041): el alto de la franja del Warden es lo reservado si la frase y su línea pequeña caben en él, y lo que
+	// necesitan si no caben; sin frase, lo reservado.
+	using Soulbound::Presentation::WardenLineBandHeight;
+	TestEqual(TEXT("Cabe: lo reservado"), WardenLineBandHeight(84.f, true, 60.f), 84.f);
+	TestEqual(TEXT("Justo: lo reservado"), WardenLineBandHeight(84.f, true, 84.f), 84.f);
+	TestEqual(TEXT("No cabe (tres líneas): lo que necesita"), WardenLineBandHeight(84.f, true, 130.f), 130.f);
+	TestEqual(TEXT("Sin frase, lo reservado aunque se midiera más"), WardenLineBandHeight(84.f, false, 130.f), 84.f);
+	TestEqual(TEXT("Sin frase ni medida, lo reservado"), WardenLineBandHeight(84.f, false, 0.f), 84.f);
+	return true;
+}
+
+namespace
+{
+	/** Carga un archivo de datos del juego y apunta en el test si falla. */
+	template <typename ResultType>
+	bool DtLoaded(FAutomationTestBase& Test, const TCHAR* What, const ResultType& Result)
+	{
+		return Test.TestTrue(FString::Printf(TEXT("%s carga (%s)"), What, *Result.Message), Result.IsSuccess());
+	}
+
+	/**
+	 * Una partida de verdad (S-041, A comprobar): los datos del juego, cuatro asientos y el Warden, en la carrera, con el humano (asiento 0) en
+	 * su turno de tirada. Sin mundo: las reglas del núcleo sobre el estado.
+	 */
+	bool DtStartHumanRoll(FAutomationTestBase& Test, FMatchState& OutState, FRandomStream& Random, double Now)
+	{
+		const FString Data = FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data"));
+		const FBoardLoadResult Board = Soulbound::Rules::LoadBoardFromFile(FPaths::Combine(Data, TEXT("Boards/tablero_35.json")));
+		const FMatchParamsLoadResult Params = Soulbound::Rules::LoadMatchParamsFromFile(FPaths::Combine(Data, TEXT("Match/partida.json")));
+		const FElectsLoadResult Elects = Soulbound::Rules::LoadElectsFromFile(FPaths::Combine(Data, TEXT("Elects/elegidos.json")));
+		const FWardenEventsLoadResult Events = Soulbound::Rules::LoadWardenEventsFromFile(FPaths::Combine(Data, TEXT("Events/eventos.json")));
+		const FWardenParamsLoadResult Warden = Soulbound::Rules::LoadWardenParamsFromFile(FPaths::Combine(Data, TEXT("Warden/warden.json")));
+		if (!DtLoaded(Test, TEXT("El tablero"), Board) || !DtLoaded(Test, TEXT("La partida"), Params) || !DtLoaded(Test, TEXT("Los Elegidos"), Elects)
+			|| !DtLoaded(Test, TEXT("Los eventos"), Events) || !DtLoaded(Test, TEXT("El Warden"), Warden))
+		{
+			return false;
+		}
+		FMatchStartResult Start = Soulbound::Rules::StartMatch(Board.Board, Params.Params, Elects.Table, Soulbound::Match::MaxPlayers, Random, Events.Table, Warden.Params);
+		if (!Test.TestTrue(FString::Printf(TEXT("La partida empieza (%s)"), *Start.Message), Start.IsSuccess()))
+		{
+			return false;
+		}
+		OutState = MoveTemp(Start.State);
+		OutState.ActiveSeat = DtHuman;
+		OutState.TurnPhase = ETurnPhase::BetweenTurns;
+		for (int32 Step = 0; Step < 10 && !(OutState.TurnPhase == ETurnPhase::RollAndChoose && OutState.ActiveSeat == DtHuman); ++Step)
+		{
+			if (OutState.PendingChoice.IsOpen() && OutState.PendingChoice.Options.Num() > 0)
+			{
+				Soulbound::Rules::SubmitChoiceIntent(OutState, OutState.PendingChoice.Seat, OutState.PendingChoice.Kind, OutState.PendingChoice.Options[0], Now, Random);
+			}
+			Soulbound::Rules::AdvanceTurn(OutState, Now, Random);
+		}
+		return Test.TestTrue(TEXT("El humano está en su turno de tirada"), OutState.TurnPhase == ETurnPhase::RollAndChoose && OutState.ActiveSeat == DtHuman);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionOracleStrikePanelTest, "Soulbound.Game.Presentation.Decision.OraculoComoGolpeEnsenaElPanel", DecisionTestFlags)
+
+bool FDecisionOracleStrikePanelTest::RunTest(const FString& Parameters)
+{
+	// S-041, "A comprobar" (no es regla nueva; R-DEC-1, R-ORA-1): cuando el Oráculo llega como golpe en el turno de tirada del humano, salen el orbe
+	// (consulta esperando, la que mira RefreshOracleOrb) y el panel de decisión con "Consultar". El golpe corta el turno con las reglas del núcleo
+	// (ApplyWardenDecision, como lo decide el cerebro) y el panel se mira con las funciones de la vista. Test de regresión: el código ya lo hacía.
+	constexpr double Now = 30.0;
+	FRandomStream Random(41);
+	FMatchState State;
+	if (!DtStartHumanRoll(*this, State, Random, Now))
+	{
+		return false;
+	}
+	FWardenDecision Decision;
+	Decision.Kind = EWardenDecisionKind::Strike;
+	Decision.EventIndex = State.WardenEvents.IndexOf(TEXT("ojos-en-ti"));
+	Decision.bViaOracle = true;
+	if (!TestTrue(TEXT("El evento de la sentencia existe"), Decision.EventIndex != INDEX_NONE))
+	{
+		return false;
+	}
+	Soulbound::Rules::ApplyWardenDecision(State, Decision, Now, Random);
+
+	TestTrue(TEXT("La consulta espera, del humano y por golpe: el orbe sale"), State.Oracle.IsWaiting() && State.Oracle.Consultant == DtHuman
+		&& State.Oracle.Origin == EOracleOrigin::Strike);
+	const TOptional<FDecisionView> Own = Soulbound::Presentation::DecisionView(State, DtHuman, false);
+	if (TestTrue(TEXT("Hay decisión del humano"), Own.IsSet()))
+	{
+		TestEqual(TEXT("Es la del Oráculo"), static_cast<int32>(Own->Input), static_cast<int32>(EDecisionInput::Orb));
+		TestTrue(TEXT("Con \"Consultar\""), Own->Options.Num() > 0 && Own->Options[0].Text == TEXT("Consultar"));
+	}
+	const TOptional<FDecisionView> Panel = Soulbound::Presentation::PanelView(State, DtHuman, false, 5.0, 5.0);
+	TestTrue(TEXT("El panel la enseña"), Soulbound::Presentation::IsDecisionPanelShown(Panel, false) && Panel->Input == EDecisionInput::Orb);
+	return true;
+}
 
 #endif

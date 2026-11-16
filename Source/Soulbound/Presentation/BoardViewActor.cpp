@@ -61,6 +61,7 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
@@ -360,6 +361,18 @@ void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		}
 		WardenLineOverlay.Reset();
 		WardenLineContent.Reset();
+		WardenLineBox.Reset();
+	}
+	if (CutDimOverlay.IsValid())
+	{
+		if (UWorld* World = GetWorld())
+		{
+			if (UGameViewportClient* Viewport = World->GetGameViewport())
+			{
+				Viewport->RemoveViewportWidgetContent(CutDimOverlay.ToSharedRef());
+			}
+		}
+		CutDimOverlay.Reset();
 	}
 	if (NoticeOverlay.IsValid())
 	{
@@ -815,6 +828,7 @@ void ABoardViewActor::RefreshOracleOrb(const FMatchState& State)
 	if (!State.Oracle.IsWaiting() || !State.Seats.IsValidIndex(Seat))
 	{
 		OracleOrb->SetVisibility(false);
+		bOracleOrbShown = false;
 		return;
 	}
 	// Siempre sobre la ficha del consultante, también si consulta desde un Nodo (decisión del autor del 26/10/2026).
@@ -823,6 +837,19 @@ void ABoardViewActor::RefreshOracleOrb(const FMatchState& State)
 	OracleOrb->SetWorldLocation(Base + FVector(0.f, 0.f, OracleOrbHeight));
 	Soulbound::Presentation::SetComponentColor(*OracleOrb, BaseMaterial, SeatColor(Seat));
 	OracleOrb->SetVisibility(true);
+	// S-041 (R-VIS-29): mientras la consulta espera, el actor tica para que el orbe lata (Tick, OracleOrbScale).
+	bOracleOrbShown = true;
+	ScaleOracleOrb(GetWorld() ? GetWorld()->GetTimeSeconds() : 0.0);
+	SetActorTickEnabled(true);
+}
+
+void ABoardViewActor::ScaleOracleOrb(double Seconds)
+{
+	if (OracleOrb)
+	{
+		const float Scale = Soulbound::Presentation::OracleOrbScale(Seconds, OracleOrbPulseSeconds, OracleOrbPulseMin);
+		OracleOrb->SetWorldScale3D(FVector(FMath::Max(OracleOrbDiameter, 0.1f) * Scale / 100.f));
+	}
 }
 
 void ABoardViewActor::BuildCamera()
@@ -1292,11 +1319,12 @@ void ABoardViewActor::BuildOverlay()
 					.OnOption_Lambda([this](const Soulbound::Presentation::FDecisionOption& Option) { AnswerDecision(Option); })
 				]
 			]
-			// S-033 (R-DEC-9): el hueco de la frase, siempre reservado, haya frase o no, como espacio vacío de alto fijo: el panel de encima no se
-			// mueve cuando la frase aparece, cambia de largo o se va. Su alto sale de la letra de la frase y de sus márgenes (WardenLineReservedHeight).
+			// S-033 (R-DEC-9): el hueco de la frase, siempre reservado, haya frase o no, como espacio vacío: el panel de encima no se mueve cuando la
+			// frase aparece, cambia de largo o se va. Su alto sale de la letra de la frase y de sus márgenes (WardenLineReservedHeight). Desde S-041
+			// (R-DEC-17) crece si la frase y su línea pequeña no caben en él, para que nunca tapen el panel (WardenLineBandHeightNow).
 			+ SVerticalBox::Slot().AutoHeight()
 			[
-				SNew(SBox).HeightOverride_Lambda([this]() { return FOptionalSize(WardenLineReservedHeight()); })
+				SNew(SBox).HeightOverride_Lambda([this]() { return FOptionalSize(WardenLineBandHeightNow()); })
 			]
 		]
 		// S-040 (R-HUD-7; corrección del autor del 16/11/2026 tras PIE): la caja de la línea de objetivo, abajo a la izquierda del hueco del tablero, dentro
@@ -1316,30 +1344,58 @@ void ABoardViewActor::BuildOverlay()
 		// del autor del 11/11/2026: en una caja de alto fijo se recortaba lo que sobraba). No recibe clics: el hueco vacío deja pasar los del tablero.
 		+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Bottom)
 		[
-			SNew(SBorder)
+			SAssignNew(WardenLineBox, SBorder)
 			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
 			.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.65f))
 			.Padding(FMargin(20.f, 10.f))
 			.Visibility_Lambda([this]() { return WardenLineNow().IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
 			[
-				SNew(STextBlock)
-				.Text_Lambda([this]() { return FText::FromString(WardenLineNow()); })
-				.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(WardenLineFontSize, 8)))
-				.ColorAndOpacity(WardenLineColor)
-				.Justification(ETextJustify::Center)
-				// R-HUD-3 (corrección del autor del 11/11/2026): con AutoWrapText el texto se parte al ancho con que se pintó la frase anterior
-				// (FSlateTextBlockLayout::CalculateWrappingWidth usa CachedSize, el de la última pasada de pintado), así que tras una frase corta
-				// todas salían estrechas. Con WrapTextAt solo y el hueco libre (el tope de 1000 menos los 40 de margen del fondo), el ancho no
-				// depende de lo pintado antes. Nunca los dos a la vez: manda el menor. Desde R-DEC-13 (12/11/2026) el hueco sale de la geometría real
-				// de la capa (BoardFreeWidthNow), no de la ventana y la escala de DPI: a 1024x768 la cuenta daba de más y la frase se cortaba.
-				.WrapTextAt_Lambda([this]()
-				{
-					return FMath::Max(BoardFreeWidthNow(1000.f) - 40.f, 1.f);
-				})
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text_Lambda([this]() { return FText::FromString(WardenLineNow().Text); })
+					// S-041 (R-VOZ-8): el Oráculo como golpe sin palabra de corte en la tabla no tiene frase, solo línea pequeña.
+					.Visibility_Lambda([this]() { return WardenLineNow().Text.IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+					.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(WardenLineFontSize, 8)))
+					.ColorAndOpacity(WardenLineColor)
+					.Justification(ETextJustify::Center)
+					// R-HUD-3 (corrección del autor del 11/11/2026): con AutoWrapText el texto se parte al ancho con que se pintó la frase anterior
+					// (FSlateTextBlockLayout::CalculateWrappingWidth usa CachedSize, el de la última pasada de pintado), así que tras una frase corta
+					// todas salían estrechas. Con WrapTextAt solo y el hueco libre (el tope de 1000 menos los 40 de margen del fondo), el ancho no
+					// depende de lo pintado antes. Nunca los dos a la vez: manda el menor. Desde R-DEC-13 (12/11/2026) el hueco sale de la geometría real
+					// de la capa (BoardFreeWidthNow), no de la ventana y la escala de DPI: a 1024x768 la cuenta daba de más y la frase se cortaba.
+					.WrapTextAt_Lambda([this]()
+					{
+						return FMath::Max(BoardFreeWidthNow(1000.f) - 40.f, 1.f);
+					})
+				]
+				// S-041 (R-VOZ-8): debajo de la frase de un corte, una línea pequeña y neutra que dice qué ha pasado; dura lo que su frase.
+				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 4.f, 0.f, 0.f)
+				[
+					SNew(STextBlock)
+					.Text_Lambda([this]() { return FText::FromString(WardenLineNow().CutNote); })
+					.Visibility_Lambda([this]() { return WardenLineNow().CutNote.IsEmpty() ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+					.Font(FCoreStyle::GetDefaultFontStyle("Regular", FMath::Max(CutNoteFontSize, 8)))
+					.ColorAndOpacity(CutNoteColor)
+					.Justification(ETextJustify::Center)
+					.WrapTextAt_Lambda([this]()
+					{
+						return FMath::Max(BoardFreeWidthNow(1000.f) - 40.f, 1.f);
+					})
+				]
 			]
 		]
 	];
 	Viewport->AddViewportWidgetContent(WardenLineOverlay.ToSharedRef(), 11);
+
+	// S-041 (R-VOZ-8): la capa oscura del corte. Llena el viewport sobre el tablero y por debajo de todas las demás capas (la de los paneles va en el 10):
+	// negra con la opacidad de CutDimOpacityNow, que aparece de golpe en el corte y se desvanece. Sin posproceso (restricción de rendimiento) y sin clics.
+	CutDimOverlay = SNew(SImage)
+		.Image(FCoreStyle::Get().GetBrush("WhiteBrush"))
+		.ColorAndOpacity_Lambda([this]() { return FSlateColor(FLinearColor(0.f, 0.f, 0.f, CutDimOpacityNow())); })
+		.Visibility_Lambda([this]() { return CutDimOpacityNow() > 0.f ? EVisibility::HitTestInvisible : EVisibility::Collapsed; });
+	Viewport->AddViewportWidgetContent(CutDimOverlay.ToSharedRef(), 9);
 
 	// S-039 (R-DEC-16; corrección del autor del 15/11/2026 tras las pruebas en PIE): el aviso de casilla inalcanzable sale junto al punto del clic, no en
 	// el panel de decisión: los ojos están en la casilla pulsada. Una capa que llena el viewport, sin clics (la casilla de debajo sigue respondiendo), con
@@ -1719,15 +1775,19 @@ void ABoardViewActor::RefreshWardenLine(const FMatchState& State)
 		InstructionNotes.Empty();
 	}
 	const int32 HumanSeat = Host.IsValid() ? Host->GetHumanSeat() : INDEX_NONE;
-	for (; WardenLineScanned < State.EventLog.Num(); ++WardenLineScanned)
+	// S-041: las frases nuevas del registro, con su duración (R-VOZ-6) y cada corte emparejado con su frase (R-VOZ-8), las mismas que cuentan la
+	// espera y el prólogo del anfitrión. Un corte del Warden oscurece el tablero desde ahora; uno nuevo reinicia la capa.
+	const double NowReal = FPlatformTime::Seconds();
+	for (const Soulbound::Presentation::FWardenLineItem& Item :
+		Soulbound::Presentation::WardenLineItems(State, WardenLineScanned, HumanSeat, WardenLineSeconds, WardenLineSecondsPerChar))
 	{
-		const FMatchEvent& Event = State.EventLog[WardenLineScanned];
-		const FString Spoken = Event.Type == EMatchEventType::WardenSpoke ? Soulbound::Presentation::SpokenText(State.WardenLines, Event) : FString();
-		if (!Spoken.IsEmpty())
+		WardenLineQueue.Push(Item, NowReal);
+		if (Item.bWardenCut)
 		{
-			WardenLineQueue.Push(Soulbound::Presentation::WardenLinePrefix(Event.Seat, HumanSeat) + TEXT(" ") + Spoken, Event.ClockSeconds);
+			CutDimStartReal = NowReal;
 		}
 	}
+	WardenLineScanned = State.EventLog.Num();
 
 	// S-021 (A3): las instrucciones, después de las frases del registro. El seguimiento dice qué momento acaba de darse; el perfil, si se enseña.
 	TArray<int32> HumanSeats;
@@ -1756,7 +1816,12 @@ void ABoardViewActor::TeachInstructions(const FMatchState& State, const TArray<S
 		}
 		const double Clock = State.EventLog.IsEmpty() ? 0.0 : State.EventLog.Last().ClockSeconds;
 		const FString Line = Soulbound::Presentation::WardenLinePrefix(Cue.Seat, HumanSeat) + TEXT(" ") + Text;
-		WardenLineQueue.Push(Line, Clock);
+		// S-041 (R-VOZ-6): la instrucción dura según su longitud; ni detiene la mesa ni es un comentario.
+		Soulbound::Presentation::FWardenLineItem Item;
+		Item.Text = Line;
+		Item.Seconds = Soulbound::Presentation::WardenLineDuration(Line, FString(), WardenLineSeconds, WardenLineSecondsPerChar);
+		Item.GameClock = Clock;
+		WardenLineQueue.Push(Item, FPlatformTime::Seconds());
 		InstructionNotes.Add({State.EventLog.Num() - 1, Clock, Line});
 		// La crónica se reconstruye solo si crece el registro: la nota no lo hace crecer.
 		ChronicleLineCount = -1;
@@ -1774,15 +1839,34 @@ bool ABoardViewActor::IsGoalPanelVisibleNow()
 	return Soulbound::Presentation::IsGoalPanelShown(bGoalPanelPrologue, GoalPanelGoal, !WardenLineNow().IsEmpty());
 }
 
-FString ABoardViewActor::WardenLineNow()
+Soulbound::Presentation::FWardenLineItem ABoardViewActor::WardenLineNow()
 {
 	// S-024 (R-PRO-1 precisión): con el telón bajado no se pide la frase a la cola, así que su primera frase empieza a contar cuando sube.
 	const UMatchHostSubsystem* HostPtr = Host.Get();
 	if (HostPtr && HostPtr->IsCurtainDown())
 	{
-		return FString();
+		return Soulbound::Presentation::FWardenLineItem();
 	}
-	return WardenLineQueue.Current(FPlatformTime::Seconds(), WardenLineSeconds);
+	return WardenLineQueue.Current(FPlatformTime::Seconds());
+}
+
+float ABoardViewActor::WardenLineBandHeightNow()
+{
+	// S-041 (R-DEC-17): lo que necesita la frase es el alto que Slate le calcula a su fondo (partida al ancho de la franja, con la línea pequeña y los
+	// márgenes); es el de la pasada anterior, así que el panel sube un frame después de que llegue una frase larga.
+	const bool bHasLine = !WardenLineNow().IsEmpty();
+	const float Needed = WardenLineBox.IsValid() ? static_cast<float>(WardenLineBox->GetDesiredSize().Y) : 0.f;
+	return Soulbound::Presentation::WardenLineBandHeight(WardenLineReservedHeight(), bHasLine, Needed);
+}
+
+float ABoardViewActor::CutDimOpacityNow() const
+{
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (HostPtr && HostPtr->IsCurtainDown())
+	{
+		return 0.f;
+	}
+	return Soulbound::Presentation::CutDimOpacity(FPlatformTime::Seconds(), CutDimStartReal, CutDimMaxOpacity, CutDimSeconds);
 }
 
 void ABoardViewActor::RefreshAspirantHalos(const FMatchState& State)
@@ -2377,11 +2461,16 @@ void ABoardViewActor::Tick(float DeltaSeconds)
 			}
 		}
 	}
+	// S-041 (R-VIS-29): el latido del orbe del Oráculo mientras la consulta espera.
+	if (bOracleOrbShown)
+	{
+		ScaleOracleOrb(Now);
+	}
 	if (SourceFlashes.IsEmpty())
 	{
 		SourceFlashBusy.Reset();
 		SealFlashBusy.Reset();
-		if (!bReachableHalosShown)
+		if (!bReachableHalosShown && !bOracleOrbShown)
 		{
 			SetActorTickEnabled(false);
 		}

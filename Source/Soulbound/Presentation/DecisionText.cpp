@@ -673,6 +673,12 @@ namespace Soulbound::Presentation
 	{
 		return FMath::Clamp(ViewportSlateWidth - PanelColumnWidth - 32.f, 0.f, FMath::Max(Cap, 0.f));
 	}
+
+	float WardenLineBandHeight(float ReservedHeight, bool bHasLine, float NeededHeight)
+	{
+		// S-041: cuerpo vacío para ver el test en rojo.
+		return 0.f;
+	}
 }
 
 FString Soulbound::Presentation::UnreachableNoticeText(EUnreachableReason Reason, int32 Roll)
