@@ -28,7 +28,8 @@ namespace
 		"hard":   { "closeSeconds": 0.8, "sweetZone": 0.11, "passThreshold": 0.67 },
 		"forgottenSourcePulses": 2, "wardenTrialPulses": 4, "voidEscapePulses": 5,
 		"duelPulses": 3, "duelDifficulty": "hard",
-		"finalChallengePulses": 7, "finalChallengeSweetZone": 0.23
+		"finalChallengePulses": 7, "finalChallengeSweetZone": 0.23,
+		"startWaitSeconds": 6.5
 	})");
 
 	TSharedPtr<FJsonObject> ParseObject(const FString& Json)
@@ -204,6 +205,8 @@ bool FRingParamsFromDataTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Duelo: zona de su dificultad"), Duel.SweetZone, 0.11, 1e-9);
 	TestEqual(TEXT("Duelo: pulsos"), Duel.Pulses, 3);
 	TestTrue(TEXT("Duelo: el criterio es el rendimiento"), Duel.Criterion == ERingCriterion::Performance);
+	// S-042 (R-MIN-19): la espera para empezar sale del JSON.
+	TestEqual(TEXT("Espera para empezar: la del JSON (6,5 s)"), Ring.StartWaitSeconds, 6.5, 1e-9);
 
 	// Cambiar un valor en el JSON cambia el resultado: 0,6 / 0,6 / 0,6 supera el umbral de normal (0,57) y no uno de 0,7.
 	const TArray<double> Steady = Precisions({0.6, 0.6, 0.6});
@@ -323,6 +326,10 @@ bool FRingDataRejectedTest::RunTest(const FString& Parameters)
 		{TEXT("sin dificultad del duelo"), TEXT(""), TEXT("duelDifficulty"), nullptr, false},
 		{TEXT("sin la dificultad difícil"), TEXT(""), TEXT("hard"), nullptr, false},
 		{TEXT("cierre que no es número"), TEXT("easy"), TEXT("closeSeconds"), MakeShared<FJsonValueString>(TEXT("1.6")), false},
+		// S-042 (R-MIN-19): la espera para empezar, no menor que cero; con 0 empieza al abrirse.
+		{TEXT("espera para empezar negativa"), TEXT(""), TEXT("startWaitSeconds"), Number(-1.0), false},
+		{TEXT("espera para empezar 0"), TEXT(""), TEXT("startWaitSeconds"), Number(0.0), true},
+		{TEXT("sin espera para empezar"), TEXT(""), TEXT("startWaitSeconds"), nullptr, false},
 	};
 	for (const FCase& Case : Cases)
 	{

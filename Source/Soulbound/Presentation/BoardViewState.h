@@ -112,7 +112,7 @@ namespace Soulbound::Presentation
 
 	/**
 	 * El resultado de la partida (S-018, R-PRO-4): quién gana y por qué, en una línea ("GANA EL ASIENTO 2", "GANA EL WARDEN: SE ACABÓ EL TIEMPO",
-	 * "GANA EL WARDEN: NADIE SE VINCULÓ"). Desde S-041 (R-HUD-8, añadido del autor del 17/11/2026) va en el centro, encima del botón "Volver al
+	 * "GANA EL WARDEN: NADIE SE VINCULÓ"). Desde S-041 (R-HUD-8, añadido del autor del 16/11/2026) va en el centro, encima del botón "Volver al
 	 * menú", y la tecla va aparte, debajo del botón (ReturnToMenuHint). Vacío si la partida no ha terminado.
 	 * @param State Estado de la partida, en solo lectura.
 	 * @return El texto del resultado, o vacío.
@@ -126,4 +126,12 @@ namespace Soulbound::Presentation
 	 * @return La línea, o vacía.
 	 */
 	SOULBOUND_API FString ReturnToMenuHint(const FString& KeyDisplayName);
+
+	/**
+	 * La línea pequeña de una tecla bajo un botón (S-042, nombre propuesto; sacada de ReturnToMenuHint, que la usa): "o pulsa" y la tecla, con Intro
+	 * en español. La usan "Volver al menú" (S-041) y "Empezar" del anillo (R-MIN-19).
+	 * @param KeyDisplayName El nombre que da Unreal a la tecla.
+	 * @return "o pulsa Intro", "o pulsa F5"…, o vacía sin tecla.
+	 */
+	SOULBOUND_API FString KeyHintText(const FString& KeyDisplayName);
 }

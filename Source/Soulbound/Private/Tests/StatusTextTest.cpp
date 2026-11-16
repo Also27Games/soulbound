@@ -126,7 +126,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusResultFirstTest, "Soulbound.Game.Present
 bool FStatusResultFirstTest::RunTest(const FString& Parameters)
 {
 	// Decisión del autor del 9/11/2026 (R-HUD-1): las líneas que la story no repartía (votación, aspirantes y resultado) van al panel de
-	// estado. CA-HUD-16 (R-HUD-8, añadido del autor del 17/11/2026 en S-041): el resultado grande ya no va aquí, va en el centro, encima del botón
+	// estado. CA-HUD-16 (R-HUD-8, añadido del autor del 16/11/2026 en S-041): el resultado grande ya no va aquí, va en el centro, encima del botón
 	// (MatchResultLine); el panel de estado conserva la línea pequeña que explica el final, sin letra grande.
 	{
 		FMatchState State = StMakeState();
@@ -157,7 +157,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusResultLineTest, "Soulbound.Game.Presenta
 
 bool FStatusResultLineTest::RunTest(const FString& Parameters)
 {
-	// CA-HUD-16 (R-HUD-8, añadido del autor del 17/11/2026 en S-041): el texto grande del resultado, el que va encima del botón "Volver al menú",
+	// CA-HUD-16 (R-HUD-8, añadido del autor del 16/11/2026 en S-041): el texto grande del resultado, el que va encima del botón "Volver al menú",
 	// con su color de hoy: el del ganador si gana un jugador y rojo si gana el Warden, en los tres finales. Sin final, vacío.
 	using Soulbound::Presentation::MatchResultLine;
 	FMatchState State = StMakeState();

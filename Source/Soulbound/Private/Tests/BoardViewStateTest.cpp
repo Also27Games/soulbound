@@ -290,7 +290,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchResultTextTest, "Soulbound.Game.Presentat
 bool FMatchResultTextTest::RunTest(const FString& Parameters)
 {
 	// Texto de S-022: la pantalla del resultado (S-018, R-PRO-4) dice quién gana (decisión del autor del 29/10/2026 para la tecla: Escape es la
-	// pausa de UGT y en PIE lo captura el editor). CA-HUD-16 (R-HUD-8, añadido del autor del 17/11/2026 en S-041): el resultado va encima del botón,
+	// pausa de UGT y en PIE lo captura el editor). CA-HUD-16 (R-HUD-8, añadido del autor del 16/11/2026 en S-041): el resultado va encima del botón,
 	// en una línea, y la tecla debajo, en pequeño: "o pulsa Intro". Sin final, nada.
 	FMatchState State;
 	TestTrue(TEXT("Partida en curso: sin resultado"), Soulbound::Presentation::MatchResultText(State).IsEmpty());

@@ -36,6 +36,52 @@ namespace
 		FSlateDrawElement::MakeText(Out, Layer, Geometry.ToPaintGeometry(Size, FSlateLayoutTransform(Position)), Text, Font, ESlateDrawEffect::None, Color);
 		return Size.Y;
 	}
+
+	/** Como DrawCenteredText, pero partiendo el texto por palabras en líneas que no pasen de MaxWidth, cada una centrada. Devuelve el alto total. */
+	float DrawCenteredWrapped(FSlateWindowElementList& Out, int32 Layer, const FGeometry& Geometry, const FString& Text, const FSlateFontInfo& Font, float Top,
+		const FLinearColor& Color, float MaxWidth)
+	{
+		const TSharedRef<FSlateFontMeasure> Measure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+		TArray<FString> Words;
+		Text.ParseIntoArray(Words, TEXT(" "));
+		float Height = 0.f;
+		FString Line;
+		for (const FString& Word : Words)
+		{
+			const FString Candidate = Line.IsEmpty() ? Word : Line + TEXT(" ") + Word;
+			if (!Line.IsEmpty() && Measure->Measure(Candidate, Font).X > MaxWidth)
+			{
+				Height += DrawCenteredText(Out, Layer, Geometry, Line, Font, Top + Height, Color);
+				Line = Word;
+			}
+			else
+			{
+				Line = Candidate;
+			}
+		}
+		return Height + DrawCenteredText(Out, Layer, Geometry, Line, Font, Top + Height, Color);
+	}
+
+	/**
+	 * El título del panel (S-042, R-VIS-30): en una línea si cabe; si no, el nombre de la prueba (hasta los dos puntos, incluidos) en una línea y lo
+	 * que te juegas debajo, cada parte partida por palabras si aún no cabe (decisión del autor del 16/11/2026). Devuelve el alto total.
+	 */
+	float DrawTitle(FSlateWindowElementList& Out, int32 Layer, const FGeometry& Geometry, const FString& Title, const FSlateFontInfo& Font, float Top, float MaxWidth)
+	{
+		if (Title.IsEmpty())
+		{
+			return 0.f;
+		}
+		FString Name;
+		FString Stake;
+		const bool bFits = FSlateApplication::Get().GetRenderer()->GetFontMeasureService()->Measure(Title, Font).X <= MaxWidth;
+		if (bFits || !Title.Split(TEXT(": "), &Name, &Stake))
+		{
+			return DrawCenteredWrapped(Out, Layer, Geometry, Title, Font, Top, FLinearColor::White, MaxWidth);
+		}
+		const float NameHeight = DrawCenteredWrapped(Out, Layer, Geometry, Name + TEXT(":"), Font, Top, FLinearColor::White, MaxWidth);
+		return NameHeight + DrawCenteredWrapped(Out, Layer, Geometry, Stake, Font, Top + NameHeight, FLinearColor::White, MaxWidth);
+	}
 }
 
 void SRingPanel::Construct(const FArguments& InArgs)
@@ -43,6 +89,30 @@ void SRingPanel::Construct(const FArguments& InArgs)
 	FontSize = FMath::Max(InArgs._FontSize, 8);
 	Model = InArgs._Model;
 	RuneBrush = InArgs._RuneBrush;
+	// S-042: la fila de "Empezar". Dónde va no lo dicen la alineación ni el margen del hueco: lo decide OnArrangeChildren con RingPanelLayout.
+	ChildSlot
+	[
+		InArgs._StartRow.Widget
+	];
+}
+
+void SRingPanel::OnArrangeChildren(const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren) const
+{
+	// R-MIN-19 (corrección del autor del 16/11/2026 tras la segunda prueba en PIE): la fila va en la franja que calcula RingPanelLayout con el tamaño
+	// que le toca al panel, el mismo con que pinta el aro y la barra. Antes la ponía la vista en un hueco de SOverlay con margen y centrado, y Slate
+	// centra sumando el margen de arriba menos el de abajo (no la mitad): la fila salía por debajo del panel.
+	const TSharedRef<SWidget>& Row = ChildSlot.GetWidget();
+	const EVisibility RowVisibility = Row->GetVisibility();
+	if (!ArrangedChildren.Accepts(RowVisibility))
+	{
+		return;
+	}
+	const FVector2f Size = FVector2f(AllottedGeometry.GetLocalSize());
+	const FRingPanelLayout Layout = Soulbound::Presentation::RingPanelLayout(Size.X, Size.Y, 0.f, FontSize / 18.f);
+	const FVector2f Desired = FVector2f(Row->GetDesiredSize());
+	const FVector2f RowSize(FMath::Min(Desired.X, Size.X), Desired.Y);
+	const FVector2f Position((Size.X - RowSize.X) * 0.5f, (Layout.StartBandTop + Layout.StartBandBottom - RowSize.Y) * 0.5f);
+	ArrangedChildren.AddWidget(RowVisibility, AllottedGeometry.MakeChild(Row, RowSize, FSlateLayoutTransform(Position)));
 }
 
 FLinearColor SRingPanel::PrecisionColor(double Precision)
@@ -56,9 +126,10 @@ FLinearColor SRingPanel::PrecisionColor(double Precision)
 
 FVector2D SRingPanel::ComputeDesiredSize(float LayoutScaleMultiplier) const
 {
-	// Cuadrado proporcional a la letra: a 18 puntos, 420 píxeles de ancho.
-	const float Side = 420.f * FontSize / 18.f;
-	return FVector2D(Side, Side * 1.15f);
+	// Proporcional a la letra: a 18 puntos, 420 píxeles de ancho. Desde S-042, más alto que ancho (RingPanelHeightRatio; antes 1,15): el título con
+	// lo que te juegas puede ocupar dos o tres líneas (R-VIS-30) y bajo el aro va la franja de "Empezar" (R-MIN-19).
+	const float Side = Soulbound::Presentation::RingPanelWidth(FontSize);
+	return FVector2D(Side, Side * Soulbound::Presentation::RingPanelHeightRatio);
 }
 
 int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
@@ -82,17 +153,20 @@ int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 	const FSlateFontInfo SmallFont = FCoreStyle::GetDefaultFontStyle("Regular", FMath::Max(8, FMath::RoundToInt(FontSize * 0.75f)));
 	const FSlateFontInfo BigFont = FCoreStyle::GetDefaultFontStyle("Bold", FMath::RoundToInt(FontSize * 1.6f));
 	float Top = 12.f * Scale;
-	Top += DrawCenteredText(OutDrawElements, Layer, AllottedGeometry, Now.Title, TitleFont, Top, FLinearColor::White) + 4.f * Scale;
+	// S-042 (R-VIS-30): el título dice qué te juegas y puede no caber en una línea; se parte (DrawTitle) dentro del ancho con un margen a cada lado.
+	Top += DrawTitle(OutDrawElements, Layer, AllottedGeometry, Now.Title, TitleFont, Top, Size.X - 24.f * Scale) + 4.f * Scale;
 	for (const FString& Line : Now.Instruction)
 	{
 		Top += DrawCenteredText(OutDrawElements, Layer, AllottedGeometry, Line, SmallFont, Top, FLinearColor(0.8f, 0.8f, 0.8f));
 	}
 	Top += DrawCenteredText(OutDrawElements, Layer, AllottedGeometry, Now.Note, SmallFont, Top, FLinearColor(0.8f, 0.8f, 0.8f));
 
-	// La franja verde de la zona buena, la runa y el aro (R-VIS-14, R-VIS-18, R-VIS-19). Orden de pintado: franja, runa, aro.
-	const FVector2f Center(Size.X * 0.5f, Size.Y * 0.5f);
+	// La franja verde de la zona buena, la runa y el aro (R-VIS-14, R-VIS-18, R-VIS-19). Orden de pintado: franja, runa, aro. Desde S-042 el aro va
+	// entre los textos y la franja de "Empezar", que la vista llena con el botón mientras la prueba espera (RingPanelLayout).
+	const FRingPanelLayout Layout = Soulbound::Presentation::RingPanelLayout(Size.X, Size.Y, Top, Scale);
 	const float RuneRadius = 34.f * Scale;
-	const float MaxRadius = FMath::Min(Size.X, Size.Y) * 0.36f;
+	const float MaxRadius = Layout.MaxRadius;
+	const FVector2f Center(Size.X * 0.5f, Layout.CenterY);
 	if (Now.bShowRing)
 	{
 		// La franja va del borde de la runa al radio en que el aro entra en la zona (el cierre 1 - ZoneFraction): un círculo grueso a media distancia. Su color y opacidad vienen de la configuración (RingZoneColor).
@@ -129,7 +203,7 @@ int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 	const FSlateBrush* White = FCoreStyle::Get().GetBrush("WhiteBrush");
 	const float BarWidth = Size.X * 0.7f;
 	const float BarHeight = 12.f * Scale;
-	const FVector2f BarPosition((Size.X - BarWidth) * 0.5f, Center.Y + MaxRadius + 18.f * Scale);
+	const FVector2f BarPosition((Size.X - BarWidth) * 0.5f, Layout.BarTop);
 	FSlateDrawElement::MakeBox(OutDrawElements, Layer, AllottedGeometry.ToPaintGeometry(FVector2f(BarWidth, BarHeight), FSlateLayoutTransform(BarPosition)), White,
 		ESlateDrawEffect::None, FLinearColor(0.25f, 0.25f, 0.25f, 0.9f));
 	const float FillWidth = BarWidth * static_cast<float>(FMath::Clamp(Now.ProgressFill, 0.0, 1.0));
@@ -152,7 +226,7 @@ int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 	const float Dot = 9.f * Scale;
 	const float Gap = 10.f * Scale;
 	const float RowWidth = Count * (2.f * Dot) + FMath::Max(Count - 1, 0) * Gap;
-	const float DotsY = Size.Y - 22.f * Scale;
+	const float DotsY = Layout.DotsY;
 	for (int32 Pulse = 0; Pulse < Count; ++Pulse)
 	{
 		const FVector2f DotCenter((Size.X - RowWidth) * 0.5f + Dot + Pulse * (2.f * Dot + Gap), DotsY);
@@ -166,5 +240,6 @@ int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 			DrawCircle(OutDrawElements, Layer, AllottedGeometry, DotCenter, Dot, FLinearColor(0.5f, 0.5f, 0.5f), 2.f * Scale);
 		}
 	}
-	return Layer + 2;
+	// S-042: la fila de "Empezar", encima de todo lo del panel; la coloca OnArrangeChildren.
+	return SCompoundWidget::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, Layer + 3, InWidgetStyle, bParentEnabled);
 }

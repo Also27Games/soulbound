@@ -242,6 +242,15 @@ public:
 	bool PressRing(double PressSeconds);
 
 	/**
+	 * El humano pulsa "Empezar" (S-042, R-MIN-19; nombre propuesto), con el botón o con su tecla, en PressSeconds del reloj real. Si su anillo espera
+	 * a que esté listo, la prueba empieza (FRingTrialRun::Start) y el primer pulso arranca tras RingStartBreatherSeconds; si la cuenta ya había
+	 * vencido, empieza sola en su instante. Deja en el acta cómo empezó y cuánto esperó. No es una pulsación del anillo: no resuelve ningún pulso.
+	 * @param PressSeconds Instante de la pulsación, con FPlatformTime::Seconds.
+	 * @return Si empezó por esta pulsación; false sin anillo, con la prueba ya empezada o si empezó sola.
+	 */
+	bool StartRing(double PressSeconds);
+
+	/**
 	 * Deja en el acta (S-030, R-ACT-7) una línea con el prefijo "warden" y la marca de tiempo de la partida: la usa el anfitrión del Warden para
 	 * la línea de cada evaluación del cerebro. Antes vuelca los eventos pendientes del registro, para que el archivo vaya en orden cronológico.
 	 * Sin acta abierta (apagada o sin partida) no hace nada.
@@ -426,11 +435,13 @@ public:
 	bool bHumanPlaysSkillTrials = true;
 
 	/**
-	 * Segundos del anuncio del anillo (S-026): desde que se abre la prueba hasta que empieza el primer pulso, con el nombre del uso en
-	 * pantalla. Valor inicial 1,5 (Config/DefaultGame.ini). Cero o negativo: sin anuncio.
+	 * Respiro del anillo (S-042, R-MIN-19; nombre propuesto): segundos entre empezar la prueba (botón "Empezar", su tecla o la cuenta a cero) y el
+	 * inicio del primer pulso, para que la pulsación de empezar no se encadene con la del primer pulso. Sustituye al anuncio fijo de S-026
+	 * (RingAnnounceSeconds); la espera máxima es un dato de partida (FRingParams::StartWaitSeconds). Valor inicial 0,5 (Config/DefaultGame.ini).
+	 * Negativo cuenta como cero.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Partida")
-	float RingAnnounceSeconds = 1.5f;
+	float RingStartBreatherSeconds = 0.5f;
 
 	/**
 	 * Si cada partida deja su acta en un archivo de texto (S-030, R-ACT-9; glosario propuesto "Acta de partida"). Valor inicial true
@@ -555,10 +566,17 @@ private:
 	void WriteRecordClosing();
 
 	/**
-	 * Abre una prueba del anillo del humano (S-026) con Params: sortea su semilla con RingRng, la secuencia empieza tras el anuncio
-	 * (RingAnnounceSeconds) en el reloj real, y avisa (OnRingOpened). Trial: la prueba, o None con bDuel.
+	 * Abre una prueba del anillo del humano (S-026) con Params: sortea su secuencia con RingRng al abrir y, desde S-042 (R-MIN-19), la deja
+	 * esperando a que el humano pulse "Empezar" (StartRing) o a que pase la espera de datos (FRingParams::StartWaitSeconds), en el reloj real, y
+	 * avisa (OnRingOpened). Trial: la prueba, o None con bDuel.
 	 */
 	void OpenRing(const FRingTrialParams& Params, ESkillTrial Trial, bool bDuel);
+
+	/** Si el anillo del humano espera y su cuenta ha vencido en Now, lo empieza solo (FRingTrialRun::StartIfDue) y lo deja en el acta (S-042). */
+	void StartRingIfDue(double Now);
+
+	/** La línea del acta y del log con cómo empezó el anillo del humano y cuánto esperó (S-042, R-MIN-19; RingStartLine). */
+	void NoteRingStart();
 
 	/** Cierra la prueba del anillo, si la hay, y avisa con Outcome (OnRingClosed); sin Outcome es que se descarta. Why va al log. */
 	void CloseRing(const TOptional<FRingOutcome>& Outcome, const TCHAR* Why);

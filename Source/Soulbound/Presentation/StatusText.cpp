@@ -590,6 +590,14 @@ namespace Soulbound::Presentation
 			if (!Goal.IsEmpty())
 			{
 				Lines.Add({Goal, Context.GoalLineColor, true});
+				// R-HUD-9 (S-042): debajo, el recordatorio de la Prueba del Warden pendiente, con el color del Warden y la letra grande (decisión del autor
+				// del 16/11/2026), desde que se impone hasta que se abre su anillo: el turno del humano en la fase de la prueba con la Prueba del Warden.
+				const bool bPending = State.Seats.IsValidIndex(Context.HumanSeat) && State.Seats[Context.HumanSeat].bWardenTrialPending;
+				const bool bPlaying = State.ActiveSeat == Context.HumanSeat && State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::WardenTrial;
+				if (bPending && !bPlaying)
+				{
+					Lines.Add({TEXT("Te espera la Prueba del Warden"), Context.WardenLineColor, true});
+				}
 			}
 		}
 		return Lines;
@@ -613,7 +621,7 @@ namespace Soulbound::Presentation
 		const bool bHumanTurn = bWaiting && State.ActiveSeat == HumanSeat;
 		const bool bHints = Context.bHints;
 		const int32 TurnNumber = State.TurnPhase == ETurnPhase::BetweenTurns ? State.TurnCount : State.TurnCount + 1;
-		// R-DEC-18 (corrección del autor del 17/11/2026 tras PIE): la regla de R-DEC-3 vale para cada decisión del humano que enseña el panel. Cuál
+		// R-DEC-18 (corrección del autor del 16/11/2026 tras PIE): la regla de R-DEC-3 vale para cada decisión del humano que enseña el panel. Cuál
 		// enseña lo dice DecisionView, con la misma precedencia que el panel: la consulta del Oráculo y el voto no se repiten solo si son esa.
 		const TOptional<FDecisionView> Shown = Context.bDecisionPanelShown ? DecisionView(State, HumanSeat, false) : TOptional<FDecisionView>();
 		const auto IsShown = [&Shown](EDecisionInput Input) { return Shown.IsSet() && Shown->Input == Input; };
@@ -793,7 +801,7 @@ namespace Soulbound::Presentation
 			}
 		}
 
-		// El resultado grande y "volver al menú" (línea 19, S-018 y S-022) no van aquí desde S-041 (R-HUD-8, añadido del autor del 17/11/2026): van
+		// El resultado grande y "volver al menú" (línea 19, S-018 y S-022) no van aquí desde S-041 (R-HUD-8, añadido del autor del 16/11/2026): van
 		// en el centro, encima y debajo del botón (MatchResultLine). Aquí queda la línea pequeña de la carrera, que explica el final.
 
 		// La línea de objetivo (R-HUD-7, S-040) no va aquí desde la corrección del 16/11/2026 tras PIE: tiene su caja encima (GoalPanelLines).

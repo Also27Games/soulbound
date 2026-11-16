@@ -82,6 +82,11 @@ FString Soulbound::Presentation::MatchResultText(const FMatchState& State)
 
 FString Soulbound::Presentation::ReturnToMenuHint(const FString& KeyDisplayName)
 {
+	return KeyHintText(KeyDisplayName);
+}
+
+FString Soulbound::Presentation::KeyHintText(const FString& KeyDisplayName)
+{
 	if (KeyDisplayName.IsEmpty())
 	{
 		return FString();

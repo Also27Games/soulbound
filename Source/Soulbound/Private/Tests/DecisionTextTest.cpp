@@ -603,7 +603,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionStatusOracleVoteTest, "Soulbound.Game.
 
 bool FDecisionStatusOracleVoteTest::RunTest(const FString& Parameters)
 {
-	// CA-DEC-34 (R-DEC-18, corrección del autor del 17/11/2026 tras PIE): la regla de R-DEC-3 vale para toda decisión del humano que enseña el panel.
+	// CA-DEC-34 (R-DEC-18, corrección del autor del 16/11/2026 tras PIE): la regla de R-DEC-3 vale para toda decisión del humano que enseña el panel.
 	// Con la consulta del Oráculo del humano en el panel, el panel de estado no repite su línea ("ORÁCULO: consulta el asiento 0… clic en el orbe");
 	// con su voto en el panel, tampoco la de la votación. Lo que el panel no enseña sigue en el panel de estado: la consulta del humano mientras el
 	// panel enseña otra decisión suya, y la votación cuando el humano ya ha votado.

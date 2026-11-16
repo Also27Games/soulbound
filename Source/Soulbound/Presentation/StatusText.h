@@ -57,6 +57,8 @@ namespace Soulbound::Presentation
 		TArray<FLinearColor> SeatColors;
 		/** Color de la línea de objetivo (S-040, R-HUD-7): ABoardViewActor::GoalLineColor. */
 		FLinearColor GoalLineColor = FLinearColor::White;
+		/** Color de la línea del Warden (S-042, R-HUD-9): ABoardViewActor::WardenLineColor; lo lleva el recordatorio de la Prueba del Warden. */
+		FLinearColor WardenLineColor = FLinearColor::White;
 
 		/** El color del asiento Seat; blanco si no lo hay. */
 		FLinearColor SeatColor(int32 Seat) const { return SeatColors.IsValidIndex(Seat) ? SeatColors[Seat] : FLinearColor::White; }
@@ -76,7 +78,7 @@ namespace Soulbound::Presentation
 	TArray<FPanelLine> StatusLines(const FMatchState& State, const FStatusContext& Context);
 
 	/**
-	 * El resultado de la partida en grande (S-041, R-HUD-8, nombre propuesto; añadido del autor del 17/11/2026): el texto de MatchResultText con el
+	 * El resultado de la partida en grande (S-041, R-HUD-8, nombre propuesto; añadido del autor del 16/11/2026): el texto de MatchResultText con el
 	 * color de antes, el del ganador (Context.SeatColor) si gana un jugador y rojo si gana el Warden. Lo pinta la vista en el centro, encima del
 	 * botón "Volver al menú"; el panel de estado ya no lo lleva. Vacío (sin texto) si la partida no ha terminado.
 	 * @param State El estado de la partida.
@@ -100,8 +102,10 @@ namespace Soulbound::Presentation
 	 * Lo que pinta la caja de la línea de objetivo (S-040, R-HUD-7, nombre propuesto), fuera del panel de estado (correcciones del autor del 16/11/2026
 	 * tras PIE: entre sus líneas quedaba escondida; va abajo a la izquierda, en la franja de la frase del Warden). Una sola línea, GoalLineText, con la
 	 * letra grande y el color Context.GoalLineColor; ninguna en el prólogo (Context.bPrologue) ni con la meta None. Cuándo se ve, IsGoalPanelShown.
+	 * Desde S-042 (R-HUD-9), con la Prueba del Warden pendiente para el humano (FSeatState::bWardenTrialPending), una segunda línea debajo, "Te espera
+	 * la Prueba del Warden", con Context.WardenLineColor y la letra grande; se quita al abrirse su anillo (su turno, fase SkillTrial, WardenTrial).
 	 * @param State El estado de la partida.
-	 * @param Context Lo que no está en el estado: el asiento humano, el prólogo y el color.
+	 * @param Context Lo que no está en el estado: el asiento humano, el prólogo y los colores.
 	 * @return La línea de la caja, o ninguna.
 	 */
 	TArray<FPanelLine> GoalPanelLines(const FMatchState& State, const FStatusContext& Context);

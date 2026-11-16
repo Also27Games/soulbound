@@ -104,6 +104,7 @@ namespace
 			{TEXT("pulseGapMinSeconds"), &Out.PulseGapMinSeconds},
 			{TEXT("pulseGapMaxSeconds"), &Out.PulseGapMaxSeconds},
 			{TEXT("finalChallengeSweetZone"), &Out.FinalChallengeSweetZone},
+			{TEXT("startWaitSeconds"), &Out.StartWaitSeconds},
 		};
 		for (const TPair<const TCHAR*, double*>& Number : Numbers)
 		{
@@ -184,6 +185,11 @@ namespace
 		if (!(Ring.FinalChallengeSweetZone > 0.0 && Ring.FinalChallengeSweetZone <= 1.0))
 		{
 			return FString::Printf(TEXT("R-MIN-12: la zona buena propia del desafío final debe ser mayor que cero y no mayor que 1 (es %g)."), Ring.FinalChallengeSweetZone);
+		}
+		// R-MIN-19 (S-042): la espera para empezar no puede ser negativa; con 0 la prueba empieza al abrirse.
+		if (!(Ring.StartWaitSeconds >= 0.0))
+		{
+			return FString::Printf(TEXT("R-MIN-19: la espera para empezar del anillo no puede ser negativa (es %g)."), Ring.StartWaitSeconds);
 		}
 		// R-MIN-8: cada uso, al menos un pulso.
 		const TPair<const TCHAR*, int32> Uses[] = {

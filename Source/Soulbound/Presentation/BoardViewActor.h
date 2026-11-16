@@ -465,20 +465,20 @@ public:
 	/**
 	 * Opacidad de la capa oscura del tablero al empezar cada pulso cuando el Warden corta un turno (S-041, R-VOZ-8; CutDimOpacity): aparece de golpe
 	 * y se desvanece en CutDimPulseSeconds, CutDimPulseCount veces seguidas. Sin posproceso: una capa de Slate negra, por debajo de los paneles. Valor
-	 * inicial 0,85 (corrección del autor del 17/11/2026, probada en PIE; antes 0,5, demasiado sutil).
+	 * inicial 0,85 (corrección del autor del 16/11/2026, probada en PIE; antes 0,5, demasiado sutil).
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0", ClampMax = "1"))
 	float CutDimMaxOpacity = 0.85f;
 
 	/**
-	 * Cuántos pulsos da la capa oscura del corte (S-041, R-VOZ-8; corrección del autor del 17/11/2026). Valor inicial 2, probado en PIE (antes 3: con
+	 * Cuántos pulsos da la capa oscura del corte (S-041, R-VOZ-8; corrección del autor del 16/11/2026). Valor inicial 2, probado en PIE (antes 3: con
 	 * tres de un tercio de segundo seguía parpadeando mientras la ficha se colocaba).
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
 	int32 CutDimPulseCount = 2;
 
 	/**
-	 * Lo que dura cada pulso de la capa oscura del corte, en segundos reales (S-041, R-VOZ-8; corrección del autor del 17/11/2026). Valor inicial
+	 * Lo que dura cada pulso de la capa oscura del corte, en segundos reales (S-041, R-VOZ-8; corrección del autor del 16/11/2026). Valor inicial
 	 * 0,08, probado en PIE (antes un tercio de segundo).
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
@@ -589,6 +589,14 @@ public:
 	FKey ReturnToMenuKey = EKeys::Enter;
 
 	/**
+	 * Tecla de "Empezar" en el anillo (S-042, R-MIN-19; nombre propuesto): hace lo mismo que el botón mientras la prueba espera a que el jugador esté
+	 * listo. Valor inicial Intro, como volver al menú (decisión del autor del 16/11/2026): no chocan, porque esa solo actúa con la partida terminada.
+	 * Fuera de la espera no hace nada y no se la queda.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	FKey RingStartKey = EKeys::Enter;
+
+	/**
 	 * El mapa al que llevan "Volver al menú" e Intro al acabar la partida (S-027, R-MEN-1; nombre propuesto): el menú principal de UGT, el mismo
 	 * que abre su menú de pausa. Valor inicial /Game/UltraGameTemplate/Maps/UGT_MainMenuMap (Config/DefaultGame.ini). Vacío o inexistente, se
 	 * vuelve a GameDefaultMap (el lanzador, con los logos) y se dice en el registro.
@@ -601,7 +609,7 @@ public:
 	int32 ReturnToMenuFontSize = 28;
 
 	/**
-	 * Tamaño de la letra del resultado de la partida, encima del botón "Volver al menú" (S-041, R-HUD-8; añadido del autor del 17/11/2026: antes iba
+	 * Tamaño de la letra del resultado de la partida, encima del botón "Volver al menú" (S-041, R-HUD-8; añadido del autor del 16/11/2026: antes iba
 	 * arriba a la izquierda, en el panel de estado). Valor inicial 40, mayor que el botón.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
@@ -1013,6 +1021,12 @@ private:
 
 	/** Retira la entrada del anillo de Slate, si está registrada. La llaman el cierre, el descarte y EndPlay. */
 	void UnregisterRingInput();
+
+	/**
+	 * "Empezar" del anillo (S-042, R-MIN-19), por el botón o por RingStartKey: pide al anfitrión que empiece la prueba que espera
+	 * (UMatchHostSubsystem::StartRing) con el reloj real. Con el juego en pausa no hace nada, como la entrada del anillo.
+	 */
+	void StartRingNow();
 
 	/** Lo que pinta el panel del anillo ahora, con el reloj real (S-026). */
 	FRingPanelModel RingPanelModel() const;

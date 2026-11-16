@@ -2,6 +2,7 @@
 // editor. Cada test cita el criterio (CA-VIS-n) y la regla (R-VIS-n) que cubre. Filtro: "Soulbound.Game.Presentation.Anillo".
 
 #include "../../Presentation/RingPanelModel.h"
+#include "../../Match/RingTrialRun.h"
 #include "Match/MatchState.h"
 #include "Misc/AutomationTest.h"
 
@@ -114,8 +115,9 @@ bool FRingRuneDomainTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// CA-VIS-20, R-VIS-22: el título del anillo es solo el uso, sin separador ni nivel. La función no recibe la dificultad, así que dos niveles del
-// mismo uso dan por fuerza el mismo título; el test fija el texto exacto de cada uso y que no se cuela ninguna palabra de nivel.
+// CA-VIS-20, R-VIS-22: el nombre del uso es solo el uso, sin separador ni nivel. La función no recibe la dificultad, así que dos niveles del
+// mismo uso dan por fuerza el mismo título; el test fija el texto exacto de cada uso y que no se cuela ninguna palabra de nivel. Desde S-042 el
+// panel del anillo lleva RingStakeTitle (CA-VIS-31, abajo); este nombre lo sigue usando la línea "Prueba pendiente" del panel de estado.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingTitleTextTest, "Soulbound.Game.Presentation.Anillo.TituloSoloElUso", RingModelTestFlags)
 bool FRingTitleTextTest::RunTest(const FString& Parameters)
 {
@@ -167,6 +169,140 @@ bool FRingInstructionLinesTest::RunTest(const FString& Parameters)
 		TestFalse(FString::Printf(TEXT("«%s» no habla de pulso"), *Line), Line.Contains(TEXT("pulso"), ESearchCase::IgnoreCase));
 	}
 	TestEqual(TEXT("Las mismas en el anuncio y con un pulso resuelto"), RingInstructionLines(), Lines);
+	return true;
+}
+
+// CA-VIS-31, R-VIS-30: el título dice qué te juegas. La Prueba del Warden, letra por letra la del autor; las otras cuatro, las aprobadas por el autor
+// el 16/11/2026 en el plan; el duelo gana a la prueba; ninguna de las cinco queda sin frase. Corrección del autor del 16/11/2026: la del duelo, la
+// exacta ("te quitan runas o vuelves a tu hogar"): quien pierde sin runas vuelve a su hogar (R-DUE-6) y no siempre se las queda el ganador.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingStakeTitleTest, "Soulbound.Game.Presentation.Anillo.TituloConLoQueTeJuegas", RingModelTestFlags)
+bool FRingStakeTitleTest::RunTest(const FString& Parameters)
+{
+	using Soulbound::Presentation::RingStakeTitle;
+	struct FCase
+	{
+		const TCHAR* Name;
+		ESkillTrial Trial;
+		bool bDuel;
+		const TCHAR* Expected;
+	};
+	const FCase Cases[] = {
+		{TEXT("Prueba del Warden"), ESkillTrial::WardenTrial, false, TEXT("Prueba del Warden: si fallas, pierdes el turno")},
+		{TEXT("Fuente de un Dominio Olvidado"), ESkillTrial::ForgottenSource, false, TEXT("Fuente de un Dominio Olvidado: si fallas, no consigues la runa")},
+		{TEXT("escape del Vacío"), ESkillTrial::VoidEscape, false, TEXT("Escape del Vacío: si fallas, sigues en el Vacío")},
+		{TEXT("desafío final"), ESkillTrial::FinalChallenge, false, TEXT("Desafío final: si fallas, pierdes una runa y vuelves a tu hogar")},
+		{TEXT("duelo"), ESkillTrial::None, true, TEXT("Duelo: si pierdes, te quitan runas o vuelves a tu hogar")},
+		{TEXT("duelo gana a la prueba"), ESkillTrial::WardenTrial, true, TEXT("Duelo: si pierdes, te quitan runas o vuelves a tu hogar")},
+	};
+	for (const FCase& Case : Cases)
+	{
+		const FString Title = RingStakeTitle(Case.Trial, Case.bDuel);
+		TestEqual(FString::Printf(TEXT("Título de %s, letra por letra"), Case.Name), Title, FString(Case.Expected));
+		TestTrue(FString::Printf(TEXT("%s lleva su frase de lo que se juega"), Case.Name), Title.Contains(TEXT(": si ")));
+	}
+	return true;
+}
+
+// CA-MIN-17, R-MIN-19: con el anillo sin empezar, el modelo lleva el botón "Empezar", su tecla y la cuenta con los segundos que quedan, redondeados
+// hacia arriba; con la prueba empezada, ninguno de los tres. Montaje: se abre en el 10 con espera de 8 s (vence en el 18) y respiro de 0,5 s.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingStartPromptTest, "Soulbound.Game.Presentation.Anillo.BotonEmpezarYCuenta", RingModelTestFlags)
+bool FRingStartPromptTest::RunTest(const FString& Parameters)
+{
+	using Soulbound::Presentation::AddRingStartPrompt;
+	FRingSequence Sequence;
+	Sequence.PulseStarts = {0.0, 2.0};
+	Sequence.CloseSeconds = 1.0;
+	Sequence.SweetZoneSeconds = 0.2;
+	FRingTrialRun Run;
+	Run.Open(Sequence, 10.0, 8.0, 0.5);
+
+	struct FCase
+	{
+		double Now;
+		const TCHAR* Countdown;
+	};
+	const FCase Cases[] = {
+		{10.0, TEXT("Empieza sola en 8 s")},
+		{12.3, TEXT("Empieza sola en 6 s")},
+		{17.01, TEXT("Empieza sola en 1 s")},
+	};
+	for (const FCase& Case : Cases)
+	{
+		FRingPanelModel Model;
+		AddRingStartPrompt(Model, Run, Case.Now, TEXT("Enter"));
+		TestEqual(FString::Printf(TEXT("En el %.2f, el botón"), Case.Now), Model.StartLabel, FString(TEXT("Empezar")));
+		TestEqual(FString::Printf(TEXT("En el %.2f, su tecla"), Case.Now), Model.StartKeyHint, FString(TEXT("o pulsa Intro")));
+		TestEqual(FString::Printf(TEXT("En el %.2f, la cuenta"), Case.Now), Model.StartCountdown, FString(Case.Countdown));
+	}
+
+	FRingTrialRun Started = Run;
+	Started.Start(12.0);
+	for (const double Now : {12.1, 12.6, 20.0})
+	{
+		FRingPanelModel Model;
+		AddRingStartPrompt(Model, Started, Now, TEXT("Enter"));
+		TestTrue(FString::Printf(TEXT("Empezada, en el %.1f: ni botón, ni tecla, ni cuenta"), Now),
+			Model.StartLabel.IsEmpty() && Model.StartKeyHint.IsEmpty() && Model.StartCountdown.IsEmpty());
+	}
+	FRingTrialRun Alone = Run;
+	Alone.StartIfDue(18.0);
+	FRingPanelModel AloneModel;
+	AddRingStartPrompt(AloneModel, Alone, 18.1, TEXT("Enter"));
+	TestTrue(TEXT("Empezada sola: tampoco"), AloneModel.StartLabel.IsEmpty() && AloneModel.StartKeyHint.IsEmpty() && AloneModel.StartCountdown.IsEmpty());
+
+	// El texto de la cuenta, por sí solo: hacia arriba, y nunca negativo.
+	TestEqual(TEXT("5,7 s dicen 6"), Soulbound::Presentation::RingStartCountdownText(5.7), FString(TEXT("Empieza sola en 6 s")));
+	TestEqual(TEXT("8 s justos dicen 8"), Soulbound::Presentation::RingStartCountdownText(8.0), FString(TEXT("Empieza sola en 8 s")));
+	TestEqual(TEXT("Negativo, 0"), Soulbound::Presentation::RingStartCountdownText(-0.2), FString(TEXT("Empieza sola en 0 s")));
+	return true;
+}
+
+// CA-MIN-17 (el panel; corrección del autor del 16/11/2026 tras PIE), R-MIN-19: el botón "Empezar", su tecla y la cuenta van debajo del aro, entre el
+// círculo y la barra de progreso; el centro (la runa y la franja verde, dentro del radio mayor del aro) queda libre. A 1024x768 y con un título de dos
+// líneas, el aro no encoge y todo cabe en el panel; el panel no pasa del 60 % del alto de la pantalla (con la curva de escala de Unreal, de 720 a 1080
+// líneas la proporción es la misma). Montaje: la letra de la configuración (RingFontSize, 20). Las alturas de línea son una estimación por lo alto
+// (1,6 veces el tamaño de la letra; la real de la letra de Unreal ronda 1,56): lo exacto se mira en PIE.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingStartBandLayoutTest, "Soulbound.Game.Presentation.Anillo.EmpezarDebajoDelAro", RingModelTestFlags)
+bool FRingStartBandLayoutTest::RunTest(const FString& Parameters)
+{
+	using Soulbound::Presentation::RingPanelLayout;
+	constexpr int32 FontSize = 20;
+	const float Scale = FontSize / 18.f;
+	const float Width = Soulbound::Presentation::RingPanelWidth(FontSize);
+	const float Height = Width * Soulbound::Presentation::RingPanelHeightRatio;
+	TestEqual(TEXT("A 18 puntos, 420 de ancho"), Soulbound::Presentation::RingPanelWidth(18), 420.f, 1e-3f);
+
+	// Como lo pinta SRingPanel: margen de 12, el título, 4 de separación y las dos líneas de la instrucción (letra 0,75).
+	const auto LineHeight = [](float Size) { return 1.6f * Size; };
+	const float TitleLine = LineHeight(FontSize);
+	const float SmallLine = LineHeight(FMath::RoundToFloat(FontSize * 0.75f));
+	const auto TextBottom = [&](int32 TitleLines) { return 12.f * Scale + TitleLines * TitleLine + 4.f * Scale + 2.f * SmallLine; };
+	// Lo que pide la fila de "Empezar": el botón (su letra, 8 de margen arriba y abajo y 2 de borde) junto a la caja de la tecla y la cuenta (dos líneas
+	// de letra 0,8 y 4 de margen). La fila es tan alta como el más alto de los dos.
+	const float ButtonHeight = TitleLine + 2.f * 8.f + 4.f;
+	const float HintHeight = 2.f * LineHeight(FMath::RoundToFloat(FontSize * 0.8f)) + 2.f * 4.f;
+	const float RowHeight = FMath::Max(ButtonHeight, HintHeight);
+	const float FullRadius = 0.36f * Width;
+
+	for (const int32 TitleLines : {1, 2})
+	{
+		const FRingPanelLayout Layout = RingPanelLayout(Width, Height, TextBottom(TitleLines), Scale);
+		const FString Case = FString::Printf(TEXT("Título de %d línea(s)"), TitleLines);
+		TestTrue(Case + TEXT(": el aro no pisa los textos de arriba"), Layout.CenterY - Layout.MaxRadius >= TextBottom(TitleLines));
+		TestTrue(Case + TEXT(": la franja de \"Empezar\" empieza debajo del aro (el centro, libre)"), Layout.StartBandTop >= Layout.CenterY + Layout.MaxRadius);
+		TestTrue(Case + TEXT(": y acaba encima de la barra"), Layout.StartBandBottom <= Layout.BarTop);
+		TestTrue(Case + TEXT(": cabe la fila del botón, la tecla y la cuenta"), Layout.StartBandBottom - Layout.StartBandTop >= RowHeight);
+		TestTrue(Case + TEXT(": la barra va encima de las marcas de los pulsos"), Layout.BarTop + 12.f * Scale < Layout.DotsY - 9.f * Scale);
+		TestTrue(Case + TEXT(": las marcas caben en el panel"), Layout.DotsY + 9.f * Scale <= Height);
+		TestEqual(Case + TEXT(": el aro no encoge"), Layout.MaxRadius, FullRadius, 0.5f);
+	}
+	// Con tres líneas de título el aro puede encoger un poco, pero nada se pisa.
+	const FRingPanelLayout Three = RingPanelLayout(Width, Height, TextBottom(3), Scale);
+	TestTrue(TEXT("Tres líneas: el aro sigue siendo grande"), Three.MaxRadius >= 0.85f * FullRadius);
+	TestTrue(TEXT("Tres líneas: ni pisa el título ni la franja"), Three.CenterY - Three.MaxRadius >= TextBottom(3) && Three.StartBandTop >= Three.CenterY + Three.MaxRadius);
+	// La franja no depende del título: el botón va siempre en el mismo sitio del panel.
+	TestEqual(TEXT("La franja, en el mismo sitio con uno o tres títulos"), Three.StartBandTop, RingPanelLayout(Width, Height, TextBottom(1), Scale).StartBandTop, 1e-3f);
+	TestTrue(TEXT("El panel no pasa del 60 % del alto (1080 líneas, y por la escala de Unreal también a 768)"), Height <= 0.6f * 1080.f);
 	return true;
 }
 

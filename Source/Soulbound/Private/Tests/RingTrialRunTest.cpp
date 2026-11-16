@@ -5,6 +5,7 @@
 // arranca en el 10. El pulso 0 va del 10 al 11,1 y coincide en el 11; el 1, del 12 al 13,1 y coincide en el 13; el 2, del 14 al 15,1.
 
 #include "../../Match/RingTrialRun.h"
+#include "Match/MatchParams.h"
 #include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -21,6 +22,159 @@ namespace
 		Run.Begin(Sequence, 10.0);
 		return Run;
 	}
+
+	/**
+	 * S-042: una secuencia sorteada como la sortea el anfitrión (MakeRingSequence), con la semilla Seed: huecos de 0,8 a 2 s y tres pulsos con el
+	 * cierre y la zona de normal (1,2 s y 0,18). Montaje de la espera: se abre en el 10, espera máxima 8 s (cuenta a cero en el 18), respiro 0,5 s.
+	 */
+	constexpr double WaitOpen = 10.0;
+	constexpr double WaitMax = 8.0;
+	constexpr double WaitBreather = 0.5;
+
+	FRingSequence MakeDrawnSequence(int32 Seed)
+	{
+		FRingParams Ring;
+		Ring.PulseGapMinSeconds = 0.8;
+		Ring.PulseGapMaxSeconds = 2.0;
+		FRingTrialParams Trial;
+		Trial.CloseSeconds = 1.2;
+		Trial.SweetZone = 0.18;
+		Trial.Pulses = 3;
+		return Soulbound::Rules::MakeRingSequence(Ring, Trial, Seed);
+	}
+
+	FRingTrialRun MakeWaitingRun(int32 Seed = 1234)
+	{
+		FRingTrialRun Run;
+		Run.Open(MakeDrawnSequence(Seed), WaitOpen, WaitMax, WaitBreather);
+		return Run;
+	}
+
+	/** Si en la espera el anillo está quieto en Now: sin pulsos resueltos, sin pulso en curso, sin cierre y ninguna pulsación cuenta. */
+	bool IsIdleWhileWaiting(const FRingTrialRun& Run, double Now)
+	{
+		return Run.Precisions().IsEmpty() && Run.CurrentPulse(Now) == INDEX_NONE && Run.CloseFraction(Now) == 0.0 && !Run.IsInSweetZone(Now)
+			&& Run.QueryPress(Now).Kind == ERingPressKind::Waiting;
+	}
+}
+
+// CA-MIN-14 (empezar por el botón), R-MIN-19: con el anillo abierto y sin empezar, ningún pulso se cierra ni vence aunque pase el tiempo, hasta la
+// espera máxima. Al pulsar "Empezar" en el segundo 2 (el 12), el primer pulso comienza a cerrarse en el 12 más el respiro, y la secuencia es la
+// sorteada con la misma semilla, sin tocar.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingRunStartByButtonTest, "Soulbound.Game.Match.Anillo.EsperaYEmpiezaPorElBoton",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+bool FRingRunStartByButtonTest::RunTest(const FString& Parameters)
+{
+	FRingTrialRun Run = MakeWaitingRun();
+	TestTrue(TEXT("Abierta, espera"), Run.IsWaiting());
+	bool bIdle = true;
+	for (const double Now : {10.0, 11.0, 11.2, 12.5, 14.0, 16.0, 17.99})
+	{
+		Run.Advance(Now);
+		bIdle &= IsIdleWhileWaiting(Run, Now);
+	}
+	TestTrue(TEXT("Hasta la espera máxima, ningún pulso se cierra ni vence"), bIdle);
+	TestFalse(TEXT("Y no ha terminado"), Run.IsFinished());
+
+	// En la prueba, el tiempo de antes ya pasó: se vuelve a una copia abierta, sin avances, para pulsar en el 12.
+	FRingTrialRun Pressed = MakeWaitingRun();
+	Pressed.Advance(11.9);
+	TestTrue(TEXT("\"Empezar\" en el segundo 2 empieza la prueba"), Pressed.Start(WaitOpen + 2.0));
+	TestFalse(TEXT("Empezada, ya no espera"), Pressed.IsWaiting());
+	TestTrue(TEXT("Por el botón"), Pressed.StartCause == ERingStartCause::Button);
+	TestEqual(TEXT("Esperó 2 s"), Pressed.WaitedSeconds(), 2.0, 1e-9);
+	const double FirstPulse = WaitOpen + 2.0 + WaitBreather;
+	TestEqual(TEXT("El primer pulso empieza en el 12 más el respiro"), Pressed.StartSeconds, FirstPulse, 1e-9);
+	TestEqual(TEXT("En el respiro no hay pulso en curso"), Pressed.CurrentPulse(FirstPulse - 0.01), static_cast<int32>(INDEX_NONE));
+	TestEqual(TEXT("En el 12,5 el pulso 0 está en curso"), Pressed.CurrentPulse(FirstPulse), 0);
+	TestEqual(TEXT("Y empieza a cerrarse desde 0"), Pressed.CloseFraction(FirstPulse), 0.0, 1e-9);
+	TestTrue(TEXT("A mitad del cierre (0,6 s), se está cerrando"), Pressed.CloseFraction(FirstPulse + 0.6) > 0.4 && Pressed.CloseFraction(FirstPulse + 0.6) < 0.6);
+	TestFalse(TEXT("Un segundo \"Empezar\" no hace nada"), Pressed.Start(FirstPulse + 0.1));
+	TestEqual(TEXT("Ni mueve el inicio"), Pressed.StartSeconds, FirstPulse, 1e-9);
+
+	// Misma semilla, mismos pulsos: la espera no vuelve a sortear ni desplaza los pulsos entre sí.
+	const FRingSequence Drawn = MakeDrawnSequence(1234);
+	TestEqual(TEXT("La secuencia es la sorteada con la misma semilla"), Pressed.Sequence.PulseStarts, Drawn.PulseStarts);
+	TestEqual(TEXT("Con el mismo cierre"), Pressed.Sequence.CloseSeconds, Drawn.CloseSeconds, 1e-12);
+	TestEqual(TEXT("Y la misma zona"), Pressed.Sequence.SweetZoneSeconds, Drawn.SweetZoneSeconds, 1e-12);
+	FRingTrialRun NoWait;
+	NoWait.Begin(Drawn, FirstPulse);
+	TestTrue(TEXT("Cada pulso coincide donde coincidiría sin espera, empezando en el mismo instante"),
+		Pressed.QueryPress(FirstPulse + Drawn.CoincidenceAt(1)).Pulse == NoWait.QueryPress(FirstPulse + Drawn.CoincidenceAt(1)).Pulse
+		&& FMath::IsNearlyZero(Pressed.QueryPress(FirstPulse + Drawn.CoincidenceAt(2)).OffsetSeconds, 1e-9));
+	return true;
+}
+
+// CA-MIN-15 (empezar sola), R-MIN-19: sin pulsar, al cumplirse la espera máxima la prueba empieza; el primer pulso comienza a cerrarse a la espera
+// máxima más el respiro, aunque el avance llegue tarde. Sin castigo: no se resuelve ningún pulso, y las mismas pulsaciones dan el mismo resultado
+// que empezando por el botón. La insolencia no la toca el anillo (no tiene estado de partida); el anfitrión, al empezar, solo escribe el acta.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingRunStartsAloneTest, "Soulbound.Game.Match.Anillo.EmpiezaSola",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+bool FRingRunStartsAloneTest::RunTest(const FString& Parameters)
+{
+	FRingTrialRun Run = MakeWaitingRun();
+	TestEqual(TEXT("La cuenta vence en el 18"), Run.StartDueSeconds(), WaitOpen + WaitMax, 1e-9);
+	TestFalse(TEXT("En el 17,9 aún no empieza"), Run.StartIfDue(17.9));
+	TestTrue(TEXT("Y sigue esperando"), Run.IsWaiting());
+	// El tick que lo nota llega tarde, en el 18,3: empieza en el 18, no en el 18,3.
+	TestTrue(TEXT("En el 18,3, empieza sola"), Run.StartIfDue(18.3));
+	TestTrue(TEXT("Por la cuenta"), Run.StartCause == ERingStartCause::Countdown);
+	TestEqual(TEXT("Esperó la espera máxima"), Run.WaitedSeconds(), WaitMax, 1e-9);
+	const double FirstPulse = WaitOpen + WaitMax + WaitBreather;
+	TestEqual(TEXT("El primer pulso empieza a la espera máxima más el respiro"), Run.StartSeconds, FirstPulse, 1e-9);
+	TestFalse(TEXT("Empezada, no vuelve a empezar"), Run.StartIfDue(30.0));
+	TestTrue(TEXT("Sin castigo: ningún pulso resuelto"), Run.Precisions().IsEmpty());
+
+	// "Empezar" pulsado cuando la cuenta ya venció no empieza por el botón: gana la cuenta, en su instante.
+	FRingTrialRun Late = MakeWaitingRun();
+	TestFalse(TEXT("\"Empezar\" en el 18,2, con la cuenta vencida: no es por el botón"), Late.Start(18.2));
+	TestTrue(TEXT("Pero ha empezado sola"), !Late.IsWaiting() && Late.StartCause == ERingStartCause::Countdown);
+	TestEqual(TEXT("En el instante de la cuenta"), Late.StartSeconds, FirstPulse, 1e-9);
+
+	// Las mismas pulsaciones, relativas al primer pulso, dan las mismas precisiones que empezando por el botón: empezar sola no cambia nada.
+	FRingTrialRun Button = MakeWaitingRun();
+	Button.Start(WaitOpen + 3.0);
+	const double ButtonFirst = WaitOpen + 3.0 + WaitBreather;
+	for (const double Offset : {0.05, -0.02, 0.0})
+	{
+		const int32 Pulse = Run.Precisions().Num();
+		if (!TestTrue(TEXT("Queda un pulso por jugar"), Pulse < Run.NumPulses() && Pulse < Button.NumPulses()))
+		{
+			break;
+		}
+		Run.Press(FirstPulse + Run.Sequence.CoincidenceAt(Pulse) + Offset);
+		Button.Press(ButtonFirst + Button.Sequence.CoincidenceAt(Pulse) + Offset);
+	}
+	TestEqual(TEXT("Mismas precisiones que por el botón"), Run.Precisions(), Button.Precisions());
+	TestTrue(TEXT("Y la prueba terminada"), Run.IsFinished());
+	return true;
+}
+
+// CA-MIN-16 (la pulsación de empezar no cuenta), R-MIN-19: la pulsación que empieza la prueba no se registra como pulsación del anillo; tras ella,
+// cero pulsos resueltos y la prueba entera por jugar. Una pulsación del anillo durante la espera, fuera del botón, tampoco cuenta ni resuelve nada.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingRunStartPressNotCountedTest, "Soulbound.Game.Match.Anillo.EmpezarNoCuenta",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+bool FRingRunStartPressNotCountedTest::RunTest(const FString& Parameters)
+{
+	FRingTrialRun Run = MakeWaitingRun();
+	TestTrue(TEXT("Durante la espera, la consulta dice que espera"), Run.QueryPress(11.0).Kind == ERingPressKind::Waiting);
+	TestFalse(TEXT("Una pulsación del anillo durante la espera no cuenta"), Run.Press(11.0));
+	TestTrue(TEXT("Ni resuelve ningún pulso"), Run.Precisions().IsEmpty());
+	TestTrue(TEXT("Ni empieza la prueba"), Run.IsWaiting());
+
+	TestTrue(TEXT("\"Empezar\" en el 12"), Run.Start(12.0));
+	TestEqual(TEXT("La pulsación de empezar no resuelve ningún pulso"), Run.Precisions().Num(), 0);
+	// Pulsar el anillo enseguida (en el respiro) tampoco cuenta: es el anuncio, el de siempre.
+	TestTrue(TEXT("En el respiro, el anuncio"), Run.QueryPress(12.2).Kind == ERingPressKind::Announcement);
+	TestFalse(TEXT("Una pulsación en el respiro no cuenta"), Run.Press(12.2));
+	TestEqual(TEXT("Cero pulsos resueltos: la prueba recién empezada"), Run.Precisions().Num(), 0);
+	TestEqual(TEXT("Con todos sus pulsos por jugar"), Run.NumPulses(), 3);
+	TestTrue(TEXT("La primera pulsación en el pulso 0 cuenta para él"), Run.Press(12.5 + Run.Sequence.CoincidenceAt(0)));
+	if (TestEqual(TEXT("Un pulso resuelto"), Run.Precisions().Num(), 1))
+	{
+		TestEqual(TEXT("Con la precisión de esa pulsación (1)"), Run.Precisions()[0], 1.0, 1e-9);
+	}
+	return true;
 }
 
 // CA-VIS-14 (zona), R-VIS-15: con cierre de 1,2 s y zona de 0,18 (0,216 s), dentro entre la coincidencia menos y más media zona (0,108 s) del primer
