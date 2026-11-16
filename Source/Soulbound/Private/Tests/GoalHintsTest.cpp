@@ -128,9 +128,11 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGoalLineTest, "Soulbound.Game.Presentation.Est
 
 bool FGoalLineTest::RunTest(const FString& Parameters)
 {
-	// CA-HUD-15 (R-HUD-7, con la precisión del 16/11/2026 sobre el prólogo): la línea de objetivo dice, letra por letra, los cuatro textos de la
-	// regla en sus cuatro casos, con N igual a las runas distintas del humano; con la meta None, no hay línea; en el prólogo, tampoco.
+	// CA-HUD-15 (R-HUD-7, con la precisión del 16/11/2026 sobre el prólogo y la corrección del mismo día tras PIE): la línea de objetivo dice, letra
+	// por letra, sus textos en sus casos, con N igual a las runas distintas del humano, y el del aspirante en el Altar; va en su caja, con la letra
+	// grande y su color, y no en el panel de estado; con la meta None no hay línea; en el prólogo, tampoco.
 	using Soulbound::Presentation::GoalLineText;
+	using Soulbound::Presentation::GoalPanelLines;
 	using Soulbound::Presentation::StatusLines;
 	FMatchState State;
 	if (!GhMakeState(*this, State))
@@ -153,44 +155,47 @@ bool FGoalLineTest::RunTest(const FString& Parameters)
 	State.Seats[GhHuman].Runes[GhForgottenB] = 1;
 	TestEqual(TEXT("Runes, Eco con una"), GoalLineText(State, GhHuman), FString(TEXT("Consigue runas en las Fuentes de los Olvidados, o róbalas (1/6)")));
 
-	// Altar: los seis tipos.
+	// Altar: los seis tipos, fuera del Altar (el Elegido está en su Nicho).
 	for (int32 RuneType = 0; RuneType < Soulbound::Board::DomainCount; ++RuneType)
 	{
 		State.Seats[GhElect].Runes[RuneType] = 1;
 	}
-	TestEqual(TEXT("Altar"), GoalLineText(State, GhElect), FString(TEXT("Vuelve al Altar")));
+	TestEqual(TEXT("Altar, fuera de él"), GoalLineText(State, GhElect), FString(TEXT("Vuelve al Altar")));
 
-	// En el panel de estado: tras la petición, con el color de la línea de objetivo y la letra normal.
+	// Aspirante (corrección del 16/11/2026): en el Altar con los seis tipos (IsAspirant). SeatGoal no cambia: sigue siendo Altar.
+	{
+		FMatchState Aspirant = State;
+		Aspirant.Seats[GhElect].TileId = Aspirant.Board.FindAltar();
+		TestEqual(TEXT("Aspirante: en el Altar con los seis"), GoalLineText(Aspirant, GhElect), FString(TEXT("Supera el desafío final en tu próximo turno")));
+	}
+
+	// La caja de la línea de objetivo (corrección del 16/11/2026): una sola línea, grande y con su color; el panel de estado ya no la lleva.
 	GhHumanRolling(State);
 	const FString EchoLine = TEXT("Consigue runas en las Fuentes de los Olvidados, o róbalas (1/6)");
 	{
-		const TArray<FPanelLine> Lines = StatusLines(State, GhContext());
-		const int32 Goal = GhIndexOf(Lines, EchoLine);
-		if (TestTrue(TEXT("La línea de objetivo está en el panel de estado"), Goal != INDEX_NONE))
+		const TArray<FPanelLine> Box = GoalPanelLines(State, GhContext());
+		if (TestEqual(TEXT("La caja lleva una línea"), Box.Num(), 1))
 		{
-			TestEqual(TEXT("Justo tras la petición, que va la primera"), Goal, 1);
-			TestTrue(TEXT("La petición sigue la primera"), Lines[0].Text.Contains(TEXT("tu turno")));
-			TestEqual(TEXT("Con el color de la línea de objetivo"), Lines[Goal].Color, GhGoalLineColor);
-			TestFalse(TEXT("Con la letra normal"), Lines[Goal].bLarge);
+			TestEqual(TEXT("El texto de GoalLineText"), Box[0].Text, EchoLine);
+			TestEqual(TEXT("Con el color de la línea de objetivo"), Box[0].Color, GhGoalLineColor);
+			TestTrue(TEXT("Con la letra grande"), Box[0].bLarge);
 		}
-	}
-	{
-		// Con el panel de decisión a la vista, la petición no está aquí: la línea de objetivo va la primera.
-		FStatusContext Context = GhContext();
-		Context.bDecisionPanelShown = true;
-		TestEqual(TEXT("Sin la petición, la primera"), GhIndexOf(StatusLines(State, Context), EchoLine), 0);
+		const TArray<FPanelLine> Lines = StatusLines(State, GhContext());
+		TestEqual(TEXT("El panel de estado no la lleva"), GhIndexOf(Lines, TEXT("Consigue runas")), INDEX_NONE);
+		TestTrue(TEXT("La petición sigue la primera del panel de estado"), Lines.Num() > 0 && Lines[0].Text.Contains(TEXT("tu turno")));
 	}
 	{
 		FStatusContext Context = GhContext();
 		Context.bPrologue = true;
-		TestEqual(TEXT("En el prólogo no sale"), GhIndexOf(StatusLines(State, Context), TEXT("Consigue runas")), INDEX_NONE);
+		TestTrue(TEXT("En el prólogo, la caja no tiene línea"), GoalPanelLines(State, Context).IsEmpty());
 	}
 
 	// None: la partida terminada.
 	State.MatchPhase = EMatchPhase::MatchOver;
 	TestTrue(TEXT("None: sin texto"), GoalLineText(State, GhHuman).IsEmpty());
+	TestTrue(TEXT("None: la caja no tiene línea"), GoalPanelLines(State, GhContext()).IsEmpty());
 	const TArray<FPanelLine> Over = StatusLines(State, GhContext());
-	for (const TCHAR* Text : {TEXT("Llega a"), TEXT("Consigue runas"), TEXT("Vuelve al Altar")})
+	for (const TCHAR* Text : {TEXT("Llega a"), TEXT("Consigue runas"), TEXT("Vuelve al Altar"), TEXT("Supera el desafío")})
 	{
 		TestEqual(FString::Printf(TEXT("None: ninguna línea empieza por \"%s\""), Text), GhIndexOf(Over, Text), INDEX_NONE);
 	}

@@ -77,13 +77,23 @@ namespace Soulbound::Presentation
 	/**
 	 * La línea de objetivo del asiento humano (S-040, R-HUD-7, nombre propuesto): su meta (SeatGoal, R-VIC-5) con palabras. "Llega a un Nicho libre";
 	 * "Consigue runas en las Fuentes (N/6)" para un Elegido y "Consigue runas en las Fuentes de los Olvidados, o róbalas (N/6)" para un Eco, con N
-	 * los tipos de runa distintos que tiene (RuneTypeCount); "Vuelve al Altar". Vacía con la meta None. StatusLines la pone tras el resultado y la
-	 * petición, salvo en el prólogo.
+	 * los tipos de runa distintos que tiene (RuneTypeCount); con los seis, "Supera el desafío final en tu próximo turno" si ya es aspirante (IsAspirant:
+	 * en el Altar) y "Vuelve al Altar" si no (corrección del autor del 16/11/2026 tras PIE). Vacía con la meta None. La enseña GoalPanelLines.
 	 * @param State El estado de la partida.
 	 * @param HumanSeat El asiento humano.
 	 * @return La línea, o vacía.
 	 */
 	FString GoalLineText(const FMatchState& State, int32 HumanSeat);
+
+	/**
+	 * Lo que pinta la caja de la línea de objetivo (S-040, R-HUD-7, nombre propuesto), arriba a la izquierda y encima del panel de estado (corrección del
+	 * autor del 16/11/2026 tras PIE: entre las líneas del panel quedaba escondida). Una sola línea, GoalLineText, con la letra grande y el color
+	 * Context.GoalLineColor; ninguna en el prólogo (Context.bPrologue) ni con la meta None. Sin líneas, la vista oculta la caja.
+	 * @param State El estado de la partida.
+	 * @param Context Lo que no está en el estado: el asiento humano, el prólogo y el color.
+	 * @return La línea de la caja, o ninguna.
+	 */
+	TArray<FPanelLine> GoalPanelLines(const FMatchState& State, const FStatusContext& Context);
 
 	/**
 	 * Las líneas del panel de depuración (R-HUD-2): paso a paso, evaluación del Warden, semilla con el tiempo y la ronda, y los asientos con su
