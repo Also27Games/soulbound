@@ -62,8 +62,8 @@ namespace Soulbound::Presentation
 
 	/**
 	 * El texto de una pulsación del anillo del humano (R-ACT-10), con lo que la consulta dijo de ella: si cuenta, el pulso (de 1 en
-	 * adelante) y el desfase en segundos respecto a su coincidencia, con signo (negativo, antes); si no, por qué (anuncio, entre pulsos,
-	 * prueba terminada).
+	 * adelante) y el desfase en segundos respecto a su coincidencia, con signo (negativo, antes); si no, por qué (espera para empezar, anuncio,
+	 * entre pulsos, prueba terminada).
 	 */
 	FString RingPressLine(const FRingPressQuery& Query);
 
@@ -72,7 +72,7 @@ namespace Soulbound::Presentation
 	 * o sola, al llegar la cuenta a cero, y los segundos que esperó desde que se abrió.
 	 * @param Cause Cómo empezó (FRingTrialRun::StartCause).
 	 * @param WaitedSeconds Segundos de espera (FRingTrialRun::WaitedSeconds).
-	 * @return Por ejemplo "Anillo: empieza por el botón tras 2.0 s de espera."
+	 * @return "Anillo: empieza por el botón tras 2.0 s de espera." o "Anillo: empieza sola tras 8.0 s de espera (la cuenta llegó a cero)."
 	 */
 	FString RingStartLine(ERingStartCause Cause, double WaitedSeconds);
 

@@ -36,6 +36,52 @@ namespace
 		FSlateDrawElement::MakeText(Out, Layer, Geometry.ToPaintGeometry(Size, FSlateLayoutTransform(Position)), Text, Font, ESlateDrawEffect::None, Color);
 		return Size.Y;
 	}
+
+	/** Como DrawCenteredText, pero partiendo el texto por palabras en líneas que no pasen de MaxWidth, cada una centrada. Devuelve el alto total. */
+	float DrawCenteredWrapped(FSlateWindowElementList& Out, int32 Layer, const FGeometry& Geometry, const FString& Text, const FSlateFontInfo& Font, float Top,
+		const FLinearColor& Color, float MaxWidth)
+	{
+		const TSharedRef<FSlateFontMeasure> Measure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+		TArray<FString> Words;
+		Text.ParseIntoArray(Words, TEXT(" "));
+		float Height = 0.f;
+		FString Line;
+		for (const FString& Word : Words)
+		{
+			const FString Candidate = Line.IsEmpty() ? Word : Line + TEXT(" ") + Word;
+			if (!Line.IsEmpty() && Measure->Measure(Candidate, Font).X > MaxWidth)
+			{
+				Height += DrawCenteredText(Out, Layer, Geometry, Line, Font, Top + Height, Color);
+				Line = Word;
+			}
+			else
+			{
+				Line = Candidate;
+			}
+		}
+		return Height + DrawCenteredText(Out, Layer, Geometry, Line, Font, Top + Height, Color);
+	}
+
+	/**
+	 * El título del panel (S-042, R-VIS-30): en una línea si cabe; si no, el nombre de la prueba (hasta los dos puntos, incluidos) en una línea y lo
+	 * que te juegas debajo, cada parte partida por palabras si aún no cabe (decisión del autor del 16/11/2026). Devuelve el alto total.
+	 */
+	float DrawTitle(FSlateWindowElementList& Out, int32 Layer, const FGeometry& Geometry, const FString& Title, const FSlateFontInfo& Font, float Top, float MaxWidth)
+	{
+		if (Title.IsEmpty())
+		{
+			return 0.f;
+		}
+		FString Name;
+		FString Stake;
+		const bool bFits = FSlateApplication::Get().GetRenderer()->GetFontMeasureService()->Measure(Title, Font).X <= MaxWidth;
+		if (bFits || !Title.Split(TEXT(": "), &Name, &Stake))
+		{
+			return DrawCenteredWrapped(Out, Layer, Geometry, Title, Font, Top, FLinearColor::White, MaxWidth);
+		}
+		const float NameHeight = DrawCenteredWrapped(Out, Layer, Geometry, Name + TEXT(":"), Font, Top, FLinearColor::White, MaxWidth);
+		return NameHeight + DrawCenteredWrapped(Out, Layer, Geometry, Stake, Font, Top + NameHeight, FLinearColor::White, MaxWidth);
+	}
 }
 
 void SRingPanel::Construct(const FArguments& InArgs)
@@ -56,9 +102,10 @@ FLinearColor SRingPanel::PrecisionColor(double Precision)
 
 FVector2D SRingPanel::ComputeDesiredSize(float LayoutScaleMultiplier) const
 {
-	// Cuadrado proporcional a la letra: a 18 puntos, 420 píxeles de ancho.
+	// Proporcional a la letra: a 18 puntos, 420 píxeles de ancho. Desde S-042, 1,25 veces más alto que ancho (antes 1,15): el título con lo que te
+	// juegas puede ocupar dos o tres líneas (R-VIS-30) y el aro baja para no pisarlo.
 	const float Side = 420.f * FontSize / 18.f;
-	return FVector2D(Side, Side * 1.15f);
+	return FVector2D(Side, Side * 1.25f);
 }
 
 int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
@@ -82,17 +129,19 @@ int32 SRingPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeome
 	const FSlateFontInfo SmallFont = FCoreStyle::GetDefaultFontStyle("Regular", FMath::Max(8, FMath::RoundToInt(FontSize * 0.75f)));
 	const FSlateFontInfo BigFont = FCoreStyle::GetDefaultFontStyle("Bold", FMath::RoundToInt(FontSize * 1.6f));
 	float Top = 12.f * Scale;
-	Top += DrawCenteredText(OutDrawElements, Layer, AllottedGeometry, Now.Title, TitleFont, Top, FLinearColor::White) + 4.f * Scale;
+	// S-042 (R-VIS-30): el título dice qué te juegas y puede no caber en una línea; se parte (DrawTitle) dentro del ancho con un margen a cada lado.
+	Top += DrawTitle(OutDrawElements, Layer, AllottedGeometry, Now.Title, TitleFont, Top, Size.X - 24.f * Scale) + 4.f * Scale;
 	for (const FString& Line : Now.Instruction)
 	{
 		Top += DrawCenteredText(OutDrawElements, Layer, AllottedGeometry, Line, SmallFont, Top, FLinearColor(0.8f, 0.8f, 0.8f));
 	}
 	Top += DrawCenteredText(OutDrawElements, Layer, AllottedGeometry, Now.Note, SmallFont, Top, FLinearColor(0.8f, 0.8f, 0.8f));
 
-	// La franja verde de la zona buena, la runa y el aro (R-VIS-14, R-VIS-18, R-VIS-19). Orden de pintado: franja, runa, aro.
-	const FVector2f Center(Size.X * 0.5f, Size.Y * 0.5f);
+	// La franja verde de la zona buena, la runa y el aro (R-VIS-14, R-VIS-18, R-VIS-19). Orden de pintado: franja, runa, aro. Desde S-042, si el título
+	// ocupa más de una línea, el aro baja lo justo para no pisar los textos de arriba.
 	const float RuneRadius = 34.f * Scale;
 	const float MaxRadius = FMath::Min(Size.X, Size.Y) * 0.36f;
+	const FVector2f Center(Size.X * 0.5f, FMath::Max(Size.Y * 0.5f, Top + MaxRadius + 8.f * Scale));
 	if (Now.bShowRing)
 	{
 		// La franja va del borde de la runa al radio en que el aro entra en la zona (el cierre 1 - ZoneFraction): un círculo grueso a media distancia. Su color y opacidad vienen de la configuración (RingZoneColor).

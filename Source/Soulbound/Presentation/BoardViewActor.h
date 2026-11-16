@@ -589,6 +589,14 @@ public:
 	FKey ReturnToMenuKey = EKeys::Enter;
 
 	/**
+	 * Tecla de "Empezar" en el anillo (S-042, R-MIN-19; nombre propuesto): hace lo mismo que el botón mientras la prueba espera a que el jugador esté
+	 * listo. Valor inicial Intro, como volver al menú (decisión del autor del 16/11/2026): no chocan, porque esa solo actúa con la partida terminada.
+	 * Fuera de la espera no hace nada y no se la queda.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	FKey RingStartKey = EKeys::Enter;
+
+	/**
 	 * El mapa al que llevan "Volver al menú" e Intro al acabar la partida (S-027, R-MEN-1; nombre propuesto): el menú principal de UGT, el mismo
 	 * que abre su menú de pausa. Valor inicial /Game/UltraGameTemplate/Maps/UGT_MainMenuMap (Config/DefaultGame.ini). Vacío o inexistente, se
 	 * vuelve a GameDefaultMap (el lanzador, con los logos) y se dice en el registro.
@@ -1013,6 +1021,12 @@ private:
 
 	/** Retira la entrada del anillo de Slate, si está registrada. La llaman el cierre, el descarte y EndPlay. */
 	void UnregisterRingInput();
+
+	/**
+	 * "Empezar" del anillo (S-042, R-MIN-19), por el botón o por RingStartKey: pide al anfitrión que empiece la prueba que espera
+	 * (UMatchHostSubsystem::StartRing) con el reloj real. Con el juego en pausa no hace nada, como la entrada del anillo.
+	 */
+	void StartRingNow();
 
 	/** Lo que pinta el panel del anillo ahora, con el reloj real (S-026). */
 	FRingPanelModel RingPanelModel() const;

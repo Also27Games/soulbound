@@ -590,6 +590,14 @@ namespace Soulbound::Presentation
 			if (!Goal.IsEmpty())
 			{
 				Lines.Add({Goal, Context.GoalLineColor, true});
+				// R-HUD-9 (S-042): debajo, el recordatorio de la Prueba del Warden pendiente, con el color del Warden y la letra grande (decisión del autor
+				// del 16/11/2026), desde que se impone hasta que se abre su anillo: el turno del humano en la fase de la prueba con la Prueba del Warden.
+				const bool bPending = State.Seats.IsValidIndex(Context.HumanSeat) && State.Seats[Context.HumanSeat].bWardenTrialPending;
+				const bool bPlaying = State.ActiveSeat == Context.HumanSeat && State.TurnPhase == ETurnPhase::SkillTrial && State.PendingTrial == ESkillTrial::WardenTrial;
+				if (bPending && !bPlaying)
+				{
+					Lines.Add({TEXT("Te espera la Prueba del Warden"), Context.WardenLineColor, true});
+				}
 			}
 		}
 		return Lines;

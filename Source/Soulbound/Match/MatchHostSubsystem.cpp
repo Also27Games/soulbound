@@ -989,6 +989,13 @@ bool UMatchHostSubsystem::PressRing(double PressSeconds)
 	{
 		return false;
 	}
+	// S-042 (R-MIN-19): si la cuenta venció, la prueba empieza sola antes de mirar la pulsación. Mientras espera, una pulsación del anillo no cuenta
+	// ni deja línea (decisión del autor del 16/11/2026); la entrada del anillo ni siquiera las entrega.
+	StartRingIfDue(PressSeconds);
+	if (HumanRing->Run.IsWaiting())
+	{
+		return false;
+	}
 	// S-030 (R-ACT-10): se avanza (los pulsos vencidos antes de la pulsación se resuelven y dejan su línea), se consulta qué sería esta
 	// pulsación (cuente o no, deja su línea en el acta) y luego se pulsa. Press repite lo que decidió la consulta.
 	HumanRing->Run.Advance(PressSeconds);
@@ -1011,11 +1018,41 @@ void UMatchHostSubsystem::OpenRing(const FRingTrialParams& Params, ESkillTrial T
 	// S-030 (R-ACT-10): los fotogramas del motor y los segundos reales desde ahora, para medir los fotogramas por segundo al cerrarse.
 	Ring.OpenFrame = GFrameCounter;
 	Ring.OpenRealSeconds = FPlatformTime::Seconds();
-	Ring.Run.Begin(Soulbound::Rules::MakeRingSequence(State.Params.Ring, Params, RingSeed), FPlatformTime::Seconds() + FMath::Max(RingAnnounceSeconds, 0.f));
+	// S-042 (R-MIN-19): la secuencia se sortea ahora (misma semilla, mismos pulsos) y espera a que el humano esté listo, hasta la espera de datos.
+	Ring.Run.Open(Soulbound::Rules::MakeRingSequence(State.Params.Ring, Params, RingSeed), Ring.OpenRealSeconds, State.Params.Ring.StartWaitSeconds,
+		FMath::Max(RingStartBreatherSeconds, 0.f));
 	HumanRing = MoveTemp(Ring);
-	Note(ELogVerbosity::Log, FString::Printf(TEXT("Anillo abierto (%s): %d pulsos, cierre %.2f s, zona %.2f, semilla %d."),
-		bDuel ? TEXT("duelo") : *UEnum::GetValueAsString(Trial), Params.Pulses, Params.CloseSeconds, Params.SweetZone, RingSeed));
+	Note(ELogVerbosity::Log, FString::Printf(TEXT("Anillo abierto (%s): %d pulsos, cierre %.2f s, zona %.2f, semilla %d; espera hasta %.1f s a \"Empezar\"."),
+		bDuel ? TEXT("duelo") : *UEnum::GetValueAsString(Trial), Params.Pulses, Params.CloseSeconds, Params.SweetZone, RingSeed, State.Params.Ring.StartWaitSeconds));
 	OnRingOpened.Broadcast();
+}
+
+bool UMatchHostSubsystem::StartRing(double PressSeconds)
+{
+	if (!HumanRing.IsSet() || !HumanRing->Run.IsWaiting())
+	{
+		return false;
+	}
+	// Start resuelve también el caso de la cuenta ya vencida (empieza sola, en su instante): en los dos, la prueba ha empezado y va al acta.
+	const bool bByButton = HumanRing->Run.Start(PressSeconds);
+	NoteRingStart();
+	return bByButton;
+}
+
+void UMatchHostSubsystem::StartRingIfDue(double Now)
+{
+	if (HumanRing.IsSet() && HumanRing->Run.StartIfDue(Now))
+	{
+		NoteRingStart();
+	}
+}
+
+void UMatchHostSubsystem::NoteRingStart()
+{
+	if (HumanRing.IsSet())
+	{
+		Note(ELogVerbosity::Log, Soulbound::Presentation::RingStartLine(HumanRing->Run.StartCause, HumanRing->Run.WaitedSeconds()));
+	}
 }
 
 void UMatchHostSubsystem::CloseRing(const TOptional<FRingOutcome>& Outcome, const TCHAR* Why)
@@ -1077,7 +1114,10 @@ bool UMatchHostSubsystem::SettleRing()
 	{
 		return true;
 	}
-	HumanRing->Run.Advance(FPlatformTime::Seconds());
+	const double Now = FPlatformTime::Seconds();
+	// S-042 (R-MIN-19): sin pulsar "Empezar", la prueba empieza sola al vencer la cuenta, sin castigo.
+	StartRingIfDue(Now);
+	HumanRing->Run.Advance(Now);
 	LogRingPulses(false);
 	if (!HumanRing->Run.IsFinished())
 	{

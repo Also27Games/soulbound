@@ -53,7 +53,7 @@ struct FRingTrialRun
 {
 	/** La secuencia que se juega. */
 	FRingSequence Sequence;
-	/** Instante (reloj real) en que empieza el primer pulso: tras el anuncio. */
+	/** Instante (reloj real) en que empieza el primer pulso: tras el anuncio (desde S-042, empezar más el respiro). Sin sentido mientras espera. */
 	double StartSeconds = 0.0;
 	/** Precisión de cada pulso ya resuelto, en orden. */
 	TArray<double> Resolved;
@@ -117,7 +117,7 @@ struct FRingTrialRun
 	/** Cierra con precisión 0 los pulsos sin resolver que han vencido en Now. */
 	void Advance(double Now);
 
-	/** Verdadero cuando todos los pulsos están resueltos. Una secuencia sin pulsos está terminada. */
+	/** Verdadero cuando todos los pulsos están resueltos. Una secuencia sin pulsos está terminada, salvo mientras espera para empezar (S-042). */
 	bool IsFinished() const;
 
 	/** Precisiones de los pulsos resueltos, en orden; al terminar, una por pulso. */
@@ -126,18 +126,18 @@ struct FRingTrialRun
 	/** Número de pulsos de la prueba. */
 	int32 NumPulses() const { return Sequence.Num(); }
 
-	/** Si en Now aún no ha empezado el primer pulso: el anuncio. */
-	bool IsAnnouncing(double Now) const { return Now < StartSeconds; }
+	/** Si en Now aún no ha empezado el primer pulso: la espera para empezar (S-042) o el anuncio, que desde S-042 es el respiro. */
+	bool IsAnnouncing(double Now) const { return bWaiting || Now < StartSeconds; }
 
 	/**
-	 * Pulso en curso en Now, para pintar: el primero sin resolver si Now está dentro de su duración; INDEX_NONE en el anuncio, entre
-	 * pulsos o al terminar.
+	 * Pulso en curso en Now, para pintar: el primero sin resolver si Now está dentro de su duración; INDEX_NONE en la espera, en el anuncio,
+	 * entre pulsos o al terminar.
 	 */
 	int32 CurrentPulse(double Now) const;
 
 	/**
 	 * Fracción del cierre del primer pulso sin resolver en Now, para pintar: 0 al empezar el pulso, 1 en la coincidencia, acotada entre 0
-	 * y 1 con cualquier tiempo. Terminada la prueba, 1.
+	 * y 1 con cualquier tiempo. En la espera para empezar, 0 (S-042); terminada la prueba, 1.
 	 */
 	double CloseFraction(double Now) const;
 

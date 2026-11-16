@@ -1,5 +1,7 @@
 #include "RingPanelModel.h"
 
+#include "BoardViewState.h"
+#include "../Match/RingTrialRun.h"
 #include "Match/MatchState.h"
 
 double Soulbound::Presentation::RingInnerRadius(double CloseFraction, double RuneRadius, double MaxRadius)
@@ -48,17 +50,35 @@ FString Soulbound::Presentation::RingTitleText(ESkillTrial Trial, bool bDuel)
 
 FString Soulbound::Presentation::RingStakeTitle(ESkillTrial Trial, bool bDuel)
 {
-	return RingTitleText(Trial, bDuel); // TODO(R-VIS-30): stub para ver el test en rojo
+	// R-VIS-30: lo que hace el motor al fallar o perder, con las frases aprobadas por el autor el 16/11/2026. Fuente: R-TAB-7 y R-RUN-3
+	// (ApplySkillTrialResult); Prueba del Warden: R-EFE-10 (ApplyWardenTrialResult); escape: R-VAC-2 (ApplyVoidEscapeResult); desafío final:
+	// R-VIC-3 y R-RUN-6 (ApplyFinalChallengeResult); duelo: R-DUE-5, R-EFE-13 y el duelo contra el Warden de S-015.
+	return bDuel ? TEXT("Duelo: si pierdes, te roban runas")
+		: Trial == ESkillTrial::ForgottenSource ? TEXT("Fuente de un Dominio Olvidado: si fallas, no consigues la runa")
+		: Trial == ESkillTrial::WardenTrial ? TEXT("Prueba del Warden: si fallas, pierdes el turno")
+		: Trial == ESkillTrial::VoidEscape ? TEXT("Escape del Vacío: si fallas, sigues en el Vacío")
+		: Trial == ESkillTrial::FinalChallenge ? TEXT("Desafío final: si fallas, pierdes una runa y vuelves a tu hogar")
+		: TEXT("Prueba");
 }
 
 FString Soulbound::Presentation::RingStartCountdownText(double RemainingSeconds)
 {
-	return FString(); // TODO(R-MIN-19): stub
+	// R-MIN-19: hacia arriba, para que el número no llegue a 0 mientras aún queda tiempo.
+	return FString::Printf(TEXT("Empieza sola en %d s"), FMath::CeilToInt(FMath::Max(RemainingSeconds, 0.0)));
 }
 
 void Soulbound::Presentation::AddRingStartPrompt(FRingPanelModel& Model, const FRingTrialRun& Run, double Now, const FString& KeyDisplayName)
 {
-	// TODO(R-MIN-19): stub
+	if (!Run.IsWaiting())
+	{
+		Model.StartLabel.Reset();
+		Model.StartKeyHint.Reset();
+		Model.StartCountdown.Reset();
+		return;
+	}
+	Model.StartLabel = TEXT("Empezar");
+	Model.StartKeyHint = KeyHintText(KeyDisplayName);
+	Model.StartCountdown = RingStartCountdownText(Run.CountdownSeconds(Now));
 }
 
 TArray<FString> Soulbound::Presentation::RingInstructionLines()

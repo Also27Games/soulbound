@@ -120,6 +120,13 @@ namespace
 			{
 				return;
 			}
+			// S-042 (R-MIN-19, decisión del autor del 16/11/2026): mientras la prueba espera, el clic es del botón "Empezar" de Slate y no se entrega
+			// como pulsación del anillo. Así el clic que empieza la prueba nunca cuenta; uno fuera del botón no hace nada ni deja línea.
+			const FRingTrialRun* Run = HostPtr->GetRingRun();
+			if (Run && Run->IsWaiting())
+			{
+				return;
+			}
 			HostPtr->PressRing(PressSeconds);
 		}
 
@@ -1515,7 +1522,8 @@ void ABoardViewActor::BuildOverlay()
 		];
 	Viewport->AddViewportWidgetContent(ReturnToMenuOverlay.ToSharedRef(), 12);
 
-	// S-026: el panel del anillo, centrado en el hueco del tablero como el botón del final. No recibe clics: la entrada va por RingInput.
+	// S-026: el panel del anillo, centrado en el hueco del tablero como el botón del final. No recibe clics: la entrada va por RingInput (desde S-042,
+	// salvo el botón "Empezar" mientras la prueba espera).
 	// R-VIS-20: igual que el botón de volver: la capa llena el hueco y la caja interior centra el panel.
 	// S-031 (R-VIS-18): la textura de la runa se carga aquí, una vez; el pincel la apunta y el actor la mantiene viva (RuneTexture es UPROPERTY).
 	RuneTexture = nullptr;
@@ -1559,20 +1567,80 @@ void ABoardViewActor::BuildOverlay()
 			UE_LOG(LogSoulboundView, Warning, TEXT("Dado: no existe la textura de las caras %s; la cara del dado se dibuja por código."), *DiceFacesTexture.ToString());
 		}
 	}
+	// S-042 (R-MIN-19): mientras la prueba espera, el botón "Empezar", su tecla y la cuenta atrás van encima del panel, en el centro del aro (sobre la
+	// runa), para que el panel no cambie de tamaño ni se mueva al empezar. Solo el botón recibe clics: el resto de la capa los deja pasar.
+	const int32 StartHintFontSize = FMath::Max(FMath::RoundToInt(RingFontSize * 0.8f), 8);
 	RingOverlay = SNew(SBox)
 		.HAlign(HAlign_Fill)
 		.VAlign(VAlign_Fill)
 		.Padding_Lambda([this]() { return FMargin(16.f, 0.f, PanelSlateWidth + 16.f, 0.f); })
-		.Visibility_Lambda([this]() { return RingPanelModel().bVisible ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+		.Visibility_Lambda([this]() { return RingPanelModel().bVisible ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed; })
 		[
 			SNew(SBox)
 			.HAlign(HAlign_Center)
 			.VAlign(VAlign_Center)
+			.Visibility(EVisibility::SelfHitTestInvisible)
 			[
-				SNew(SRingPanel)
-				.FontSize(RingFontSize)
-				.Model([this]() { return RingPanelModel(); })
-				.RuneBrush([this]() -> const FSlateBrush* { return RuneTexture ? &RuneBrush : nullptr; })
+				SNew(SOverlay)
+				.Visibility(EVisibility::SelfHitTestInvisible)
+				+ SOverlay::Slot()
+				[
+					SNew(SRingPanel)
+					.Visibility(EVisibility::HitTestInvisible)
+					.FontSize(RingFontSize)
+					.Model([this]() { return RingPanelModel(); })
+					.RuneBrush([this]() -> const FSlateBrush* { return RuneTexture ? &RuneBrush : nullptr; })
+				]
+				+ SOverlay::Slot()
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				[
+					SNew(SVerticalBox)
+					.Visibility_Lambda([this]() { return RingPanelModel().StartLabel.IsEmpty() ? EVisibility::Collapsed : EVisibility::SelfHitTestInvisible; })
+					+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+					[
+						SNew(SButton)
+						.IsFocusable(false)
+						.ContentPadding(FMargin(32.f, 14.f))
+						.OnClicked_Lambda([this]()
+						{
+							StartRingNow();
+							return FReply::Handled();
+						})
+						[
+							SNew(STextBlock)
+							.Text_Lambda([this]() { return FText::FromString(RingPanelModel().StartLabel); })
+							.Font(FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(RingFontSize, 8)))
+							.Justification(ETextJustify::Center)
+						]
+					]
+					+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0.f, 8.f, 0.f, 0.f)
+					[
+						SNew(SBorder)
+						.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+						.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.72f))
+						.Padding(FMargin(8.f, 4.f))
+						.Visibility(EVisibility::HitTestInvisible)
+						[
+							SNew(SVerticalBox)
+							+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+							[
+								SNew(STextBlock)
+								.Text_Lambda([this]() { return FText::FromString(RingPanelModel().StartKeyHint); })
+								.Font(FCoreStyle::GetDefaultFontStyle("Regular", StartHintFontSize))
+								.Justification(ETextJustify::Center)
+							]
+							+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+							[
+								SNew(STextBlock)
+								.Text_Lambda([this]() { return FText::FromString(RingPanelModel().StartCountdown); })
+								.Font(FCoreStyle::GetDefaultFontStyle("Regular", StartHintFontSize))
+								.ColorAndOpacity(FLinearColor(0.8f, 0.8f, 0.8f))
+								.Justification(ETextJustify::Center)
+							]
+						]
+					]
+				]
 			]
 		];
 	Viewport->AddViewportWidgetContent(RingOverlay.ToSharedRef(), 13);
@@ -2272,6 +2340,8 @@ void ABoardViewActor::ApplyViewTarget()
 				InputComponent->BindKey(ColumnTabKey, IE_Pressed, this, &ABoardViewActor::ToggleColumnTab);
 				// S-022: la tecla de volver al menú, alternativa al botón, no se consume: antes del final sigue llegando a quien la use.
 				InputComponent->BindKey(ReturnToMenuKey, IE_Pressed, this, &ABoardViewActor::ReturnToMenu).bConsumeInput = false;
+				// S-042 (R-MIN-19): la tecla de "Empezar" del anillo; fuera de la espera no hace nada y tampoco se consume.
+				InputComponent->BindKey(RingStartKey, IE_Pressed, this, &ABoardViewActor::StartRingNow).bConsumeInput = false;
 				bInputBound = true;
 			}
 		}
@@ -2549,6 +2619,7 @@ Soulbound::Presentation::FStatusContext ABoardViewActor::MakeStatusContext() con
 	Context.ViewKeys = DescribeViewKeys();
 	Context.SeatColors = SeatColors;
 	Context.GoalLineColor = GoalLineColor;
+	Context.WardenLineColor = WardenLineColor;
 	return Context;
 }
 
@@ -2688,8 +2759,8 @@ void ABoardViewActor::HandleRingOpened()
 	{
 		return;
 	}
-	// El título se fija al abrir: al cerrarse, el anfitrión ya no tiene la prueba.
-	LastRingTitle = Soulbound::Presentation::RingTitleText(HostPtr->GetRingTrial(), HostPtr->IsRingDuel());
+	// El título se fija al abrir: al cerrarse, el anfitrión ya no tiene la prueba. Desde S-042 (R-VIS-30) dice qué te juegas, también en el resultado.
+	LastRingTitle = Soulbound::Presentation::RingStakeTitle(HostPtr->GetRingTrial(), HostPtr->IsRingDuel());
 	LastRingShownUntil = 0.0;
 	// S-031 (R-VIS-16): criterio y umbral de la prueba, con las mismas funciones de datos con que el anfitrión la abrió (RingParamsForTrial/ForDuel);
 	// no duplica la regla, la lee. Sin parámetros (prueba None fuera del duelo), un criterio sin marca.
@@ -2736,6 +2807,18 @@ void ABoardViewActor::UnregisterRingInput()
 	RingInput.Reset();
 	--LiveRingInputs;
 	UE_LOG(LogSoulboundView, Log, TEXT("Anillo: entrada retirada (activas: %d)."), LiveRingInputs);
+}
+
+void ABoardViewActor::StartRingNow()
+{
+	// S-042 (R-MIN-19): lo mismo por el botón y por la tecla. La hora es la del reloj real, la del anillo; con el juego en pausa, nada.
+	UMatchHostSubsystem* HostPtr = Host.Get();
+	const UWorld* World = GetWorld();
+	if (!HostPtr || (World && World->IsPaused()))
+	{
+		return;
+	}
+	HostPtr->StartRing(FPlatformTime::Seconds());
 }
 
 void ABoardViewActor::HandleRingClosed(const TOptional<FRingOutcome>& Outcome)
@@ -2925,6 +3008,8 @@ FRingPanelModel ABoardViewActor::RingPanelModel() const
 		Model.ProgressFill = Progress.Fill;
 		Model.ProgressMark = Progress.Mark;
 		Model.ProgressColor = Done.IsEmpty() ? FLinearColor::White : SRingPanel::PrecisionColor(Done.Last());
+		// S-042 (R-MIN-19): mientras la prueba espera, el botón "Empezar", su tecla y la cuenta atrás; empezada, nada de eso.
+		Soulbound::Presentation::AddRingStartPrompt(Model, *Run, Now, RingStartKey.GetDisplayName().ToString());
 		return Model;
 	}
 	if (Now < LastRingShownUntil)

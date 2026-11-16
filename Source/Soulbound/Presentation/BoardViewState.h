@@ -126,4 +126,12 @@ namespace Soulbound::Presentation
 	 * @return La línea, o vacía.
 	 */
 	SOULBOUND_API FString ReturnToMenuHint(const FString& KeyDisplayName);
+
+	/**
+	 * La línea pequeña de una tecla bajo un botón (S-042, nombre propuesto; sacada de ReturnToMenuHint, que la usa): "o pulsa" y la tecla, con Intro
+	 * en español. La usan "Volver al menú" (S-041) y "Empezar" del anillo (R-MIN-19).
+	 * @param KeyDisplayName El nombre que da Unreal a la tecla.
+	 * @return "o pulsa Intro", "o pulsa F5"…, o vacía sin tecla.
+	 */
+	SOULBOUND_API FString KeyHintText(const FString& KeyDisplayName);
 }

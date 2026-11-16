@@ -102,8 +102,10 @@ namespace Soulbound::Presentation
 	 * Lo que pinta la caja de la línea de objetivo (S-040, R-HUD-7, nombre propuesto), fuera del panel de estado (correcciones del autor del 16/11/2026
 	 * tras PIE: entre sus líneas quedaba escondida; va abajo a la izquierda, en la franja de la frase del Warden). Una sola línea, GoalLineText, con la
 	 * letra grande y el color Context.GoalLineColor; ninguna en el prólogo (Context.bPrologue) ni con la meta None. Cuándo se ve, IsGoalPanelShown.
+	 * Desde S-042 (R-HUD-9), con la Prueba del Warden pendiente para el humano (FSeatState::bWardenTrialPending), una segunda línea debajo, "Te espera
+	 * la Prueba del Warden", con Context.WardenLineColor y la letra grande; se quita al abrirse su anillo (su turno, fase SkillTrial, WardenTrial).
 	 * @param State El estado de la partida.
-	 * @param Context Lo que no está en el estado: el asiento humano, el prólogo y el color.
+	 * @param Context Lo que no está en el estado: el asiento humano, el prólogo y los colores.
 	 * @return La línea de la caja, o ninguna.
 	 */
 	TArray<FPanelLine> GoalPanelLines(const FMatchState& State, const FStatusContext& Context);

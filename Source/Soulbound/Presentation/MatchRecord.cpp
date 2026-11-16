@@ -177,6 +177,8 @@ namespace Soulbound::Presentation
 			return TEXT("pulsación del anillo: no cuenta, anuncio");
 		case ERingPressKind::BetweenPulses:
 			return TEXT("pulsación del anillo: no cuenta, entre pulsos");
+		case ERingPressKind::Waiting:
+			return TEXT("pulsación del anillo: no cuenta, espera para empezar");
 		default:
 			return TEXT("pulsación del anillo: no cuenta, prueba terminada");
 		}
@@ -184,7 +186,10 @@ namespace Soulbound::Presentation
 
 	FString RingStartLine(ERingStartCause Cause, double WaitedSeconds)
 	{
-		return FString(); // TODO(R-MIN-19): stub para ver el test en rojo
+		// R-MIN-19: cómo empezó y cuánto esperó desde que se abrió; empezar sola no es un castigo, y la línea no lo presenta como tal.
+		const bool bButton = Cause == ERingStartCause::Button;
+		return FString::Printf(TEXT("Anillo: empieza %s tras %.1f s de espera%s."), bButton ? TEXT("por el botón") : TEXT("sola"), FMath::Max(WaitedSeconds, 0.0),
+			bButton ? TEXT("") : TEXT(" (la cuenta llegó a cero)"));
 	}
 
 	FString RingClosedRecordText(const FString& Why, int64 Frames, double Seconds)
