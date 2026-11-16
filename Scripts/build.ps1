@@ -8,6 +8,7 @@
     .\Scripts\build.ps1 -Que editor     # solo el editor (Development Editor)
     .\Scripts\build.ps1 -Que game       # solo el ejecutable del juego
     .\Scripts\build.ps1 -Que package    # solo empaquetar (cook + pak) en Packaged\Windows
+  El paquete lleva el instalador de requisitos de Unreal (-prereqs: Visual C++ y demás), para que arranque en un PC que no los tenga.
   Motor: variable de entorno UE_ROOT o, si no existe, C:\UE_Engines\UE_5.8.
   Imprime el tiempo de cada paso; falla al primer error.
 #>
@@ -51,7 +52,7 @@ if ($Que -in 'game', 'all') {
 if ($Que -in 'package', 'all') {
     Invoke-Paso 'Empaquetar Win64' $RunUAT @(
         'BuildCookRun', "-project=$Proyecto", '-platform=Win64', "-clientconfig=$Config",
-        '-build', '-cook', '-stage', '-pak', '-archive', "-archivedirectory=$Salida",
+        '-build', '-cook', '-stage', '-pak', '-prereqs', '-archive', "-archivedirectory=$Salida",
         '-unattended', '-utf8output', '-nop4'
     )
     Write-Host "Build en $Salida\Windows" -ForegroundColor Green
