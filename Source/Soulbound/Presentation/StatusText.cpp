@@ -572,7 +572,8 @@ namespace Soulbound::Presentation
 				: FString::Printf(TEXT("Consigue runas en las Fuentes de los Olvidados, o róbalas (%d/%d)"), Count, Soulbound::Board::DomainCount);
 		}
 		case ESeatGoal::Altar:
-			return TEXT("Vuelve al Altar");
+			// Corrección del autor del 16/11/2026 tras PIE: ya en el Altar con los seis (aspirante), lo que falta es el desafío final. SeatGoal no cambia.
+			return Soulbound::Rules::IsAspirant(State, HumanSeat) ? TEXT("Supera el desafío final en tu próximo turno") : TEXT("Vuelve al Altar");
 		default:
 			return FString();
 		}
@@ -580,8 +581,17 @@ namespace Soulbound::Presentation
 
 	TArray<FPanelLine> GoalPanelLines(const FMatchState& State, const FStatusContext& Context)
 	{
-		// TODO(R-HUD-7): stub para ver el test en rojo; se escribe tras verlo fallar.
-		return TArray<FPanelLine>();
+		// R-HUD-7: una sola línea, grande y con su color; en el prólogo no sale (precisión del 16/11/2026), y con la meta None GoalLineText está vacía.
+		TArray<FPanelLine> Lines;
+		if (!Context.bPrologue)
+		{
+			const FString Goal = GoalLineText(State, Context.HumanSeat);
+			if (!Goal.IsEmpty())
+			{
+				Lines.Add({Goal, Context.GoalLineColor, true});
+			}
+		}
+		return Lines;
 	}
 
 	TArray<FPanelLine> StatusLines(const FMatchState& State, const FStatusContext& Context)
@@ -777,16 +787,7 @@ namespace Soulbound::Presentation
 			Top.Insert({MatchResultText(State, Context.ReturnKey), RaceColor, true}, 0);
 		}
 
-		// La línea de objetivo (R-HUD-7, S-040): tras el resultado y la petición, con su color (GoalLineColor). En el prólogo no sale
-		// (precisión del 16/11/2026); con la meta None (la partida terminada), tampoco.
-		if (!Context.bPrologue)
-		{
-			const FString Goal = GoalLineText(State, HumanSeat);
-			if (!Goal.IsEmpty())
-			{
-				Top.Add({Goal, Context.GoalLineColor, false});
-			}
-		}
+		// La línea de objetivo (R-HUD-7, S-040) no va aquí desde la corrección del 16/11/2026 tras PIE: tiene su caja encima (GoalPanelLines).
 
 		Top.Append(Lines);
 		return Top;

@@ -1054,6 +1054,12 @@ private:
 	/** Los paneles de estado y de depuración (S-027): una capa arriba a la izquierda, que se oculta con los paneles (H) y con el telón. */
 	TSharedPtr<SStatusPanel> StatusPanel;
 	TSharedPtr<SStatusPanel> DebugPanel;
+	/**
+	 * La caja de la línea de objetivo (S-040, R-HUD-7; corrección del autor del 16/11/2026 tras PIE): en la misma capa, encima del panel de estado, con
+	 * GoalPanelLines. Se oculta con el panel de estado (T), con los paneles (H) y cuando no tiene línea (prólogo, meta None).
+	 */
+	TSharedPtr<SStatusPanel> GoalPanel;
+	bool bGoalPanelHasLine = false;
 	TSharedPtr<SWidget> StatusOverlay;
 
 	/** El Grimorio (S-027): una capa centrada, por encima de las demás. */

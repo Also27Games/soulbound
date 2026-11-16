@@ -1170,6 +1170,16 @@ void ABoardViewActor::BuildOverlay()
 		})
 		[
 			SNew(SVerticalBox)
+			// S-040 (R-HUD-7, corrección del 16/11/2026 tras PIE): la línea de objetivo en su caja, encima del panel de estado y con la letra de sus
+			// líneas grandes. Alineada a la izquierda para que la caja mida lo que su texto; el texto largo del Eco se parte al ancho del hueco, que
+			// acaba antes de la columna de paneles (el margen derecho de esta capa). Oculta, SVerticalBox no cuenta ni su margen.
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Left).Padding(0.f, 0.f, 0.f, 6.f)
+			[
+				SAssignNew(GoalPanel, SStatusPanel)
+				.FontSize(PanelFont)
+				.LargeScale(StatusLargeFontScale)
+				.Visibility_Lambda([this]() { return bDebugTextHidden || !bGoalPanelHasLine ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+			]
 			+ SVerticalBox::Slot().AutoHeight()
 			[
 				SAssignNew(StatusPanel, SStatusPanel)
@@ -2504,6 +2514,13 @@ void ABoardViewActor::TickHud()
 	{
 		StatusPanel->SetLines(Soulbound::Presentation::StatusLines(State, Context));
 	}
+	if (GoalPanel.IsValid())
+	{
+		// S-040 (R-HUD-7): la caja de la línea de objetivo; sin línea, oculta.
+		const TArray<Soulbound::Presentation::FPanelLine> GoalLines = Soulbound::Presentation::GoalPanelLines(State, Context);
+		bGoalPanelHasLine = !GoalLines.IsEmpty();
+		GoalPanel->SetLines(GoalLines);
+	}
 	if (DebugPanel.IsValid())
 	{
 		DebugPanel->SetLines(bDebugPanelShown ? Soulbound::Presentation::DebugLines(State, Context) : TArray<Soulbound::Presentation::FPanelLine>());
@@ -2634,6 +2651,8 @@ FMargin ABoardViewActor::NoticeMarginNow(int32 FontSize) const
 		}
 	};
 	AddZone(StatusPanel, !bDebugTextHidden);
+	// S-040 (R-HUD-7): también la caja de la línea de objetivo, encima del panel de estado.
+	AddZone(GoalPanel, !bDebugTextHidden && bGoalPanelHasLine);
 	AddZone(DebugPanel, bDebugPanelShown);
 
 	// El tamaño del aviso: el texto medido con su letra, partido al ancho libre, más el margen del fondo.
