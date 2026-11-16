@@ -7,6 +7,32 @@ void FRingTrialRun::Begin(const FRingSequence& InSequence, double InStartSeconds
 	Resolved.Reset();
 }
 
+void FRingTrialRun::Open(const FRingSequence& InSequence, double InOpenSeconds, double InMaxWaitSeconds, double InBreatherSeconds)
+{
+	// TODO(R-MIN-19): stub para ver los tests en rojo; empieza en el acto, como antes de S-042.
+	Begin(InSequence, InOpenSeconds);
+}
+
+bool FRingTrialRun::Start(double Now)
+{
+	return false; // TODO(R-MIN-19): stub
+}
+
+bool FRingTrialRun::StartIfDue(double Now)
+{
+	return false; // TODO(R-MIN-19): stub
+}
+
+double FRingTrialRun::CountdownSeconds(double Now) const
+{
+	return 0.0; // TODO(R-MIN-19): stub
+}
+
+double FRingTrialRun::WaitedSeconds() const
+{
+	return 0.0; // TODO(R-MIN-19): stub
+}
+
 bool FRingTrialRun::Press(double Now)
 {
 	Advance(Now);

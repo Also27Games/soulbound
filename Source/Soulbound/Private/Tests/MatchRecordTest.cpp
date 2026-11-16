@@ -249,6 +249,28 @@ bool FActaRingTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// CA-MIN-18, R-MIN-19: la línea del acta al empezar una prueba del anillo dice "por el botón" o "sola" y los segundos esperados. Y una pulsación
+// del anillo durante la espera, si llegara al acta, dice que es la espera, no el anuncio.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FActaRingStartTest, "Soulbound.Game.Presentation.Acta.LineaDeInicioDelAnillo", ActaTestFlags)
+bool FActaRingStartTest::RunTest(const FString& Parameters)
+{
+	const FString Button = Soulbound::Presentation::RingStartLine(ERingStartCause::Button, 2.04);
+	TestTrue(TEXT("Por el botón: lo dice"), Button.Contains(TEXT("por el botón")));
+	TestFalse(TEXT("Y no dice \"sola\""), Button.Contains(TEXT("sola")));
+	TestTrue(TEXT("Con los segundos esperados"), Button.Contains(TEXT("2.0 s")));
+
+	const FString Alone = Soulbound::Presentation::RingStartLine(ERingStartCause::Countdown, 8.0);
+	TestTrue(TEXT("Sola: lo dice"), Alone.Contains(TEXT("sola")));
+	TestFalse(TEXT("Y no dice \"por el botón\""), Alone.Contains(TEXT("por el botón")));
+	TestTrue(TEXT("Con los segundos esperados"), Alone.Contains(TEXT("8.0 s")));
+
+	FRingPressQuery Waiting;
+	Waiting.Kind = ERingPressKind::Waiting;
+	const FString WaitingLine = Soulbound::Presentation::RingPressLine(Waiting);
+	TestTrue(TEXT("En la espera, no cuenta y lo dice"), WaitingLine.Contains(TEXT("no cuenta")) && WaitingLine.Contains(TEXT("espera")));
+	return true;
+}
+
 // R-ACT-7, R-ACT-8: las líneas que no son del registro llevan marca de tiempo y prefijo; el resultado del motor, en texto.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FActaHostLineTest, "Soulbound.Game.Presentation.Acta.LineaDelAnfitrion", ActaTestFlags)
 bool FActaHostLineTest::RunTest(const FString& Parameters)

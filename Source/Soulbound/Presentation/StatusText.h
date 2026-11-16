@@ -57,6 +57,8 @@ namespace Soulbound::Presentation
 		TArray<FLinearColor> SeatColors;
 		/** Color de la línea de objetivo (S-040, R-HUD-7): ABoardViewActor::GoalLineColor. */
 		FLinearColor GoalLineColor = FLinearColor::White;
+		/** Color de la línea del Warden (S-042, R-HUD-9): ABoardViewActor::WardenLineColor; lo lleva el recordatorio de la Prueba del Warden. */
+		FLinearColor WardenLineColor = FLinearColor::White;
 
 		/** El color del asiento Seat; blanco si no lo hay. */
 		FLinearColor SeatColor(int32 Seat) const { return SeatColors.IsValidIndex(Seat) ? SeatColors[Seat] : FLinearColor::White; }

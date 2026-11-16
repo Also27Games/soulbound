@@ -26,6 +26,8 @@ namespace
 	constexpr int32 GhForgottenB = 5;
 	/** Un color de línea de objetivo que no se confunde con ningún otro de las líneas. */
 	const FLinearColor GhGoalLineColor(1.f, 0.82f, 0.35f);
+	/** El color de la línea del Warden (S-042), distinto del de la línea de objetivo. */
+	const FLinearColor GhWardenLineColor(1.f, 0.45f, 0.05f);
 
 	/**
 	 * Partida armada a mano sobre tablero_35.json, en la carrera y con el tablero Despierto: el asiento 1 es Elegido del Dominio 2 (su Nicho
@@ -84,6 +86,7 @@ namespace
 		Context.HumanSeat = GhHuman;
 		Context.SeatColors = {FLinearColor::Red, FLinearColor::Green, FLinearColor::Blue, FLinearColor::Yellow};
 		Context.GoalLineColor = GhGoalLineColor;
+		Context.WardenLineColor = GhWardenLineColor;
 		return Context;
 	}
 
@@ -198,6 +201,59 @@ bool FGoalLineTest::RunTest(const FString& Parameters)
 	{
 		TestEqual(FString::Printf(TEXT("None: ninguna línea empieza por \"%s\""), Text), GhIndexOf(Over, Text), INDEX_NONE);
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FWardenTrialReminderTest, "Soulbound.Game.Presentation.Estado.RecordatorioDeLaPrueba", GoalHintsTestFlags)
+
+bool FWardenTrialReminderTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-17 (R-HUD-9): con la Prueba del Warden pendiente para el humano, la caja del objetivo lleva la línea del objetivo y, debajo, "Te espera la
+	// Prueba del Warden" con el color del Warden (y la letra grande, decisión del autor del 16/11/2026); sin Prueba pendiente, solo la del objetivo.
+	// Con la Prueba pendiente para otro asiento, la caja del humano no cambia. Se quita al abrirse el anillo de la Prueba (decisión del 16/11/2026):
+	// el turno del humano en la fase de la prueba con la Prueba del Warden. En el prólogo, la caja no tiene línea, como siempre.
+	using Soulbound::Presentation::GoalPanelLines;
+	FMatchState State;
+	if (!GhMakeState(*this, State))
+	{
+		return false;
+	}
+	State.ActiveSeat = GhElect; // espera su turno: juega otro
+	State.TurnPhase = ETurnPhase::RollAndChoose;
+	const TArray<FPanelLine> Without = GoalPanelLines(State, GhContext());
+	TestEqual(TEXT("Sin Prueba pendiente, solo la línea del objetivo"), Without.Num(), 1);
+
+	State.Seats[GhHuman].bWardenTrialPending = true;
+	const TArray<FPanelLine> With = GoalPanelLines(State, GhContext());
+	if (TestEqual(TEXT("Con la Prueba pendiente, dos líneas"), With.Num(), 2))
+	{
+		TestEqual(TEXT("La primera, la del objetivo"), With[0].Text, FString(TEXT("Llega a un Nicho libre")));
+		TestEqual(TEXT("La primera, con su color"), With[0].Color, GhGoalLineColor);
+		TestEqual(TEXT("Debajo, el recordatorio"), With[1].Text, FString(TEXT("Te espera la Prueba del Warden")));
+		TestEqual(TEXT("Con el color del Warden"), With[1].Color, GhWardenLineColor);
+		TestTrue(TEXT("Con la letra grande"), With[1].bLarge);
+	}
+
+	// Se quita al abrirse el anillo de la Prueba: su turno, en la fase de la prueba, con la Prueba del Warden.
+	{
+		FMatchState Playing = State;
+		Playing.ActiveSeat = GhHuman;
+		Playing.TurnPhase = ETurnPhase::SkillTrial;
+		Playing.PendingTrial = ESkillTrial::WardenTrial;
+		TestEqual(TEXT("Jugándola, solo la línea del objetivo"), GoalPanelLines(Playing, GhContext()), Without);
+	}
+
+	// Pendiente para otro asiento: la caja del humano no cambia.
+	{
+		FMatchState Other = State;
+		Other.Seats[GhHuman].bWardenTrialPending = false;
+		Other.Seats[GhElect].bWardenTrialPending = true;
+		TestEqual(TEXT("Pendiente para otro asiento, la caja del humano no cambia"), GoalPanelLines(Other, GhContext()), Without);
+	}
+
+	FStatusContext Prologue = GhContext();
+	Prologue.bPrologue = true;
+	TestTrue(TEXT("En el prólogo, ninguna línea"), GoalPanelLines(State, Prologue).IsEmpty());
 	return true;
 }
 

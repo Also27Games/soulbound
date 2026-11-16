@@ -42,7 +42,15 @@ struct FRingPanelModel
 	/** El resultado al acabar ("SUPERADA", "FALLADA"); vacío durante la prueba (R-VIS-17). */
 	FString Big;
 	FLinearColor BigColor = FLinearColor::White;
+	/** El texto del botón "Empezar" mientras la prueba espera (S-042, R-MIN-19); vacío con la prueba empezada o sin prueba: no hay botón. */
+	FString StartLabel;
+	/** Su tecla, bajo el botón: "o pulsa Intro" (S-042); vacía sin botón. */
+	FString StartKeyHint;
+	/** La cuenta atrás, bajo la tecla: "Empieza sola en N s" (S-042); vacía sin botón. */
+	FString StartCountdown;
 };
+
+struct FRingTrialRun;
 
 /** Relleno de la barra y, si la hay, posición de su marca (R-VIS-16). */
 struct FRingProgress
@@ -77,10 +85,38 @@ namespace Soulbound::Presentation
 	int32 RingRuneDomain(const FMatchState& State, int32 Seat, ESkillTrial Trial);
 
 	/**
-	 * Título del panel del anillo (R-VIS-22): el uso de la prueba y nada más, sin el nivel. Trial: la prueba del anillo. bDuel: si es un duelo (gana
-	 * a Trial). Devuelve "DUELO", "FUENTE DE UN DOMINIO OLVIDADO", "PRUEBA DEL WARDEN", "ESCAPE DEL VACÍO", "DESAFÍO FINAL" o, sin uso conocido, "PRUEBA".
+	 * El nombre del uso de la prueba (R-VIS-22), sin el nivel: lo usa la línea "Prueba pendiente" del panel de estado. Desde S-042 el panel del anillo
+	 * lleva RingStakeTitle. Trial: la prueba del anillo. bDuel: si es un duelo (gana a Trial). Devuelve "DUELO", "FUENTE DE UN DOMINIO OLVIDADO",
+	 * "PRUEBA DEL WARDEN", "ESCAPE DEL VACÍO", "DESAFÍO FINAL" o, sin uso conocido, "PRUEBA".
 	 */
 	FString RingTitleText(ESkillTrial Trial, bool bDuel);
+
+	/**
+	 * Título del panel del anillo con lo que te juegas (S-042, R-VIS-30; nombre propuesto): el nombre de la prueba y lo que pasa si fallas o pierdes,
+	 * con las frases aprobadas por el autor el 16/11/2026, sacadas de lo que aplica el motor. Se enseña durante la prueba y en su resultado.
+	 * @param Trial La prueba del anillo.
+	 * @param bDuel Si es un duelo (gana a Trial).
+	 * @return Por ejemplo "Prueba del Warden: si fallas, pierdes el turno"; sin uso conocido, "Prueba".
+	 */
+	FString RingStakeTitle(ESkillTrial Trial, bool bDuel);
+
+	/**
+	 * La cuenta atrás de la espera para empezar (S-042, R-MIN-19; nombre propuesto): "Empieza sola en N s", con N los segundos que quedan
+	 * redondeados hacia arriba (5,7 s dicen 6).
+	 * @param RemainingSeconds Segundos que le quedan a la cuenta; negativos cuentan como 0.
+	 * @return El texto de la cuenta.
+	 */
+	FString RingStartCountdownText(double RemainingSeconds);
+
+	/**
+	 * Pone en Model el botón "Empezar", su tecla y la cuenta atrás si Run espera a que el jugador esté listo (S-042, R-MIN-19; nombre propuesto); con
+	 * la prueba empezada, los deja vacíos.
+	 * @param Model El modelo del panel que se está rellenando.
+	 * @param Run La prueba del anillo en curso.
+	 * @param Now El reloj real con que se pinta.
+	 * @param KeyDisplayName El nombre que da Unreal a la tecla de empezar (RingStartKey): "Enter" dice "o pulsa Intro".
+	 */
+	void AddRingStartPrompt(FRingPanelModel& Model, const FRingTrialRun& Run, double Now, const FString& KeyDisplayName);
 
 	/**
 	 * Las líneas de la instrucción del anillo (R-VIS-17): dos, que el panel pinta cada una centrada y por separado bajo el título mientras la prueba

@@ -68,6 +68,15 @@ namespace Soulbound::Presentation
 	FString RingPressLine(const FRingPressQuery& Query);
 
 	/**
+	 * La línea del acta al empezar una prueba del anillo tras la espera para empezar (S-042, R-MIN-19; nombre propuesto): si empezó por el botón
+	 * o sola, al llegar la cuenta a cero, y los segundos que esperó desde que se abrió.
+	 * @param Cause Cómo empezó (FRingTrialRun::StartCause).
+	 * @param WaitedSeconds Segundos de espera (FRingTrialRun::WaitedSeconds).
+	 * @return Por ejemplo "Anillo: empieza por el botón tras 2.0 s de espera."
+	 */
+	FString RingStartLine(ERingStartCause Cause, double WaitedSeconds);
+
+	/**
 	 * El texto de "anillo cerrado" del acta (R-ACT-10): el motivo y los fotogramas del motor por segundo durante la prueba (Frames contados
 	 * entre abrir y cerrar, entre Seconds reales). Con Seconds de cero o menos, 0.0.
 	 */

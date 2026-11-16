@@ -182,6 +182,11 @@ namespace Soulbound::Presentation
 		}
 	}
 
+	FString RingStartLine(ERingStartCause Cause, double WaitedSeconds)
+	{
+		return FString(); // TODO(R-MIN-19): stub para ver el test en rojo
+	}
+
 	FString RingClosedRecordText(const FString& Why, int64 Frames, double Seconds)
 	{
 		const double FramesPerSecond = Seconds > 0.0 ? static_cast<double>(Frames) / Seconds : 0.0;

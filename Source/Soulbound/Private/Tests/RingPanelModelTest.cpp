@@ -2,6 +2,7 @@
 // editor. Cada test cita el criterio (CA-VIS-n) y la regla (R-VIS-n) que cubre. Filtro: "Soulbound.Game.Presentation.Anillo".
 
 #include "../../Presentation/RingPanelModel.h"
+#include "../../Match/RingTrialRun.h"
 #include "Match/MatchState.h"
 #include "Misc/AutomationTest.h"
 
@@ -114,8 +115,9 @@ bool FRingRuneDomainTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// CA-VIS-20, R-VIS-22: el título del anillo es solo el uso, sin separador ni nivel. La función no recibe la dificultad, así que dos niveles del
-// mismo uso dan por fuerza el mismo título; el test fija el texto exacto de cada uso y que no se cuela ninguna palabra de nivel.
+// CA-VIS-20, R-VIS-22: el nombre del uso es solo el uso, sin separador ni nivel. La función no recibe la dificultad, así que dos niveles del
+// mismo uso dan por fuerza el mismo título; el test fija el texto exacto de cada uso y que no se cuela ninguna palabra de nivel. Desde S-042 el
+// panel del anillo lleva RingStakeTitle (CA-VIS-31, abajo); este nombre lo sigue usando la línea "Prueba pendiente" del panel de estado.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingTitleTextTest, "Soulbound.Game.Presentation.Anillo.TituloSoloElUso", RingModelTestFlags)
 bool FRingTitleTextTest::RunTest(const FString& Parameters)
 {
@@ -167,6 +169,90 @@ bool FRingInstructionLinesTest::RunTest(const FString& Parameters)
 		TestFalse(FString::Printf(TEXT("«%s» no habla de pulso"), *Line), Line.Contains(TEXT("pulso"), ESearchCase::IgnoreCase));
 	}
 	TestEqual(TEXT("Las mismas en el anuncio y con un pulso resuelto"), RingInstructionLines(), Lines);
+	return true;
+}
+
+// CA-VIS-31, R-VIS-30: el título dice qué te juegas. La Prueba del Warden, letra por letra la del autor; las otras cuatro, las aprobadas por el autor
+// el 16/11/2026 en el plan; el duelo gana a la prueba; ninguna de las cinco queda sin frase.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingStakeTitleTest, "Soulbound.Game.Presentation.Anillo.TituloConLoQueTeJuegas", RingModelTestFlags)
+bool FRingStakeTitleTest::RunTest(const FString& Parameters)
+{
+	using Soulbound::Presentation::RingStakeTitle;
+	struct FCase
+	{
+		const TCHAR* Name;
+		ESkillTrial Trial;
+		bool bDuel;
+		const TCHAR* Expected;
+	};
+	const FCase Cases[] = {
+		{TEXT("Prueba del Warden"), ESkillTrial::WardenTrial, false, TEXT("Prueba del Warden: si fallas, pierdes el turno")},
+		{TEXT("Fuente de un Dominio Olvidado"), ESkillTrial::ForgottenSource, false, TEXT("Fuente de un Dominio Olvidado: si fallas, no consigues la runa")},
+		{TEXT("escape del Vacío"), ESkillTrial::VoidEscape, false, TEXT("Escape del Vacío: si fallas, sigues en el Vacío")},
+		{TEXT("desafío final"), ESkillTrial::FinalChallenge, false, TEXT("Desafío final: si fallas, pierdes una runa y vuelves a tu hogar")},
+		{TEXT("duelo"), ESkillTrial::None, true, TEXT("Duelo: si pierdes, te roban runas")},
+		{TEXT("duelo gana a la prueba"), ESkillTrial::WardenTrial, true, TEXT("Duelo: si pierdes, te roban runas")},
+	};
+	for (const FCase& Case : Cases)
+	{
+		const FString Title = RingStakeTitle(Case.Trial, Case.bDuel);
+		TestEqual(FString::Printf(TEXT("Título de %s, letra por letra"), Case.Name), Title, FString(Case.Expected));
+		TestTrue(FString::Printf(TEXT("%s lleva su frase de lo que se juega"), Case.Name), Title.Contains(TEXT(": si ")));
+	}
+	return true;
+}
+
+// CA-MIN-17, R-MIN-19: con el anillo sin empezar, el modelo lleva el botón "Empezar", su tecla y la cuenta con los segundos que quedan, redondeados
+// hacia arriba; con la prueba empezada, ninguno de los tres. Montaje: se abre en el 10 con espera de 8 s (vence en el 18) y respiro de 0,5 s.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FRingStartPromptTest, "Soulbound.Game.Presentation.Anillo.BotonEmpezarYCuenta", RingModelTestFlags)
+bool FRingStartPromptTest::RunTest(const FString& Parameters)
+{
+	using Soulbound::Presentation::AddRingStartPrompt;
+	FRingSequence Sequence;
+	Sequence.PulseStarts = {0.0, 2.0};
+	Sequence.CloseSeconds = 1.0;
+	Sequence.SweetZoneSeconds = 0.2;
+	FRingTrialRun Run;
+	Run.Open(Sequence, 10.0, 8.0, 0.5);
+
+	struct FCase
+	{
+		double Now;
+		const TCHAR* Countdown;
+	};
+	const FCase Cases[] = {
+		{10.0, TEXT("Empieza sola en 8 s")},
+		{12.3, TEXT("Empieza sola en 6 s")},
+		{17.01, TEXT("Empieza sola en 1 s")},
+	};
+	for (const FCase& Case : Cases)
+	{
+		FRingPanelModel Model;
+		AddRingStartPrompt(Model, Run, Case.Now, TEXT("Enter"));
+		TestEqual(FString::Printf(TEXT("En el %.2f, el botón"), Case.Now), Model.StartLabel, FString(TEXT("Empezar")));
+		TestEqual(FString::Printf(TEXT("En el %.2f, su tecla"), Case.Now), Model.StartKeyHint, FString(TEXT("o pulsa Intro")));
+		TestEqual(FString::Printf(TEXT("En el %.2f, la cuenta"), Case.Now), Model.StartCountdown, FString(Case.Countdown));
+	}
+
+	FRingTrialRun Started = Run;
+	Started.Start(12.0);
+	for (const double Now : {12.1, 12.6, 20.0})
+	{
+		FRingPanelModel Model;
+		AddRingStartPrompt(Model, Started, Now, TEXT("Enter"));
+		TestTrue(FString::Printf(TEXT("Empezada, en el %.1f: ni botón, ni tecla, ni cuenta"), Now),
+			Model.StartLabel.IsEmpty() && Model.StartKeyHint.IsEmpty() && Model.StartCountdown.IsEmpty());
+	}
+	FRingTrialRun Alone = Run;
+	Alone.StartIfDue(18.0);
+	FRingPanelModel AloneModel;
+	AddRingStartPrompt(AloneModel, Alone, 18.1, TEXT("Enter"));
+	TestTrue(TEXT("Empezada sola: tampoco"), AloneModel.StartLabel.IsEmpty() && AloneModel.StartKeyHint.IsEmpty() && AloneModel.StartCountdown.IsEmpty());
+
+	// El texto de la cuenta, por sí solo: hacia arriba, y nunca negativo.
+	TestEqual(TEXT("5,7 s dicen 6"), Soulbound::Presentation::RingStartCountdownText(5.7), FString(TEXT("Empieza sola en 6 s")));
+	TestEqual(TEXT("8 s justos dicen 8"), Soulbound::Presentation::RingStartCountdownText(8.0), FString(TEXT("Empieza sola en 8 s")));
+	TestEqual(TEXT("Negativo, 0"), Soulbound::Presentation::RingStartCountdownText(-0.2), FString(TEXT("Empieza sola en 0 s")));
 	return true;
 }
 

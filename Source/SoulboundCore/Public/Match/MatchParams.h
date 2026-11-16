@@ -99,6 +99,13 @@ struct SOULBOUNDCORE_API FRingParams
 
 	UPROPERTY()
 	double FinalChallengeSweetZone = 0.0;
+
+	/**
+	 * Espera para empezar (S-042, R-MIN-19; nombre propuesto): segundos máximos que un anillo del humano espera a que pulse "Empezar" antes de
+	 * empezar solo, sin castigo. No menor que cero; con 0 empieza al abrirse. Valor inicial 8. No cambia la dificultad de la prueba.
+	 */
+	UPROPERTY()
+	double StartWaitSeconds = 0.0;
 };
 
 /**

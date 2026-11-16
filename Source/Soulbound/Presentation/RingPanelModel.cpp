@@ -46,6 +46,21 @@ FString Soulbound::Presentation::RingTitleText(ESkillTrial Trial, bool bDuel)
 		: TEXT("PRUEBA");
 }
 
+FString Soulbound::Presentation::RingStakeTitle(ESkillTrial Trial, bool bDuel)
+{
+	return RingTitleText(Trial, bDuel); // TODO(R-VIS-30): stub para ver el test en rojo
+}
+
+FString Soulbound::Presentation::RingStartCountdownText(double RemainingSeconds)
+{
+	return FString(); // TODO(R-MIN-19): stub
+}
+
+void Soulbound::Presentation::AddRingStartPrompt(FRingPanelModel& Model, const FRingTrialRun& Run, double Now, const FString& KeyDisplayName)
+{
+	// TODO(R-MIN-19): stub
+}
+
 TArray<FString> Soulbound::Presentation::RingInstructionLines()
 {
 	return {TEXT("Haz clic cuando el aro toque la runa."), TEXT("En la franja verde cuenta; cuanto más cerca, mejor.")};

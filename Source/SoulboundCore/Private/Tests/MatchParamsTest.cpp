@@ -46,7 +46,7 @@ namespace
 		TEXT("\"normal\": { \"closeSeconds\": 1.2, \"sweetZone\": 0.18, \"passThreshold\": 0.55 }, ")
 		TEXT("\"hard\": { \"closeSeconds\": 0.9, \"sweetZone\": 0.12, \"passThreshold\": 0.65 }, ")
 		TEXT("\"forgottenSourcePulses\": 2, \"wardenTrialPulses\": 3, \"voidEscapePulses\": 3, \"duelPulses\": 3, \"duelDifficulty\": \"normal\", ")
-		TEXT("\"finalChallengePulses\": 6, \"finalChallengeSweetZone\": 0.2 }");
+		TEXT("\"finalChallengePulses\": 6, \"finalChallengeSweetZone\": 0.2, \"startWaitSeconds\": 8 }");
 
 	/** El JSON Json con Fields añadidos antes de la última llave. Un texto sin llave de cierre se devuelve tal cual. */
 	FString Append(const FString& Json, const TCHAR* Fields)
@@ -203,6 +203,8 @@ bool FMatchParamsLoadTest::RunTest(const FString& Parameters)
 		&& Ring.VoidEscapePulses == 3 && Ring.DuelPulses == 3 && Ring.FinalChallengePulses == 6);
 	TestTrue(TEXT("Duelo en normal"), Ring.DuelDifficulty == ESkillDifficulty::Normal);
 		TestEqual(TEXT("Zona propia del desafío final: 0,14 (0,20 hasta el 14/11/2026)"), Ring.FinalChallengeSweetZone, 0.14);
+	// S-042 (R-MIN-19): la espera para empezar, con su valor inicial de la story.
+	TestEqual(TEXT("Espera para empezar: 8 s"), Ring.StartWaitSeconds, 8.0);
 
 	// Los valores salen del texto, no del código: con otros valores en el JSON, otros parámetros.
 	const FMatchParamsLoadResult Other = Soulbound::Rules::LoadMatchParamsFromJsonString(
