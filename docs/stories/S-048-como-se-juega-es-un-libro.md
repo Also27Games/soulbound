@@ -96,6 +96,23 @@ Manuales, por el autor, en PIE, a 1920x1080 y a 1024x768, con captura:
 - Tests primero, en rojo.
 - Mientras el autor prueba en PIE o trabaja en el editor, no se compila ni se lanza nada.
 
+## Precisiones del autor al aprobar el plan (17/11/2026)
+
+- **R-HUD-17, el formato** (con sus casos en los tests de CA-HUD-31 y CA-HUD-32):
+  - Varias líneas `>` seguidas son un solo comentario del Warden.
+  - Un segundo comentario o una segunda imagen separados en la misma página son un error cuyo mensaje nombra el archivo y la página.
+  - El texto suelto antes de la primera `##` que no sea el título ni la frase de la portada se ignora.
+  - Las líneas de un mismo párrafo se unen con un espacio; los párrafos se separan con una línea en blanco.
+  - `![texto](Nombre)` también vale; el texto alternativo se ignora.
+  - La imagen se busca en `/Game/Art/Ayuda/` (`HowToPlayImageFolder`, Config): `T_Ayuda_Turno` es `/Game/Art/Ayuda/T_Ayuda_Turno.T_Ayuda_Turno`.
+- **R-HUD-18, las teclas**: flecha arriba, página anterior; flecha abajo, página siguiente (`GrimoirePreviousPageKey`, `GrimoireNextPageKey`, Config). Solo actúan con el Grimorio abierto en "Cómo se juega". Las lista la página "Teclas".
+- **R-HUD-20, nada cruza el lomo**:
+  - La cabecera se reparte: el título y "Tú · La mesa · El tablero" en la página izquierda; "Cómo se juega · Crónica" en la derecha.
+  - Las dos columnas de cada pestaña: "Tú", la tarjeta a la izquierda y la insolencia, el hogar y los poderes a la derecha; "La mesa", Jugadores a la izquierda y Dominios a la derecha; "El tablero", Casillas y Nichos a la izquierda y Tablero y destellos a la derecha; "Crónica", entera en la izquierda.
+  - En "Cómo se juega", el comentario del Warden va al pie de la página izquierda, bajo la regla; "Anterior" abajo en la izquierda y "N de M · Siguiente" abajo en la derecha. Sin la imagen del libro, el comentario va a todo el ancho y el pie, centrado.
+- **R-HUD-19, el menú de hoy**: `UHowToPlayLibrary::HowToPlayText()` se mantiene para el widget actual del menú, con el libro aplanado (título y texto de cada página), y un `TODO(R-HUD-19)` para quitarlo cuando el widget nuevo lea las páginas.
+- **El texto del archivo** no se toca: su párrafo de teclas (nombra H y P, que ya no existen, y repite la página "Teclas") queda como pendiente en el PR.
+
 ## Fuera de esta story
 
 - Escribir o corregir el texto del libro y hacer sus capturas (lo hace el autor).
