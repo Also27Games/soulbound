@@ -582,7 +582,13 @@ bool FGrimoireBookKeysTest::RunTest(const FString& Parameters)
 	const FHowToPlayPage KeysPage = HowToPlayKeysPage(Keys);
 	TestEqual(TEXT("Su título"), KeysPage.Title, FString(HowToPlayKeysTitle));
 	TestTrue(TEXT("Es la última del libro"), Book.Pages.Num() > 0 && Book.Pages.Last() == KeysPage);
-	TestTrue(TEXT("Sin comentario ni imagen"), KeysPage.WardenComment.IsEmpty() && KeysPage.ImageName.IsEmpty());
+	TestTrue(TEXT("Sin imagen"), KeysPage.ImageName.IsEmpty());
+	// Precisión del autor al aprobar el plan de la ampliación (17/11/2026): la página "Teclas" es una lista, una tecla por elemento; su texto sin
+	// marcas, un elemento por línea, cada uno con su marca.
+	TestTrue(TEXT("Una lista de varias teclas"), KeysPage.Blocks.Num() > 1
+		&& !KeysPage.Blocks.ContainsByPredicate([](const FHowToPlayBlock& Block) { return Block.Kind != EHowToPlayBlockKind::ListItem || Block.Text.IsEmpty(); }));
+	TestEqual(TEXT("Su texto sin marcas, el de sus bloques"), KeysPage.Body, HowToPlayBodyText(KeysPage.Blocks));
+	TestTrue(TEXT("La primera, la del Grimorio"), KeysPage.Blocks.Num() > 0 && KeysPage.Blocks[0].Text.StartsWith(TEXT("G: ")));
 	const FString& Body = KeysPage.Body;
 	for (const TCHAR* Expected : {TEXT("G:"), TEXT("flechas izquierda y derecha:"), TEXT("flechas arriba y abajo:"), TEXT("1 a 9 y 0:"), TEXT("Intro:"), TEXT("C:"), TEXT("L:")})
 	{
@@ -598,8 +604,10 @@ bool FGrimoireBookKeysTest::RunTest(const FString& Parameters)
 	Body.ParseIntoArrayLines(Lines);
 	for (const TCHAR* Gone : {TEXT("H"), TEXT("P"), TEXT("T"), TEXT("D")})
 	{
-		TestFalse(FString::Printf(TEXT("Ninguna línea empieza por %s"), Gone),
-			Lines.ContainsByPredicate([Gone](const FString& Line) { return Line.StartsWith(FString(Gone) + TEXT(":")); }));
+		TestFalse(FString::Printf(TEXT("Ninguna línea empieza por %s"), Gone), Lines.ContainsByPredicate([Gone](const FString& Line)
+		{
+			return Line.StartsWith(FString(Gone) + TEXT(":")) || Line.StartsWith(FString(HowToPlayListMark) + TEXT(" ") + Gone + TEXT(":"));
+		}));
 	}
 	TestFalse(TEXT("Ni columna ni paneles que ocultar"), Body.Contains(TEXT("columna")) || Body.Contains(TEXT("paneles")));
 
@@ -835,6 +843,41 @@ bool FGrimoireFontTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Con fuente, la negrita es esa fuente"), Bold.FontObject == Own.Font);
 	TestTrue(TEXT("Con fuente, su tipo negrita"), Bold.TypefaceFontName == Own.BoldTypeface);
 	TestTrue(TEXT("Con fuente, el tamaño de la negrita"), FMath::IsNearlyEqual(static_cast<float>(Bold.Size), 20.f));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireItalicFontTest, "Soulbound.Game.Presentation.Grimorio.FuenteCursiva", GrimoireBookTestFlags)
+
+bool FGrimoireItalicFontTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-47 (corrección 4, ampliación del autor del 17/11/2026): la fuente del Grimorio da el tipo cursiva para la frase del Warden y negrita
+	// cursiva para su negrita; sin fuente del libro, los tipos Italic y BoldItalic de la fuente de siempre. Sin cursiva, lo de antes.
+	using namespace Soulbound::Presentation;
+	const FGrimoireFont None;
+	for (const bool bBold : {false, true})
+	{
+		const TCHAR* Typeface = bBold ? TEXT("BoldItalic") : TEXT("Italic");
+		const FSlateFontInfo Expected = FCoreStyle::GetDefaultFontStyle(Typeface, 15);
+		const FSlateFontInfo Got = GrimoireFontInfo(None, bBold, 15, true);
+		TestTrue(FString::Printf(TEXT("Sin fuente, la de siempre en %s"), Typeface), Got.FontObject == Expected.FontObject && Got.TypefaceFontName == Expected.TypefaceFontName
+			&& Got.CompositeFont == Expected.CompositeFont);
+		TestTrue(FString::Printf(TEXT("Sin fuente, %s, el tamaño pedido"), Typeface), FMath::IsNearlyEqual(static_cast<float>(Got.Size), static_cast<float>(Expected.Size)));
+	}
+
+	FGrimoireFont Own;
+	Own.Font = NewObject<UFont>(GetTransientPackage());
+	Own.RegularTypeface = TEXT("Normal");
+	Own.BoldTypeface = TEXT("Negrita");
+	Own.ItalicTypeface = TEXT("Cursiva");
+	Own.BoldItalicTypeface = TEXT("NegritaCursiva");
+	TestTrue(TEXT("Los nombres por defecto: Italic y BoldItalic"), FGrimoireFont().ItalicTypeface == FName(TEXT("Italic")) && FGrimoireFont().BoldItalicTypeface == FName(TEXT("BoldItalic")));
+	const FSlateFontInfo Italic = GrimoireFontInfo(Own, false, 14, true);
+	const FSlateFontInfo BoldItalic = GrimoireFontInfo(Own, true, 18, true);
+	TestTrue(TEXT("La frase del Warden: esa fuente, en cursiva"), Italic.FontObject == Own.Font && Italic.TypefaceFontName == Own.ItalicTypeface);
+	TestTrue(TEXT("Su tamaño"), FMath::IsNearlyEqual(static_cast<float>(Italic.Size), 14.f));
+	TestTrue(TEXT("Su negrita: esa fuente, en negrita cursiva"), BoldItalic.FontObject == Own.Font && BoldItalic.TypefaceFontName == Own.BoldItalicTypeface);
+	TestTrue(TEXT("Su tamaño"), FMath::IsNearlyEqual(static_cast<float>(BoldItalic.Size), 18.f));
+	TestTrue(TEXT("Sin cursiva, lo de antes"), GrimoireFontInfo(Own, false, 14).TypefaceFontName == Own.RegularTypeface && GrimoireFontInfo(Own, true, 14, false).TypefaceFontName == Own.BoldTypeface);
 	return true;
 }
 

@@ -19,6 +19,40 @@ enum class EHowToPlayError : uint8
 	DuplicateImage,
 };
 
+/** La clase de un bloque de una página de "Cómo se juega" (S-048, ampliación del autor del 17/11/2026, R-HUD-17, nombre propuesto). */
+UENUM(BlueprintType)
+enum class EHowToPlayBlockKind : uint8
+{
+	/** Un párrafo: líneas seguidas sin marca, unidas con un espacio. */
+	Paragraph,
+	/** Una frase del Warden: una o varias líneas ">" seguidas, sin línea en blanco entre ellas, unidas con un espacio. */
+	WardenLine,
+	/** Un elemento de lista: una línea que empieza por "- ", sin el guion. */
+	ListItem,
+};
+
+/**
+ * Un bloque de una página de "Cómo se juega" (S-048, ampliación del autor del 17/11/2026, R-HUD-17, nombre propuesto): su clase y su texto sin
+ * marcas. Es un USTRUCT para que el widget del menú lo lea.
+ */
+USTRUCT(BlueprintType)
+struct SOULBOUND_API FHowToPlayBlock
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
+	EHowToPlayBlockKind Kind = EHowToPlayBlockKind::Paragraph;
+
+	/** El texto del bloque, sin marcas: sin ">", sin el guion de la lista. */
+	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
+	FString Text;
+
+	bool operator==(const FHowToPlayBlock& Other) const
+	{
+		return Kind == Other.Kind && Text == Other.Text;
+	}
+};
+
 /**
  * Una página de "Cómo se juega" (S-048, R-HUD-17, nombre propuesto): su título, el texto de la regla, el comentario del Warden y el nombre de su
  * imagen; los dos últimos pueden estar vacíos. Es un USTRUCT para que el widget del menú, que monta el autor, la lea (R-HUD-19).
@@ -40,13 +74,17 @@ struct SOULBOUND_API FHowToPlayPage
 	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
 	FString WardenComment;
 
+	/** S-048 (ampliación del autor del 17/11/2026): los bloques de la página, en su orden: párrafos, frases del Warden y elementos de lista. */
+	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
+	TArray<FHowToPlayBlock> Blocks;
+
 	/** El nombre de la imagen (lo que va entre paréntesis en "![](Nombre)"); vacío si la página no lleva. */
 	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
 	FString ImageName;
 
 	bool operator==(const FHowToPlayPage& Other) const
 	{
-		return Title == Other.Title && Body == Other.Body && WardenComment == Other.WardenComment && ImageName == Other.ImageName;
+		return Title == Other.Title && Body == Other.Body && WardenComment == Other.WardenComment && Blocks == Other.Blocks && ImageName == Other.ImageName;
 	}
 };
 
@@ -106,4 +144,28 @@ namespace Soulbound::Presentation
 	 * @return La ruta del asset; vacía si el nombre está vacío.
 	 */
 	FString HowToPlayImagePath(const FString& Folder, const FString& ImageName);
+
+	/** La marca de un elemento de lista (S-048, ampliación del autor del 17/11/2026, nombre propuesto), en el texto sin marcas y en el enriquecido. */
+	inline const TCHAR* const HowToPlayListMark = TEXT("•");
+
+	/**
+	 * El texto sin marcas de una página (S-048, ampliación del autor del 17/11/2026, nombre propuesto): sus bloques en su orden, separados por una
+	 * línea en blanco, salvo dos elementos de lista seguidos, que van uno por línea; cada elemento, con su marca y un espacio delante.
+	 * @param Blocks Los bloques de la página.
+	 * @return El texto, que es FHowToPlayPage::Body.
+	 */
+	FString HowToPlayBodyText(const TArray<FHowToPlayBlock>& Blocks);
+
+	/**
+	 * Un bloque en texto enriquecido (S-048, ampliación del autor del 17/11/2026, R-HUD-19, nombre propuesto), sin la marca de lista: la frase del
+	 * Warden, entre <Warden> y </>; los caracteres & < > " escapados (&amp; &lt; &gt; &quot;).
+	 */
+	FString HowToPlayBlockRichText(const FHowToPlayBlock& Block);
+
+	/**
+	 * Una página en texto enriquecido, para un bloque de texto enriquecido de UMG (S-048, ampliación del autor del 17/11/2026, R-HUD-19, nombre
+	 * propuesto): sus bloques (HowToPlayBlockRichText) separados como en HowToPlayBodyText, y los elementos de lista con su marca delante. Sin el
+	 * título, que va aparte. Marcas: <Warden> y, con la negrita, <Bold> y <WardenBold>, los nombres de las filas de la tabla de estilos del menú.
+	 */
+	FString HowToPlayRichText(const FHowToPlayPage& Page);
 }

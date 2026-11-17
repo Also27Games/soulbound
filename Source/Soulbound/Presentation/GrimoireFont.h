@@ -17,6 +17,9 @@ namespace Soulbound::Presentation
 		/** El tipo normal y el negrita dentro del asset (GrimoireFontRegularTypeface y GrimoireFontBoldTypeface de la vista). */
 		FName RegularTypeface = TEXT("Regular");
 		FName BoldTypeface = TEXT("Bold");
+		/** S-048 (ampliación del autor del 17/11/2026): la cursiva y la negrita cursiva (GrimoireFontItalicTypeface y GrimoireFontBoldItalicTypeface). */
+		FName ItalicTypeface = TEXT("Italic");
+		FName BoldItalicTypeface = TEXT("BoldItalic");
 	};
 
 	/**
@@ -24,7 +27,9 @@ namespace Soulbound::Presentation
 	 * @param Font La fuente del Grimorio.
 	 * @param bBold Si el texto va en negrita.
 	 * @param Size El tamaño, en unidades de Slate; nunca menos de 1.
-	 * @return Sin fuente, la de hoy (FCoreStyle, "Regular" o "Bold"); con ella, esa fuente con su tipo normal o negrita.
+	 * @param bItalic S-048 (ampliación del autor del 17/11/2026): si va en cursiva (la frase del Warden de "Cómo se juega").
+	 * @return Sin fuente, la de hoy (FCoreStyle, "Regular", "Bold", "Italic" o "BoldItalic"); con ella, esa fuente con su tipo normal, negrita,
+	 * cursiva o negrita cursiva.
 	 */
-	FSlateFontInfo GrimoireFontInfo(const FGrimoireFont& Font, bool bBold, int32 Size);
+	FSlateFontInfo GrimoireFontInfo(const FGrimoireFont& Font, bool bBold, int32 Size, bool bItalic = false);
 }

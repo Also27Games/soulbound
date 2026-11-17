@@ -209,4 +209,20 @@ namespace Soulbound::Presentation
 		}
 		return Path + Name + TEXT(".") + Name;
 	}
+
+	// TODO(R-HUD-17): stubs del commit de los tests en rojo de la ampliación; la implementación va en el commit siguiente.
+	FString HowToPlayBodyText(const TArray<FHowToPlayBlock>& Blocks)
+	{
+		return FString();
+	}
+
+	FString HowToPlayBlockRichText(const FHowToPlayBlock& Block)
+	{
+		return FString();
+	}
+
+	FString HowToPlayRichText(const FHowToPlayPage& Page)
+	{
+		return FString();
+	}
 }

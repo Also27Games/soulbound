@@ -62,6 +62,12 @@ FHowToPlayPage UHowToPlayLibrary::HowToPlayPage(int32 Index)
 	return Book.Pages.IsValidIndex(Index) ? Book.Pages[Index] : FHowToPlayPage();
 }
 
+FText UHowToPlayLibrary::HowToPlayPageRichText(int32 Index)
+{
+	// TODO(R-HUD-19): stub del commit de los tests en rojo de la ampliación; la implementación va en el commit siguiente.
+	return FText();
+}
+
 UTexture2D* UHowToPlayLibrary::HowToPlayPageImage(int32 Index)
 {
 	const FHowToPlayPage Page = HowToPlayPage(Index);

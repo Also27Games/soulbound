@@ -4,8 +4,9 @@
 
 namespace Soulbound::Presentation
 {
-	FSlateFontInfo GrimoireFontInfo(const FGrimoireFont& Font, bool bBold, int32 Size)
+	FSlateFontInfo GrimoireFontInfo(const FGrimoireFont& Font, bool bBold, int32 Size, bool bItalic)
 	{
+		// TODO(R-HUD-20): stub del commit de los tests en rojo de la ampliación; la cursiva va en el commit siguiente.
 		const int32 Points = FMath::Max(Size, 1);
 		if (!Font.Font)
 		{

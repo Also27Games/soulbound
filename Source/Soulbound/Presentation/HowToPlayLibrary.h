@@ -40,9 +40,19 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Cómo se juega")
 	static int32 HowToPlayPageCount();
 
-	/** S-048 (R-HUD-19): una página, desde 0: título, texto, comentario del Warden y nombre de su imagen. Fuera de rango, una página vacía. */
+	/**
+	 * S-048 (R-HUD-19): una página, desde 0: título, texto sin marcas, bloques y nombre de su imagen (desde la ampliación del autor del 17/11/2026,
+	 * sin el comentario del Warden: las frases van en sus bloques). Fuera de rango, una página vacía.
+	 */
 	UFUNCTION(BlueprintPure, Category = "Cómo se juega")
 	static FHowToPlayPage HowToPlayPage(int32 Index);
+
+	/**
+	 * S-048 (ampliación del autor del 17/11/2026, R-HUD-19): una página, desde 0, en texto enriquecido para un bloque de texto enriquecido de UMG
+	 * (HowToPlayRichText), con las marcas <Bold>, <Warden> y <WardenBold>, sin el título. Fuera de rango, vacío.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Cómo se juega")
+	static FText HowToPlayPageRichText(int32 Index);
 
 	/**
 	 * S-048 (R-HUD-19): la imagen de una página, de la carpeta de la ayuda (HowToPlayImageFolder). Nula si la página no lleva o si la textura no
