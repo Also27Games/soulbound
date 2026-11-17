@@ -587,6 +587,12 @@ namespace Soulbound::Presentation
 		return View;
 	}
 
+	TOptional<double> OutcomeStartSeconds(const FMatchState& State, int32 Index, int32 HumanSeat, double OutcomeSeconds)
+	{
+		// TODO(R-DEC-19): stub para ver CA-DEC-37 en rojo; la implementación llega en el commit siguiente.
+		return {};
+	}
+
 	TOptional<FDecisionView> PanelView(const FMatchState& State, int32 HumanSeat, bool bWardenSpeaking, double VoteResultSeconds, double OutcomeSeconds)
 	{
 		if (State.IsMatchOver() || !State.Seats.IsValidIndex(HumanSeat))

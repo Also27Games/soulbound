@@ -434,4 +434,25 @@ bool FBoardViewEchoNightDimTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTokenArrivalTest, "Soulbound.Game.Presentation.Vista.LlegadaDeLaFicha", ViewStateTestFlags)
+
+bool FTokenArrivalTest::RunTest(const FString& Parameters)
+{
+	// CA-VIS-33 (R-VIS-32, S-046): cómo llega la ficha a la casilla que dice el estado. "Nada" si ya está en ella; el caminar de siempre si es
+	// la siguiente de su camino; deslizarse si no es la siguiente y no está en ella (el corte a medio camino, o el motor dos casillas por
+	// delante). TokenTile es la casilla en la que está la ficha, INDEX_NONE si va entre dos.
+	using Soulbound::Presentation::ETokenArrival;
+	using Soulbound::Presentation::TokenArrival;
+	const auto Name = [](ETokenArrival Arrival) { return FString::FromInt(static_cast<int32>(Arrival)); };
+
+	TestEqual(TEXT("Quieta en su casilla: nada"), Name(TokenArrival(5, 5, {})), Name(ETokenArrival::Stay));
+	TestEqual(TEXT("En su casilla, a punto de salir: nada"), Name(TokenArrival(5, 5, {6, 7})), Name(ETokenArrival::Stay));
+	TestEqual(TEXT("Camino de la 6 y el estado dice 6: caminar"), Name(TokenArrival(6, INDEX_NONE, {6, 7})), Name(ETokenArrival::Walk));
+	TestEqual(TEXT("Cortada entre la 5 y la 6, el estado dice 5: deslizarse"), Name(TokenArrival(5, INDEX_NONE, {6, 7})), Name(ETokenArrival::Slide));
+	TestEqual(TEXT("El motor dos por delante (dice 7, va a la 6): deslizarse"), Name(TokenArrival(7, INDEX_NONE, {6, 7, 8})), Name(ETokenArrival::Slide));
+	TestEqual(TEXT("Quieta en la 5 y el estado dice 3 (hogar, Expulsión): deslizarse"), Name(TokenArrival(3, 5, {})), Name(ETokenArrival::Slide));
+	TestEqual(TEXT("En la 5 camino de la 6 y el estado dice 6: caminar"), Name(TokenArrival(6, 5, {6, 7})), Name(ETokenArrival::Walk));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

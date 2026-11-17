@@ -331,4 +331,16 @@ bool FActaEchoNightRoundTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FActaExtraTurnTest, "Soulbound.Game.Presentation.Acta.TurnoExtra", ActaTestFlags)
+bool FActaExtraTurnTest::RunTest(const FString& Parameters)
+{
+	// CA-ACT-9 (R-DEC-19, S-046): el acta escribe el turno extra con su tipo y el mismo texto que la crónica.
+	FMatchState State = ActaState();
+	State.EventLog.Add(MakeActaEvent(EMatchEventType::ExtraTurnTaken, 120.0, 2, INDEX_NONE, 0));
+	const FString Line = Soulbound::Presentation::MatchRecordLine(State, 0, 0, INDEX_NONE);
+	TestTrue(TEXT("Lleva su tipo"), Line.Contains(TEXT("#0 ExtraTurnTaken ")));
+	TestTrue(TEXT("Y el texto"), Line.EndsWith(TEXT("| el asiento 2 juega un turno extra")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

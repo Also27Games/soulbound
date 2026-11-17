@@ -131,6 +131,18 @@ namespace Soulbound::Presentation
 	TOptional<FDecisionView> OutcomeView(const FMatchState& State, int32 HumanSeat, double OutcomeSeconds);
 
 	/**
+	 * Cuándo empieza a enseñarse el desenlace de la posición Index del registro (S-046, R-DEC-19, precisión del autor; nombre propuesto). Un
+	 * desenlace de turno (TurnSkipped, ExtraTurnTaken) que llega mientras se enseña el desenlace anterior espera a que ese acabe; los demás
+	 * empiezan en su instante. Sale solo del registro (los instantes de los eventos), no del reloj ni de la vista.
+	 * @param State El estado de la partida; solo se lee el registro.
+	 * @param Index La posición del suceso en FMatchState::EventLog.
+	 * @param HumanSeat El asiento humano: lo suyo que no se enseña (su prueba, su elección de dilema) no hace esperar a nadie.
+	 * @param OutcomeSeconds Cuánto se enseña cada desenlace.
+	 * @return El instante, en segundos del reloj de partida, o nada si el suceso no es un desenlace que se enseñe.
+	 */
+	TOptional<double> OutcomeStartSeconds(const FMatchState& State, int32 Index, int32 HumanSeat, double OutcomeSeconds);
+
+	/**
 	 * Lo que enseña el panel en cada momento (S-033, R-DEC-6, nombre propuesto): la decisión del humano si existe; si no, el resultado de una
 	 * votación o el desenlace recientes (el más nuevo del registro, R-DEC-10); si no, la espera a otro asiento, salvo mientras la mesa espera al Warden (su frase ya está en pantalla); si no, nada.
 	 * @param State El estado de la partida.

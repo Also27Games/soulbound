@@ -284,4 +284,15 @@ bool FChronicleEchoNightNoRoundTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FChronicleExtraTurnTest, "Soulbound.Game.Presentation.Cronica.TurnoExtra", ChronicleTestFlags)
+
+bool FChronicleExtraTurnTest::RunTest(const FString& Parameters)
+{
+	// CA-ACT-9 (R-DEC-19, S-046): la crónica escribe el turno extra: "el asiento N juega un turno extra". Value (los que le quedan) no sale.
+	FMatchState State;
+	State.EventLog.Add(MakeEvent(EMatchEventType::ExtraTurnTaken, 2, 1));
+	TestEqual(TEXT("La línea del turno extra"), Soulbound::Presentation::DescribeChronicleEvent(State, 0), FString(TEXT("el asiento 2 juega un turno extra")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

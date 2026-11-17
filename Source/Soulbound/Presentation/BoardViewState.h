@@ -164,4 +164,25 @@ namespace Soulbound::Presentation
 	 * @return El color con la opacidad en su alfa.
 	 */
 	SOULBOUND_API FLinearColor BoardDimColor(const FLinearColor& NightColor, float NightOpacity, float CutOpacity);
+
+	/** Cómo llega una ficha a la casilla que dice el estado (S-046, R-VIS-32, nombre del autor). */
+	enum class ETokenArrival : uint8
+	{
+		/** Ya está en ella: no se mueve. */
+		Stay,
+		/** Es la siguiente de su camino: sigue caminando como siempre (S-020). */
+		Walk,
+		/** Ni está en ella ni es la siguiente de su camino: va deslizándose, no de golpe. */
+		Slide,
+	};
+
+	/**
+	 * Cómo llega la ficha a la casilla que dice el estado (S-046, R-VIS-32, nombre del autor). Decide solo la forma de llegar: la casilla
+	 * en la que queda es la del estado (R-TAB-26).
+	 * @param StateTile La casilla del asiento en el estado (FSeatState::TileId).
+	 * @param TokenTile La casilla en la que está la ficha, o INDEX_NONE si va entre dos (ASeatTokenActor::StandingTile).
+	 * @param RemainingWalk Las casillas que le quedan de su camino, en orden (ASeatTokenActor::RemainingWalk); vacío si no camina.
+	 * @return Stay si ya está en StateTile; Walk si StateTile es la primera de RemainingWalk; Slide en los demás casos.
+	 */
+	SOULBOUND_API ETokenArrival TokenArrival(int32 StateTile, int32 TokenTile, const TArray<int32>& RemainingWalk);
 }

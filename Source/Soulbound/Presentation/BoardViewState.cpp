@@ -161,3 +161,9 @@ FLinearColor Soulbound::Presentation::BoardDimColor(const FLinearColor& NightCol
 	}
 	return FLinearColor(NightColor.R, NightColor.G, NightColor.B, NightOpacity);
 }
+
+Soulbound::Presentation::ETokenArrival Soulbound::Presentation::TokenArrival(int32 StateTile, int32 TokenTile, const TArray<int32>& RemainingWalk)
+{
+	// TODO(R-VIS-32): stub para ver CA-VIS-33 en rojo; la implementación llega en el commit siguiente.
+	return ETokenArrival::Stay;
+}
