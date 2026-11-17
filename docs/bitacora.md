@@ -32,16 +32,21 @@ La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar
   - (3) Sobre el libro, sin la caja negra de la crónica ni el fondo de la tarjeta.
   - (4) Fuente propia opcional en Config (`GrimoireFont`, con los nombres de sus tipos), con aviso si falta (`GrimoireFontInfo`, CA-HUD-41).
   - 3 tests nuevos, vistos en rojo (3 fallidos) y en verde: 583.
+- **Segunda prueba en PIE (17/11)**: superadas las cuatro correcciones y la fuente (`F_Grimorio` con `Regular` y `Bold`). "La partida sigue" se queda fuera. Tres correcciones más:
+  - (5) Las teclas de páginas, solo en "Cómo se juega": `GrimoireFootHints` recibe la pestaña y el panel arma el pie según la activa; sin el libro, `OneLine` (CA-HUD-40, ajustado).
+  - (6) "CRONICA (la ultima…)" pasa a "CRÓNICA (la última…)" en `ChronicleHeadingText` (CA-HUD-42). Revisados los demás textos del Grimorio y sus datos: no había más sin tildes.
+  - (7) Margen de 12 sobre el pie (`GrimoireFootGap`; antes, 6), en las cinco pestañas.
+  - 1 test nuevo y 1 ajustado, vistos en rojo (2 fallidos) y en verde: 584.
 - **Pendiente**:
-  - Las pruebas manuales de las páginas con imagen y comentario, y de las cuatro correcciones.
+  - Las pruebas manuales de las páginas con imagen y comentario, y de las correcciones 5 y 7.
   - Los assets del autor: `T_GrimorioPortada`, las capturas `T_Ayuda_*` y `F_Grimorio`.
   - Los tamaños de letra del libro, que se ajustan con el texto final.
   - El widget del menú que lee las páginas, y después quitar `HowToPlayText` (`TODO(R-HUD-19)`).
   - `como-se-juega.md` sigue con su párrafo de teclas, que nombra H y P y ahora repite la página "Teclas".
 - **Proceso**:
-  - Tiempo: agente Opus 5.5 en una conversación nueva; unos 30 minutos desde el plan aprobado hasta el PR, y unos 35 más para las cuatro correcciones del autor tras PIE.
+  - Tiempo: agente Opus 5.5 en una conversación nueva; unos 30 minutos desde el plan aprobado hasta el PR, unos 35 más para las cuatro correcciones del autor tras PIE y unos 25 para las tres de la segunda prueba.
   - Preguntas que pararon al agente: una parada, el plan con siete dudas.
-  - Correcciones tras fusionar: (las rellena el autor). Antes de fusionar, cuatro, tras PIE; la primera fue un fallo del agente: el ancho de partir no restaba sangrías ni la barra de desplazamiento.
+  - Correcciones tras fusionar: (las rellena el autor). Antes de fusionar, siete, en dos pruebas en PIE; la primera fue un fallo del agente (el ancho de partir no restaba sangrías ni la barra de desplazamiento); la sexta corrige un texto sin tildes anterior a S-048.
   - Build y tests: en rojo y en verde compiló y pasó a la primera, también en las correcciones.
 
 ## S-045. La pantalla queda limpia: arriba, la partida; abajo, tú; lo demás, en el Grimorio (17/11/2026, rama `story/S-045-la-pantalla-queda-limpia`, base `main`)
