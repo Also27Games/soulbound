@@ -49,11 +49,30 @@ namespace
 		return FString::Join(Parts, TEXT(" | "));
 	}
 
-	/** Comprueba que una página tiene exactamente esos bloques, en ese orden. */
+	/** Comprueba que una página tiene exactamente esos bloques, en ese orden: su clase y su texto (los tramos de la negrita, en su propio test). */
 	void HowToPlayExpectBlocks(FAutomationTestBase& Test, const FString& What, const FHowToPlayPage& Page, const TArray<FHowToPlayBlock>& Expected)
 	{
 		Test.TestEqual(What, HowToPlayBlocksText(Page.Blocks), HowToPlayBlocksText(Expected));
-		Test.TestTrue(What + TEXT(" (los bloques, iguales)"), Page.Blocks == Expected);
+	}
+
+	/** Un tramo, para comparar (S-048, la negrita). */
+	FHowToPlaySpan HowToPlaySpanOf(const FString& Text, bool bBold)
+	{
+		FHowToPlaySpan Span;
+		Span.Text = Text;
+		Span.bBold = bBold;
+		return Span;
+	}
+
+	/** Los tramos en una línea legible para los mensajes: "[uno ][*dos*][ tres]", con la negrita entre asteriscos. */
+	FString HowToPlaySpansText(const TArray<FHowToPlaySpan>& Spans)
+	{
+		FString Text;
+		for (const FHowToPlaySpan& Span : Spans)
+		{
+			Text += Span.bBold ? FString::Printf(TEXT("[*%s*]"), *Span.Text) : FString::Printf(TEXT("[%s]"), *Span.Text);
+		}
+		return Text;
 	}
 }
 
@@ -381,6 +400,16 @@ bool FHowToPlayRichTextTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Una frase del Warden, entre sus marcas"), HowToPlayBlockRichText(HowToPlayBlockOf(EHowToPlayBlockKind::WardenLine, TEXT("\"Ya.\""))),
 		FString(TEXT("<Warden>&quot;Ya.&quot;</>")));
 
+	// Con la negrita (CA-HUD-45): <Bold> en el párrafo y en la lista; dentro de la frase del Warden, <WardenBold>, cerrando y abriendo <Warden>,
+	// porque el texto enriquecido de UMG no anida marcas. El texto sin marcas, sin asteriscos.
+	const FHowToPlayLoadResult Bold = ParseHowToPlayText(TEXT("## Fuerte\nUn **fuerte** & claro.\n> Te **vigilo**.\n- **Uno**\n- Dos\n"), TEXT("prueba.md"));
+	if (TestTrue(FString::Printf(TEXT("Con negrita, se carga (%s)"), *Bold.Message), Bold.IsSuccess() && Bold.Pages.Num() == 1))
+	{
+		TestEqual(TEXT("Con negrita, el texto enriquecido"), HowToPlayRichText(Bold.Pages[0]),
+			FString(TEXT("Un <Bold>fuerte</> &amp; claro.\n\n<Warden>Te </><WardenBold>vigilo</><Warden>.</>\n\n• <Bold>Uno</>\n• Dos")));
+		TestEqual(TEXT("Con negrita, el texto sin marcas"), Bold.Pages[0].Body, FString(TEXT("Un fuerte & claro.\n\nTe vigilo.\n\n• Uno\n• Dos")));
+	}
+
 	// La librería: para cada página del libro del Grimorio, el mismo texto enriquecido; fuera de rango, vacío. El texto sin marcas, como antes.
 	const ABoardViewActor* View = GetDefault<ABoardViewActor>();
 	if (!TestNotNull(TEXT("El objeto por defecto de la vista"), View))
@@ -402,6 +431,67 @@ bool FHowToPlayRichTextTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("Fuera de rango, vacío"), UHowToPlayLibrary::HowToPlayPageRichText(Grimoire.Pages.Num()).IsEmpty() && UHowToPlayLibrary::HowToPlayPageRichText(-1).IsEmpty());
 	TestFalse(TEXT("El bloque de texto del menú de hoy, sin marcas"), UHowToPlayLibrary::HowToPlayText().ToString().Contains(TEXT("</>")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHowToPlayBoldTest, "Soulbound.Game.Presentation.ComoSeJuega.NegritaEnLosBloques", HowToPlayTestFlags)
+
+bool FHowToPlayBoldTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-45 (R-HUD-17, ampliación del autor del 17/11/2026): "uno **dos** tres" da tres tramos, el segundo en negrita y sin asteriscos; unos
+	// asteriscos sin cerrar se dejan como texto. Vale en las tres clases de bloque. Precisiones del autor al aprobar el plan: solo con dos asteriscos
+	// (uno suelto es texto), y ni en el título de la página ni en la portada.
+	using namespace Soulbound::Presentation;
+	const TArray<FHowToPlaySpan> Three{HowToPlaySpanOf(TEXT("uno "), false), HowToPlaySpanOf(TEXT("dos"), true), HowToPlaySpanOf(TEXT(" tres"), false)};
+	TestEqual(TEXT("Tres tramos, el segundo en negrita y sin asteriscos"), HowToPlaySpansText(HowToPlaySpans(TEXT("uno **dos** tres"))), HowToPlaySpansText(Three));
+	TestEqual(TEXT("Sin cerrar: texto"), HowToPlaySpansText(HowToPlaySpans(TEXT("uno **dos tres"))), HowToPlaySpansText({HowToPlaySpanOf(TEXT("uno **dos tres"), false)}));
+	TestEqual(TEXT("La segunda sin cerrar: la primera, negrita; el resto, texto"), HowToPlaySpansText(HowToPlaySpans(TEXT("a **b** c **d"))),
+		HowToPlaySpansText({HowToPlaySpanOf(TEXT("a "), false), HowToPlaySpanOf(TEXT("b"), true), HowToPlaySpanOf(TEXT(" c **d"), false)}));
+	TestEqual(TEXT("Un asterisco suelto es texto"), HowToPlaySpansText(HowToPlaySpans(TEXT("uno *dos* tres"))), HowToPlaySpansText({HowToPlaySpanOf(TEXT("uno *dos* tres"), false)}));
+	TestEqual(TEXT("Todo en negrita: un tramo"), HowToPlaySpansText(HowToPlaySpans(TEXT("**todo**"))), HowToPlaySpansText({HowToPlaySpanOf(TEXT("todo"), true)}));
+	TestEqual(TEXT("Sin negrita: un tramo"), HowToPlaySpansText(HowToPlaySpans(TEXT("nada"))), HowToPlaySpansText({HowToPlaySpanOf(TEXT("nada"), false)}));
+	TestTrue(TEXT("Vacío: sin tramos"), HowToPlaySpans(FString()).IsEmpty());
+
+	// En las tres clases de bloque; en un párrafo, también a través de dos líneas. El título de la página y la portada se quedan como están.
+	const FHowToPlayLoadResult Result = ParseHowToPlayText(TEXT(
+		"# Libro **x**\n"
+		"> Portada **y**\n"
+		"\n"
+		"## Título **z**\n"
+		"uno **dos** tres\n"
+		"\n"
+		"uno **dos\n"
+		"tres** cuatro\n"
+		"> uno **dos**\n"
+		"> tres\n"
+		"- uno **dos** tres\n"
+		"- uno **dos\n"), TEXT("prueba.md"));
+	if (!TestTrue(FString::Printf(TEXT("Se carga (%s)"), *Result.Message), Result.IsSuccess()) || !TestEqual(TEXT("Una página"), Result.Pages.Num(), 1))
+	{
+		return false;
+	}
+	const FHowToPlayPage& Page = Result.Pages[0];
+	if (!TestEqual(TEXT("Cinco bloques"), Page.Blocks.Num(), 5))
+	{
+		return false;
+	}
+	const TCHAR* Kinds[] = {TEXT("el párrafo"), TEXT("el párrafo de dos líneas"), TEXT("la frase del Warden"), TEXT("el elemento de lista"), TEXT("el elemento sin cerrar")};
+	const TArray<TArray<FHowToPlaySpan>> Expected{
+		Three,
+		{HowToPlaySpanOf(TEXT("uno "), false), HowToPlaySpanOf(TEXT("dos tres"), true), HowToPlaySpanOf(TEXT(" cuatro"), false)},
+		Three,
+		Three,
+		{HowToPlaySpanOf(TEXT("uno **dos"), false)}};
+	const TArray<FString> Texts{TEXT("uno dos tres"), TEXT("uno dos tres cuatro"), TEXT("uno dos tres"), TEXT("uno dos tres"), TEXT("uno **dos")};
+	for (int32 Index = 0; Index < 5; ++Index)
+	{
+		TestEqual(FString::Printf(TEXT("Los tramos de %s"), Kinds[Index]), HowToPlaySpansText(Page.Blocks[Index].Spans), HowToPlaySpansText(Expected[Index]));
+		TestEqual(FString::Printf(TEXT("El texto sin marcas de %s"), Kinds[Index]), Page.Blocks[Index].Text, Texts[Index]);
+	}
+	TestFalse(TEXT("El texto sin marcas de la página, sin los asteriscos de la negrita"), Page.Body.Contains(TEXT("**dos**")) || Page.Body.Contains(TEXT("tres**")));
+	TestEqual(TEXT("El título de la página, tal cual"), Page.Title, FString(TEXT("Título **z**")));
+	TestEqual(TEXT("El título del libro, tal cual"), Result.BookTitle, FString(TEXT("Libro **x**")));
+	TestEqual(TEXT("La portada, tal cual"), Result.CoverLine, FString(TEXT("Portada **y**")));
 	return true;
 }
 

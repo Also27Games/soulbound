@@ -256,6 +256,12 @@ namespace Soulbound::Presentation
 		return Path + Name + TEXT(".") + Name;
 	}
 
+	TArray<FHowToPlaySpan> HowToPlaySpans(const FString& Text)
+	{
+		// TODO(R-HUD-17): stub del commit de los tests en rojo de la negrita; la implementación va en el commit siguiente.
+		return TArray<FHowToPlaySpan>();
+	}
+
 	FString HowToPlayBodyText(const TArray<FHowToPlayBlock>& Blocks)
 	{
 		return JoinBlocks(Blocks, [](const FHowToPlayBlock& Block) { return Block.Text; });

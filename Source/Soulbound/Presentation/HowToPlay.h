@@ -30,8 +30,29 @@ enum class EHowToPlayBlockKind : uint8
 };
 
 /**
- * Un bloque de una página de "Cómo se juega" (S-048, ampliación del autor del 17/11/2026, R-HUD-17, nombre propuesto): su clase y su texto sin
- * marcas. Es un USTRUCT para que el widget del menú lo lea.
+ * Un tramo del texto de un bloque (S-048, ampliación del autor del 17/11/2026, R-HUD-17, nombre propuesto): un trozo seguido, en negrita o no. La
+ * negrita se escribe "**texto**" y el tramo no lleva los asteriscos.
+ */
+USTRUCT(BlueprintType)
+struct SOULBOUND_API FHowToPlaySpan
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
+	FString Text;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
+	bool bBold = false;
+
+	bool operator==(const FHowToPlaySpan& Other) const
+	{
+		return Text == Other.Text && bBold == Other.bBold;
+	}
+};
+
+/**
+ * Un bloque de una página de "Cómo se juega" (S-048, ampliación del autor del 17/11/2026, R-HUD-17, nombre propuesto): su clase, su texto sin
+ * marcas y sus tramos, normales o en negrita. Es un USTRUCT para que el widget del menú lo lea.
  */
 USTRUCT(BlueprintType)
 struct SOULBOUND_API FHowToPlayBlock
@@ -41,13 +62,17 @@ struct SOULBOUND_API FHowToPlayBlock
 	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
 	EHowToPlayBlockKind Kind = EHowToPlayBlockKind::Paragraph;
 
-	/** El texto del bloque, sin marcas: sin ">", sin el guion de la lista. */
+	/** El texto del bloque, sin marcas: sin ">", sin el guion de la lista, sin los asteriscos de la negrita. */
 	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
 	FString Text;
 
+	/** Los tramos del texto, en su orden (HowToPlaySpans): juntos, dan Text. */
+	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
+	TArray<FHowToPlaySpan> Spans;
+
 	bool operator==(const FHowToPlayBlock& Other) const
 	{
-		return Kind == Other.Kind && Text == Other.Text;
+		return Kind == Other.Kind && Text == Other.Text && Spans == Other.Spans;
 	}
 };
 
@@ -145,6 +170,15 @@ namespace Soulbound::Presentation
 	 * @return La ruta del asset; vacía si el nombre está vacío.
 	 */
 	FString HowToPlayImagePath(const FString& Folder, const FString& ImageName);
+
+	/**
+	 * Parte el texto de un bloque en tramos normales y en negrita (S-048, ampliación del autor del 17/11/2026, R-HUD-17, nombre propuesto). Solo
+	 * "**texto**" es negrita: un asterisco suelto es texto, y unos asteriscos sin cerrar se dejan como texto. Sin tramos vacíos; dos seguidos del
+	 * mismo tipo, uno.
+	 * @param Text El texto del bloque, con sus marcas de negrita.
+	 * @return Los tramos, en su orden, sin los asteriscos de la negrita; vacío si el texto está vacío.
+	 */
+	TArray<FHowToPlaySpan> HowToPlaySpans(const FString& Text);
 
 	/** La marca de un elemento de lista (S-048, ampliación del autor del 17/11/2026, nombre propuesto), en el texto sin marcas y en el enriquecido. */
 	inline const TCHAR* const HowToPlayListMark = TEXT("•");
