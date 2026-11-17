@@ -30,9 +30,20 @@ Decidido por el autor el 16/11/2026 (ninguna regla cambia):
   - Duran lo que los demás desenlaces (`OutcomeSeconds`) y no detienen la mesa.
   - A diferencia de otros desenlaces, estos dos se enseñan también cuando son del humano: es justo cuando más hace falta saberlo.
   - La crónica y el acta escriben el evento nuevo: "el asiento N juega un turno extra".
+  - Los dos llevan el título "Turno" (decisión del autor del 17/11/2026).
+  - **Precisión del autor del 17/11/2026: el turno extra del humano.** Su turno extra empieza en el mismo instante en que se decide su panel de destino, que va por delante del desenlace (R-DEC-6). Mientras dura su desenlace (`OutcomeSeconds`), el panel de destino lleva "Tienes un turno extra" como línea bajo el contexto.
+  - **Precisión del autor del 17/11/2026: un desenlace de turno no tapa al anterior.** Si llega mientras se enseña otro desenlace, espera a que ese acabe y empieza entonces su `OutcomeSeconds`; si llegan varios seguidos, van en cola. Los demás desenlaces siguen como hasta ahora: el más nuevo se enseña en cuanto llega. Cuándo empieza cada desenlace sale de una función pura del registro (los instantes de los eventos), no de un estado guardado en la vista.
 - **R-VIS-32 (nueva, precisión de S-020). La ficha cortada se desliza.** Cuando el estado coloca la ficha en una casilla distinta de aquella hacia la que caminaba (un corte a medio camino, o que el motor vaya por delante), la ficha va a esa casilla deslizándose, con el deslizamiento que ya usan los movimientos que no son un camino (`TokenSlideSeconds`), en vez de aparecer en ella de golpe. Si la ficha ya está en la casilla, no se mueve.
   - No cambia la casilla en la que queda (R-TAB-26) ni cuándo se entrega cada avance del camino.
+  - **Precisión del autor del 17/11/2026: la ficha del que se sigue moviendo.** Si el motor va por delante y la ficha aún tiene camino, no se desliza y luego camina: va en línea recta hasta la casilla del estado como primer punto de su recorrido, a la velocidad de caminar, y sigue desde ahí. El corte del Warden (la ficha ya no se mueve) sí se desliza con `TokenSlideSeconds`.
 - **Lo que no cambia.** Las reglas de los turnos perdidos y extra, el corte de turno, la señal de corte (S-041) y la velocidad de las fichas al caminar.
+
+### Decisiones del autor sobre el plan (17/11/2026)
+
+- **Nombres**: el evento es `EMatchEventType::ExtraTurnTaken`; la función de la ficha, `Soulbound::Presentation::TokenArrival`, con `ETokenArrival` (`Stay`, `Walk`, `Slide`).
+- **El evento se registra en `LeaveEnd`, al decidirse.** Si entre esa decisión y el turno extra llega un turno perdido (un castigo cobrado al terminar el turno o un evento del Warden en el hueco), el registro queda con `ExtraTurnTaken` seguido de `TurnSkipped`. Se deja así y se anota en el PR; es el caso de "Prisa" que queda fuera.
+- **CA-TUR-20** se comprueba con un test permanente sobre la estructura del registro y, una sola vez, comparando contra `main` el registro de una partida simulada; el resultado va en el PR.
+- **Textos**: los literales de los criterios, con el título "Turno".
 
 ## Criterios de aceptación
 
@@ -41,12 +52,13 @@ Automáticos, sin mundo.
 En `SoulboundCore`:
 
 - **CA-TUR-19** (R-TUR-17). Un asiento con un turno extra que termina su turno deja el evento del turno extra con su asiento y 0 turnos restantes, y después el `TurnStarted` del mismo asiento. Con dos turnos extra, deja el evento con 1 restante. Sin turnos extra, no lo deja y el turno pasa al siguiente. Un turno extra cancelado por un turno perdido no deja el evento.
-- **CA-TUR-20** (R-TUR-17, guarda). Una partida simulada con una semilla dada deja el mismo registro que antes salvo por los eventos nuevos, que aparecen justo donde un asiento repite turno.
+- **CA-TUR-20** (R-TUR-17, guarda). En una partida simulada con una semilla dada y el Warden encendido, cada `ExtraTurnTaken` va entre el `TurnEnded` y el `TurnStarted` del mismo asiento, y cada vez que un asiento repite turno hay exactamente uno (corrección del autor del 17/11/2026). Además, una sola vez y fuera de los tests, el registro de esa partida con la rama es el de `main` salvo por los eventos nuevos; el resultado va en el PR.
 
 En `Soulbound`:
 
 - **CA-DEC-35** (R-DEC-19, textos). El desenlace de un `TurnSkipped` del asiento 2 es "El asiento 2 pierde este turno" y el del humano, "Pierdes este turno". El del turno extra del asiento 2 es "Turno extra del asiento 2" y el del humano, "Tienes un turno extra".
-- **CA-DEC-36** (R-DEC-19, cuándo). Se enseñan durante `OutcomeSeconds` desde su instante y después no; los del humano se enseñan igual que los de otros asientos; los desenlaces que ya existían siguen saliendo como antes.
+- **CA-DEC-36** (R-DEC-19, cuándo). Se enseñan durante `OutcomeSeconds` desde su instante y después no; los del humano se enseñan igual que los de otros asientos; los desenlaces que ya existían siguen saliendo como antes. Con el panel de destino del humano abierto en su turno extra, el panel lleva la línea "Tienes un turno extra" mientras dura su desenlace, y después no (ajuste del autor del 17/11/2026).
+- **CA-DEC-37** (R-DEC-19, cola; añadido por el autor el 17/11/2026). Un desenlace de turno que llega mientras se enseña otro desenlace empieza cuando ese acaba y dura entonces `OutcomeSeconds`; dos desenlaces de turno seguidos van uno detrás de otro; un desenlace que no es de turno se enseña en cuanto llega. El instante en que empieza cada uno lo da una función pura del registro.
 - **CA-ACT-9** (R-DEC-19). El texto del evento nuevo en la crónica y en el acta es "el asiento N juega un turno extra".
 - **CA-VIS-33** (R-VIS-32). La función que decide cómo llega la ficha a la casilla que dice el estado devuelve "deslizarse" cuando esa casilla no es la siguiente de su camino y la ficha no está ya en ella; "nada" cuando ya está en ella; y el caminar de siempre cuando es la siguiente de su camino.
 
