@@ -148,7 +148,8 @@ namespace Soulbound::Presentation
 	/**
 	 * Lo que enseña el panel en cada momento (S-033, R-DEC-6, nombre propuesto): la decisión del humano si existe; si no, el resultado de una
 	 * votación o el desenlace recientes (el más nuevo del registro, R-DEC-10); si no, la espera a otro asiento, salvo mientras la mesa espera al Warden (su frase ya está en pantalla); si no, nada.
-	 * Desde S-046 (R-DEC-19), el destino del humano lleva la línea "Tienes un turno extra" mientras se enseña el desenlace de su turno extra.
+	 * Desde S-046 (R-DEC-19), el primer panel propio del humano en su turno extra (la elección de dados con Celeridad o, sin ella, el destino) lleva la
+	 * línea "Tienes un turno extra" mientras se enseña el desenlace de ese turno extra.
 	 * @param State El estado de la partida.
 	 * @param HumanSeat El asiento humano de esta máquina.
 	 * @param bWardenSpeaking Si la mesa espera al Warden (UMatchHostSubsystem::IsWardenSpeaking).

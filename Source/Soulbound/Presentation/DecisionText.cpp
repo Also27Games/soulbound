@@ -294,7 +294,7 @@ namespace
 		}
 	}
 
-	/** El desenlace del turno extra del humano (R-DEC-19, CA-DEC-35), también como línea de su destino (CA-DEC-36). */
+	/** El desenlace del turno extra del humano (R-DEC-19, CA-DEC-35), también como línea de su primer panel propio (CA-DEC-36). */
 	const TCHAR* const OwnExtraTurnText = TEXT("Tienes un turno extra");
 
 	/** Si un desenlace es de turno (S-046, R-DEC-19): estos esperan a que acabe el que se enseña. */
@@ -696,14 +696,24 @@ namespace Soulbound::Presentation
 		const TOptional<FOutcomeSlot> Current = CurrentOutcome(State, HumanSeat, OutcomeSeconds);
 		if (TOptional<FDecisionView> Own = DecisionView(State, HumanSeat, bWardenSpeaking))
 		{
-			// S-046 (R-DEC-19, precisión del autor): el turno extra del humano empieza con su destino a la vista, que tapa al desenlace; mientras
-			// este dura, el destino lo dice en una línea.
-			if (Own->Input == EDecisionInput::Tile && Current.IsSet() && Current->bShown)
+			// S-046 (R-DEC-19, precisión y ajuste del autor del 17/11/2026): el turno extra del humano empieza con su primer panel propio a la
+			// vista, que tapa al desenlace; mientras este dura, ese panel lo dice en una línea. El primero es la elección de dados con Celeridad
+			// o, sin ella, el destino; tras elegir dados (DiceChosen después del evento), el destino ya no es el primero.
+			if (Current.IsSet() && Current->bShown)
 			{
 				const FMatchEvent& Event = State.EventLog[Current->Index];
 				if (Event.Type == EMatchEventType::ExtraTurnTaken && Event.Seat == HumanSeat)
 				{
-					Own->Lines.Add(OwnExtraTurnText);
+					const bool bDice = Own->Input == EDecisionInput::Buttons && State.PendingChoice.Kind == EChoiceKind::DiceCount;
+					bool bChoseDice = false;
+					for (int32 Index = Current->Index + 1; Index < State.EventLog.Num() && !bChoseDice; ++Index)
+					{
+						bChoseDice = State.EventLog[Index].Type == EMatchEventType::DiceChosen && State.EventLog[Index].Seat == HumanSeat;
+					}
+					if (bDice || (Own->Input == EDecisionInput::Tile && !bChoseDice))
+					{
+						Own->Lines.Add(OwnExtraTurnText);
+					}
 				}
 			}
 			return Own;
