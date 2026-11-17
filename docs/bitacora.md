@@ -43,17 +43,24 @@ La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar
   - El menú recibe cada página como texto enriquecido de UMG (`HowToPlayPageRichText`, marcas `<Bold>`, `<Warden>` y `<WardenBold>`); `Body` y `HowToPlayText` siguen sin marcas.
   - En dos fases, como pidió el autor: primero bloques, frases y listas; después la negrita. Las dos salieron limpias en los tests.
   - Tests: 5 nuevos (CA-HUD-43 a CA-HUD-47) y 5 ajustados (CA-HUD-30, 31, 32, 34 y 37). En rojo 9 fallidos en la primera fase y 2 en la negrita; en verde, 589.
+- **Segunda ampliación (17/11, noche)**: superado en PIE el formato ampliado (la fuente con sus cuatro tipos, cursiva, listas, negrita e imágenes con transparencia). Con el texto real, el autor pide doble página: la hoja derecha solo llevaba la imagen. Plan aprobado con las siete recomendaciones del agente y la corrección del autor: marca de agua en las dos hojas.
+  - Con el libro, dos páginas por vista (`HowToPlayPagesPerView`), cada hoja con su título y sus bloques y su desplazamiento; "Anterior" y "Siguiente" pasan una vista; el pie, "1-2 de 5" o "5 de 5"; se recuerda la vista (su primera página). Sin el libro, de una en una.
+  - La imagen y el subtítulo (`### `) son bloques en su sitio; desaparecen el campo de la imagen de la página, `DuplicateImage`, `HowToPlayImageBeside` y `HowToPlayMinTextWidth`. Tamaño de la imagen con `HowToPlayImageSize` y `HowToPlayImageMaxHeight` (0,6; a hoja entera si es el único bloque). `##` sola, página sin título.
+  - Marca de agua en cada hoja (`GrimoireWatermarks`, `HowToPlayWatermarkTexture`, opacidad 0,25, tamaño 0,7), detrás de todo, sin recibir clics.
+  - El menú monta la página bloque a bloque: `HowToPlayBlockRichText` y `HowToPlayImage`, que sustituye a `HowToPlayPageImage`.
+  - Tests: 5 nuevos (CA-HUD-53 a CA-HUD-57) y 5 ajustados (CA-HUD-31 a 35). En rojo, 8 fallidos; en verde, 594. El primer intento de los tests en rojo no compiló por un fallo del agente en un test (una tabla con `TPair`).
 - **Pendiente**:
-  - Las pruebas manuales de las páginas con imagen, y de la ampliación: bloques, cursiva, negrita, listas y el texto enriquecido en el menú (el escapado de `& < > "` se comprueba allí).
-  - Los assets del autor: `T_GrimorioPortada`, las capturas `T_Ayuda_*` y los tipos `Italic` y `BoldItalic` de `F_Grimorio`.
+  - Las pruebas manuales de las páginas con imagen y de las dos ampliaciones: bloques, cursiva, negrita, listas, doble página, subtítulos, imágenes en su sitio, la marca de agua y el texto enriquecido en el menú (el escapado de `& < > "` se comprueba allí).
+  - Los assets del autor: `T_GrimorioPortada`, las capturas `T_Ayuda_*` y los tipos `Italic` y `BoldItalic` de `F_Grimorio`; `T_Ayuda_Sello`, ya importado, en su commit.
+  - `como-se-juega.md`, que el autor reparte para la doble página y del que quita las líneas `![](T_Ayuda_Sello)`.
   - Los tamaños de letra del libro, que se ajustan con el texto final.
   - El widget del menú que lee las páginas, y después quitar `HowToPlayText` (`TODO(R-HUD-19)`).
   - `como-se-juega.md` sigue con su párrafo de teclas, que nombra H y P y ahora repite la página "Teclas".
 - **Proceso**:
-  - Tiempo: agente Opus 5.5 en una conversación nueva; unos 30 minutos desde el plan aprobado hasta el PR, unos 35 más para las cuatro correcciones del autor tras PIE, unos 25 para las tres de la segunda prueba y unos 50 para la ampliación del formato.
-  - Preguntas que pararon al agente: dos paradas, cada una un plan con siete dudas (el de la story y el de la ampliación).
+  - Tiempo: agente Opus 5.5 en una conversación nueva; unos 30 minutos desde el plan aprobado hasta el PR, unos 35 más para las cuatro correcciones del autor tras PIE, unos 25 para las tres de la segunda prueba, unos 50 para la ampliación del formato y unos 70 para la doble página.
+  - Preguntas que pararon al agente: tres paradas, cada una un plan con siete dudas (el de la story y el de cada ampliación).
   - Correcciones tras fusionar: (las rellena el autor). Antes de fusionar, siete, en dos pruebas en PIE; la primera fue un fallo del agente (el ancho de partir no restaba sangrías ni la barra de desplazamiento); la sexta corrige un texto sin tildes anterior a S-048.
-  - Build y tests: en rojo y en verde compiló y pasó a la primera, también en las correcciones.
+  - Build y tests: en rojo y en verde compiló y pasó a la primera, también en las correcciones, salvo los tests en rojo de la doble página, que necesitaron un segundo intento para compilar.
 
 ## S-045. La pantalla queda limpia: arriba, la partida; abajo, tú; lo demás, en el Grimorio (17/11/2026, rama `story/S-045-la-pantalla-queda-limpia`, base `main`)
 
