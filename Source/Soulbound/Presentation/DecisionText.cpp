@@ -285,23 +285,108 @@ namespace
 		case EMatchEventType::VoidEscapePassed:
 		case EMatchEventType::VoidEscapeFailed:
 		case EMatchEventType::FinalChallengeFailed:
+		// S-046 (R-DEC-19): el turno perdido y el turno extra.
+		case EMatchEventType::TurnSkipped:
+		case EMatchEventType::ExtraTurnTaken:
 			return true;
 		default:
 			return false;
 		}
 	}
 
-	/** La posición en el registro del último suceso de la lista de desenlaces, o INDEX_NONE. */
-	int32 LastOutcomeIndex(const FMatchState& State)
+	/** El desenlace del turno extra del humano (R-DEC-19, CA-DEC-35), también como línea de su destino (CA-DEC-36). */
+	const TCHAR* const OwnExtraTurnText = TEXT("Tienes un turno extra");
+
+	/** Si un desenlace es de turno (S-046, R-DEC-19): estos esperan a que acabe el que se enseña. */
+	bool IsTurnOutcome(const FMatchEvent& Event)
 	{
-		for (int32 Index = State.EventLog.Num() - 1; Index >= 0; --Index)
+		return Event.Type == EMatchEventType::TurnSkipped || Event.Type == EMatchEventType::ExtraTurnTaken;
+	}
+
+	/**
+	 * Si un desenlace se le enseña al humano (R-DEC-10): no su propia elección de dilema (sí la que le sorteó el Warden), ni un señalamiento
+	 * en el que él señaló, ni sus pruebas, que ya enseña el anillo. Los de turno, sí (R-DEC-19).
+	 */
+	bool IsOutcomeShownTo(const FMatchEvent& Event, int32 HumanSeat)
+	{
+		switch (Event.Type)
 		{
-			if (IsOutcomeEvent(State.EventLog[Index]))
+		case EMatchEventType::DuelWon:
+		case EMatchEventType::WardenDuelWon:
+		case EMatchEventType::WardenDuelLost:
+		case EMatchEventType::RuneStolen:
+		case EMatchEventType::ShellGameExpired:
+		case EMatchEventType::TurnSkipped:
+		case EMatchEventType::ExtraTurnTaken:
+			return true;
+		case EMatchEventType::DilemmaChosen:
+			return Event.Seat != HumanSeat || Event.Detail == 1;
+		case EMatchEventType::EffectApplied:
+			return Event.OtherSeat != HumanSeat;
+		default:
+			return Event.Seat != HumanSeat;
+		}
+	}
+
+	/**
+	 * Un desenlace en la pantalla (S-046): su posición en el registro y cuándo empieza a enseñarse. Uno que no se le enseña al humano
+	 * (bShown falso) ocupa la pantalla igual, sin texto, como hasta ahora: tapa al anterior, pero no hace esperar a uno de turno.
+	 */
+	struct FOutcomeSlot
+	{
+		int32 Index = INDEX_NONE;
+		double StartSeconds = 0.0;
+		bool bShown = false;
+	};
+
+	/**
+	 * Los desenlaces del registro hasta la posición Last, en orden, con su inicio (R-DEC-19, precisión del autor del 17/11/2026): los de
+	 * turno empiezan cuando acaba el anterior si este se enseña y aún no ha acabado; los demás, en su instante. Solo lee los instantes del
+	 * registro.
+	 */
+	TArray<FOutcomeSlot> OutcomeSchedule(const FMatchState& State, int32 HumanSeat, double OutcomeSeconds, int32 Last)
+	{
+		TArray<FOutcomeSlot> Slots;
+		for (int32 Index = 0; Index <= Last && Index < State.EventLog.Num(); ++Index)
+		{
+			const FMatchEvent& Event = State.EventLog[Index];
+			if (!IsOutcomeEvent(Event))
 			{
-				return Index;
+				continue;
+			}
+			FOutcomeSlot Slot;
+			Slot.Index = Index;
+			Slot.StartSeconds = Event.ClockSeconds;
+			Slot.bShown = IsOutcomeShownTo(Event, HumanSeat);
+			if (IsTurnOutcome(Event) && !Slots.IsEmpty() && Slots.Last().bShown)
+			{
+				Slot.StartSeconds = FMath::Max(Slot.StartSeconds, Slots.Last().StartSeconds + OutcomeSeconds);
+			}
+			Slots.Add(Slot);
+		}
+		return Slots;
+	}
+
+	/**
+	 * El desenlace que ocupa la pantalla ahora (State.ClockSeconds): de los que ya empezaron, el que empezó el último (a igualdad, el más nuevo
+	 * del registro), si no ha pasado OutcomeSeconds desde su inicio. Puede ser uno que no se le enseña al humano: entonces no hay texto.
+	 */
+	TOptional<FOutcomeSlot> CurrentOutcome(const FMatchState& State, int32 HumanSeat, double OutcomeSeconds)
+	{
+		const TArray<FOutcomeSlot> Slots = OutcomeSchedule(State, HumanSeat, OutcomeSeconds, State.EventLog.Num() - 1);
+		const FOutcomeSlot* Current = nullptr;
+		for (const FOutcomeSlot& Slot : Slots)
+		{
+			if (Slot.StartSeconds <= State.ClockSeconds && (!Current || Slot.StartSeconds >= Current->StartSeconds))
+			{
+				Current = &Slot;
 			}
 		}
-		return INDEX_NONE;
+		if (!Current || State.ClockSeconds - Current->StartSeconds >= OutcomeSeconds)
+		{
+			return {};
+		}
+		return *Current;
 	}
 
 	/** La posición en el registro del último VoteResolved, o INDEX_NONE. */
@@ -491,11 +576,13 @@ namespace Soulbound::Presentation
 
 	TOptional<FDecisionView> OutcomeView(const FMatchState& State, int32 HumanSeat, double OutcomeSeconds)
 	{
-		const int32 Index = LastOutcomeIndex(State);
-		if (Index == INDEX_NONE || State.ClockSeconds - State.EventLog[Index].ClockSeconds >= OutcomeSeconds)
+		// S-046: el que ocupa la pantalla según la cola (OutcomeSchedule); si es uno que no se le enseña al humano, nada.
+		const TOptional<FOutcomeSlot> Current = CurrentOutcome(State, HumanSeat, OutcomeSeconds);
+		if (!Current.IsSet() || !Current->bShown)
 		{
 			return {};
 		}
+		const int32 Index = Current->Index;
 		const FMatchEvent& Event = State.EventLog[Index];
 		FDecisionView View;
 		View.Input = EDecisionInput::Result;
@@ -518,12 +605,8 @@ namespace Soulbound::Presentation
 			break;
 		case EMatchEventType::DilemmaChosen:
 		{
-			// La opción que eligió el propio humano ya la vio en su panel; la que le sorteó el Warden, no.
+			// La opción que eligió el propio humano ya la vio en su panel; la que le sorteó el Warden, no (IsOutcomeShownTo).
 			const bool bDrawn = Event.Detail == 1;
-			if (Event.Seat == HumanSeat && !bDrawn)
-			{
-				return {};
-			}
 			// El evento es el del WardenEventStarted anterior en el registro (Value es su posición en la tabla).
 			const FWardenEventDef* Def = nullptr;
 			for (int32 Back = Index - 1; Back >= 0; --Back)
@@ -543,11 +626,7 @@ namespace Soulbound::Presentation
 			break;
 		}
 		case EMatchEventType::EffectApplied:
-			// Señalar: quien señaló no es el humano (lo hizo él y ya lo sabe); sí si el señalado es él.
-			if (Event.OtherSeat == HumanSeat)
-			{
-				return {};
-			}
+			// Señalar: quien señaló no es el humano (lo hizo él y ya lo sabe; IsOutcomeShownTo); sí si el señalado es él.
 			View.Title = EffectName(Event.Value);
 			View.Context = FString::Printf(TEXT("%s señala a %s"), *SeatLabel(State, Event.OtherSeat), *SeatLabel(State, Event.Seat));
 			break;
@@ -560,13 +639,18 @@ namespace Soulbound::Presentation
 			View.Title = TEXT("Trilero");
 			View.Context = FString::Printf(TEXT("%s no elige a tiempo y no roba nada"), *SeatLabel(State, Event.Seat));
 			break;
+		// S-046 (R-DEC-19): los de turno, también los del humano; con los textos literales de los criterios (decisión del autor).
+		case EMatchEventType::TurnSkipped:
+			View.Title = TEXT("Turno");
+			View.Context = Event.Seat == HumanSeat ? FString(TEXT("Pierdes este turno")) : FString::Printf(TEXT("El asiento %d pierde este turno"), Event.Seat);
+			break;
+		case EMatchEventType::ExtraTurnTaken:
+			View.Title = TEXT("Turno");
+			View.Context = Event.Seat == HumanSeat ? FString(OwnExtraTurnText) : FString::Printf(TEXT("Turno extra del asiento %d"), Event.Seat);
+			break;
 		default:
 		{
-			// Las pruebas: las del humano no, su resultado ya lo enseña el anillo.
-			if (Event.Seat == HumanSeat)
-			{
-				return {};
-			}
+			// Las pruebas: las del humano no, su resultado ya lo enseña el anillo (IsOutcomeShownTo).
 			bool bPassed = false;
 			ESkillTrial Trial = ESkillTrial::ForgottenSource;
 			switch (Event.Type)
@@ -589,8 +673,16 @@ namespace Soulbound::Presentation
 
 	TOptional<double> OutcomeStartSeconds(const FMatchState& State, int32 Index, int32 HumanSeat, double OutcomeSeconds)
 	{
-		// TODO(R-DEC-19): stub para ver CA-DEC-37 en rojo; la implementación llega en el commit siguiente.
-		return {};
+		if (!State.EventLog.IsValidIndex(Index))
+		{
+			return {};
+		}
+		const TArray<FOutcomeSlot> Slots = OutcomeSchedule(State, HumanSeat, OutcomeSeconds, Index);
+		if (Slots.IsEmpty() || Slots.Last().Index != Index || !Slots.Last().bShown)
+		{
+			return {};
+		}
+		return Slots.Last().StartSeconds;
 	}
 
 	TOptional<FDecisionView> PanelView(const FMatchState& State, int32 HumanSeat, bool bWardenSpeaking, double VoteResultSeconds, double OutcomeSeconds)
@@ -601,16 +693,28 @@ namespace Soulbound::Presentation
 		}
 		// R-DEC-6 y R-DEC-8: lo propio manda; después el resultado de una votación (también mientras habla el Warden); después la espera, que
 		// calla mientras habla el Warden porque su frase ya está en pantalla.
+		const TOptional<FOutcomeSlot> Current = CurrentOutcome(State, HumanSeat, OutcomeSeconds);
 		if (TOptional<FDecisionView> Own = DecisionView(State, HumanSeat, bWardenSpeaking))
 		{
+			// S-046 (R-DEC-19, precisión del autor): el turno extra del humano empieza con su destino a la vista, que tapa al desenlace; mientras
+			// este dura, el destino lo dice en una línea.
+			if (Own->Input == EDecisionInput::Tile && Current.IsSet() && Current->bShown)
+			{
+				const FMatchEvent& Event = State.EventLog[Current->Index];
+				if (Event.Type == EMatchEventType::ExtraTurnTaken && Event.Seat == HumanSeat)
+				{
+					Own->Lines.Add(OwnExtraTurnText);
+				}
+			}
 			return Own;
 		}
-		// Resultado de una votación y desenlace: si hay los dos, el suceso más reciente del registro (R-DEC-10).
+		// Resultado de una votación y desenlace: si hay los dos, el suceso más reciente del registro (R-DEC-10); el desenlace, el que ocupa la
+		// pantalla según la cola (S-046).
 		const TOptional<FDecisionView> Result = VoteResultView(State, VoteResultSeconds);
 		const TOptional<FDecisionView> Outcome = OutcomeView(State, HumanSeat, OutcomeSeconds);
 		if (Result.IsSet() && Outcome.IsSet())
 		{
-			return LastVoteResolvedIndex(State) > LastOutcomeIndex(State) ? Result : Outcome;
+			return LastVoteResolvedIndex(State) > Current->Index ? Result : Outcome;
 		}
 		if (Result.IsSet() || Outcome.IsSet())
 		{

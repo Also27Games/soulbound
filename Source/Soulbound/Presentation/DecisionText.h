@@ -121,12 +121,15 @@ namespace Soulbound::Presentation
 
 	/**
 	 * El desenlace de lo que no se ve en el tablero (S-033, R-DEC-10, añadido del autor; nombre propuesto): quién gana un duelo, qué opción de un
-	 * dilema sale, qué roba el trilero y si otro asiento supera su prueba. Es el último suceso de esa lista en el registro, con su edad medida
-	 * con ClockSeconds; título y una línea (Context), sin botones ni barra. No inventa nada: quién, a quién y qué lo dice el registro.
+	 * dilema sale, qué roba el trilero y si otro asiento supera su prueba; desde S-046 (R-DEC-19), también el turno perdido y el turno extra, los
+	 * del humano incluidos. Es el último suceso de esa lista en empezar a enseñarse (OutcomeStartSeconds: los de turno esperan a que acabe el
+	 * anterior), con su edad medida con ClockSeconds; título y una línea (Context), sin botones ni barra. No inventa nada: quién, a quién y qué
+	 * lo dice el registro.
 	 * @param State El estado de la partida.
 	 * @param HumanSeat El asiento humano: su elección de dilema y sus pruebas no se enseñan (ya las ve él).
 	 * @param OutcomeSeconds Cuánto se enseña, en segundos del reloj de partida (OutcomeSeconds).
-	 * @return La vista de tipo Result, o nada si el último suceso de la lista es del humano, hace OutcomeSeconds o más, o no hay ninguno.
+	 * @return La vista de tipo Result, o nada si el suceso que ocupa la pantalla es uno del humano que no se le enseña, empezó hace OutcomeSeconds
+	 * o más, o no hay ninguno.
 	 */
 	TOptional<FDecisionView> OutcomeView(const FMatchState& State, int32 HumanSeat, double OutcomeSeconds);
 
@@ -145,6 +148,7 @@ namespace Soulbound::Presentation
 	/**
 	 * Lo que enseña el panel en cada momento (S-033, R-DEC-6, nombre propuesto): la decisión del humano si existe; si no, el resultado de una
 	 * votación o el desenlace recientes (el más nuevo del registro, R-DEC-10); si no, la espera a otro asiento, salvo mientras la mesa espera al Warden (su frase ya está en pantalla); si no, nada.
+	 * Desde S-046 (R-DEC-19), el destino del humano lleva la línea "Tienes un turno extra" mientras se enseña el desenlace de su turno extra.
 	 * @param State El estado de la partida.
 	 * @param HumanSeat El asiento humano de esta máquina.
 	 * @param bWardenSpeaking Si la mesa espera al Warden (UMatchHostSubsystem::IsWardenSpeaking).
