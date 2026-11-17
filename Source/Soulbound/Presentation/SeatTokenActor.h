@@ -128,6 +128,15 @@ public:
 	/** Deja de recorrer el camino donde esté; la vista la coloca después donde diga el estado. */
 	void StopWalk();
 
+	/** Anota la casilla en la que la vista coloca la ficha (S-046), para StandingTile. Al recorrer un camino la anota ella al llegar a cada una. */
+	void SetTile(int32 TileId) { LastTile = TileId; }
+
+	/**
+	 * La casilla en la que está la ficha (S-046, R-VIS-32), o INDEX_NONE si va entre dos: la última en la que la colocó la vista o a la que
+	 * llegó caminando, salvo que ya haya echado a andar hacia la siguiente. Lo usa TokenArrival.
+	 */
+	int32 StandingTile() const;
+
 	/** Aviso de llegada a cada casilla del recorrido (S-020). */
 	FOnTokenTileEntered OnTileEntered;
 
@@ -208,6 +217,8 @@ private:
 	float WalkSpeed = 13.f;
 	/** Sube con cada recorrido nuevo o cortado: si cambia durante un aviso, el aviso cambió el recorrido y Tick no sigue con el viejo. */
 	int32 WalkGeneration = 0;
+	/** La última casilla en la que la colocó la vista o a la que llegó caminando (S-046, StandingTile). */
+	int32 LastTile = INDEX_NONE;
 
 	FVector SlideStart = FVector::ZeroVector;
 	FVector SlideTarget = FVector::ZeroVector;

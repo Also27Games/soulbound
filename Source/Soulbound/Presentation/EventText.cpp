@@ -190,6 +190,8 @@ namespace Soulbound::Presentation
 		case EMatchEventType::Rolled: return FString::Printf(TEXT("el asiento %d tira %d"), Event.Seat, Event.Value);
 		case EMatchEventType::TurnClockExpired: return FString::Printf(TEXT("el asiento %d AGOTA el reloj de turno: no se mueve"), Event.Seat);
 		case EMatchEventType::TurnSkipped: return FString::Printf(TEXT("el asiento %d pierde el turno"), Event.Seat);
+		// S-046 (R-DEC-19): los extra que le quedan (Value) no salen; el acta los lleva en sus campos.
+		case EMatchEventType::ExtraTurnTaken: return FString::Printf(TEXT("el asiento %d juega un turno extra"), Event.Seat);
 		case EMatchEventType::TurnEnded: return FString::Printf(TEXT("termina el turno del asiento %d"), Event.Seat);
 		case EMatchEventType::Moved: return FString::Printf(TEXT("el asiento %d se mueve a %s"), Event.Seat, *TileShortName(Board, Event.Value));
 		// S-020 (decisión del autor del 20/10/2026): la crónica del juego no lista las casillas del camino; basta la del movimiento.

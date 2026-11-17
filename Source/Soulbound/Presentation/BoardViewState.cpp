@@ -161,3 +161,12 @@ FLinearColor Soulbound::Presentation::BoardDimColor(const FLinearColor& NightCol
 	}
 	return FLinearColor(NightColor.R, NightColor.G, NightColor.B, NightOpacity);
 }
+
+Soulbound::Presentation::ETokenArrival Soulbound::Presentation::TokenArrival(int32 StateTile, int32 TokenTile, const TArray<int32>& RemainingWalk)
+{
+	if (StateTile == TokenTile)
+	{
+		return ETokenArrival::Stay;
+	}
+	return !RemainingWalk.IsEmpty() && RemainingWalk[0] == StateTile ? ETokenArrival::Walk : ETokenArrival::Slide;
+}

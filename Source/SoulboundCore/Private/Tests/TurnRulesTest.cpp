@@ -1,5 +1,5 @@
 // Tests de la máquina de turnos (S-003, GDD 02) sobre el tablero de pruebas y los parámetros de partida del archivo:
-// CA-TUR-1, 2, 5, 7, 8, 9, 10, 14 y 15, y el caso límite de turnos extra y perdidos a la vez.
+// CA-TUR-1, 2, 5, 7, 8, 9, 10, 14, 15 y 19, y el caso límite de turnos extra y perdidos a la vez.
 // Se lanzan sin editor con Scripts/test.ps1. Filtro: "Soulbound.Core.Match.Turn".
 
 #include "Decider/Decider.h"
@@ -550,6 +550,114 @@ bool FTurnExtraAndLostTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Turnos perdidos negativos: no se imponen"), Soulbound::Rules::GrantLostTurns(State, Player, -1));
 	TestFalse(TEXT("Asiento inexistente: no se concede"), Soulbound::Rules::GrantExtraTurns(State, Soulbound::Match::SeatCount, 1));
 	TestTrue(TEXT("Las peticiones rechazadas no cambian el estado"), Soulbound::Tests::SameState(Before, State));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTurnExtraTurnEventTest,
+	"Soulbound.Core.Match.Turn.TurnoExtraDejaEvento",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FTurnExtraTurnEventTest::RunTest(const FString& Parameters)
+{
+	// CA-TUR-19 (R-TUR-17, S-046): quien termina su turno con un turno extra deja ExtraTurnTaken con su asiento y, en Value, los extra que
+	// le quedan; va después de su TurnEnded y antes del TurnStarted del mismo asiento. Sin turnos extra no lo deja; un extra cancelado por un
+	// turno perdido, tampoco.
+	const auto IndicesOf = [](const FMatchState& State, EMatchEventType Type)
+	{
+		TArray<int32> Indices;
+		for (int32 Index = 0; Index < State.EventLog.Num(); ++Index)
+		{
+			if (State.EventLog[Index].Type == Type)
+			{
+				Indices.Add(Index);
+			}
+		}
+		return Indices;
+	};
+	// El primer evento de Type después de From, o INDEX_NONE.
+	const auto NextOf = [](const FMatchState& State, int32 From, EMatchEventType Type)
+	{
+		for (int32 Index = From + 1; Index < State.EventLog.Num(); ++Index)
+		{
+			if (State.EventLog[Index].Type == Type)
+			{
+				return Index;
+			}
+		}
+		return static_cast<int32>(INDEX_NONE);
+	};
+
+	// Con K turnos extra concedidos antes de su turno: K eventos, con K-1, ..., 0 restantes, cada uno entre su TurnEnded y su TurnStarted.
+	for (const int32 K : {1, 2})
+	{
+		FRandomStream Random(31);
+		FMatchState State;
+		if (!StartTestMatch(*this, Random, State))
+		{
+			return false;
+		}
+		const int32 First = State.ActiveSeat;
+		TestTrue(FString::Printf(TEXT("K = %d: se conceden"), K), Soulbound::Rules::GrantExtraTurns(State, First, K));
+		double Now = 0.0;
+		for (int32 Turn = 0; Turn <= K; ++Turn, Now += 10.0)
+		{
+			TestEqual(FString::Printf(TEXT("K = %d, turno %d: juega el mismo asiento"), K, Turn), PlayTurn(State, Random, Now, Now + 5.0).Seat, First);
+		}
+		const TArray<int32> Taken = IndicesOf(State, EMatchEventType::ExtraTurnTaken);
+		if (!TestEqual(FString::Printf(TEXT("K = %d: un evento por turno extra"), K), Taken.Num(), K))
+		{
+			continue;
+		}
+		for (int32 Which = 0; Which < K; ++Which)
+		{
+			const FMatchEvent& Event = State.EventLog[Taken[Which]];
+			const FString What = FString::Printf(TEXT("K = %d, extra %d"), K, Which);
+			TestEqual(What + TEXT(": su asiento"), Event.Seat, First);
+			TestEqual(What + TEXT(": los extra que le quedan"), Event.Value, K - 1 - Which);
+			TestEqual(What + TEXT(": en el instante en que termina el turno"), Event.ClockSeconds, Which * 10.0 + 5.0);
+			const int32 Ended = IndicesOf(State, EMatchEventType::TurnEnded)[Which];
+			TestTrue(What + TEXT(": después del TurnEnded de ese turno"), Ended < Taken[Which] && State.EventLog[Ended].Seat == First);
+			const int32 Started = NextOf(State, Taken[Which], EMatchEventType::TurnStarted);
+			TestTrue(What + TEXT(": y después el TurnStarted del mismo asiento"), Started != INDEX_NONE && State.EventLog[Started].Seat == First);
+		}
+		TestEqual(FString::Printf(TEXT("K = %d: después juega el siguiente, sin evento"), K), PlayTurn(State, Random, Now, Now + 5.0).Seat, NextInOrder(State, First));
+		TestEqual(FString::Printf(TEXT("K = %d: ningún evento más"), K), IndicesOf(State, EMatchEventType::ExtraTurnTaken).Num(), K);
+	}
+
+	// Sin turnos extra: ningún evento y el turno pasa al siguiente.
+	{
+		FRandomStream Random(31);
+		FMatchState State;
+		if (!StartTestMatch(*this, Random, State))
+		{
+			return false;
+		}
+		const int32 First = State.ActiveSeat;
+		PlayTurn(State, Random, 0.0, 5.0);
+		TestEqual(TEXT("Sin extra: ningún evento"), IndicesOf(State, EMatchEventType::ExtraTurnTaken).Num(), 0);
+		TestEqual(TEXT("Sin extra: juega el siguiente"), PlayTurn(State, Random, 10.0, 15.0).Seat, NextInOrder(State, First));
+	}
+
+	// Un turno extra cancelado por un turno perdido impuesto durante su turno (se descuentan al terminarlo): ningún evento.
+	{
+		FRandomStream Random(31);
+		FMatchState State;
+		if (!StartTestMatch(*this, Random, State))
+		{
+			return false;
+		}
+		const int32 First = State.ActiveSeat;
+		Soulbound::Rules::GrantExtraTurns(State, First, 1);
+		if (!TestTrue(TEXT("Cancelado: el turno llega a la tirada"), AdvanceToChoice(State, Random, 0.0) && !State.ReachableOptions.IsEmpty()))
+		{
+			return false;
+		}
+		Soulbound::Rules::GrantLostTurns(State, First, 1);
+		TestTrue(TEXT("Cancelado: el turno termina"), SubmitDestinationIntent(State, First, State.ReachableOptions[0], 5.0) == EIntentResult::Accepted
+			&& Soulbound::Tests::CompleteMovement(State, 5.0) && AdvanceToBetweenTurns(State, Random, 5.0));
+		TestEqual(TEXT("Cancelado: ningún evento"), IndicesOf(State, EMatchEventType::ExtraTurnTaken).Num(), 0);
+		TestEqual(TEXT("Cancelado: juega el siguiente"), PlayTurn(State, Random, 10.0, 15.0).Seat, NextInOrder(State, First));
+	}
 	return true;
 }
 

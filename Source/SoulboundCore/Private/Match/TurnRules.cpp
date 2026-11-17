@@ -559,6 +559,10 @@ namespace
 		if (Seat.ExtraTurns > 0)
 		{
 			--Seat.ExtraTurns;
+			// S-046 (R-TUR-17): el turno extra deja su evento en el instante en que se decide, con los que le quedan. Un turno perdido que
+			// llegue después (un castigo de abajo o un evento del Warden en el hueco) lo salta igual: el registro queda con este evento y el
+			// TurnSkipped del mismo asiento (decisión del autor del 17/11/2026).
+			LogEvent(State, EMatchEventType::ExtraTurnTaken, NowSeconds, State.ActiveSeat, Seat.ExtraTurns);
 		}
 		else
 		{

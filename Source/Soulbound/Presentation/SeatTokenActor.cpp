@@ -364,6 +364,12 @@ float ASeatTokenActor::WalkSegmentSeconds() const
 	return IsWalking() ? FVector::Dist(WalkSegmentStart, WalkPoints[WalkIndex]) / WalkSpeed : 0.f;
 }
 
+int32 ASeatTokenActor::StandingTile() const
+{
+	// Recién empezado un recorrido sigue en su casilla; en cuanto avanza, va entre dos (al llegar a una sigue sin pararse hacia la siguiente).
+	return IsWalking() && (WalkIndex > 0 || WalkElapsed > 0.f) ? INDEX_NONE : LastTile;
+}
+
 void ASeatTokenActor::StopWalk()
 {
 	++WalkGeneration;
@@ -395,6 +401,7 @@ void ASeatTokenActor::Tick(float DeltaSeconds)
 			}
 			if (Tile != INDEX_NONE)
 			{
+				LastTile = Tile;
 				OnTileEntered.ExecuteIfBound(Seat, Tile, bLast);
 			}
 			if (Generation != WalkGeneration && !bLast)

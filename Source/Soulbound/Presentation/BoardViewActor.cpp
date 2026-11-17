@@ -2154,8 +2154,9 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 		Token->SetClickable(Soulbound::Rules::VoteOptions(State, HostPtr->GetHumanSeat()).Contains(Seat));
 
 		// S-020 (R-TAB-26): la ficha del que se mueve recorre lo que le queda del camino, y cada llegada es su intención de avance.
-		// Si el motor va por delante (la salvaguarda entró en una casilla a la que la ficha no había llegado), la ficha se coloca
-		// donde dice el estado, sin animar, y sigue desde ahí.
+		// Si el motor va por delante (la salvaguarda entró en una casilla a la que la ficha no había llegado), la ficha no salta
+		// (S-046, R-VIS-32, precisión del autor del 17/11/2026): va en línea recta hasta la casilla del estado como primer punto del
+		// recorrido, a la velocidad de caminar y sin avisar (el motor ya entró), y sigue desde ahí.
 		if (Seat == MovingSeat)
 		{
 			const TArray<int32>& Path = State.Movement.Path;
@@ -2163,25 +2164,35 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 			const TArray<int32> Remaining(Path.GetData() + Done, Path.Num() - Done);
 			if (Token->RemainingWalk() != Remaining)
 			{
-				if (Token->IsWalking())
-				{
-					Token->StopWalk();
-					Token->MoveTo(TokenBase(TileId), 0.f);
-				}
+				const bool bBehind = Token->IsWalking()
+					&& Soulbound::Presentation::TokenArrival(TileId, Token->StandingTile(), Token->RemainingWalk()) != Soulbound::Presentation::ETokenArrival::Stay;
 				TArray<int32> WalkTiles;
 				TArray<FVector> WalkPoints;
 				WalkOf(Seat, TileId, Remaining, WalkTiles, WalkPoints);
+				if (bBehind)
+				{
+					WalkTiles.Insert(INDEX_NONE, 0);
+					WalkPoints.Insert(TokenBase(TileId), 0);
+				}
 				Token->WalkPath(WalkTiles, WalkPoints, TokenSpeed);
 			}
 			continue;
 		}
 		if (Token->IsWalking())
 		{
-			// Un recorrido que el estado deja atrás: cortado a medio camino o llegado por la salvaguarda. La ficha va donde dice el
-			// estado, sin animar.
+			// Un recorrido que el estado deja atrás: cortado a medio camino o llegado por la salvaguarda (S-046, R-VIS-32). Si la casilla del
+			// estado es la siguiente del camino y la última que le queda, sigue caminando hasta ella; al llegar, OnTokenTileEntered la coloca.
+			// Si no, deja el camino y va deslizándose a su sitio en esa casilla (abajo), en vez de aparecer en ella de golpe.
+			const Soulbound::Presentation::ETokenArrival Arrival = Soulbound::Presentation::TokenArrival(TileId, Token->StandingTile(), Token->RemainingWalk());
+			if (Arrival == Soulbound::Presentation::ETokenArrival::Walk && Token->RemainingWalk() == TArray<int32>{TileId})
+			{
+				continue;
+			}
+			// TODO(R-VIS-32): si la siguiente es la del estado pero el camino seguía más allá (un corte justo cuando la salvaguarda entra), se
+			// desliza en vez de caminar: haría falta recortar el recorrido conservando sus puntos de paso. Caso raro; se anota para PIE.
 			Token->StopWalk();
-			Token->MoveTo(TokenBase(TileId), 0.f);
 		}
+		Token->SetTile(TileId);
 
 		// Cada asiento tiene siempre su sitio en la casilla, esté sola o acompañada: si una ficha se va, las demás no se mueven
 		// (decisión del autor del 22/10/2026). En el Altar, en el círculo de la grada alta, porque el centro es el trono vacío

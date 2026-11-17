@@ -1791,6 +1791,84 @@ bool FMatchSimulationWardenLogTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationExtraTurnTest,
+	"Soulbound.Core.Simulation.TurnoExtraSoloDondeSeRepite",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)
+
+bool FMatchSimulationExtraTurnTest::RunTest(const FString& Parameters)
+{
+	// CA-TUR-20 (R-TUR-17, S-046, guarda): en partidas simuladas con el Warden encendido (que concede y quita turnos), cada ExtraTurnTaken va
+	// entre el TurnEnded y el TurnStarted del mismo asiento, y cada vez que un asiento repite turno hay exactamente uno. Repetir es que dos
+	// TurnStarted seguidos sean del mismo asiento sin un TurnSkipped entre ellos (si los demás pierden su turno, el orden vuelve a él sin turno
+	// extra). Caso que se deja como está (decisión del autor del 17/11/2026): un turno perdido que llega después de decidirse el extra deja
+	// ExtraTurnTaken seguido del TurnSkipped del mismo asiento, sin repetición. Semillas 42 a 46, tablero de 35 casillas.
+	int32 Taken = 0;
+	int32 Repeats = 0;
+	for (int32 Seed = 42; Seed <= 46; ++Seed)
+	{
+		FSimulationParams Params;
+		if (!MakeBoardParams(*this, Soulbound::Tests::RaceBoardFileName(), Seed, Params))
+		{
+			return false;
+		}
+		const TArray<FMatchEvent>& Log = FMatchSimulation(Params, FourRaceDummies()).Run().FinalState.EventLog;
+		int32 LastStarted = INDEX_NONE;
+		bool bSkippedSince = false;
+		int32 TakenSince = 0;
+		for (int32 Index = 0; Index < Log.Num(); ++Index)
+		{
+			const FMatchEvent& Event = Log[Index];
+			if (Event.Type == EMatchEventType::ExtraTurnTaken)
+			{
+				++Taken;
+				++TakenSince;
+				// Antes: el último fin o principio de turno es el TurnEnded de su asiento.
+				int32 Before = Index - 1;
+				while (Before >= 0 && Log[Before].Type != EMatchEventType::TurnEnded && Log[Before].Type != EMatchEventType::TurnStarted)
+				{
+					--Before;
+				}
+				const bool bAfterEnd = Before >= 0 && Log[Before].Type == EMatchEventType::TurnEnded && Log[Before].Seat == Event.Seat;
+				// Después: el primer turno que empieza o se salta es del mismo asiento.
+				int32 After = Index + 1;
+				while (After < Log.Num() && Log[After].Type != EMatchEventType::TurnStarted && Log[After].Type != EMatchEventType::TurnSkipped)
+				{
+					++After;
+				}
+				const bool bBeforeStart = After < Log.Num() && Log[After].Seat == Event.Seat;
+				if (!bAfterEnd || !bBeforeStart)
+				{
+					AddError(FString::Printf(TEXT("Semilla %d: el ExtraTurnTaken #%d del asiento %d no va entre su TurnEnded y su TurnStarted"), Seed, Index, Event.Seat));
+				}
+			}
+			else if (Event.Type == EMatchEventType::TurnSkipped)
+			{
+				bSkippedSince = true;
+			}
+			else if (Event.Type == EMatchEventType::TurnStarted)
+			{
+				const bool bRepeat = LastStarted != INDEX_NONE && Log[LastStarted].Seat == Event.Seat && !bSkippedSince;
+				Repeats += bRepeat ? 1 : 0;
+				if (bRepeat && TakenSince != 1)
+				{
+					AddError(FString::Printf(TEXT("Semilla %d: el asiento %d repite turno en #%d con %d ExtraTurnTaken (debe ser uno)"), Seed, Event.Seat, Index, TakenSince));
+				}
+				if (!bRepeat && TakenSince > 0 && !bSkippedSince)
+				{
+					AddError(FString::Printf(TEXT("Semilla %d: ExtraTurnTaken antes de #%d sin que el asiento repita turno"), Seed, Index));
+				}
+				LastStarted = Index;
+				bSkippedSince = false;
+				TakenSince = 0;
+			}
+		}
+	}
+	AddInfo(FString::Printf(TEXT("Semillas 42 a 46: %d turnos extra registrados, %d repeticiones de turno"), Taken, Repeats));
+	TestTrue(TEXT("Las semillas juegan algún turno extra (si no, el test no comprueba nada)"), Repeats > 0);
+	TestTrue(TEXT("Al menos un ExtraTurnTaken por repetición (los de más son los seguidos de su TurnSkipped)"), Taken >= Repeats);
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchSimulationNoInsolenceTest,
 	"Soulbound.Core.Simulation.DummiesNuncaInsolentes",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ClientContext | EAutomationTestFlags::ProductFilter)

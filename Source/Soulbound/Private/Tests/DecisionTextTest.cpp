@@ -1605,4 +1605,209 @@ bool FDecisionOracleStrikePanelTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionOutcomeTurnTextTest, "Soulbound.Game.Presentation.Decision.DesenlaceTurno", DecisionTestFlags)
+
+bool FDecisionOutcomeTurnTextTest::RunTest(const FString& Parameters)
+{
+	// CA-DEC-35 (R-DEC-19, S-046, textos): el turno perdido y el turno extra son desenlaces, con el título "Turno" (decisión del autor) y los
+	// textos literales del criterio, del asiento 2 y del humano.
+	struct FTurnCase { EMatchEventType Type; int32 Seat; int32 Value; const TCHAR* Line; };
+	const FTurnCase Cases[] = {
+		{EMatchEventType::TurnSkipped, 2, INDEX_NONE, TEXT("El asiento 2 pierde este turno")},
+		{EMatchEventType::TurnSkipped, DtHuman, INDEX_NONE, TEXT("Pierdes este turno")},
+		{EMatchEventType::ExtraTurnTaken, 2, 0, TEXT("Turno extra del asiento 2")},
+		{EMatchEventType::ExtraTurnTaken, DtHuman, 1, TEXT("Tienes un turno extra")},
+	};
+	for (const FTurnCase& Case : Cases)
+	{
+		FMatchState State = DtMakeState();
+		DtLog(State, Case.Type, DtNow, Case.Seat, INDEX_NONE, Case.Value);
+		const TOptional<FDecisionView> View = Soulbound::Presentation::OutcomeView(State, DtHuman, DtOutcomeSeconds);
+		if (TestTrue(*FString::Printf(TEXT("Hay vista para \"%s\""), Case.Line), View.IsSet()))
+		{
+			TestTrue(TEXT("Es de tipo resultado, sin opciones ni barra"), View->Input == EDecisionInput::Result && View->Options.IsEmpty() && !View->bHasDeadline);
+			TestEqual(TEXT("Título"), View->Title, FString(TEXT("Turno")));
+			TestEqual(TEXT("Texto"), View->Context, FString(Case.Line));
+		}
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionOutcomeTurnWhenTest, "Soulbound.Game.Presentation.Decision.DesenlaceTurnoCuando", DecisionTestFlags)
+
+bool FDecisionOutcomeTurnWhenTest::RunTest(const FString& Parameters)
+{
+	// CA-DEC-36 (R-DEC-19, S-046, cuándo): se enseñan durante OutcomeSeconds desde su instante y después no; los del humano igual que los de
+	// otros asientos; los desenlaces que ya existían siguen como antes. Ajustes del autor del 17/11/2026: el primer panel propio del humano en su
+	// turno extra (la elección de dados con Celeridad o, sin ella, el destino) lleva "Tienes un turno extra" mientras dura su desenlace, y
+	// después no; tras elegir dados, el destino ya no.
+	for (const EMatchEventType Type : {EMatchEventType::TurnSkipped, EMatchEventType::ExtraTurnTaken})
+	{
+		for (const int32 Seat : {2, DtHuman})
+		{
+			const FString What = FString::Printf(TEXT("%s del asiento %d"), Type == EMatchEventType::TurnSkipped ? TEXT("Turno perdido") : TEXT("Turno extra"), Seat);
+			FMatchState State = DtMakeState();
+			DtLog(State, Type, DtNow, Seat, INDEX_NONE, 0);
+			TestTrue(What + TEXT(": se enseña en su instante"), Soulbound::Presentation::OutcomeView(State, DtHuman, DtOutcomeSeconds).IsSet());
+			State.ClockSeconds = DtNow + DtOutcomeSeconds - 0.1;
+			TestTrue(What + TEXT(": y justo antes de caducar"), Soulbound::Presentation::OutcomeView(State, DtHuman, DtOutcomeSeconds).IsSet());
+			State.ClockSeconds = DtNow + DtOutcomeSeconds;
+			TestFalse(What + TEXT(": pasado OutcomeSeconds, no"), Soulbound::Presentation::OutcomeView(State, DtHuman, DtOutcomeSeconds).IsSet());
+			// Sin decisión propia abierta, el panel es el desenlace (también con el Warden hablando).
+			State.ClockSeconds = DtNow + 1.0;
+			const TOptional<FDecisionView> Panel = Soulbound::Presentation::PanelView(State, DtHuman, true, DtResultSeconds, DtOutcomeSeconds);
+			TestTrue(What + TEXT(": el panel lo enseña"), Panel.IsSet() && Panel->Input == EDecisionInput::Result && Panel->Title == TEXT("Turno"));
+		}
+	}
+
+	// Los de antes, como antes: el duelo se enseña aunque el humano pierda, y la prueba del humano no.
+	{
+		FMatchState Duel = DtMakeState();
+		DtLog(Duel, EMatchEventType::DuelWon, DtNow, 2, DtHuman);
+		const TOptional<FDecisionView> View = Soulbound::Presentation::OutcomeView(Duel, DtHuman, DtOutcomeSeconds);
+		TestTrue(TEXT("El duelo sigue saliendo"), View.IsSet() && View->Context == TEXT("Gana Asiento 2 (Eco) a Asiento 0 (Eco)"));
+		FMatchState Trial = DtMakeState();
+		DtLog(Trial, EMatchEventType::SkillMinigameFailed, DtNow, DtHuman, INDEX_NONE, 1);
+		TestFalse(TEXT("La prueba del humano sigue sin salir"), Soulbound::Presentation::OutcomeView(Trial, DtHuman, DtOutcomeSeconds).IsSet());
+	}
+
+	// El panel de destino del humano en su turno extra: lleva la línea mientras dura su desenlace.
+	{
+		FMatchState State = DtMakeState();
+		DtLog(State, EMatchEventType::TurnEnded, DtNow, DtHuman);
+		DtLog(State, EMatchEventType::ExtraTurnTaken, DtNow, DtHuman, INDEX_NONE, 0);
+		DtLog(State, EMatchEventType::TurnStarted, DtNow, DtHuman);
+		DtOpenTile(State);
+		const TOptional<FDecisionView> Panel = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
+		if (TestTrue(TEXT("Turno extra del humano: el panel es su destino"), Panel.IsSet() && Panel->Input == EDecisionInput::Tile))
+		{
+			TestTrue(TEXT("Con la línea \"Tienes un turno extra\""), Panel->Lines.Contains(TEXT("Tienes un turno extra")));
+			TestEqual(TEXT("Sin quitar la tirada del contexto"), Panel->Context, Soulbound::Presentation::DecisionView(State, DtHuman, false)->Context);
+		}
+		State.ClockSeconds = DtNow + DtOutcomeSeconds;
+		const TOptional<FDecisionView> Later = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
+		TestTrue(TEXT("Pasado OutcomeSeconds, el destino sin la línea"), Later.IsSet() && Later->Input == EDecisionInput::Tile && Later->Lines.IsEmpty());
+	}
+	// Ajuste del autor del 17/11/2026: con Celeridad, el primer panel propio es la elección de dados, y la lleva él; el destino que viene
+	// después de elegir dados ya no.
+	{
+		FMatchState State = DtMakeState();
+		DtLog(State, EMatchEventType::TurnEnded, DtNow, DtHuman);
+		DtLog(State, EMatchEventType::ExtraTurnTaken, DtNow, DtHuman, INDEX_NONE, 0);
+		DtLog(State, EMatchEventType::TurnStarted, DtNow, DtHuman);
+		DtOpenDice(State, DtHuman);
+		const TOptional<FDecisionView> Dice = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
+		if (TestTrue(TEXT("Con Celeridad: el panel es su elección de dados"), Dice.IsSet() && Dice->Input == EDecisionInput::Buttons))
+		{
+			TestTrue(TEXT("Con la línea \"Tienes un turno extra\""), Dice->Lines.Contains(TEXT("Tienes un turno extra")));
+		}
+		State.ClockSeconds = DtNow + DtOutcomeSeconds;
+		const TOptional<FDecisionView> LateDice = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
+		TestTrue(TEXT("Pasado OutcomeSeconds, los dados sin la línea"), LateDice.IsSet() && LateDice->Lines.IsEmpty());
+
+		// Elige dos dados al segundo: su destino, aún dentro de OutcomeSeconds, no lleva la línea.
+		State.PendingChoice = FPendingChoice();
+		DtLog(State, EMatchEventType::DiceChosen, DtNow + 1.0, DtHuman, INDEX_NONE, 2);
+		DtOpenTile(State);
+		State.ClockSeconds = DtNow + 1.0;
+		const TOptional<FDecisionView> Tile = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
+		TestTrue(TEXT("Tras elegir dados, el destino sin la línea"), Tile.IsSet() && Tile->Input == EDecisionInput::Tile && Tile->Lines.IsEmpty());
+	}
+	// Control: el turno extra de otro asiento o un turno normal del humano no ponen la línea en su destino.
+	{
+		FMatchState Other = DtMakeState();
+		DtLog(Other, EMatchEventType::ExtraTurnTaken, DtNow, 2, INDEX_NONE, 0);
+		DtOpenTile(Other);
+		const TOptional<FDecisionView> Panel = Soulbound::Presentation::PanelView(Other, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
+		TestTrue(TEXT("El extra de otro no pone la línea"), Panel.IsSet() && Panel->Input == EDecisionInput::Tile && Panel->Lines.IsEmpty());
+		FMatchState Normal = DtMakeState();
+		DtOpenTile(Normal);
+		const TOptional<FDecisionView> NormalPanel = Soulbound::Presentation::PanelView(Normal, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
+		TestTrue(TEXT("Un turno normal tampoco"), NormalPanel.IsSet() && NormalPanel->Lines.IsEmpty());
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionOutcomeTurnQueueTest, "Soulbound.Game.Presentation.Decision.DesenlaceTurnoEnCola", DecisionTestFlags)
+
+bool FDecisionOutcomeTurnQueueTest::RunTest(const FString& Parameters)
+{
+	// CA-DEC-37 (R-DEC-19, S-046, cola; añadido del autor del 17/11/2026): un desenlace de turno que llega mientras se enseña otro empieza cuando
+	// ese acaba; dos de turno seguidos van uno detrás de otro; uno que no es de turno se enseña en cuanto llega. El instante en que empieza cada
+	// uno lo da una función pura del registro (OutcomeStartSeconds).
+	using Soulbound::Presentation::OutcomeStartSeconds;
+	using Soulbound::Presentation::OutcomeView;
+	const auto ContextAt = [](FMatchState& State, double Clock)
+	{
+		State.ClockSeconds = Clock;
+		const TOptional<FDecisionView> View = OutcomeView(State, DtHuman, DtOutcomeSeconds);
+		return View.IsSet() ? View->Context : FString(TEXT("(nada)"));
+	};
+
+	// Un duelo y el turno extra del ganador en el mismo instante: el turno extra espera a que acabe el duelo.
+	{
+		FMatchState State = DtMakeState();
+		DtLog(State, EMatchEventType::DuelWon, DtNow, 2, 3);
+		DtLog(State, EMatchEventType::ExtraTurnTaken, DtNow, 2, INDEX_NONE, 0);
+		TestEqual(TEXT("El duelo empieza en su instante"), OutcomeStartSeconds(State, 0, DtHuman, DtOutcomeSeconds).Get(-1.0), DtNow);
+		TestEqual(TEXT("El turno extra, cuando acaba el duelo"), OutcomeStartSeconds(State, 1, DtHuman, DtOutcomeSeconds).Get(-1.0), DtNow + DtOutcomeSeconds);
+		TestEqual(TEXT("Al principio, el duelo"), ContextAt(State, DtNow), FString(TEXT("Gana Asiento 2 (Eco) a Asiento 3 (Eco)")));
+		TestEqual(TEXT("Hasta que acaba"), ContextAt(State, DtNow + DtOutcomeSeconds - 0.1), FString(TEXT("Gana Asiento 2 (Eco) a Asiento 3 (Eco)")));
+		TestEqual(TEXT("Después, el turno extra"), ContextAt(State, DtNow + DtOutcomeSeconds), FString(TEXT("Turno extra del asiento 2")));
+		TestEqual(TEXT("Durante su OutcomeSeconds entero"), ContextAt(State, DtNow + 2.0 * DtOutcomeSeconds - 0.1), FString(TEXT("Turno extra del asiento 2")));
+		TestEqual(TEXT("Y después nada"), ContextAt(State, DtNow + 2.0 * DtOutcomeSeconds), FString(TEXT("(nada)")));
+	}
+	// Llega a mitad: espera lo que le queda al anterior. Llega cuando ya acabó: empieza en su instante.
+	{
+		FMatchState Middle = DtMakeState();
+		DtLog(Middle, EMatchEventType::DuelWon, DtNow, 2, 3);
+		DtLog(Middle, EMatchEventType::TurnSkipped, DtNow + 1.0, 1);
+		TestEqual(TEXT("A mitad: empieza cuando acaba el duelo"), OutcomeStartSeconds(Middle, 1, DtHuman, DtOutcomeSeconds).Get(-1.0), DtNow + DtOutcomeSeconds);
+		TestEqual(TEXT("A mitad: entretanto, el duelo"), ContextAt(Middle, DtNow + 2.0), FString(TEXT("Gana Asiento 2 (Eco) a Asiento 3 (Eco)")));
+		FMatchState Late = DtMakeState();
+		DtLog(Late, EMatchEventType::DuelWon, DtNow, 2, 3);
+		DtLog(Late, EMatchEventType::TurnSkipped, DtNow + 6.0, 1);
+		TestEqual(TEXT("Tarde: empieza en su instante"), OutcomeStartSeconds(Late, 1, DtHuman, DtOutcomeSeconds).Get(-1.0), DtNow + 6.0);
+	}
+	// Dos de turno seguidos: en cola.
+	{
+		FMatchState State = DtMakeState();
+		DtLog(State, EMatchEventType::TurnSkipped, DtNow, 1);
+		DtLog(State, EMatchEventType::TurnSkipped, DtNow, 2);
+		TestEqual(TEXT("El primero en su instante"), OutcomeStartSeconds(State, 0, DtHuman, DtOutcomeSeconds).Get(-1.0), DtNow);
+		TestEqual(TEXT("El segundo detrás"), OutcomeStartSeconds(State, 1, DtHuman, DtOutcomeSeconds).Get(-1.0), DtNow + DtOutcomeSeconds);
+		TestEqual(TEXT("Primero el asiento 1"), ContextAt(State, DtNow + 1.0), FString(TEXT("El asiento 1 pierde este turno")));
+		TestEqual(TEXT("Después el asiento 2"), ContextAt(State, DtNow + DtOutcomeSeconds + 1.0), FString(TEXT("El asiento 2 pierde este turno")));
+	}
+	// Uno que no es de turno no espera: tapa al de turno, como hasta ahora entre desenlaces.
+	{
+		FMatchState State = DtMakeState();
+		DtLog(State, EMatchEventType::TurnSkipped, DtNow, 1);
+		DtLog(State, EMatchEventType::DuelWon, DtNow + 1.0, 2, 3);
+		TestEqual(TEXT("El duelo empieza en su instante"), OutcomeStartSeconds(State, 1, DtHuman, DtOutcomeSeconds).Get(-1.0), DtNow + 1.0);
+		TestEqual(TEXT("Y se enseña en cuanto llega"), ContextAt(State, DtNow + 1.0), FString(TEXT("Gana Asiento 2 (Eco) a Asiento 3 (Eco)")));
+	}
+	// Lo que no se enseña no hace esperar: la prueba del propio humano.
+	{
+		FMatchState State = DtMakeState();
+		DtLog(State, EMatchEventType::SkillMinigameFailed, DtNow, DtHuman, INDEX_NONE, 1);
+		DtLog(State, EMatchEventType::TurnSkipped, DtNow, 2);
+		TestFalse(TEXT("La prueba del humano no tiene inicio"), OutcomeStartSeconds(State, 0, DtHuman, DtOutcomeSeconds).IsSet());
+		TestEqual(TEXT("El turno perdido no la espera"), OutcomeStartSeconds(State, 1, DtHuman, DtOutcomeSeconds).Get(-1.0), DtNow);
+	}
+	// Un suceso que no es desenlace no tiene inicio; la función no depende del reloj de la vista.
+	{
+		FMatchState State = DtMakeState();
+		DtLog(State, EMatchEventType::TurnStarted, DtNow, 2);
+		TestFalse(TEXT("TurnStarted no es desenlace"), OutcomeStartSeconds(State, 0, DtHuman, DtOutcomeSeconds).IsSet());
+		TestFalse(TEXT("Posición fuera del registro"), OutcomeStartSeconds(State, 5, DtHuman, DtOutcomeSeconds).IsSet());
+		FMatchState Queue = DtMakeState();
+		DtLog(Queue, EMatchEventType::DuelWon, DtNow, 2, 3);
+		DtLog(Queue, EMatchEventType::ExtraTurnTaken, DtNow, 2, INDEX_NONE, 0);
+		Queue.ClockSeconds = DtNow + 50.0;
+		TestEqual(TEXT("El inicio no cambia con el reloj"), OutcomeStartSeconds(Queue, 1, DtHuman, DtOutcomeSeconds).Get(-1.0), DtNow + DtOutcomeSeconds);
+	}
+	return true;
+}
+
 #endif

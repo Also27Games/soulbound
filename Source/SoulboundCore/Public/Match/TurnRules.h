@@ -114,7 +114,8 @@ namespace Soulbound::Rules
 	 * Todo turno que llega a PreRoll consume del sorteo cuatro valores de dado, dos de la tirada y dos de la repetición,
 	 * se elijan uno o dos dados, se repita o no y aunque el reloj se agote antes de tirar (decisión del autor del
 	 * 04/10/2026): así los dados de una semilla no dependen de los decisores.
-	 *  - End → BetweenTurns: si el asiento tiene turnos extra, consume uno y vuelve a jugar (R-TUR-9); si no, pasa al
+	 *  - End → BetweenTurns: si el asiento tiene turnos extra, consume uno, registra ExtraTurnTaken con los que le quedan (S-046,
+	 *    R-TUR-17) y vuelve a jugar (R-TUR-9); si no, pasa al
 	 *    siguiente del orden de turno. Si la carrera debe terminar (tiempo o todos vinculados), termina aquí (R-CAR-1, R-TAB-27).
 	 *  - En BetweenTurns, si la carrera debe terminar, termina antes de empezar otro turno.
 	 * Al empezar un turno y al terminarlo, los turnos perdidos se descuentan contra los extra uno a uno (caso límite

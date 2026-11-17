@@ -799,6 +799,12 @@ enum class EMatchEventType : uint8
 	 * apagar con cada frase de la apertura. Se deja con o sin frases. Nombre propuesto en S-023.
 	 */
 	DomainForgotten,
+	/**
+	 * S-046 (R-TUR-17): un asiento conserva el turno porque tiene un turno extra. Value: los turnos extra que le quedan después de este.
+	 * Lo deja LeaveEnd en el instante en que se decide, después del TurnEnded y antes del TurnStarted del turno extra. Un turno extra
+	 * cancelado por un turno perdido (SettleExtraAgainstLost) no lo deja. Nombre propuesto en S-046.
+	 */
+	ExtraTurnTaken,
 };
 
 namespace Soulbound::Match
