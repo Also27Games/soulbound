@@ -166,6 +166,23 @@ Criterios, automáticos y sin mundo:
 - **CA-HUD-56** (R-HUD-18, tamaño de la imagen). La función que da el tamaño de una imagen dentro de una hoja devuelve, para el ancho de la hoja, el alto máximo y las proporciones de la imagen, un tamaño que cabe en los dos límites y conserva las proporciones.
 - **CA-HUD-57** (R-HUD-20, marca de agua; corrección del autor: en las dos hojas). La función que da el sitio de la marca de agua devuelve un rectángulo por hoja, cada uno centrado en la suya y dentro de ella, con la fracción de tamaño dada; sin textura o sin el libro, ninguna marca.
 
+## Ronda de maquetación del Grimorio (18/11/2026)
+
+Superado en PIE el libro a doble página con el texto real, las siete láminas y la marca de agua. Quedan cinco cambios en el resto del Grimorio, que cambian sus pestañas. El plan se aprobó el mismo día con estas decisiones del autor: la cabecera con el libro lleva "Grimorio" en la hoja izquierda y las tres pestañas en la derecha, a la misma altura; los nombres propuestos por el agente, aceptados; la línea del jugador humano en "Jugadores" es como la de los demás; las muestras de "Jugadores", una debajo de otra, sin columnas; la descripción de cada poder, debajo de su runa, sangrada y en gris, al tamaño de siempre.
+
+- **R-HUD-10, precisión: tres pestañas.** Fuera la pestaña "El tablero": su leyenda la explican el libro y la lámina rotulada del tablero; las funciones que solo la servían se quitan. "Tú" y "La mesa" se juntan en una sola pestaña, "La mesa", que es la primera y la que se abre con G. Quedan tres, en este orden: "La mesa", "Cómo se juega" y "Crónica"; las flechas pasan de una a otra de forma cíclica.
+- **R-HUD-10, precisión: "La mesa".** Hoja izquierda, el jugador (la hoja del jugador, `GrimoirePlayerSheet`, nombre propuesto): su asiento y su papel (Eco, o su Elegido y Dominio), su afinidad, su insolencia ("Insolencia: N de 5"), sus seis runas y sus poderes activos. Cada runa lleva su cuadrito de color, cuántas tiene, el poder que le da y, debajo, sangrada y en gris, qué hace ese poder en una frase (la de `grimorio.json`, `PowerText` de la runa). Una runa que no le da poder no lleva descripción; un Eco tras la carrera lleva en la runa de su hogar Celeridad con su descripción (R-ECO-7). Desaparecen el bloque "PODERES" y la línea aparte de la runa del hogar. Hoja derecha, la mesa: "Jugadores", uno por línea, una muestra debajo de otra con el cuadrito y el texto empezando a la misma altura, y debajo los seis Dominios con su Elegido y su estado, como hoy. Sin la imagen del libro, una columna: primero el jugador y debajo la mesa.
+- **R-HUD-10, precisión: las líneas de "Jugadores".** El encabezado dice solo "Jugadores". Cada jugador, en una línea: asiento, papel, sus marcas públicas y "N runas" (sin "Runas: "). La del jugador humano es como la de los demás, con "(tú)": sus tipos, sus poderes y su insolencia ya están en la hoja izquierda y no se repiten. Lo que se enseña de los demás no cambia: los filtros de R-HUD-6 y R-RUN-7 siguen igual (con su Brazal revelado, sus tipos).
+- **R-HUD-18, precisión: la lámina a hoja entera.** Una página cuyo único bloque es una imagen la pinta centrada en horizontal y en vertical dentro de la hoja, al mayor tamaño que cabe en el ancho y el alto que hay de verdad en la hoja, sin deformarse y sin barra de desplazamiento (`HowToPlayFullSheetImage`, nombre propuesto).
+- **Lo que no cambia**: el libro, la Crónica, las reglas y los tamaños de letra. `como-se-juega.md` y los assets no se tocan.
+
+Criterios, automáticos y sin mundo:
+
+- **CA-HUD-58** (R-HUD-10). Las pestañas son tres, en este orden: "La mesa", "Cómo se juega" y "Crónica"; al abrir, "La mesa"; siguiente y anterior son cíclicas entre las tres. Ajusta CA-HUD-18 y CA-HUD-34.
+- **CA-HUD-59** (R-HUD-10, R-ECO-7). Las filas del jugador llevan, por cada runa que le da un poder, el nombre del poder y su descripción; una runa sin poder no lleva descripción; un Eco con la runa de su hogar lleva Celeridad con su descripción. La insolencia va en la hoja del jugador. Sustituye a CA-HUD-19.
+- **CA-HUD-60** (R-HUD-10, R-HUD-6, R-RUN-7). Las filas de la mesa son una por jugador, con "N runas", bajo el encabezado "Jugadores"; lo que se oculta de los demás es lo mismo que antes. Ajusta CA-HUD-20; CA-HUD-21 pierde la parte del tablero.
+- **CA-HUD-61** (R-HUD-18). La función que da el sitio de una imagen a hoja entera devuelve un rectángulo dentro de la hoja, centrado en horizontal y en vertical, con las proporciones de la imagen, para una imagen apaisada y para una vertical.
+
 ## Fuera de esta story
 
 - Escribir o corregir el texto del libro y hacer sus capturas (lo hace el autor).
