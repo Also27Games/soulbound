@@ -52,10 +52,12 @@ Ya no hay una lista fija de títulos exigidos: el autor decide cuántas páginas
   - **La última página es "Teclas" y la pone el código**, con las teclas configuradas, para que nunca se contradiga con la configuración. El autor no la escribe.
   - Si el archivo no carga, la pestaña enseña el mensaje del cargador.
 - **R-HUD-19 (nueva). El menú lee las mismas páginas.** La librería que ya sirve el texto al menú (`UHowToPlayLibrary`) ofrece también las páginas: cuántas hay y, de cada una, su título, su texto, su comentario y su imagen, incluida la de teclas. Con eso el autor monta el libro en el widget del menú; ese widget es un asset suyo y no es de esta story.
+- **R-HUD-20 (nueva, añadida por el autor el 17/11/2026). El fondo del libro.** El Grimorio, en todas sus pestañas, se pinta sobre una imagen de libro abierto en vez de sobre el fondo negro liso. La imagen es una textura opcional (ruta en Config, nombre a proponer; por ejemplo `GrimoireBackgroundTexture`, valor inicial `/Game/Art/Grimorio/T_GrimorioFondo.T_GrimorioFondo`), que se estira al tamaño del panel conservando sus bordes (los márgenes del borde en Config, como fracción de la imagen), de modo que el lomo y las esquinas no se deformen. Las páginas de la imagen son oscuras, así que los colores de los textos de hoy no cambian. El contenido de las pestañas se coloca dentro de las páginas, con un margen que no pisa el borde del libro. Si la ruta está vacía o la textura no existe, el Grimorio se pinta con el fondo de hoy y se dice una vez en el registro.
 - **Lo que no cambia.** El archivo sigue en `Content/Data/Textos/` y se empaqueta como archivo suelto. Las demás pestañas del Grimorio. Ninguna regla.
 
 ## Assets (los crea el autor en el editor; commit aparte)
 
+- `Content/Art/Grimorio/T_GrimorioFondo`: la imagen del libro abierto, con las páginas oscuras y vacías, generada con IA, placeholder.
 - Una textura por página que lleve imagen, en la carpeta de la ayuda, con el nombre que diga el archivo (por ejemplo `T_Ayuda_Turno`): capturas del propio juego, recortadas a lo que explica la página.
 - El agente no crea ni toca estos assets. El PR los describe en texto y el autor los verifica en el editor antes de fusionar.
 
@@ -68,6 +70,7 @@ Automáticos, sin mundo.
 - **CA-HUD-32** (R-HUD-17, errores). Sin archivo, el error es el de archivo no encontrado. Un archivo sin ningún título, o con una página sin texto, da un error cuyo mensaje nombra el archivo y, en el segundo caso, el título de la página. Ningún caso lanza.
 - **CA-HUD-33** (R-HUD-18, pasar página). Con cuatro páginas del autor hay cinco en el libro, la última "Teclas". Se empieza en la primera; "Siguiente" avanza una y se queda en la última; "Anterior" retrocede una y se queda en la primera; el pie dice "N de M" con la página y el total.
 - **CA-HUD-34** (R-HUD-18, teclas y recuerdo). La página "Teclas" lleva las teclas de la vista con el nombre de las configuradas. Al cerrar y abrir el Grimorio y volver a la pestaña, la página es la que se dejó.
+- **CA-HUD-36** (R-HUD-20). La función que da la zona de contenido dentro del libro devuelve, para un panel dado y unos márgenes de borde, un rectángulo que queda dentro del panel y fuera de los bordes; con la textura ausente, la zona es la de hoy.
 - **CA-HUD-35** (R-HUD-19). La librería devuelve el mismo número de páginas y los mismos textos que ve el Grimorio, con la de teclas al final; con el archivo roto, cero páginas y el mensaje del cargador.
 
 Manuales, por el autor, en PIE, a 1920x1080 y a 1024x768, con captura:
@@ -76,6 +79,7 @@ Manuales, por el autor, en PIE, a 1920x1080 y a 1024x768, con captura:
 - A 1024x768 la página cabe; si texto e imagen no entran lado a lado, la imagen va debajo.
 - Una página sin imagen se ve bien, sin hueco raro. Una página con un nombre de imagen que no existe sale sin imagen y el registro lo dice una vez.
 - La última página lista las teclas reales.
+- Con la imagen del libro importada, el Grimorio se ve como un libro abierto en las cinco pestañas, los textos se leen sobre las páginas y nada pisa el borde; a 1024x768 el borde no se deforma. Sin la imagen (ruta vacía en Config), se ve como antes.
 - Si se rompe el archivo a propósito (se le quita un título), la pestaña enseña el mensaje y el juego no falla.
 
 ## Notas para quien lo implemente
