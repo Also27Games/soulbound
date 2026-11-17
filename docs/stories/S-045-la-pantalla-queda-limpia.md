@@ -54,6 +54,17 @@ Manuales, por el autor, en PIE, en la vista sentada y en la cenital, a 1920x1080
 - Se puede jugar una partida entera sin echar de menos nada de lo que se ha quitado; lo que se quiera consultar está en el Grimorio.
 - El aviso de casilla inalcanzable no tapa ninguna de las cajas.
 
+**Resultado de las pruebas manuales (autor, PIE, 17/11/2026): superadas, salvo lo que se anota sin verificar.**
+- En el prólogo no hay nada arriba a la izquierda.
+- Al empezar, en pantalla hay solo el reloj, el objetivo, el botón del Grimorio en la esquina y, cuando tocan, el panel de decisión y la frase del Warden; el tablero ocupa todo el ancho.
+- El reloj pasa de "Carrera" a "Partida".
+- T enseña y oculta el panel de estado. H y P no hacen nada.
+- La línea de la Noche de los Ecos sale bajo el reloj y se va al terminar.
+- Con un dummy aspirante sale "El asiento N está a un turno de ganar".
+- El trilero en la espera, con el humano de víctima: "Trilero: X roba a Y", "Mezclando N esferas" y su desenlace.
+- **Sin verificar a mano** (anotado por el autor): la ventana pequeña de 1024x768, y que el aviso de casilla inalcanzable esquive las cajas. Quedan cubiertos solo por sus tests (CA-HUD-28 y CA-HUD-29), que no miran posiciones en pantalla.
+- No se nombran en el informe de la prueba: la línea "Runas a la vista" del trilero (comprobada por CA-HUD-38), el robo entre dos dummies, que la línea del aspirante se va al perder una runa, y la partida entera sin echar nada de menos.
+
 ## Notas para quien lo implemente
 
 - **Qué ya existe.** La vista ya sabe trabajar sin columna (`bPanelsHidden`, "con los paneles ocultos, la cenital usa todo el ancho") y sin panel de estado (`bDebugTextHidden`). Esta story hace de eso el estado normal y quita lo que sobra, en vez de construir un modo nuevo.
