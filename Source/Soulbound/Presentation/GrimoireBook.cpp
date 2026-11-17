@@ -178,20 +178,51 @@ namespace Soulbound::Presentation
 		return Book;
 	}
 
-	// TODO(R-HUD-18): stubs del commit de los tests en rojo de la doble página; la implementación va en el commit siguiente.
 	int32 HowToPlayPagesPerView(bool bBook)
 	{
-		return 1;
+		// Segunda ampliación del autor del 17/11/2026: con el libro, una página en cada hoja.
+		return bBook ? 2 : 1;
+	}
+
+	int32 HowToPlayViewStart(int32 Page, int32 PagesPerView)
+	{
+		const int32 PerView = FMath::Max(PagesPerView, 1);
+		const int32 Clamped = FMath::Max(Page, 0);
+		return Clamped - Clamped % PerView;
 	}
 
 	FVector2f HowToPlayImageSize(float SheetWidth, float MaxHeight, const FVector2f& ImageSize)
 	{
-		return FVector2f::ZeroVector;
+		if (SheetWidth <= KINDA_SMALL_NUMBER || MaxHeight <= KINDA_SMALL_NUMBER || ImageSize.X <= KINDA_SMALL_NUMBER || ImageSize.Y <= KINDA_SMALL_NUMBER)
+		{
+			return FVector2f::ZeroVector;
+		}
+		// La mayor escala que cabe en los dos límites, también si agranda: sin deformar la imagen (plan aprobado por el autor).
+		const float Scale = FMath::Min(SheetWidth / ImageSize.X, MaxHeight / ImageSize.Y);
+		return ImageSize * Scale;
 	}
 
 	FGrimoireWatermarks GrimoireWatermarks(const FGrimoireBookLayout& Book, const FVector2f& TextureSize, float SizeFraction)
 	{
-		return FGrimoireWatermarks();
+		FGrimoireWatermarks Marks;
+		if (!Book.bBook || TextureSize.X <= KINDA_SMALL_NUMBER || TextureSize.Y <= KINDA_SMALL_NUMBER)
+		{
+			return Marks;
+		}
+		// Corrección del autor del 17/11/2026: una por hoja, centrada en la suya, al mayor tamaño que cabe sin deformarse en la fracción de la hoja.
+		const float Fraction = FMath::Clamp(SizeFraction, 0.f, 1.f);
+		const auto Centered = [&TextureSize, Fraction](const FBox2f& Sheet)
+		{
+			const FVector2f Room = Sheet.GetSize() * Fraction;
+			const float Scale = FMath::Min(Room.X / TextureSize.X, Room.Y / TextureSize.Y);
+			const FVector2f Half = TextureSize * Scale * 0.5f;
+			const FVector2f Center = Sheet.GetCenter();
+			return FBox2f(Center - Half, Center + Half);
+		};
+		Marks.bShown = true;
+		Marks.Left = Centered(Book.LeftPage);
+		Marks.Right = Centered(Book.RightPage);
+		return Marks;
 	}
 
 	FString HowToPlayPageFooter(int32 Page, int32 PageCount, int32 PagesPerView)
@@ -200,7 +231,10 @@ namespace Soulbound::Presentation
 		{
 			return FString();
 		}
-		return FString::Printf(TEXT("%d de %d"), FMath::Clamp(Page, 0, PageCount - 1) + 1, PageCount);
+		// Segunda ampliación del autor del 17/11/2026: el pie de la vista, "1-2 de 5"; la última de un total impar, "5 de 5".
+		const int32 First = HowToPlayViewStart(FMath::Clamp(Page, 0, PageCount - 1), PagesPerView);
+		const int32 Last = FMath::Min(First + FMath::Max(PagesPerView, 1), PageCount) - 1;
+		return Last > First ? FString::Printf(TEXT("%d-%d de %d"), First + 1, Last + 1, PageCount) : FString::Printf(TEXT("%d de %d"), First + 1, PageCount);
 	}
 
 	FString HowToPlayFlatText(const FHowToPlayBook& Book)
@@ -260,11 +294,6 @@ namespace Soulbound::Presentation
 		Layout.LeftPage = FBox2f(Layout.Content.Min, FVector2f(LeftEnd, Layout.Content.Max.Y));
 		Layout.RightPage = FBox2f(FVector2f(RightStart, Layout.Content.Min.Y), Layout.Content.Max);
 		return Layout;
-	}
-
-	bool HowToPlayImageBeside(float ColumnsWidth, float MinTextWidth)
-	{
-		return ColumnsWidth * 0.5f >= MinTextWidth;
 	}
 
 	float GrimoireColumnTextWidth(float ColumnWidth, float Indent)
@@ -328,13 +357,15 @@ namespace Soulbound::Presentation
 
 	void FGrimoireTabState::NextPage(int32 PageCount, int32 PagesPerView)
 	{
-		// R-HUD-18: no es cíclico; en la última se queda.
-		Page = PageCount <= 0 ? 0 : FMath::Clamp(Page + 1, 0, PageCount - 1);
+		// R-HUD-18: no es cíclico; en la última vista se queda. Segunda ampliación del autor: de vista en vista, en la primera página de cada una.
+		const int32 PerView = FMath::Max(PagesPerView, 1);
+		Page = PageCount <= 0 ? 0 : FMath::Clamp(HowToPlayViewStart(Page, PerView) + PerView, 0, HowToPlayViewStart(PageCount - 1, PerView));
 	}
 
 	void FGrimoireTabState::PreviousPage(int32 PageCount, int32 PagesPerView)
 	{
-		// R-HUD-18: en la primera se queda.
-		Page = PageCount <= 0 ? 0 : FMath::Clamp(Page - 1, 0, PageCount - 1);
+		// R-HUD-18: en la primera vista se queda.
+		const int32 PerView = FMath::Max(PagesPerView, 1);
+		Page = PageCount <= 0 ? 0 : FMath::Clamp(HowToPlayViewStart(Page, PerView) - PerView, 0, HowToPlayViewStart(PageCount - 1, PerView));
 	}
 }

@@ -48,7 +48,8 @@ public:
 	/** S-048 (R-HUD-18): la imagen de una página de "Cómo se juega" por su nombre; nula si no hay. */
 	using FImageForPage = TFunction<const FSlateBrush*(const FString& ImageName)>;
 
-	SLATE_BEGIN_ARGS(SGrimoirePanel) : _FontSize(13), _PageInset(12.f), _SpineGap(0.06f), _WardenColor(FLinearColor(1.f, 0.45f, 0.05f)) {}
+	SLATE_BEGIN_ARGS(SGrimoirePanel) : _FontSize(13), _PageInset(12.f), _SpineGap(0.06f), _WatermarkOpacity(0.25f), _WatermarkSize(0.7f),
+		_WardenColor(FLinearColor(1.f, 0.45f, 0.05f)) {}
 		/** Tamaño de la letra, en unidades de Slate; se lee cada vez que se pinta. */
 		SLATE_ATTRIBUTE(int32, FontSize)
 		/** Color de cada Dominio, el de la vista, para el cuadrito de cada runa. */
@@ -78,11 +79,22 @@ public:
 		SLATE_ARGUMENT(float, PageInset)
 		/** S-048 (R-HUD-20): hueco del lomo, en fracción del ancho del contenido (GrimoireSpineGap). */
 		SLATE_ARGUMENT(float, SpineGap)
-		/** S-048 (R-HUD-18): ancho mínimo del texto de una página con la imagen al lado, sin el libro (HowToPlayMinTextWidth). */
-		SLATE_ATTRIBUTE(float, MinTextWidth)
+		/**
+		 * S-048 (segunda ampliación del autor del 17/11/2026, R-HUD-18): el alto máximo de una imagen de "Cómo se juega", en fracción del alto de su
+		 * hoja (HowToPlayImageMaxHeight). Una página con solo una imagen la pinta a hoja entera.
+		 */
+		SLATE_ATTRIBUTE(float, ImageMaxHeight)
+		/**
+		 * S-048 (segunda ampliación y corrección del autor del 17/11/2026, R-HUD-20): la marca de agua de cada hoja de "Cómo se juega" con el libro,
+		 * su opacidad y su tamaño en fracción de la hoja (HowToPlayWatermarkTexture, HowToPlayWatermarkOpacity, HowToPlayWatermarkSize). Sin ella,
+		 * ninguna marca.
+		 */
+		SLATE_ARGUMENT(TOptional<FSlateBrush>, Watermark)
+		SLATE_ARGUMENT(float, WatermarkOpacity)
+		SLATE_ARGUMENT(float, WatermarkSize)
 		/** S-048 (R-HUD-18): el color de las frases del Warden de "Cómo se juega", el de su línea (WardenLineColor). */
 		SLATE_ARGUMENT(FLinearColor, WardenColor)
-		/** S-048 (R-HUD-18): la imagen de una página por su nombre (las carga y las mantiene la vista). */
+		/** S-048 (R-HUD-18): la imagen de un bloque por su nombre (las carga y las mantiene la vista). */
 		SLATE_ARGUMENT(FImageForPage, ImageForPage)
 		/** S-048 (R-HUD-18): los botones "Anterior" y "Siguiente". */
 		SLATE_EVENT(FSimpleDelegate, OnPreviousPage)
@@ -91,7 +103,7 @@ public:
 
 	void Construct(const FArguments& InArgs);
 
-	/** S-048 (R-HUD-18): sin el libro, si la imagen de la página cabe al lado del texto cambia con el ancho; si cambia, se rehace la página. */
+	/** S-048 (la negrita): si cambia el tamaño de letra, se rehacen los estilos del texto enriquecido y la página de "Cómo se juega". */
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 	/** "Tú": se rehace solo si cambia respecto a lo último que pintó (R-VIS-21). */
@@ -102,7 +114,8 @@ public:
 	void SetBoard(const TArray<FLegendRow>& Rows);
 	/**
 	 * "Cómo se juega" (S-048, R-HUD-18): el libro (HowToPlayBook) y la página que se ve, desde 0. Si el libro no cargó, su mensaje. Se rehace solo si
-	 * cambia el libro o la página.
+	 * cambia el libro o la página. Desde la segunda ampliación del autor del 17/11/2026, con el libro se ve la vista de esa página: ella en la hoja
+	 * izquierda y la siguiente en la derecha.
 	 */
 	void SetHowToPlay(const Soulbound::Presentation::FHowToPlayBook& Book, int32 Page);
 	/** "Crónica", con las líneas de ChronicleLines (la más reciente arriba). */
@@ -126,8 +139,13 @@ private:
 	void RebuildHowToPlay();
 	/** S-048 (R-HUD-18): un botón de pasar página; apagado, se ve gris y no hace nada. */
 	TSharedRef<SWidget> MakePageButton(const FString& Label, bool bEnabled, const FSimpleDelegate& OnClicked);
-	/** S-048 (R-HUD-18): sin el libro, si la imagen de la página va al lado del texto con el ancho de ahora. */
-	bool ImageBesideNow() const;
+	/**
+	 * S-048 (segunda ampliación del autor del 17/11/2026, R-HUD-18): una hoja de "Cómo se juega": el título de la página, si lo tiene, y sus bloques
+	 * en su orden, con su propio desplazamiento. Sin página (la derecha de la última vista impar), vacía.
+	 */
+	TSharedRef<SWidget> MakeHowToPlaySheet(const FHowToPlayPage* Page, bool bRight);
+	/** S-048 (segunda ampliación, R-HUD-20): la marca de agua de una hoja, detrás de su contenido; solo en "Cómo se juega" y con el libro. */
+	TSharedRef<SWidget> MakeWatermark(bool bRight);
 
 	TAttribute<int32> FontSize;
 	TAttribute<float> PanelWidth;
@@ -158,7 +176,10 @@ private:
 	/** S-048 (R-HUD-18): "Cómo se juega". Sin el libro, todo en HowToPlayLeft. */
 	TSharedPtr<SBox> HowToPlayLeft;
 	TSharedPtr<SBox> HowToPlayRight;
-	TAttribute<float> MinTextWidth;
+	TAttribute<float> ImageMaxHeight;
+	TOptional<FSlateBrush> WatermarkBrush;
+	float WatermarkOpacity = 0.25f;
+	float WatermarkSize = 0.7f;
 	/** S-048 (corrección 4): la fuente del Grimorio. */
 	Soulbound::Presentation::FGrimoireFont TextFont;
 	FLinearColor WardenColor;
@@ -168,11 +189,10 @@ private:
 	Soulbound::Presentation::FHowToPlayBook HowToPlayBook;
 	int32 HowToPlayPage = 0;
 	bool bHasHowToPlay = false;
-	/** Sin el libro: si la imagen iba al lado la última vez que se rehízo la página. */
-	bool bLastImageBeside = true;
 	/**
-	 * S-048 (ampliación del autor del 17/11/2026, la negrita): los estilos del texto enriquecido de "Cómo se juega", uno por marca (Bold, Warden y
-	 * WardenBold) con la fuente del Grimorio y el tamaño de letra de ahora; si el tamaño cambia, se rehacen y se rehace la página.
+	 * S-048 (ampliación del autor del 17/11/2026, la negrita): los estilos del texto enriquecido de "Cómo se juega", uno por marca (Bold, Warden,
+	 * WardenBold y, desde la segunda ampliación, Subtitle) con la fuente del Grimorio y el tamaño de letra de ahora; si el tamaño cambia, se rehacen
+	 * y se rehace la página.
 	 */
 	TSharedPtr<class FSlateStyleSet> HowToPlayStyles;
 	int32 HowToPlayStyleSize = -1;

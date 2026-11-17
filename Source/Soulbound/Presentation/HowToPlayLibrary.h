@@ -41,8 +41,9 @@ public:
 	static int32 HowToPlayPageCount();
 
 	/**
-	 * S-048 (R-HUD-19): una página, desde 0: título, texto sin marcas, bloques y nombre de su imagen (desde la ampliación del autor del 17/11/2026,
-	 * sin el comentario del Warden: las frases van en sus bloques). Fuera de rango, una página vacía.
+	 * S-048 (R-HUD-19): una página, desde 0: título, texto sin marcas y bloques (desde la ampliación del autor del 17/11/2026, sin el comentario del
+	 * Warden: las frases van en sus bloques; desde la segunda, sin la imagen de la página: cada imagen es un bloque, con HowToPlayImage para su
+	 * textura). Fuera de rango, una página vacía.
 	 */
 	UFUNCTION(BlueprintPure, Category = "Cómo se juega")
 	static FHowToPlayPage HowToPlayPage(int32 Index);
@@ -68,13 +69,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Cómo se juega")
 	static UTexture2D* HowToPlayImage(const FString& ImageName);
-
-	/**
-	 * S-048 (R-HUD-19): la imagen de una página, de la carpeta de la ayuda (HowToPlayImageFolder). Nula si la página no lleva o si la textura no
-	 * existe; esto último se dice una vez en el registro por cada nombre.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Cómo se juega")
-	static UTexture2D* HowToPlayPageImage(int32 Index);
 
 	/** S-048 (R-HUD-19): el mensaje del cargador si el archivo no carga; vacío si carga. */
 	UFUNCTION(BlueprintPure, Category = "Cómo se juega")

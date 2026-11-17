@@ -8,6 +8,7 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/SOverlay.h"
 #include "Widgets/Layout/SScaleBox.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SSpacer.h"
@@ -66,10 +67,13 @@ namespace
 	constexpr float HowToPlayBlockGap = 8.f;
 	constexpr float HowToPlayListGap = 2.f;
 	constexpr float HowToPlayListIndent = 12.f;
+	/** El hueco de más encima de un subtítulo (S-048, segunda ampliación del autor del 17/11/2026; valor inicial propuesto por el agente). */
+	constexpr float HowToPlaySubtitleGap = 4.f;
 
 	/** Los estilos del texto enriquecido de "Cómo se juega" (S-048, la negrita): el de los párrafos y el de la frase del Warden; los otros, sus marcas. */
 	const FName HowToPlayNormalStyle(TEXT("Normal"));
 	const FName HowToPlayWardenStyle(TEXT("Warden"));
+	const FName HowToPlaySubtitleStyle(TEXT("Subtitle"));
 
 	/** Cuánto más pequeña va la línea de teclas del pie del Grimorio (S-048, corrección 2 del autor del 17/11/2026). */
 	constexpr float GrimoireFootScale = 0.85f;
@@ -176,7 +180,10 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 	}
 	PageInset = InArgs._PageInset;
 	SpineGap = InArgs._SpineGap;
-	MinTextWidth = InArgs._MinTextWidth.IsSet() ? InArgs._MinTextWidth : TAttribute<float>(300.f);
+	ImageMaxHeight = InArgs._ImageMaxHeight.IsSet() ? InArgs._ImageMaxHeight : TAttribute<float>(0.6f);
+	WatermarkBrush = InArgs._Watermark;
+	WatermarkOpacity = InArgs._WatermarkOpacity;
+	WatermarkSize = InArgs._WatermarkSize;
 	WardenColor = InArgs._WardenColor;
 	ImageForPage = InArgs._ImageForPage;
 	OnPreviousPage = InArgs._OnPreviousPage;
@@ -308,6 +315,17 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 			})
 			.OnMouseButtonDown_Lambda([](const FGeometry&, const FPointerEvent&) { return FReply::Handled(); })
 			[
+				// Segunda ampliación del autor del 17/11/2026 (R-HUD-20): detrás de todo, la marca de agua de cada hoja, en "Cómo se juega".
+				SNew(SOverlay)
+				+ SOverlay::Slot()
+				[
+					SNew(SOverlay)
+					.Visibility(EVisibility::HitTestInvisible)
+					+ SOverlay::Slot()[MakeWatermark(false)]
+					+ SOverlay::Slot()[MakeWatermark(true)]
+				]
+				+ SOverlay::Slot()
+				[
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
 				[
@@ -353,9 +371,56 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 						],
 						VAlign_Top)
 				]
+				]
 			]
 		]
 	];
+}
+
+TSharedRef<SWidget> SGrimoirePanel::MakeWatermark(bool bRight)
+{
+	if (!WatermarkBrush.IsSet())
+	{
+		return SNullWidget::NullWidget;
+	}
+	// El sitio de la marca, en coordenadas del panel (GrimoireWatermarks); el contenido empieza en Content.Min, así que se resta.
+	const TWeakPtr<SGrimoirePanel> Weak = SharedThis(this);
+	const auto Mark = [Weak, bRight]() -> TOptional<FBox2f>
+	{
+		const TSharedPtr<SGrimoirePanel> Panel = Weak.Pin();
+		if (!Panel.IsValid() || !Panel->WatermarkBrush.IsSet())
+		{
+			return TOptional<FBox2f>();
+		}
+		const Soulbound::Presentation::FGrimoireBookLayout Book = Panel->Layout();
+		const FVector2f Texture(Panel->WatermarkBrush->ImageSize.X, Panel->WatermarkBrush->ImageSize.Y);
+		const Soulbound::Presentation::FGrimoireWatermarks Marks = Soulbound::Presentation::GrimoireWatermarks(Book, Texture, Panel->WatermarkSize);
+		if (!Marks.bShown)
+		{
+			return TOptional<FBox2f>();
+		}
+		const FBox2f Box = bRight ? Marks.Right : Marks.Left;
+		return FBox2f(Box.Min - Book.Content.Min, Box.Max - Book.Content.Min);
+	};
+	return SNew(SBox)
+		.HAlign(HAlign_Left)
+		.VAlign(VAlign_Top)
+		.Padding_Lambda([Mark]() { const TOptional<FBox2f> Box = Mark(); return Box.IsSet() ? FMargin(Box->Min.X, Box->Min.Y, 0.f, 0.f) : FMargin(0.f); })
+		// Solo en "Cómo se juega"; siempre, lleve la página imágenes o no, también en la hoja vacía de la última vista.
+		.Visibility_Lambda([this, Mark]()
+		{
+			return ActiveTab.Get() == Soulbound::Presentation::EGrimoireTab::HowToPlay && Mark().IsSet() ? EVisibility::HitTestInvisible : EVisibility::Collapsed;
+		})
+		[
+			SNew(SBox)
+			.WidthOverride_Lambda([Mark]() { const TOptional<FBox2f> Box = Mark(); return FOptionalSize(Box.IsSet() ? Box->GetSize().X : 0.f); })
+			.HeightOverride_Lambda([Mark]() { const TOptional<FBox2f> Box = Mark(); return FOptionalSize(Box.IsSet() ? Box->GetSize().Y : 0.f); })
+			[
+				SNew(SImage)
+				.Image(&WatermarkBrush.GetValue())
+				.ColorAndOpacity(FLinearColor(1.f, 1.f, 1.f, FMath::Clamp(WatermarkOpacity, 0.f, 1.f)))
+			]
+		];
 }
 
 TSharedRef<SWidget> SGrimoirePanel::MakeTabHeader(const TArray<Soulbound::Presentation::EGrimoireTab>& Tabs)
@@ -444,13 +509,6 @@ TAttribute<float> SGrimoirePanel::TextWidth(bool bRight, float Indent) const
 void SGrimoirePanel::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
-	// Sin el libro, la imagen va al lado o debajo según el ancho (R-HUD-18); si la ventana cambia y la decisión con ella, se rehace la página.
-	if (!BookBrush.IsSet() && bHasHowToPlay && HowToPlayBook.Pages.IsValidIndex(HowToPlayPage) && !HowToPlayBook.Pages[HowToPlayPage].ImageName.IsEmpty()
-		&& ImageBesideNow() != bLastImageBeside)
-	{
-		RebuildHowToPlay();
-		return;
-	}
 	// La negrita (ampliación del autor del 17/11/2026): los estilos del texto enriquecido llevan el tamaño de letra; si cambia, se rehace la página.
 	if (bHasHowToPlay && HowToPlayStyleSize >= 0 && FMath::Max(FontSize.Get(), 1) != HowToPlayStyleSize)
 	{
@@ -474,13 +532,9 @@ void SGrimoirePanel::UpdateHowToPlayStyles()
 	HowToPlayStyles->Set(TEXT("Bold"), Style(true, false, GrimoireTextColor));
 	HowToPlayStyles->Set(HowToPlayWardenStyle, Style(false, true, WardenColor));
 	HowToPlayStyles->Set(TEXT("WardenBold"), Style(true, true, WardenColor));
+	// Segunda ampliación del autor del 17/11/2026: el subtítulo, en negrita y con el dorado del título, al tamaño del texto.
+	HowToPlayStyles->Set(HowToPlaySubtitleStyle, Style(true, false, GrimoireTitleColor));
 	HowToPlayStyleSize = Size;
-}
-
-bool SGrimoirePanel::ImageBesideNow() const
-{
-	const FBox2f Content = Layout().Content;
-	return Soulbound::Presentation::HowToPlayImageBeside(Content.Max.X - Content.Min.X, MinTextWidth.Get());
 }
 
 void SGrimoirePanel::SetYou(const Soulbound::Presentation::FGrimoireYouView& View)
@@ -605,7 +659,7 @@ void SGrimoirePanel::RebuildHowToPlay()
 		return;
 	}
 	const TAttribute<int32> Size = FontSize;
-	// Corrección 1 del autor del 17/11/2026: todo se parte al ancho de la página izquierda (sin el libro, la columna única).
+	// Corrección 1 del autor del 17/11/2026: el mensaje del cargador se parte al ancho de la página izquierda (sin el libro, la columna única).
 	const TAttribute<float> PageWidth = TextWidth(false, 0.f);
 	const auto Scroll = [](const TSharedRef<SWidget>& Content) -> TSharedRef<SWidget> { return GrimoireScroll(Content); };
 
@@ -620,84 +674,31 @@ void SGrimoirePanel::RebuildHowToPlay()
 		return;
 	}
 
-	const int32 Count = HowToPlayBook.Pages.Num();
-	const int32 Index = FMath::Clamp(HowToPlayPage, 0, Count - 1);
-	const FHowToPlayPage& Shown = HowToPlayBook.Pages[Index];
-	const FSlateBrush* Image = Shown.ImageName.IsEmpty() || !ImageForPage ? nullptr : ImageForPage(Shown.ImageName);
-	const bool bBook = HowToPlayRight.IsValid();
-	const bool bBeside = bBook || ImageBesideNow();
-	bLastImageBeside = bBeside;
-	// Sin el libro y con la imagen al lado, el texto ocupa la mitad de la columna menos el hueco entre los dos.
-	constexpr float ImageGap = 12.f;
-	const bool bHalf = !bBook && Image && bBeside;
-	const TWeakPtr<SGrimoirePanel> Weak = SharedThis(this);
-	const TAttribute<float> BodyWidth = !bHalf ? PageWidth : TAttribute<float>::CreateLambda([Weak]()
-	{
-		// Texto e imagen reparten la columna a partes iguales, con el hueco entre los dos; el texto lleva su barra.
-		const TSharedPtr<SGrimoirePanel> Panel = Weak.Pin();
-		return Soulbound::Presentation::GrimoireColumnTextWidth(Panel.IsValid() ? (Panel->ColumnWidth(false) - ImageGap) * 0.5f : 1.f, 0.f);
-	});
-
-	const TSharedRef<SWidget> Title = GrimoireText(TextFont, Size, PageWidth, Shown.Title, GrimoireTitleColor, true, 1.15f);
-	// Ampliación del autor del 17/11/2026 (R-HUD-18): los bloques en su orden, dentro de la zona que se desplaza; el párrafo como hoy, la frase del
-	// Warden con su color y en cursiva, y los elementos de lista con su marca, seguidos sin el hueco de párrafo. Sin comentario fijo al pie.
-	// Con la negrita, cada bloque es texto enriquecido (HowToPlayBlockRichText, el mismo del menú) con los estilos de sus marcas: la negrita en
-	// negrita y, dentro de la frase del Warden, en negrita cursiva.
-	const TAttribute<float> ItemWidth = TAttribute<float>::CreateLambda([BodyWidth]() { return FMath::Max(BodyWidth.Get() - HowToPlayListIndent, 1.f); });
+	// Segunda ampliación del autor del 17/11/2026 (R-HUD-18): con el libro, a doble página: la vista de la página, ella a la izquierda y la siguiente
+	// a la derecha (la última de un total impar, sola); sin él, de una en una.
 	UpdateHowToPlayStyles();
-	const ISlateStyle* Styles = HowToPlayStyles.Get();
-	const auto Rich = [Styles](const FHowToPlayBlock& Item, const TAttribute<float>& Wrap) -> TSharedRef<SWidget>
-	{
-		return SNew(SRichTextBlock)
-			.Text(FText::FromString(Soulbound::Presentation::HowToPlayBlockRichText(Item)))
-			.TextStyle(Styles, Item.Kind == EHowToPlayBlockKind::WardenLine ? HowToPlayWardenStyle : HowToPlayNormalStyle)
-			.DecoratorStyleSet(Styles)
-			.WrapTextAt(Wrap);
-	};
-	const TSharedRef<SVerticalBox> Blocks = SNew(SVerticalBox);
-	for (int32 Block = 0; Block < Shown.Blocks.Num(); ++Block)
-	{
-		const FHowToPlayBlock& Item = Shown.Blocks[Block];
-		const bool bItem = Item.Kind == EHowToPlayBlockKind::ListItem;
-		const bool bListRun = bItem && Block > 0 && Shown.Blocks[Block - 1].Kind == EHowToPlayBlockKind::ListItem;
-		const float Gap = Block == 0 ? 0.f : bListRun ? HowToPlayListGap : HowToPlayBlockGap;
-		TSharedRef<SWidget> Content = SNullWidget::NullWidget;
-		if (bItem)
-		{
-			Content = SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot().AutoWidth()
-				[
-					SNew(SBox).WidthOverride(HowToPlayListIndent)[GrimoireText(TextFont, Size, BodyWidth, Soulbound::Presentation::HowToPlayListMark, GrimoireTextColor, false)]
-				]
-				+ SHorizontalBox::Slot().FillWidth(1.f)[Rich(Item, ItemWidth)];
-		}
-		else
-		{
-			Content = Rich(Item, BodyWidth);
-		}
-		Blocks->AddSlot().AutoHeight().Padding(0.f, Gap, 0.f, 0.f)[Content];
-	}
-	const TSharedRef<SWidget> Body = Scroll(Blocks);
-	const TSharedRef<SWidget> Picture = !Image ? SNullWidget::NullWidget
-		: StaticCastSharedRef<SWidget>(SNew(SScaleBox).Stretch(EStretch::ScaleToFit).StretchDirection(EStretchDirection::DownOnly)[SNew(SImage).Image(Image)]);
-	const TSharedRef<SWidget> Previous = MakePageButton(TEXT("Anterior"), Index > 0, OnPreviousPage);
-	const TSharedRef<SWidget> Next = MakePageButton(TEXT("Siguiente"), Index < Count - 1, OnNextPage);
+	const bool bBook = HowToPlayRight.IsValid();
+	const int32 PerView = Soulbound::Presentation::HowToPlayPagesPerView(bBook);
+	const int32 Count = HowToPlayBook.Pages.Num();
+	const int32 First = Soulbound::Presentation::HowToPlayViewStart(FMath::Clamp(HowToPlayPage, 0, Count - 1), PerView);
+	const FHowToPlayPage* LeftPage = &HowToPlayBook.Pages[First];
+	const FHowToPlayPage* RightPage = bBook && HowToPlayBook.Pages.IsValidIndex(First + 1) ? &HowToPlayBook.Pages[First + 1] : nullptr;
+	const TSharedRef<SWidget> Previous = MakePageButton(TEXT("Anterior"), First > 0, OnPreviousPage);
+	const TSharedRef<SWidget> Next = MakePageButton(TEXT("Siguiente"), First + PerView < Count, OnNextPage);
 	const TSharedRef<SWidget> Footer = SNew(STextBlock)
-		.Text(FText::FromString(Soulbound::Presentation::HowToPlayPageFooter(Index, Count)))
+		.Text(FText::FromString(Soulbound::Presentation::HowToPlayPageFooter(First, Count, PerView)))
 		.Font_Lambda([this, Size]() { return Soulbound::Presentation::GrimoireFontInfo(TextFont, false, Size.Get()); })
 		.ColorAndOpacity(GrimoireTextColor);
 	if (bBook)
 	{
-		// Precisión del autor del 17/11/2026: a la izquierda, los bloques y, al pie, "Anterior" (desde la ampliación, sin comentario fijo); a la
-		// derecha, la imagen y, al pie, "N de M · Siguiente".
+		// Precisión del autor del 17/11/2026: "Anterior" al pie de la hoja izquierda y "1-2 de 5 · Siguiente" al pie de la derecha.
 		HowToPlayLeft->SetContent(
 			SNew(SVerticalBox)
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 6.f)[Title]
-			+ SVerticalBox::Slot().FillHeight(1.f)[Body]
+			+ SVerticalBox::Slot().FillHeight(1.f)[MakeHowToPlaySheet(LeftPage, false)]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 8.f, 0.f, 0.f).HAlign(HAlign_Left)[Previous]);
 		HowToPlayRight->SetContent(
 			SNew(SVerticalBox)
-			+ SVerticalBox::Slot().FillHeight(1.f).HAlign(HAlign_Center).VAlign(VAlign_Center)[Picture]
+			+ SVerticalBox::Slot().FillHeight(1.f)[MakeHowToPlaySheet(RightPage, true)]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 8.f, 0.f, 0.f).HAlign(HAlign_Right)
 			[
 				SNew(SHorizontalBox)
@@ -707,32 +708,10 @@ void SGrimoirePanel::RebuildHowToPlay()
 		return;
 	}
 
-	// Sin el libro: el texto a la izquierda y la imagen a la derecha o, si no caben, debajo; sin imagen, el texto a todo el ancho, sin hueco. El pie,
-	// centrado.
-	TSharedRef<SWidget> Middle = Body;
-	if (Image && bBeside)
-	{
-		Middle = SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().FillWidth(1.f)[Body]
-			+ SHorizontalBox::Slot().FillWidth(1.f).Padding(ImageGap, 0.f, 0.f, 0.f).HAlign(HAlign_Center).VAlign(VAlign_Center)[Picture];
-	}
-	else if (Image)
-	{
-		Middle = SNew(SVerticalBox)
-			+ SVerticalBox::Slot().FillHeight(1.f)[Body]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 8.f, 0.f, 0.f).HAlign(HAlign_Center)
-			[
-				SNew(SBox)
-				.MaxDesiredHeight_Lambda([this]() { return FOptionalSize(FMath::Max(PanelHeight.Get() * 0.4f, 1.f)); })
-				[
-					Picture
-				]
-			];
-	}
+	// Sin el libro: una página, a todo el ancho, con las imágenes en su sitio; el pie, centrado.
 	HowToPlayLeft->SetContent(
 		SNew(SVerticalBox)
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 6.f)[Title]
-		+ SVerticalBox::Slot().FillHeight(1.f)[Middle]
+		+ SVerticalBox::Slot().FillHeight(1.f)[MakeHowToPlaySheet(LeftPage, false)]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 8.f, 0.f, 0.f).HAlign(HAlign_Center)
 		[
 			SNew(SHorizontalBox)
@@ -740,6 +719,102 @@ void SGrimoirePanel::RebuildHowToPlay()
 			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(12.f, 0.f)[Footer]
 			+ SHorizontalBox::Slot().AutoWidth()[Next]
 		]);
+}
+
+TSharedRef<SWidget> SGrimoirePanel::MakeHowToPlaySheet(const FHowToPlayPage* Page, bool bRight)
+{
+	if (!Page)
+	{
+		// La hoja derecha de la última vista de un total impar: vacía (con su marca de agua, que va detrás).
+		return SNew(SSpacer);
+	}
+	const TAttribute<int32> Size = FontSize;
+	// Corrección 1 del autor del 17/11/2026: cada hoja parte su texto al ancho de su propia columna.
+	const TAttribute<float> SheetWidth = TextWidth(bRight, 0.f);
+	const TAttribute<float> ItemWidth = TAttribute<float>::CreateLambda([SheetWidth]() { return FMath::Max(SheetWidth.Get() - HowToPlayListIndent, 1.f); });
+	const ISlateStyle* Styles = HowToPlayStyles.Get();
+	// Ampliación del autor del 17/11/2026 (R-HUD-18): cada bloque es texto enriquecido (HowToPlayBlockRichText, el mismo del menú) con los estilos de
+	// sus marcas: la frase del Warden en cursiva y con su color, la negrita en negrita y el subtítulo como un título pequeño.
+	const auto Rich = [Styles](const FHowToPlayBlock& Item, const TAttribute<float>& Wrap) -> TSharedRef<SWidget>
+	{
+		return SNew(SRichTextBlock)
+			.Text(FText::FromString(Soulbound::Presentation::HowToPlayBlockRichText(Item)))
+			.TextStyle(Styles, Item.Kind == EHowToPlayBlockKind::WardenLine ? HowToPlayWardenStyle : HowToPlayNormalStyle)
+			.DecoratorStyleSet(Styles)
+			.WrapTextAt(Wrap);
+	};
+	// El alto de la hoja y el de su zona que se desplaza, de lo pintado: el alto máximo de una imagen es una fracción del de la hoja; una página con
+	// solo una imagen la pinta a hoja entera, el alto de la zona que se desplaza (segunda ampliación del autor del 17/11/2026).
+	const TSharedRef<TWeakPtr<SWidget>> ScrollArea = MakeShared<TWeakPtr<SWidget>>();
+	const TWeakPtr<SWidget> SheetBox = bRight ? StaticCastSharedPtr<SWidget>(HowToPlayRight) : StaticCastSharedPtr<SWidget>(HowToPlayLeft);
+	const bool bOnlyImage = Page->Blocks.Num() == 1 && Page->Blocks[0].Kind == EHowToPlayBlockKind::Image;
+	const TAttribute<float> Fraction = ImageMaxHeight;
+	const TAttribute<float> MaxHeight = TAttribute<float>::CreateLambda([ScrollArea, SheetBox, bOnlyImage, Fraction]()
+	{
+		const TSharedPtr<SWidget> Widget = bOnlyImage ? ScrollArea->Pin() : SheetBox.Pin();
+		const float Height = Widget.IsValid() ? Widget->GetCachedGeometry().GetLocalSize().Y : 0.f;
+		return bOnlyImage ? Height : Height * FMath::Clamp(Fraction.Get(), 0.f, 1.f);
+	});
+
+	const TSharedRef<SVerticalBox> Blocks = SNew(SVerticalBox);
+	bool bFirst = true;
+	for (int32 Block = 0; Block < Page->Blocks.Num(); ++Block)
+	{
+		const FHowToPlayBlock& Item = Page->Blocks[Block];
+		const bool bItem = Item.Kind == EHowToPlayBlockKind::ListItem;
+		const bool bListRun = bItem && Block > 0 && Page->Blocks[Block - 1].Kind == EHowToPlayBlockKind::ListItem;
+		TSharedRef<SWidget> Content = SNullWidget::NullWidget;
+		if (Item.Kind == EHowToPlayBlockKind::Image)
+		{
+			// La imagen, centrada, al mayor tamaño que cabe en el ancho de la hoja y en el alto máximo; si su textura no existe, no se pinta (la vista
+			// lo dice una vez en el registro).
+			const FSlateBrush* Brush = ImageForPage ? ImageForPage(Item.ImageName) : nullptr;
+			if (!Brush)
+			{
+				continue;
+			}
+			const FVector2f Pixels(Brush->ImageSize.X, Brush->ImageSize.Y);
+			const auto ImageSize = [SheetWidth, MaxHeight, Pixels]() { return Soulbound::Presentation::HowToPlayImageSize(SheetWidth.Get(), MaxHeight.Get(), Pixels); };
+			Content = SNew(SBox)
+				.HAlign(HAlign_Center)
+				[
+					SNew(SBox)
+					.WidthOverride_Lambda([ImageSize]() { return FOptionalSize(ImageSize().X); })
+					.HeightOverride_Lambda([ImageSize]() { return FOptionalSize(ImageSize().Y); })
+					[
+						SNew(SImage).Image(Brush)
+					]
+				];
+		}
+		else if (bItem)
+		{
+			Content = SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth()
+				[
+					SNew(SBox).WidthOverride(HowToPlayListIndent)[GrimoireText(TextFont, Size, SheetWidth, Soulbound::Presentation::HowToPlayListMark, GrimoireTextColor, false)]
+				]
+				+ SHorizontalBox::Slot().FillWidth(1.f)[Rich(Item, ItemWidth)];
+		}
+		else
+		{
+			Content = Rich(Item, SheetWidth);
+		}
+		const float Gap = bFirst ? 0.f : bListRun ? HowToPlayListGap
+			: Item.Kind == EHowToPlayBlockKind::Subtitle ? HowToPlayBlockGap + HowToPlaySubtitleGap : HowToPlayBlockGap;
+		Blocks->AddSlot().AutoHeight().Padding(0.f, Gap, 0.f, 0.f)[Content];
+		bFirst = false;
+	}
+	const TSharedRef<SWidget> Scroll = GrimoireScroll(Blocks);
+	*ScrollArea = Scroll;
+
+	// Segunda ampliación del autor: una página sin título ("##" sola) no lo pinta.
+	const TSharedRef<SVerticalBox> Sheet = SNew(SVerticalBox);
+	if (!Page->Title.IsEmpty())
+	{
+		Sheet->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 6.f)[GrimoireText(TextFont, Size, SheetWidth, Page->Title, GrimoireTitleColor, true, 1.15f)];
+	}
+	Sheet->AddSlot().FillHeight(1.f)[Scroll];
+	return Sheet;
 }
 
 void SGrimoirePanel::SetChronicle(const TArray<FChronicleLine>& NewestFirst)

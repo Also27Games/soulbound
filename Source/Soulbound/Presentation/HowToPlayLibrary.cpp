@@ -68,22 +68,15 @@ FText UHowToPlayLibrary::HowToPlayPageRichText(int32 Index)
 	return Book.Pages.IsValidIndex(Index) ? FText::FromString(Soulbound::Presentation::HowToPlayRichText(Book.Pages[Index])) : FText();
 }
 
-// TODO(R-HUD-19): stubs del commit de los tests en rojo de la doble página; la implementación va en el commit siguiente.
 FText UHowToPlayLibrary::HowToPlayBlockRichText(const FHowToPlayBlock& Block)
 {
-	return FText();
+	return FText::FromString(Soulbound::Presentation::HowToPlayBlockRichText(Block));
 }
 
 UTexture2D* UHowToPlayLibrary::HowToPlayImage(const FString& ImageName)
 {
-	return nullptr;
-}
-
-UTexture2D* UHowToPlayLibrary::HowToPlayPageImage(int32 Index)
-{
-	const FHowToPlayPage Page = HowToPlayPage(Index);
 	const ABoardViewActor* View = GetDefault<ABoardViewActor>();
-	const FString Path = Soulbound::Presentation::HowToPlayImagePath(View ? View->HowToPlayImageFolder : FString(TEXT("/Game/Art/Ayuda/")), Page.ImageName);
+	const FString Path = Soulbound::Presentation::HowToPlayImagePath(View ? View->HowToPlayImageFolder : FString(TEXT("/Game/Art/Ayuda/")), ImageName);
 	if (Path.IsEmpty())
 	{
 		return nullptr;
@@ -91,12 +84,12 @@ UTexture2D* UHowToPlayLibrary::HowToPlayPageImage(int32 Index)
 	UTexture2D* Texture = Cast<UTexture2D>(FSoftObjectPath(Path).TryLoad());
 	if (!Texture)
 	{
-		// R-HUD-17: no es un error; la página sale sin imagen y se dice una vez por nombre.
+		// R-HUD-17: no es un error; el bloque no se pinta y se dice una vez por nombre.
 		static TSet<FString> Warned;
 		if (!Warned.Contains(Path))
 		{
 			Warned.Add(Path);
-			UE_LOG(LogSoulboundHowToPlay, Warning, TEXT("Cómo se juega: no existe la imagen %s de la página \"%s\"; sale sin imagen."), *Path, *Page.Title);
+			UE_LOG(LogSoulboundHowToPlay, Warning, TEXT("Cómo se juega: no existe la imagen %s; su bloque no se pinta."), *Path);
 		}
 	}
 	return Texture;

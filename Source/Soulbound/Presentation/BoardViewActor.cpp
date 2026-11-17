@@ -1064,6 +1064,30 @@ void ABoardViewActor::BuildOverlay()
 			UE_LOG(LogSoulboundView, Warning, TEXT("Grimorio: no existe la imagen del libro %s; se pinta con el fondo negro de siempre."), *GrimoireBackgroundTexture.ToString());
 		}
 	}
+	// S-048 (segunda ampliación del autor del 17/11/2026, R-HUD-20): la marca de agua de cada hoja de "Cómo se juega", con el mismo patrón: solo con el
+	// libro; sin ella, no se pinta, y se dice una vez.
+	HowToPlayWatermark = nullptr;
+	TOptional<FSlateBrush> WatermarkBrush;
+	if (HowToPlayWatermarkTexture.IsNull())
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Cómo se juega: HowToPlayWatermarkTexture está vacío; las hojas van sin marca de agua."));
+	}
+	else
+	{
+		HowToPlayWatermark = Cast<UTexture2D>(HowToPlayWatermarkTexture.TryLoad());
+		if (HowToPlayWatermark)
+		{
+			FSlateBrush Brush;
+			Brush.SetResourceObject(HowToPlayWatermark);
+			Brush.ImageSize = FVector2f(HowToPlayWatermark->GetSizeX(), HowToPlayWatermark->GetSizeY());
+			Brush.DrawAs = ESlateBrushDrawType::Image;
+			WatermarkBrush = Brush;
+		}
+		else
+		{
+			UE_LOG(LogSoulboundView, Warning, TEXT("Cómo se juega: no existe la marca de agua %s; las hojas van sin ella."), *HowToPlayWatermarkTexture.ToString());
+		}
+	}
 	// S-048 (corrección 4 del autor del 17/11/2026): la fuente del Grimorio, con el mismo patrón: sin ella, la de siempre, y se dice una vez.
 	GrimoireFontAsset = nullptr;
 	Soulbound::Presentation::FGrimoireFont BookFont;
@@ -1119,7 +1143,11 @@ void ABoardViewActor::BuildOverlay()
 			.BookBrush(BookBrush)
 			.PageInset(GrimoirePageInset)
 			.SpineGap(GrimoireSpineGap)
-			.MinTextWidth_Lambda([this]() { return HowToPlayMinTextWidth; })
+			// Segunda ampliación del autor del 17/11/2026: el alto máximo de las imágenes y la marca de agua de cada hoja.
+			.ImageMaxHeight_Lambda([this]() { return HowToPlayImageMaxHeight; })
+			.Watermark(WatermarkBrush)
+			.WatermarkOpacity(HowToPlayWatermarkOpacity)
+			.WatermarkSize(HowToPlayWatermarkSize)
 			.WardenColor(WardenLineColor)
 			.ImageForPage([this](const FString& ImageName) -> const FSlateBrush* { return HowToPlayBrushes.Find(ImageName); })
 			.OnPreviousPage_Lambda([this]() { PreviousHowToPlayPage(); })
@@ -2358,7 +2386,8 @@ void ABoardViewActor::PreviousHowToPlayPage()
 	{
 		return;
 	}
-	GrimoireTab.PreviousPage(HowToPlay.Pages.Num());
+	// Segunda ampliación del autor del 17/11/2026: con el libro, de dos en dos.
+	GrimoireTab.PreviousPage(HowToPlay.Pages.Num(), Soulbound::Presentation::HowToPlayPagesPerView(GrimoireBackground != nullptr));
 	if (GrimoirePanel.IsValid())
 	{
 		GrimoirePanel->SetHowToPlay(HowToPlay, GrimoireTab.Page);
@@ -2371,7 +2400,7 @@ void ABoardViewActor::NextHowToPlayPage()
 	{
 		return;
 	}
-	GrimoireTab.NextPage(HowToPlay.Pages.Num());
+	GrimoireTab.NextPage(HowToPlay.Pages.Num(), Soulbound::Presentation::HowToPlayPagesPerView(GrimoireBackground != nullptr));
 	if (GrimoirePanel.IsValid())
 	{
 		GrimoirePanel->SetHowToPlay(HowToPlay, GrimoireTab.Page);
@@ -2382,28 +2411,32 @@ void ABoardViewActor::LoadHowToPlayImages()
 {
 	HowToPlayTextures.Reset();
 	HowToPlayBrushes.Reset();
+	// Segunda ampliación del autor del 17/11/2026: las imágenes son bloques, las que haya; cada nombre se carga una vez y, si no existe, se dice una vez.
 	TSet<FString> Seen;
 	for (const FHowToPlayPage& Page : HowToPlay.Pages)
 	{
-		if (Page.ImageName.IsEmpty() || Seen.Contains(Page.ImageName))
+		for (const FHowToPlayBlock& Block : Page.Blocks)
 		{
-			continue;
+			if (Block.Kind != EHowToPlayBlockKind::Image || Block.ImageName.IsEmpty() || Seen.Contains(Block.ImageName))
+			{
+				continue;
+			}
+			Seen.Add(Block.ImageName);
+			const FString Path = Soulbound::Presentation::HowToPlayImagePath(HowToPlayImageFolder, Block.ImageName);
+			UTexture2D* Texture = Cast<UTexture2D>(FSoftObjectPath(Path).TryLoad());
+			if (!Texture)
+			{
+				// R-HUD-17: no es un error; el bloque no se pinta.
+				UE_LOG(LogSoulboundView, Warning, TEXT("Cómo se juega: no existe la imagen %s (página \"%s\"); su bloque no se pinta."), *Path, *Page.Title);
+				continue;
+			}
+			HowToPlayTextures.Add(Texture);
+			FSlateBrush Brush;
+			Brush.SetResourceObject(Texture);
+			Brush.ImageSize = FVector2f(Texture->GetSizeX(), Texture->GetSizeY());
+			Brush.DrawAs = ESlateBrushDrawType::Image;
+			HowToPlayBrushes.Add(Block.ImageName, Brush);
 		}
-		Seen.Add(Page.ImageName);
-		const FString Path = Soulbound::Presentation::HowToPlayImagePath(HowToPlayImageFolder, Page.ImageName);
-		UTexture2D* Texture = Cast<UTexture2D>(FSoftObjectPath(Path).TryLoad());
-		if (!Texture)
-		{
-			// R-HUD-17: no es un error; la página sale sin imagen.
-			UE_LOG(LogSoulboundView, Warning, TEXT("Cómo se juega: no existe la imagen %s de la página \"%s\"; sale sin imagen."), *Path, *Page.Title);
-			continue;
-		}
-		HowToPlayTextures.Add(Texture);
-		FSlateBrush Brush;
-		Brush.SetResourceObject(Texture);
-		Brush.ImageSize = FVector2f(Texture->GetSizeX(), Texture->GetSizeY());
-		Brush.DrawAs = ESlateBrushDrawType::Image;
-		HowToPlayBrushes.Add(Page.ImageName, Brush);
 	}
 }
 

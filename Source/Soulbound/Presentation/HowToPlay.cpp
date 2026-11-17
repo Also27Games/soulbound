@@ -9,6 +9,9 @@ namespace Soulbound::Presentation
 		/** Las marcas del Markdown sencillo del libro (R-HUD-17). */
 		const FString BookTitleMark = TEXT("# ");
 		const FString PageTitleMark = TEXT("## ");
+		/** S-048 (segunda ampliación del autor del 17/11/2026): una página sin título, "##" sola, y un subtítulo. */
+		const FString BarePageTitleMark = TEXT("##");
+		const FString SubtitleMark = TEXT("### ");
 		const FString CommentMark = TEXT(">");
 		/** S-048 (ampliación del autor del 17/11/2026): un elemento de lista. */
 		const FString ListItemMark = TEXT("- ");
@@ -85,7 +88,6 @@ namespace Soulbound::Presentation
 		{
 			FHowToPlayPage Page;
 			TOptional<FHowToPlayBlock> Open;
-			bool bHasImage = false;
 
 			/** Cierra el bloque abierto y lo añade, con sus tramos, si tiene texto. */
 			void Close()
@@ -102,6 +104,12 @@ namespace Soulbound::Presentation
 			{
 				Block.Spans = HowToPlaySpans(Block.Text);
 				Block.Text = SpansText(Block.Spans);
+				if (Block.Kind == EHowToPlayBlockKind::Subtitle)
+				{
+					// Segunda ampliación del autor: el subtítulo no lleva negrita propia; sin asteriscos, todo con su estilo.
+					Block.Spans.Reset();
+					AddSpan(Block.Spans, Block.Text, false);
+				}
 				if (!Block.Text.IsEmpty())
 				{
 					Page.Blocks.Add(MoveTemp(Block));
@@ -127,14 +135,23 @@ namespace Soulbound::Presentation
 		/** Los bloques unidos como en HowToPlayBodyText, cada uno con el texto que da Text. */
 		FString JoinBlocks(const TArray<FHowToPlayBlock>& Blocks, TFunctionRef<FString(const FHowToPlayBlock&)> Text)
 		{
-			FString Joined;
-			for (int32 Index = 0; Index < Blocks.Num(); ++Index)
+			// Segunda ampliación del autor: las imágenes no van en el texto; dos elementos de lista a ambos lados de una imagen siguen seguidos.
+			TArray<const FHowToPlayBlock*> Shown;
+			for (const FHowToPlayBlock& Block : Blocks)
 			{
-				const FHowToPlayBlock& Block = Blocks[Index];
+				if (Block.Kind != EHowToPlayBlockKind::Image)
+				{
+					Shown.Add(&Block);
+				}
+			}
+			FString Joined;
+			for (int32 Index = 0; Index < Shown.Num(); ++Index)
+			{
+				const FHowToPlayBlock& Block = *Shown[Index];
 				if (Index > 0)
 				{
 					// Dos elementos de lista seguidos, uno por línea; lo demás, con una línea en blanco entre medias.
-					const bool bListRun = Block.Kind == EHowToPlayBlockKind::ListItem && Blocks[Index - 1].Kind == EHowToPlayBlockKind::ListItem;
+					const bool bListRun = Block.Kind == EHowToPlayBlockKind::ListItem && Shown[Index - 1]->Kind == EHowToPlayBlockKind::ListItem;
 					Joined += bListRun ? TEXT("\n") : TEXT("\n\n");
 				}
 				if (Block.Kind == EHowToPlayBlockKind::ListItem)
@@ -187,14 +204,15 @@ namespace Soulbound::Presentation
 		for (const FString& RawLine : Lines)
 		{
 			const FString Line = RawLine.TrimStartAndEnd();
-			if (Line.StartsWith(PageTitleMark, ESearchCase::CaseSensitive))
+			// "## Título" o "##" sola, sin título (segunda ampliación del autor del 17/11/2026).
+			if (Line.StartsWith(PageTitleMark, ESearchCase::CaseSensitive) || Line.Equals(BarePageTitleMark, ESearchCase::CaseSensitive))
 			{
 				if (!FinishPage())
 				{
 					return Result;
 				}
 				Current.Emplace();
-				Current->Page.Title = Line.RightChop(PageTitleMark.Len()).TrimStartAndEnd();
+				Current->Page.Title = Line.RightChop(BarePageTitleMark.Len()).TrimStartAndEnd();
 				continue;
 			}
 
@@ -236,17 +254,29 @@ namespace Soulbound::Presentation
 				continue;
 			}
 
+			if (Line.StartsWith(SubtitleMark, ESearchCase::CaseSensitive))
+			{
+				// Segunda ampliación del autor: un subtítulo, una línea, sin las almohadillas.
+				Page.Close();
+				FHowToPlayBlock Subtitle;
+				Subtitle.Kind = EHowToPlayBlockKind::Subtitle;
+				Subtitle.Text = Line.RightChop(SubtitleMark.Len()).TrimStartAndEnd();
+				Page.Add(Subtitle);
+				continue;
+			}
+
 			FString ImageName;
 			if (ParseImageLine(Line, ImageName))
 			{
+				// Segunda ampliación del autor: cada imagen es un bloque en su sitio, las que haya.
 				Page.Close();
-				if (Page.bHasImage)
+				if (!ImageName.IsEmpty())
 				{
-					return Reject(EHowToPlayError::DuplicateImage, FString::Printf(
-						TEXT("En el texto de cómo se juega (%s), la página \"%s\" tiene dos imágenes; como mucho una por página"), *SourceName, *Page.Page.Title));
+					FHowToPlayBlock Image;
+					Image.Kind = EHowToPlayBlockKind::Image;
+					Image.ImageName = ImageName;
+					Page.Page.Blocks.Add(MoveTemp(Image));
 				}
-				Page.bHasImage = true;
-				Page.Page.ImageName = ImageName;
 				continue;
 			}
 
@@ -326,6 +356,15 @@ namespace Soulbound::Presentation
 
 	FString HowToPlayBlockRichText(const FHowToPlayBlock& Block)
 	{
+		// Segunda ampliación del autor: la imagen no va en el texto; el subtítulo, entero con su marca.
+		if (Block.Kind == EHowToPlayBlockKind::Image)
+		{
+			return FString();
+		}
+		if (Block.Kind == EHowToPlayBlockKind::Subtitle)
+		{
+			return TEXT("<Subtitle>") + EscapeRichText(Block.Text) + TEXT("</>");
+		}
 		// Un bloque hecho a mano sin tramos (la página "Teclas", un test) es un solo tramo normal.
 		TArray<FHowToPlaySpan> Spans = Block.Spans;
 		if (Spans.IsEmpty())

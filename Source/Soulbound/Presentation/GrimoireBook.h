@@ -47,15 +47,18 @@ namespace Soulbound::Presentation
 		/** El Grimorio se abre: la pestaña activa es "Tú"; la página de "Cómo se juega" se queda donde estaba (S-048, R-HUD-18). */
 		void Open();
 		/**
-		 * S-048 (R-HUD-18): la página siguiente; en la última, se queda (no es cíclico: un libro tiene principio y final).
+		 * S-048 (R-HUD-18): la vista siguiente; en la última, se queda (no es cíclico: un libro tiene principio y final). Desde la segunda ampliación
+		 * del autor del 17/11/2026, una vista son PagesPerView páginas y Page queda en la primera de la suya: lo que se recuerda es la vista.
 		 * @param PageCount Cuántas páginas tiene el libro, la de teclas incluida.
+		 * @param PagesPerView Cuántas se ven a la vez (HowToPlayPagesPerView): 2 con el libro, 1 sin él.
 		 */
-		void NextPage(int32 PageCount, int32 PagesPerView = 1);
+		void NextPage(int32 PageCount, int32 PagesPerView);
 		/**
-		 * S-048 (R-HUD-18): la página anterior; en la primera, se queda.
+		 * S-048 (R-HUD-18): la vista anterior; en la primera, se queda.
 		 * @param PageCount Cuántas páginas tiene el libro, la de teclas incluida.
+		 * @param PagesPerView Cuántas se ven a la vez (HowToPlayPagesPerView).
 		 */
-		void PreviousPage(int32 PageCount, int32 PagesPerView = 1);
+		void PreviousPage(int32 PageCount, int32 PagesPerView);
 		/** La siguiente pestaña; desde "Crónica", "Tú". */
 		void Next();
 		/** La anterior; desde "Tú", "Crónica". */
@@ -178,7 +181,15 @@ namespace Soulbound::Presentation
 	 * @param PagesPerView Cuántas se ven a la vez (HowToPlayPagesPerView).
 	 * @return "2 de 5", "1-2 de 5" o "5 de 5"; sin páginas, vacío.
 	 */
-	FString HowToPlayPageFooter(int32 Page, int32 PageCount, int32 PagesPerView = 1);
+	FString HowToPlayPageFooter(int32 Page, int32 PageCount, int32 PagesPerView);
+
+	/**
+	 * La primera página de la vista en que está una página (S-048, segunda ampliación del autor del 17/11/2026, R-HUD-18, nombre propuesto).
+	 * @param Page La página, desde 0.
+	 * @param PagesPerView Cuántas se ven a la vez.
+	 * @return La primera de su vista; con una por vista, la misma.
+	 */
+	int32 HowToPlayViewStart(int32 Page, int32 PagesPerView);
 
 	/**
 	 * Cuántas páginas de "Cómo se juega" se ven a la vez (S-048, segunda ampliación del autor del 17/11/2026, R-HUD-18, nombre propuesto): dos con
@@ -309,14 +320,6 @@ namespace Soulbound::Presentation
 	 * @param Tab La pestaña que se enseña.
 	 */
 	FGrimoireFootHints GrimoireFootHints(const FGrimoireKeyNames& Keys, EGrimoireTab Tab);
-
-	/**
-	 * Si la imagen de una página de "Cómo se juega" va al lado del texto o debajo (S-048, R-HUD-18): al lado si, partido el ancho en dos, el texto
-	 * tiene al menos MinTextWidth.
-	 * @param ColumnsWidth El ancho de que disponen texto e imagen juntos.
-	 * @param MinTextWidth El ancho mínimo del texto (HowToPlayMinTextWidth).
-	 */
-	bool HowToPlayImageBeside(float ColumnsWidth, float MinTextWidth);
 
 	/**
 	 * Cuándo se cierra solo el Grimorio (S-044, R-HUD-11, nombre propuesto). Se mira en cada refresco del HUD, esté abierto o no, y dice si acaba

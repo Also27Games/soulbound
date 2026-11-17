@@ -11,10 +11,8 @@ enum class EHowToPlayError : uint8
 	FileNotFound,
 	/** S-048 (R-HUD-17): el texto no tiene ningún título de segundo nivel ("## "), así que no tiene ninguna página. */
 	NoPages,
-	/** S-048 (R-HUD-17): una página tiene título pero ningún bloque (desde la ampliación del autor del 17/11/2026, ni párrafo, ni frase, ni lista). */
+	/** S-048 (R-HUD-17): una página sin ningún bloque, de ninguna clase (desde la segunda ampliación del autor del 17/11/2026, ni una imagen). */
 	EmptyPage,
-	/** S-048 (precisión del autor de R-HUD-17): una página con una segunda imagen. */
-	DuplicateImage,
 };
 
 /** La clase de un bloque de una página de "Cómo se juega" (S-048, ampliación del autor del 17/11/2026, R-HUD-17, nombre propuesto). */
@@ -94,28 +92,28 @@ struct SOULBOUND_API FHowToPlayPage
 {
 	GENERATED_BODY()
 
-	/** El título de la página: lo que sigue a "## ". */
+	/** El título de la página: lo que sigue a "## "; vacío si la línea es "##" sola (segunda ampliación del autor del 17/11/2026: no pinta título). */
 	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
 	FString Title;
 
 	/**
 	 * El texto sin marcas de la página (HowToPlayBodyText): sus bloques en su orden, separados por una línea en blanco ("\n\n"), salvo los
-	 * elementos de lista seguidos, uno por línea y con su marca; las líneas de un mismo párrafo o de una misma frase, unidas con un espacio.
+	 * elementos de lista seguidos, uno por línea y con su marca; las líneas de un mismo párrafo o de una misma frase, unidas con un espacio. Sin las
+	 * imágenes (segunda ampliación del autor del 17/11/2026).
 	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
 	FString Body;
 
-	/** S-048 (ampliación del autor del 17/11/2026): los bloques de la página, en su orden: párrafos, frases del Warden y elementos de lista. */
+	/**
+	 * S-048 (ampliación del autor del 17/11/2026): los bloques de la página, en su orden: párrafos, frases del Warden, elementos de lista y, desde la
+	 * segunda ampliación, subtítulos e imágenes (sin el campo de la imagen de la página: cada imagen va en su bloque, las que haya).
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
 	TArray<FHowToPlayBlock> Blocks;
 
-	/** El nombre de la imagen (lo que va entre paréntesis en "![](Nombre)"); vacío si la página no lleva. */
-	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
-	FString ImageName;
-
 	bool operator==(const FHowToPlayPage& Other) const
 	{
-		return Title == Other.Title && Body == Other.Body && Blocks == Other.Blocks && ImageName == Other.ImageName;
+		return Title == Other.Title && Body == Other.Body && Blocks == Other.Blocks;
 	}
 };
 
@@ -151,15 +149,15 @@ namespace Soulbound::Presentation
 	inline const FString HowToPlayRelativePath = TEXT("Data/Textos/como-se-juega.md");
 
 	/**
-	 * Lee un texto de "cómo se juega" ya cargado como libro (S-048, R-HUD-17). Vale si tiene al menos una página y cada página tiene título y
-	 * al menos un bloque. Con las precisiones del autor del 17/11/2026: una segunda imagen en la misma página es un error; el texto suelto antes de
-	 * la primera "##" que no sea título ni portada se ignora; las líneas de un párrafo se unen con un espacio; "![texto](Nombre)" vale y el texto
+	 * Lee un texto de "cómo se juega" ya cargado como libro (S-048, R-HUD-17). Vale si tiene al menos una página y cada página tiene al menos un
+	 * bloque. Con las precisiones del autor del 17/11/2026: el texto suelto antes de la primera "##" que no sea título ni portada se ignora; las líneas de un párrafo se unen con un espacio; "![texto](Nombre)" vale y el texto
 	 * alternativo se ignora. Con la ampliación del mismo día, los bloques: las líneas ">" seguidas, sin línea en blanco entre ellas, son una frase
 	 * del Warden (las que se quiera, en su sitio); cada línea "- " es un elemento de lista, sin el guion; una línea de otra clase cierra el bloque
-	 * abierto, y una línea sin marca tras un elemento de lista empieza un párrafo.
+	 * abierto, y una línea sin marca tras un elemento de lista empieza un párrafo. Con la segunda ampliación: "### " es un subtítulo; cada
+	 * "![](Nombre)" es un bloque de imagen, en su sitio, las que haya; "##" sola abre una página sin título; una página con solo una imagen vale.
 	 * @param Markdown El contenido del archivo.
 	 * @param SourceName El nombre del archivo, para los mensajes de error.
-	 * @return El libro, o NoPages, EmptyPage o DuplicateImage con un mensaje que nombra el archivo y, si es de una página, su título.
+	 * @return El libro, o NoPages o EmptyPage con un mensaje que nombra el archivo y, si es de una página, su título.
 	 */
 	FHowToPlayLoadResult ParseHowToPlayText(const FString& Markdown, const FString& SourceName = HowToPlayRelativePath);
 
@@ -193,7 +191,8 @@ namespace Soulbound::Presentation
 
 	/**
 	 * El texto sin marcas de una página (S-048, ampliación del autor del 17/11/2026, nombre propuesto): sus bloques en su orden, separados por una
-	 * línea en blanco, salvo dos elementos de lista seguidos, que van uno por línea; cada elemento, con su marca y un espacio delante.
+	 * línea en blanco, salvo dos elementos de lista seguidos, que van uno por línea; cada elemento, con su marca y un espacio delante. Las imágenes no
+	 * van; cada subtítulo es una línea (segunda ampliación).
 	 * @param Blocks Los bloques de la página.
 	 * @return El texto, que es FHowToPlayPage::Body.
 	 */
@@ -201,14 +200,16 @@ namespace Soulbound::Presentation
 
 	/**
 	 * Un bloque en texto enriquecido (S-048, ampliación del autor del 17/11/2026, R-HUD-19, nombre propuesto), sin la marca de lista: la frase del
-	 * Warden, entre <Warden> y </>; los caracteres & < > " escapados (&amp; &lt; &gt; &quot;).
+	 * Warden, entre <Warden> y </>; la negrita, <Bold> o <WardenBold>; el subtítulo, entre <Subtitle> y </> (segunda ampliación); los caracteres
+	 * & < > " escapados (&amp; &lt; &gt; &quot;). Una imagen, vacío: el menú la monta por su nombre.
 	 */
 	FString HowToPlayBlockRichText(const FHowToPlayBlock& Block);
 
 	/**
 	 * Una página en texto enriquecido, para un bloque de texto enriquecido de UMG (S-048, ampliación del autor del 17/11/2026, R-HUD-19, nombre
 	 * propuesto): sus bloques (HowToPlayBlockRichText) separados como en HowToPlayBodyText, y los elementos de lista con su marca delante. Sin el
-	 * título, que va aparte. Marcas: <Warden> y, con la negrita, <Bold> y <WardenBold>, los nombres de las filas de la tabla de estilos del menú.
+	 * título, que va aparte, ni las imágenes. Marcas: <Warden>, <Bold>, <WardenBold> y <Subtitle>, los nombres de las filas de la tabla de estilos
+	 * del menú.
 	 */
 	FString HowToPlayRichText(const FHowToPlayPage& Page);
 }

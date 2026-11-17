@@ -691,11 +691,27 @@ public:
 	FString HowToPlayImageFolder = TEXT("/Game/Art/Ayuda/");
 
 	/**
-	 * El ancho mínimo del texto de una página de "Cómo se juega" con la imagen al lado (S-048, R-HUD-18): si no cabe, la imagen va debajo. Valor
-	 * inicial 300, en unidades de Slate; a ciegas, se ajusta en PIE a 1024x768.
+	 * El alto máximo de una imagen de "Cómo se juega", en fracción del alto de su hoja (S-048, segunda ampliación del autor del 17/11/2026, R-HUD-18,
+	 * nombre propuesto). Valor inicial 0,6. La imagen va centrada, al mayor tamaño que cabe en el ancho de la hoja y en este alto sin deformarse; una
+	 * página con solo una imagen la pinta a hoja entera. Sustituye a HowToPlayMinTextWidth: la imagen ya no va al lado del texto.
 	 */
-	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
-	float HowToPlayMinTextWidth = 300.f;
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0", ClampMax = "1"))
+	float HowToPlayImageMaxHeight = 0.6f;
+
+	/**
+	 * La marca de agua de "Cómo se juega" (S-048, segunda ampliación y corrección del autor del 17/11/2026, R-HUD-20, nombres propuestos): con la imagen
+	 * del libro, cada hoja lleva la suya detrás del texto, centrada, apagada, siempre. Su textura (valor inicial
+	 * /Game/Art/Ayuda/T_Ayuda_Sello.T_Ayuda_Sello), su opacidad (valor inicial 0,25) y su tamaño en fracción de la hoja (valor inicial 0,7). Vacía o
+	 * inexistente, no se pinta y se dice una vez en el registro.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (AllowedClasses = "/Script/Engine.Texture2D"))
+	FSoftObjectPath HowToPlayWatermarkTexture;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0", ClampMax = "1"))
+	float HowToPlayWatermarkOpacity = 0.25f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0", ClampMax = "1"))
+	float HowToPlayWatermarkSize = 0.7f;
 
 	/**
 	 * La imagen del libro abierto sobre la que se pinta el Grimorio (S-048, R-HUD-20, nombre aprobado): páginas oscuras y vacías. Valor inicial
@@ -1390,6 +1406,9 @@ private:
 	/** La imagen del libro abierto del Grimorio (S-048, R-HUD-20); nula si no hay (entonces, el fondo negro de siempre). */
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> GrimoireBackground;
+	/** La marca de agua de "Cómo se juega" (S-048, segunda ampliación, R-HUD-20); nula si no hay (entonces, sin marca). */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> HowToPlayWatermark;
 	/** La fuente del Grimorio (S-048, corrección 4), viva mientras la vista lo esté; nula si no hay (entonces, la de siempre). */
 	UPROPERTY(Transient)
 	TObjectPtr<UFont> GrimoireFontAsset;
