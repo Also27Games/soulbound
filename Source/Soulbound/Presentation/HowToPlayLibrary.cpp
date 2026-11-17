@@ -64,8 +64,8 @@ FHowToPlayPage UHowToPlayLibrary::HowToPlayPage(int32 Index)
 
 FText UHowToPlayLibrary::HowToPlayPageRichText(int32 Index)
 {
-	// TODO(R-HUD-19): stub del commit de los tests en rojo de la ampliación; la implementación va en el commit siguiente.
-	return FText();
+	const Soulbound::Presentation::FHowToPlayBook Book = RepositoryBook();
+	return Book.Pages.IsValidIndex(Index) ? FText::FromString(Soulbound::Presentation::HowToPlayRichText(Book.Pages[Index])) : FText();
 }
 
 UTexture2D* UHowToPlayLibrary::HowToPlayPageImage(int32 Index)

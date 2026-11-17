@@ -1069,6 +1069,8 @@ void ABoardViewActor::BuildOverlay()
 	Soulbound::Presentation::FGrimoireFont BookFont;
 	BookFont.RegularTypeface = GrimoireFontRegularTypeface;
 	BookFont.BoldTypeface = GrimoireFontBoldTypeface;
+	BookFont.ItalicTypeface = GrimoireFontItalicTypeface;
+	BookFont.BoldItalicTypeface = GrimoireFontBoldItalicTypeface;
 	if (GrimoireFont.IsNull())
 	{
 		UE_LOG(LogSoulboundView, Warning, TEXT("Grimorio: GrimoireFont está vacío; el texto sale con la fuente de siempre."));

@@ -6,13 +6,13 @@ namespace Soulbound::Presentation
 {
 	FSlateFontInfo GrimoireFontInfo(const FGrimoireFont& Font, bool bBold, int32 Size, bool bItalic)
 	{
-		// TODO(R-HUD-20): stub del commit de los tests en rojo de la ampliación; la cursiva va en el commit siguiente.
 		const int32 Points = FMath::Max(Size, 1);
 		if (!Font.Font)
 		{
-			// Sin fuente propia, la de hoy.
-			return FCoreStyle::GetDefaultFontStyle(bBold ? "Bold" : "Regular", Points);
+			// Sin fuente propia, la de hoy; con la cursiva (ampliación del autor del 17/11/2026), sus tipos Italic y BoldItalic.
+			return FCoreStyle::GetDefaultFontStyle(bItalic ? (bBold ? "BoldItalic" : "Italic") : (bBold ? "Bold" : "Regular"), Points);
 		}
-		return FSlateFontInfo(Font.Font, Points, bBold ? Font.BoldTypeface : Font.RegularTypeface);
+		const FName Typeface = bItalic ? (bBold ? Font.BoldItalicTypeface : Font.ItalicTypeface) : (bBold ? Font.BoldTypeface : Font.RegularTypeface);
+		return FSlateFontInfo(Font.Font, Points, Typeface);
 	}
 }

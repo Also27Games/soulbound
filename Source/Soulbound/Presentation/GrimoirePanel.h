@@ -80,7 +80,7 @@ public:
 		SLATE_ARGUMENT(float, SpineGap)
 		/** S-048 (R-HUD-18): ancho mínimo del texto de una página con la imagen al lado, sin el libro (HowToPlayMinTextWidth). */
 		SLATE_ATTRIBUTE(float, MinTextWidth)
-		/** S-048 (R-HUD-18): el color del comentario del Warden, el de su línea (WardenLineColor). */
+		/** S-048 (R-HUD-18): el color de las frases del Warden de "Cómo se juega", el de su línea (WardenLineColor). */
 		SLATE_ARGUMENT(FLinearColor, WardenColor)
 		/** S-048 (R-HUD-18): la imagen de una página por su nombre (las carga y las mantiene la vista). */
 		SLATE_ARGUMENT(FImageForPage, ImageForPage)

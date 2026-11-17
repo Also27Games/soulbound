@@ -10,6 +10,8 @@ namespace Soulbound::Presentation
 		const FString BookTitleMark = TEXT("# ");
 		const FString PageTitleMark = TEXT("## ");
 		const FString CommentMark = TEXT(">");
+		/** S-048 (ampliación del autor del 17/11/2026): un elemento de lista. */
+		const FString ListItemMark = TEXT("- ");
 
 		FHowToPlayLoadResult Reject(EHowToPlayError Error, const FString& Message)
 		{
@@ -46,25 +48,69 @@ namespace Soulbound::Presentation
 			return true;
 		}
 
-		/** Lo que se va leyendo de una página: el párrafo en curso y lo que ya tiene. */
+		/**
+		 * Lo que se va leyendo de una página (S-048, ampliación del autor del 17/11/2026): sus bloques y el que está abierto, un párrafo o una frase
+		 * del Warden que puede seguir en la línea de abajo.
+		 */
 		struct FPageInProgress
 		{
 			FHowToPlayPage Page;
-			TArray<FString> Paragraphs;
-			FString Paragraph;
-			bool bInComment = false;
-			bool bHasComment = false;
+			TOptional<FHowToPlayBlock> Open;
 			bool bHasImage = false;
 
-			void EndParagraph()
+			/** Cierra el bloque abierto y lo añade, si tiene texto. */
+			void Close()
 			{
-				if (!Paragraph.IsEmpty())
+				if (Open.IsSet() && !Open->Text.IsEmpty())
 				{
-					Paragraphs.Add(Paragraph);
-					Paragraph.Reset();
+					Page.Blocks.Add(Open.GetValue());
 				}
+				Open.Reset();
+			}
+
+			/** Sigue el bloque abierto si es de esa clase; si no, lo cierra y abre otro. */
+			void Continue(EHowToPlayBlockKind Kind, const FString& Text)
+			{
+				if (Open.IsSet() && Open->Kind != Kind)
+				{
+					Close();
+				}
+				if (!Open.IsSet())
+				{
+					Open.Emplace();
+					Open->Kind = Kind;
+				}
+				AppendWithSpace(Open->Text, Text);
 			}
 		};
+
+		/** Los bloques unidos como en HowToPlayBodyText, cada uno con el texto que da Text. */
+		FString JoinBlocks(const TArray<FHowToPlayBlock>& Blocks, TFunctionRef<FString(const FHowToPlayBlock&)> Text)
+		{
+			FString Joined;
+			for (int32 Index = 0; Index < Blocks.Num(); ++Index)
+			{
+				const FHowToPlayBlock& Block = Blocks[Index];
+				if (Index > 0)
+				{
+					// Dos elementos de lista seguidos, uno por línea; lo demás, con una línea en blanco entre medias.
+					const bool bListRun = Block.Kind == EHowToPlayBlockKind::ListItem && Blocks[Index - 1].Kind == EHowToPlayBlockKind::ListItem;
+					Joined += bListRun ? TEXT("\n") : TEXT("\n\n");
+				}
+				if (Block.Kind == EHowToPlayBlockKind::ListItem)
+				{
+					Joined += FString(HowToPlayListMark) + TEXT(" ");
+				}
+				Joined += Text(Block);
+			}
+			return Joined;
+		}
+
+		/** Escapa los caracteres que el texto enriquecido lee como marcas: & < > ". El & primero, para no escapar lo ya escapado. */
+		FString EscapeRichText(const FString& Text)
+		{
+			return Text.Replace(TEXT("&"), TEXT("&amp;")).Replace(TEXT("<"), TEXT("&lt;")).Replace(TEXT(">"), TEXT("&gt;")).Replace(TEXT("\""), TEXT("&quot;"));
+		}
 	}
 
 	FHowToPlayLoadResult ParseHowToPlayText(const FString& Markdown, const FString& SourceName)
@@ -78,16 +124,16 @@ namespace Soulbound::Presentation
 		bool bCoverOpen = false;
 		bool bCoverDone = false;
 
-		// Cierra la página en curso: sus párrafos al texto y, sin texto, el error que nombra el archivo y la página.
+		// Cierra la página en curso: su texto sin marcas y, sin ningún bloque, el error que nombra el archivo y la página.
 		const auto FinishPage = [&Result, &Current, &SourceName]() -> bool
 		{
 			if (!Current.IsSet())
 			{
 				return true;
 			}
-			Current->EndParagraph();
-			Current->Page.Body = FString::Join(Current->Paragraphs, TEXT("\n\n"));
-			if (Current->Page.Body.IsEmpty())
+			Current->Close();
+			Current->Page.Body = HowToPlayBodyText(Current->Page.Blocks);
+			if (Current->Page.Blocks.IsEmpty())
 			{
 				Result = Reject(EHowToPlayError::EmptyPage,
 					FString::Printf(TEXT("En el texto de cómo se juega (%s), la página \"%s\" no tiene texto"), *SourceName, *Current->Page.Title));
@@ -135,25 +181,25 @@ namespace Soulbound::Presentation
 			FPageInProgress& Page = *Current;
 			if (Line.StartsWith(CommentMark, ESearchCase::CaseSensitive))
 			{
-				// Varias líneas ">" seguidas son un comentario; otro bloque separado es un error (precisión del autor del 17/11/2026).
-				Page.EndParagraph();
-				if (!Page.bInComment && Page.bHasComment)
-				{
-					return Reject(EHowToPlayError::DuplicateComment, FString::Printf(
-						TEXT("En el texto de cómo se juega (%s), la página \"%s\" tiene dos comentarios del Warden separados; como mucho uno por página"),
-						*SourceName, *Page.Page.Title));
-				}
-				Page.bInComment = true;
-				Page.bHasComment = true;
-				AppendWithSpace(Page.Page.WardenComment, Line.RightChop(CommentMark.Len()).TrimStartAndEnd());
+				// Las líneas ">" seguidas son una frase del Warden; tras una línea en blanco, otra (ampliación del autor del 17/11/2026).
+				Page.Continue(EHowToPlayBlockKind::WardenLine, Line.RightChop(CommentMark.Len()).TrimStartAndEnd());
 				continue;
 			}
-			Page.bInComment = false;
+			if (Line.StartsWith(ListItemMark, ESearchCase::CaseSensitive))
+			{
+				// Cada línea "- " es un elemento de lista, sin el guion, y no se une a nada (ampliación del autor del 17/11/2026).
+				Page.Close();
+				FHowToPlayBlock Item;
+				Item.Kind = EHowToPlayBlockKind::ListItem;
+				Item.Text = Line.RightChop(ListItemMark.Len()).TrimStartAndEnd();
+				Page.Page.Blocks.Add(Item);
+				continue;
+			}
 
 			FString ImageName;
 			if (ParseImageLine(Line, ImageName))
 			{
-				Page.EndParagraph();
+				Page.Close();
 				if (Page.bHasImage)
 				{
 					return Reject(EHowToPlayError::DuplicateImage, FString::Printf(
@@ -166,11 +212,11 @@ namespace Soulbound::Presentation
 
 			if (Line.IsEmpty())
 			{
-				Page.EndParagraph();
+				Page.Close();
 				continue;
 			}
-			// Las líneas de un mismo párrafo se unen con un espacio (precisión del autor del 17/11/2026).
-			AppendWithSpace(Page.Paragraph, Line);
+			// Las líneas de un mismo párrafo se unen con un espacio (precisión del autor del 17/11/2026); tras una frase o una lista, otro párrafo.
+			Page.Continue(EHowToPlayBlockKind::Paragraph, Line);
 		}
 
 		if (!FinishPage())
@@ -210,19 +256,19 @@ namespace Soulbound::Presentation
 		return Path + Name + TEXT(".") + Name;
 	}
 
-	// TODO(R-HUD-17): stubs del commit de los tests en rojo de la ampliación; la implementación va en el commit siguiente.
 	FString HowToPlayBodyText(const TArray<FHowToPlayBlock>& Blocks)
 	{
-		return FString();
+		return JoinBlocks(Blocks, [](const FHowToPlayBlock& Block) { return Block.Text; });
 	}
 
 	FString HowToPlayBlockRichText(const FHowToPlayBlock& Block)
 	{
-		return FString();
+		const FString Escaped = EscapeRichText(Block.Text);
+		return Block.Kind == EHowToPlayBlockKind::WardenLine ? TEXT("<Warden>") + Escaped + TEXT("</>") : Escaped;
 	}
 
 	FString HowToPlayRichText(const FHowToPlayPage& Page)
 	{
-		return FString();
+		return JoinBlocks(Page.Blocks, [](const FHowToPlayBlock& Block) { return HowToPlayBlockRichText(Block); });
 	}
 }

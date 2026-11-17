@@ -158,7 +158,7 @@ namespace Soulbound::Presentation
 	 * 1 a 9 y 0, la de empezar la prueba del anillo y la de volver al menú (una línea si son la misma), la de la vista y la de las etiquetas. Desde
 	 * S-045 (precisión de R-CAM), ni las de depuración (T y D) ni las que se fueron con la columna (H y P).
 	 * @param Keys Los nombres que da Unreal a las teclas configuradas.
-	 * @return La página, sin comentario ni imagen.
+	 * @return La página, sin imagen: desde la ampliación del autor del 17/11/2026, una lista, una tecla por elemento.
 	 */
 	FHowToPlayPage HowToPlayKeysPage(const FGrimoireKeyNames& Keys);
 

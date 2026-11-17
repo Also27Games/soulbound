@@ -11,10 +11,8 @@ enum class EHowToPlayError : uint8
 	FileNotFound,
 	/** S-048 (R-HUD-17): el texto no tiene ningún título de segundo nivel ("## "), así que no tiene ninguna página. */
 	NoPages,
-	/** S-048 (R-HUD-17): una página tiene título pero no texto de la regla. */
+	/** S-048 (R-HUD-17): una página tiene título pero ningún bloque (desde la ampliación del autor del 17/11/2026, ni párrafo, ni frase, ni lista). */
 	EmptyPage,
-	/** S-048 (precisión del autor de R-HUD-17): una página con un segundo comentario del Warden separado del primero. */
-	DuplicateComment,
 	/** S-048 (precisión del autor de R-HUD-17): una página con una segunda imagen. */
 	DuplicateImage,
 };
@@ -54,8 +52,9 @@ struct SOULBOUND_API FHowToPlayBlock
 };
 
 /**
- * Una página de "Cómo se juega" (S-048, R-HUD-17, nombre propuesto): su título, el texto de la regla, el comentario del Warden y el nombre de su
- * imagen; los dos últimos pueden estar vacíos. Es un USTRUCT para que el widget del menú, que monta el autor, la lea (R-HUD-19).
+ * Una página de "Cómo se juega" (S-048, R-HUD-17, nombre propuesto): su título, su texto sin marcas, sus bloques y el nombre de su imagen, que puede
+ * estar vacío. Es un USTRUCT para que el widget del menú, que monta el autor, la lea (R-HUD-19). Desde la ampliación del autor del 17/11/2026, sin
+ * comentario del Warden: las frases van en sus bloques, en su sitio.
  */
 USTRUCT(BlueprintType)
 struct SOULBOUND_API FHowToPlayPage
@@ -66,13 +65,12 @@ struct SOULBOUND_API FHowToPlayPage
 	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
 	FString Title;
 
-	/** El texto de la regla: los párrafos separados por una línea en blanco ("\n\n"); las líneas de un mismo párrafo, unidas con un espacio. */
+	/**
+	 * El texto sin marcas de la página (HowToPlayBodyText): sus bloques en su orden, separados por una línea en blanco ("\n\n"), salvo los
+	 * elementos de lista seguidos, uno por línea y con su marca; las líneas de un mismo párrafo o de una misma frase, unidas con un espacio.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
 	FString Body;
-
-	/** El comentario del Warden, sin el signo ">"; vacío si la página no lo trae. Varias líneas ">" seguidas, unidas con un espacio. */
-	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
-	FString WardenComment;
 
 	/** S-048 (ampliación del autor del 17/11/2026): los bloques de la página, en su orden: párrafos, frases del Warden y elementos de lista. */
 	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
@@ -84,7 +82,7 @@ struct SOULBOUND_API FHowToPlayPage
 
 	bool operator==(const FHowToPlayPage& Other) const
 	{
-		return Title == Other.Title && Body == Other.Body && WardenComment == Other.WardenComment && Blocks == Other.Blocks && ImageName == Other.ImageName;
+		return Title == Other.Title && Body == Other.Body && Blocks == Other.Blocks && ImageName == Other.ImageName;
 	}
 };
 
@@ -111,7 +109,8 @@ struct FHowToPlayLoadResult
 /**
  * El texto de "cómo se juega" (S-022): vive en Content/Data/Textos/como-se-juega.md, que se empaqueta como archivo suelto, y lo escribe el
  * autor. Desde S-048 (R-HUD-17) se lee como un libro: un título de primer nivel y una línea ">" de portada, opcionales, y una página por cada
- * título de segundo nivel, con su texto, su comentario del Warden (">") y su imagen ("![](Nombre)"). Funciones puras, sin Slate. Nunca lanza.
+ * título de segundo nivel, con sus bloques (párrafos, frases del Warden ">" y elementos de lista "- ", desde la ampliación del autor del
+ * 17/11/2026) y su imagen ("![](Nombre)"). Funciones puras, sin Slate. Nunca lanza.
  */
 namespace Soulbound::Presentation
 {
@@ -120,12 +119,14 @@ namespace Soulbound::Presentation
 
 	/**
 	 * Lee un texto de "cómo se juega" ya cargado como libro (S-048, R-HUD-17). Vale si tiene al menos una página y cada página tiene título y
-	 * texto; con las precisiones del autor del 17/11/2026: varias líneas ">" seguidas son un comentario; un segundo comentario o una segunda imagen
-	 * separados en la misma página son un error; el texto suelto antes de la primera "##" que no sea título ni portada se ignora; las líneas de un
-	 * párrafo se unen con un espacio; "![texto](Nombre)" vale y el texto alternativo se ignora.
+	 * al menos un bloque. Con las precisiones del autor del 17/11/2026: una segunda imagen en la misma página es un error; el texto suelto antes de
+	 * la primera "##" que no sea título ni portada se ignora; las líneas de un párrafo se unen con un espacio; "![texto](Nombre)" vale y el texto
+	 * alternativo se ignora. Con la ampliación del mismo día, los bloques: las líneas ">" seguidas, sin línea en blanco entre ellas, son una frase
+	 * del Warden (las que se quiera, en su sitio); cada línea "- " es un elemento de lista, sin el guion; una línea de otra clase cierra el bloque
+	 * abierto, y una línea sin marca tras un elemento de lista empieza un párrafo.
 	 * @param Markdown El contenido del archivo.
 	 * @param SourceName El nombre del archivo, para los mensajes de error.
-	 * @return El libro, o NoPages, EmptyPage, DuplicateComment o DuplicateImage con un mensaje que nombra el archivo y, si es de una página, su título.
+	 * @return El libro, o NoPages, EmptyPage o DuplicateImage con un mensaje que nombra el archivo y, si es de una página, su título.
 	 */
 	FHowToPlayLoadResult ParseHowToPlayText(const FString& Markdown, const FString& SourceName = HowToPlayRelativePath);
 

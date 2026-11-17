@@ -739,6 +739,17 @@ public:
 	FName GrimoireFontBoldTypeface = TEXT("Bold");
 
 	/**
+	 * Los nombres de los tipos cursiva y negrita cursiva dentro del asset de GrimoireFont (S-048, ampliación del autor del 17/11/2026, nombres
+	 * propuestos): la frase del Warden de "Cómo se juega" y su negrita. Valores iniciales Italic y BoldItalic; sin la fuente del libro, los de la
+	 * fuente de siempre.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FName GrimoireFontItalicTypeface = TEXT("Italic");
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FName GrimoireFontBoldItalicTypeface = TEXT("BoldItalic");
+
+	/**
 	 * Tecla que muestra y oculta el panel de depuración (S-027, R-HUD-2). Valor inicial D (decisión del autor del 9/11/2026: F1 es una tecla de
 	 * depuración del propio Unreal).
 	 */

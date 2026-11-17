@@ -147,9 +147,17 @@ namespace Soulbound::Presentation
 		}
 		Lines.Add(FString::Printf(TEXT("%s: cambia la vista"), *SpanishKeyName(Keys.View)));
 		Lines.Add(FString::Printf(TEXT("%s: oculta y enseña las etiquetas y los números de las casillas"), *SpanishKeyName(Keys.Overlay)));
+		// Precisión del autor al aprobar el plan de la ampliación (17/11/2026): una lista, una tecla por elemento.
 		FHowToPlayPage Page;
 		Page.Title = HowToPlayKeysTitle;
-		Page.Body = FString::Join(Lines, TEXT("\n"));
+		for (const FString& Line : Lines)
+		{
+			FHowToPlayBlock Item;
+			Item.Kind = EHowToPlayBlockKind::ListItem;
+			Item.Text = Line;
+			Page.Blocks.Add(Item);
+		}
+		Page.Body = HowToPlayBodyText(Page.Blocks);
 		return Page;
 	}
 

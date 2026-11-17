@@ -23,12 +23,12 @@ namespace
 	 * fotograma a otro (S-029, R-VIS-21; el mismo motivo que la frase del Warden, R-HUD-3).
 	 */
 	TSharedRef<STextBlock> GrimoireText(const Soulbound::Presentation::FGrimoireFont& Font, const TAttribute<int32>& Size, const TAttribute<float>& Wrap, const FString& Text,
-		const FLinearColor& Color, bool bBold, float Scale = 1.f)
+		const FLinearColor& Color, bool bBold, float Scale = 1.f, bool bItalic = false)
 	{
-		// S-048 (corrección 4 del autor del 17/11/2026): con la fuente del Grimorio si la hay; sin ella, la de hoy.
+		// S-048 (corrección 4 del autor del 17/11/2026): con la fuente del Grimorio si la hay; sin ella, la de hoy. Desde la ampliación, también en cursiva.
 		return SNew(STextBlock)
 			.Text(FText::FromString(Text))
-			.Font_Lambda([Font, Size, bBold, Scale]() { return Soulbound::Presentation::GrimoireFontInfo(Font, bBold, FMath::RoundToInt(Size.Get() * Scale)); })
+			.Font_Lambda([Font, Size, bBold, Scale, bItalic]() { return Soulbound::Presentation::GrimoireFontInfo(Font, bBold, FMath::RoundToInt(Size.Get() * Scale), bItalic); })
 			.ColorAndOpacity(Color)
 			.WrapTextAt_Lambda([Wrap]() { return Wrap.Get(); });
 	}
@@ -56,6 +56,14 @@ namespace
 	constexpr float GrimoireLineIndent = 8.f;
 	constexpr float GrimoirePowerIndent = 16.f;
 	constexpr float GrimoireCardIndent = 16.f;
+
+	/**
+	 * Los bloques de una página de "Cómo se juega" (S-048, ampliación del autor del 17/11/2026, valores iniciales propuestos por el agente, que se
+	 * ajustan en PIE): el hueco entre dos bloques, el que hay entre dos elementos de lista seguidos y la sangría de la marca de la lista.
+	 */
+	constexpr float HowToPlayBlockGap = 8.f;
+	constexpr float HowToPlayListGap = 2.f;
+	constexpr float HowToPlayListIndent = 12.f;
 
 	/** Cuánto más pequeña va la línea de teclas del pie del Grimorio (S-048, corrección 2 del autor del 17/11/2026). */
 	constexpr float GrimoireFootScale = 0.85f;
@@ -600,9 +608,37 @@ void SGrimoirePanel::RebuildHowToPlay()
 	});
 
 	const TSharedRef<SWidget> Title = GrimoireText(TextFont, Size, PageWidth, Shown.Title, GrimoireTitleColor, true, 1.15f);
-	const TSharedRef<SWidget> Body = Scroll(GrimoireText(TextFont, Size, BodyWidth, Shown.Body, GrimoireTextColor, false));
-	const TSharedRef<SWidget> Comment = Shown.WardenComment.IsEmpty() ? SNullWidget::NullWidget
-		: StaticCastSharedRef<SWidget>(GrimoireText(TextFont, Size, PageWidth, Shown.WardenComment, WardenColor, false));
+	// Ampliación del autor del 17/11/2026 (R-HUD-18): los bloques en su orden, dentro de la zona que se desplaza; el párrafo como hoy, la frase del
+	// Warden con su color y en cursiva, y los elementos de lista con su marca, seguidos sin el hueco de párrafo. Sin comentario fijo al pie.
+	const TAttribute<float> ItemWidth = TAttribute<float>::CreateLambda([BodyWidth]() { return FMath::Max(BodyWidth.Get() - HowToPlayListIndent, 1.f); });
+	const TSharedRef<SVerticalBox> Blocks = SNew(SVerticalBox);
+	for (int32 Block = 0; Block < Shown.Blocks.Num(); ++Block)
+	{
+		const FHowToPlayBlock& Item = Shown.Blocks[Block];
+		const bool bItem = Item.Kind == EHowToPlayBlockKind::ListItem;
+		const bool bListRun = bItem && Block > 0 && Shown.Blocks[Block - 1].Kind == EHowToPlayBlockKind::ListItem;
+		const float Gap = Block == 0 ? 0.f : bListRun ? HowToPlayListGap : HowToPlayBlockGap;
+		TSharedRef<SWidget> Content = SNullWidget::NullWidget;
+		if (bItem)
+		{
+			Content = SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth()
+				[
+					SNew(SBox).WidthOverride(HowToPlayListIndent)[GrimoireText(TextFont, Size, BodyWidth, Soulbound::Presentation::HowToPlayListMark, GrimoireTextColor, false)]
+				]
+				+ SHorizontalBox::Slot().FillWidth(1.f)[GrimoireText(TextFont, Size, ItemWidth, Item.Text, GrimoireTextColor, false)];
+		}
+		else if (Item.Kind == EHowToPlayBlockKind::WardenLine)
+		{
+			Content = GrimoireText(TextFont, Size, BodyWidth, Item.Text, WardenColor, false, 1.f, true);
+		}
+		else
+		{
+			Content = GrimoireText(TextFont, Size, BodyWidth, Item.Text, GrimoireTextColor, false);
+		}
+		Blocks->AddSlot().AutoHeight().Padding(0.f, Gap, 0.f, 0.f)[Content];
+	}
+	const TSharedRef<SWidget> Body = Scroll(Blocks);
 	const TSharedRef<SWidget> Picture = !Image ? SNullWidget::NullWidget
 		: StaticCastSharedRef<SWidget>(SNew(SScaleBox).Stretch(EStretch::ScaleToFit).StretchDirection(EStretchDirection::DownOnly)[SNew(SImage).Image(Image)]);
 	const TSharedRef<SWidget> Previous = MakePageButton(TEXT("Anterior"), Index > 0, OnPreviousPage);
@@ -611,17 +647,14 @@ void SGrimoirePanel::RebuildHowToPlay()
 		.Text(FText::FromString(Soulbound::Presentation::HowToPlayPageFooter(Index, Count)))
 		.Font_Lambda([this, Size]() { return Soulbound::Presentation::GrimoireFontInfo(TextFont, false, Size.Get()); })
 		.ColorAndOpacity(GrimoireTextColor);
-	const float CommentGap = Shown.WardenComment.IsEmpty() ? 0.f : 8.f;
-
 	if (bBook)
 	{
-		// Precisión del autor del 17/11/2026: a la izquierda, la regla y, al pie, el comentario del Warden y "Anterior"; a la derecha, la imagen y, al
-		// pie, "N de M · Siguiente".
+		// Precisión del autor del 17/11/2026: a la izquierda, los bloques y, al pie, "Anterior" (desde la ampliación, sin comentario fijo); a la
+		// derecha, la imagen y, al pie, "N de M · Siguiente".
 		HowToPlayLeft->SetContent(
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 6.f)[Title]
 			+ SVerticalBox::Slot().FillHeight(1.f)[Body]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, CommentGap, 0.f, 0.f)[Comment]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 8.f, 0.f, 0.f).HAlign(HAlign_Left)[Previous]);
 		HowToPlayRight->SetContent(
 			SNew(SVerticalBox)
@@ -635,8 +668,8 @@ void SGrimoirePanel::RebuildHowToPlay()
 		return;
 	}
 
-	// Sin el libro: el texto a la izquierda y la imagen a la derecha o, si no caben, debajo; sin imagen, el texto a todo el ancho, sin hueco. El
-	// comentario, a todo el ancho; el pie, centrado.
+	// Sin el libro: el texto a la izquierda y la imagen a la derecha o, si no caben, debajo; sin imagen, el texto a todo el ancho, sin hueco. El pie,
+	// centrado.
 	TSharedRef<SWidget> Middle = Body;
 	if (Image && bBeside)
 	{
@@ -661,7 +694,6 @@ void SGrimoirePanel::RebuildHowToPlay()
 		SNew(SVerticalBox)
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 6.f)[Title]
 		+ SVerticalBox::Slot().FillHeight(1.f)[Middle]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, CommentGap, 0.f, 0.f)[Comment]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 8.f, 0.f, 0.f).HAlign(HAlign_Center)
 		[
 			SNew(SHorizontalBox)
