@@ -758,6 +758,8 @@ bool FGrimoireTitleAndFootTest::RunTest(const FString& Parameters)
 {
 	// CA-HUD-40 (R-HUD-20, corrección 2 del autor del 17/11/2026 tras PIE): el título ocupaba tres líneas. Dice solo "Grimorio"; las teclas van en una
 	// línea pequeña al pie, una mitad por página: a la izquierda, cerrar y pestañas; a la derecha, páginas. Con los nombres de las teclas configuradas.
+	// Ajustado por la corrección 5 (segunda prueba en PIE): la parte de páginas, solo en "Cómo se juega", la única pestaña con páginas; en las demás, el
+	// pie de la derecha queda vacío, y la línea única sin el libro lleva solo cerrar y pestañas.
 	using namespace Soulbound::Presentation;
 	TestEqual(TEXT("El título"), FString(GrimoireTitleText), FString(TEXT("Grimorio")));
 	FGrimoireKeyNames Keys;
@@ -766,10 +768,18 @@ bool FGrimoireTitleAndFootTest::RunTest(const FString& Parameters)
 	Keys.NextTab = TEXT("Right");
 	Keys.PreviousPage = TEXT("Up");
 	Keys.NextPage = TEXT("Down");
-	const FGrimoireFootHints Foot = GrimoireFootHints(Keys);
-	TestEqual(TEXT("Al pie de la izquierda: cerrar y pestañas"), Foot.Left, FString(TEXT("G para cerrar; flechas izquierda y derecha, pestañas")));
-	TestEqual(TEXT("Al pie de la izquierda: lo mismo que GrimoireKeysHint"), Foot.Left, GrimoireKeysHint(Keys.Grimoire, Keys.PreviousTab, Keys.NextTab));
-	TestEqual(TEXT("Al pie de la derecha: páginas"), Foot.Right, FString(TEXT("flechas arriba y abajo, páginas")));
+	const FString Left(TEXT("G para cerrar; flechas izquierda y derecha, pestañas"));
+	const FString Pages(TEXT("flechas arriba y abajo, páginas"));
+	for (const EGrimoireTab Tab : GrimoireTabs())
+	{
+		const bool bPages = Tab == EGrimoireTab::HowToPlay;
+		const FString Name = GrimoireTabTitle(Tab);
+		const FGrimoireFootHints Foot = GrimoireFootHints(Keys, Tab);
+		TestEqual(TEXT("Al pie de la izquierda, cerrar y pestañas, en ") + Name, Foot.Left, Left);
+		TestEqual(TEXT("Al pie de la izquierda, lo mismo que GrimoireKeysHint, en ") + Name, Foot.Left, GrimoireKeysHint(Keys.Grimoire, Keys.PreviousTab, Keys.NextTab));
+		TestEqual(TEXT("Al pie de la derecha, páginas solo en Cómo se juega: ") + Name, Foot.Right, bPages ? Pages : FString());
+		TestEqual(TEXT("Sin el libro, la línea única: ") + Name, Foot.OneLine(), bPages ? Left + TEXT("; ") + Pages : Left);
+	}
 
 	FGrimoireKeyNames Other = Keys;
 	Other.Grimoire = TEXT("F1");
@@ -777,9 +787,20 @@ bool FGrimoireTitleAndFootTest::RunTest(const FString& Parameters)
 	Other.NextTab = TEXT("E");
 	Other.PreviousPage = TEXT("Z");
 	Other.NextPage = TEXT("Space Bar");
-	const FGrimoireFootHints OtherFoot = GrimoireFootHints(Other);
+	const FGrimoireFootHints OtherFoot = GrimoireFootHints(Other, EGrimoireTab::HowToPlay);
 	TestEqual(TEXT("Otras teclas, a la izquierda"), OtherFoot.Left, FString(TEXT("F1 para cerrar; Q y E, pestañas")));
 	TestEqual(TEXT("Otras teclas, a la derecha, en español donde lo haya"), OtherFoot.Right, FString(TEXT("Z y Espacio, páginas")));
+	TestEqual(TEXT("Otras teclas, la línea única"), OtherFoot.OneLine(), FString(TEXT("F1 para cerrar; Q y E, pestañas; Z y Espacio, páginas")));
+	TestEqual(TEXT("Otras teclas, sin páginas en la Crónica"), GrimoireFootHints(Other, EGrimoireTab::Chronicle).OneLine(), FString(TEXT("F1 para cerrar; Q y E, pestañas")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireChronicleHeadingTest, "Soulbound.Game.Presentation.Grimorio.CabeceraDeLaCronica", GrimoireBookTestFlags)
+
+bool FGrimoireChronicleHeadingTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-42 (R-HUD-20, corrección 6 del autor del 17/11/2026): el encabezado de la Crónica, con sus tildes.
+	TestEqual(TEXT("El encabezado de la Crónica"), FString(Soulbound::Presentation::ChronicleHeadingText), FString(TEXT("CRÓNICA (la última arriba; rueda para ir al inicio)")));
 	return true;
 }
 

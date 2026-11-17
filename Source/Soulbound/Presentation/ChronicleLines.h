@@ -32,6 +32,12 @@ namespace Soulbound::Presentation
 		FLinearColor DebugColor = FLinearColor::White;
 	};
 
+	/**
+	 * El encabezado del panel de crónica (S-048, corrección 6 del autor del 17/11/2026, nombre propuesto), en el Grimorio y en la columna.
+	 * TODO(R-HUD-20): stub del commit de los tests en rojo, con el texto de antes; el corregido va en el commit siguiente.
+	 */
+	inline const TCHAR* const ChronicleHeadingText = TEXT("CRONICA (la ultima arriba; rueda para ir al inicio)");
+
 	/** Marca de tiempo de la crónica: minutos y segundos del reloj de partida ("3:07"); los negativos, 0:00. */
 	FString ChronicleStamp(double Seconds);
 

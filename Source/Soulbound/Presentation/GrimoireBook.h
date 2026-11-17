@@ -247,16 +247,23 @@ namespace Soulbound::Presentation
 	{
 		/** Al pie de la página izquierda: cerrar y pestañas ("G para cerrar; flechas izquierda y derecha, pestañas", GrimoireKeysHint). */
 		FString Left;
-		/** Al pie de la derecha: páginas ("flechas arriba y abajo, páginas"). */
+		/** Al pie de la derecha: páginas ("flechas arriba y abajo, páginas"), solo en la pestaña con páginas, "Cómo se juega"; en las demás, vacío. */
 		FString Right;
+
+		/**
+		 * La línea única del pie sin el libro (S-048, corrección 5 del autor del 17/11/2026, nombre propuesto): las dos partes separadas por "; ", o
+		 * solo la izquierda si la derecha está vacía.
+		 */
+		FString OneLine() const;
 	};
 
 	/**
-	 * Las teclas del pie del Grimorio (S-048, corrección 2 del autor del 17/11/2026), con los nombres de las configuradas en español donde lo haya. Sin
-	 * el libro, se enseñan las dos en una línea.
+	 * Las teclas del pie del Grimorio (S-048, correcciones 2 y 5 del autor del 17/11/2026), con los nombres de las configuradas en español donde lo
+	 * haya. La parte de páginas, solo en "Cómo se juega", la única pestaña con páginas.
 	 * @param Keys Los nombres que da Unreal a las teclas configuradas.
+	 * @param Tab La pestaña que se enseña.
 	 */
-	FGrimoireFootHints GrimoireFootHints(const FGrimoireKeyNames& Keys);
+	FGrimoireFootHints GrimoireFootHints(const FGrimoireKeyNames& Keys, EGrimoireTab Tab);
 
 	/**
 	 * Si la imagen de una página de "Cómo se juega" va al lado del texto o debajo (S-048, R-HUD-18): al lado si, partido el ancho en dos, el texto

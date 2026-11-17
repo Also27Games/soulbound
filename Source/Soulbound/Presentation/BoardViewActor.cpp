@@ -1101,7 +1101,7 @@ void ABoardViewActor::BuildOverlay()
 			.DomainColors(RuneChipColors)
 			// Corrección del autor del 17/11/2026 tras PIE: los nombres de las teclas, en español donde lo haya. Desde la corrección 2 de S-048, en una
 			// línea pequeña al pie (GrimoireFootHints), con las de página.
-			.FootHints(Soulbound::Presentation::GrimoireFootHints(GrimoireKeyNames()))
+			.FootHints(Soulbound::Presentation::GrimoireFootHints(GrimoireKeyNames(), Soulbound::Presentation::EGrimoireTab::HowToPlay))
 			.Font(BookFont)
 			// S-029 (R-VIS-21): ancho fijo, el de la capa; no depende de lo pintado antes.
 			.PanelWidth_Lambda([this]() { return Soulbound::Presentation::GrimoirePanelWidth(LayerSlateWidth()); })

@@ -248,7 +248,13 @@ namespace Soulbound::Presentation
 		return FMath::Max(ColumnWidth - GrimoireScrollRoom - FMath::Max(Indent, 0.f), 1.f);
 	}
 
-	FGrimoireFootHints GrimoireFootHints(const FGrimoireKeyNames& Keys)
+	FString FGrimoireFootHints::OneLine() const
+	{
+		// TODO(R-HUD-20): stub del commit de los tests en rojo; la implementación va en el commit siguiente.
+		return FString();
+	}
+
+	FGrimoireFootHints GrimoireFootHints(const FGrimoireKeyNames& Keys, EGrimoireTab Tab)
 	{
 		// Corrección 2 del autor del 17/11/2026: cerrar y pestañas al pie de la página izquierda; páginas al pie de la derecha.
 		FGrimoireFootHints Foot;
