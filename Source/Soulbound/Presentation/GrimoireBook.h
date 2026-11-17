@@ -239,6 +239,13 @@ namespace Soulbound::Presentation
 	 */
 	float GrimoireColumnTextWidth(float ColumnWidth, float Indent);
 
+	/**
+	 * El margen entre el final de la zona de contenido del Grimorio y la línea de teclas del pie (S-048, corrección 7 del autor del 17/11/2026,
+	 * nombre propuesto), en unidades de Slate: el mismo en las cinco pestañas, con el libro y sin él, para que la última línea no quede pegada al pie.
+	 * Antes, 6.
+	 */
+	inline constexpr float GrimoireFootGap = 12.f;
+
 	/** El título del Grimorio (S-048, corrección 2 del autor del 17/11/2026): solo "Grimorio"; las teclas van al pie (GrimoireFootHints). */
 	inline const TCHAR* const GrimoireTitleText = TEXT("Grimorio");
 

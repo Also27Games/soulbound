@@ -1,5 +1,6 @@
 #include "ChroniclePanel.h"
 
+#include "ChronicleLines.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -14,7 +15,7 @@ void SChroniclePanel::Construct(const FArguments& InArgs)
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 4.f)
 		[
 			SNew(STextBlock)
-			.Text(FText::FromString(TEXT("CRONICA (la ultima arriba; rueda para ir al inicio)")))
+			.Text(FText::FromString(Soulbound::Presentation::ChronicleHeadingText))
 			.Font_Lambda([this]() { return Soulbound::Presentation::GrimoireFontInfo(TextFont, true, FontSize.Get()); })
 			.ColorAndOpacity(FLinearColor::White)
 		]

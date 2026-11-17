@@ -54,10 +54,11 @@ public:
 		/** Color de cada Dominio, el de la vista, para el cuadrito de cada runa. */
 		SLATE_ARGUMENT(TArray<FLinearColor>, DomainColors)
 		/**
-		 * S-048 (corrección 2 del autor del 17/11/2026): la línea pequeña de teclas del pie (GrimoireFootHints): con el libro, cerrar y pestañas al pie
-		 * de la página izquierda y páginas al de la derecha; sin él, las dos en una línea. El título dice solo "Grimorio".
+		 * S-048 (correcciones 2 y 5 del autor del 17/11/2026): los nombres de las teclas configuradas, para la línea pequeña de teclas del pie
+		 * (GrimoireFootHints, según la pestaña activa): con el libro, cerrar y pestañas al pie de la página izquierda y páginas al de la derecha, solo
+		 * en "Cómo se juega"; sin él, en una línea (FGrimoireFootHints::OneLine). El título dice solo "Grimorio".
 		 */
-		SLATE_ARGUMENT(Soulbound::Presentation::FGrimoireFootHints, FootHints)
+		SLATE_ARGUMENT(Soulbound::Presentation::FGrimoireKeyNames, KeyNames)
 		/** S-048 (corrección 4): la fuente de todo el texto del Grimorio; sin asset, la de hoy. */
 		SLATE_ARGUMENT(Soulbound::Presentation::FGrimoireFont, Font)
 		/** Ancho del panel (GrimoirePanelWidth de la capa); se lee cada vez que se pinta y no depende de lo pintado (S-029, R-VIS-21). */

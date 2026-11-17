@@ -33,6 +33,15 @@ namespace
 			.WrapTextAt_Lambda([Wrap]() { return Wrap.Get(); });
 	}
 
+	/** La línea de teclas del pie del Grimorio (S-048, corrección 5): como GrimoireText, con un texto que se lee al pintar, porque cambia con la pestaña. */
+	TSharedRef<STextBlock> GrimoireFootText(const Soulbound::Presentation::FGrimoireFont& Font, const TAttribute<int32>& Size, const TAttribute<float>& Wrap,
+		const TAttribute<FText>& Text, const FLinearColor& Color, bool bBold)
+	{
+		const TSharedRef<STextBlock> Block = GrimoireText(Font, Size, Wrap, FString(), Color, bBold);
+		Block->SetText(Text);
+		return Block;
+	}
+
 	/** Un SScrollBox de pestaña con la barra que reserva GrimoireColumnTextWidth (S-048, corrección 1): su grosor, su margen y el hueco hasta el texto. */
 	TSharedRef<SWidget> GrimoireScroll(const TSharedRef<SWidget>& Content)
 	{
@@ -159,12 +168,20 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 	OnPreviousPage = InArgs._OnPreviousPage;
 	OnNextPage = InArgs._OnNextPage;
 	TextFont = InArgs._Font;
-	const Soulbound::Presentation::FGrimoireFootHints Foot = InArgs._FootHints;
 	const bool bBook = BookBrush.IsSet();
 
 	const TAttribute<float> Width = PanelWidth;
 	const TAttribute<int32> Size = FontSize;
 	const TAttribute<int32> FootSize = TAttribute<int32>::CreateLambda([Size]() { return FMath::Max(FMath::RoundToInt(Size.Get() * GrimoireFootScale), 1); });
+	// Corrección 5 del autor del 17/11/2026: las teclas del pie, según la pestaña activa (las de página, solo en "Cómo se juega").
+	const Soulbound::Presentation::FGrimoireKeyNames Keys = InArgs._KeyNames;
+	const TAttribute<EGrimoireTab> Tab = ActiveTab;
+	const auto FootText = [Keys, Tab](TFunction<FString(const Soulbound::Presentation::FGrimoireFootHints&)> Part)
+	{
+		return TAttribute<FText>::CreateLambda([Keys, Tab, Part]() { return FText::FromString(Part(Soulbound::Presentation::GrimoireFootHints(Keys, Tab.Get()))); });
+	};
+	// Corrección 7: un margen entre el final de la zona de contenido y el pie, el mismo en las cinco pestañas.
+	const float FootGap = Soulbound::Presentation::GrimoireFootGap;
 
 	// Una página por pestaña, en el orden de GrimoireTabs. Cada una con su desplazamiento (la crónica ya lleva el suyo).
 	const auto Page = [](const TSharedRef<SWidget>& Content) -> TSharedRef<SWidget> { return GrimoireScroll(Content); };
@@ -216,9 +233,10 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 						+ SWidgetSwitcher::Slot()[HowToPlayLeft.ToSharedRef()]
 						+ SWidgetSwitcher::Slot()[Chronicle.ToSharedRef()]
 					]
-					+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 6.f, 0.f, 0.f)
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.f, FootGap, 0.f, 0.f)
 					[
-						GrimoireText(TextFont, FootSize, TitleWidth, Foot.Left + TEXT("; ") + Foot.Right, GrimoireFootColor, false)
+						GrimoireFootText(TextFont, FootSize, TitleWidth, FootText([](const Soulbound::Presentation::FGrimoireFootHints& Foot) { return Foot.OneLine(); }),
+							GrimoireFootColor, false)
 					]
 				]
 			]
@@ -309,12 +327,16 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 						+ SWidgetSwitcher::Slot()[SNew(SSpacer)],
 						VAlign_Fill)
 				]
-				// Corrección 2 del autor del 17/11/2026: las teclas, en una línea pequeña al pie; cerrar y pestañas a la izquierda, páginas a la derecha.
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 6.f, 0.f, 0.f)
+				// Corrección 2 del autor del 17/11/2026: las teclas, en una línea pequeña al pie; cerrar y pestañas a la izquierda, páginas a la derecha
+				// (corrección 5: solo en "Cómo se juega"; en las demás, vacío).
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.f, FootGap, 0.f, 0.f)
 				[
 					Columns(
-						GrimoireText(TextFont, FootSize, LeftWidth, Foot.Left, GrimoireFootColor, false),
-						SNew(SBox).HAlign(HAlign_Right)[GrimoireText(TextFont, FootSize, RightWidth, Foot.Right, GrimoireFootColor, false)],
+						GrimoireFootText(TextFont, FootSize, LeftWidth, FootText([](const Soulbound::Presentation::FGrimoireFootHints& Foot) { return Foot.Left; }), GrimoireFootColor, false),
+						SNew(SBox).HAlign(HAlign_Right)
+						[
+							GrimoireFootText(TextFont, FootSize, RightWidth, FootText([](const Soulbound::Presentation::FGrimoireFootHints& Foot) { return Foot.Right; }), GrimoireFootColor, false)
+						],
 						VAlign_Top)
 				]
 			]

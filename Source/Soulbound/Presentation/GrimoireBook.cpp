@@ -250,16 +250,19 @@ namespace Soulbound::Presentation
 
 	FString FGrimoireFootHints::OneLine() const
 	{
-		// TODO(R-HUD-20): stub del commit de los tests en rojo; la implementación va en el commit siguiente.
-		return FString();
+		return Right.IsEmpty() ? Left : Left + TEXT("; ") + Right;
 	}
 
 	FGrimoireFootHints GrimoireFootHints(const FGrimoireKeyNames& Keys, EGrimoireTab Tab)
 	{
-		// Corrección 2 del autor del 17/11/2026: cerrar y pestañas al pie de la página izquierda; páginas al pie de la derecha.
+		// Corrección 2 del autor del 17/11/2026: cerrar y pestañas al pie de la página izquierda; páginas al pie de la derecha. Corrección 5: las
+		// páginas, solo en la pestaña que las tiene.
 		FGrimoireFootHints Foot;
 		Foot.Left = GrimoireKeysHint(Keys.Grimoire, Keys.PreviousTab, Keys.NextTab);
-		Foot.Right = FString::Printf(TEXT("%s, páginas"), *PageKeysText(Keys.PreviousPage, Keys.NextPage));
+		if (Tab == EGrimoireTab::HowToPlay)
+		{
+			Foot.Right = FString::Printf(TEXT("%s, páginas"), *PageKeysText(Keys.PreviousPage, Keys.NextPage));
+		}
 		return Foot;
 	}
 
