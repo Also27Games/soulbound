@@ -28,6 +28,15 @@ namespace
 		return static_cast<int32>(Result.Error);
 	}
 
+	/** Un bloque de imagen, para comparar (S-048, segunda ampliación del autor del 17/11/2026). */
+	FHowToPlayBlock HowToPlayImageOf(const FString& ImageName)
+	{
+		FHowToPlayBlock Block;
+		Block.Kind = EHowToPlayBlockKind::Image;
+		Block.ImageName = ImageName;
+		return Block;
+	}
+
 	/** Un bloque, para comparar (S-048, ampliación del autor del 17/11/2026). */
 	FHowToPlayBlock HowToPlayBlockOf(EHowToPlayBlockKind Kind, const FString& Text)
 	{
@@ -43,8 +52,10 @@ namespace
 		TArray<FString> Parts;
 		for (const FHowToPlayBlock& Block : Blocks)
 		{
-			const TCHAR* Kind = Block.Kind == EHowToPlayBlockKind::Paragraph ? TEXT("P") : Block.Kind == EHowToPlayBlockKind::WardenLine ? TEXT("W") : TEXT("L");
-			Parts.Add(FString::Printf(TEXT("%s:%s"), Kind, *Block.Text));
+			const TCHAR* Kind = Block.Kind == EHowToPlayBlockKind::Paragraph ? TEXT("P") : Block.Kind == EHowToPlayBlockKind::WardenLine ? TEXT("W")
+				: Block.Kind == EHowToPlayBlockKind::ListItem ? TEXT("L") : Block.Kind == EHowToPlayBlockKind::Subtitle ? TEXT("S") : TEXT("I");
+			// S-048 (segunda ampliación): una imagen se nombra por su imagen.
+			Parts.Add(FString::Printf(TEXT("%s:%s"), Kind, Block.Kind == EHowToPlayBlockKind::Image ? *Block.ImageName : *Block.Text));
 		}
 		return FString::Join(Parts, TEXT(" | "));
 	}
@@ -140,7 +151,6 @@ bool FHowToPlayPagesTest::RunTest(const FString& Parameters)
 		TestFalse(FString::Printf(TEXT("%s: el texto suelto de antes no aparece"), *Page.Title), Page.Body.Contains(TEXT("suelto")));
 		TestFalse(FString::Printf(TEXT("%s: sin frases del Warden ni listas"), *Page.Title),
 			Page.Blocks.ContainsByPredicate([](const FHowToPlayBlock& Block) { return Block.Kind != EHowToPlayBlockKind::Paragraph; }));
-		TestTrue(FString::Printf(TEXT("%s: sin imagen"), *Page.Title), Page.ImageName.IsEmpty());
 	}
 	TestTrue(TEXT("Sin título de libro"), Result.BookTitle.IsEmpty());
 	TestTrue(TEXT("Sin portada"), Result.CoverLine.IsEmpty());
@@ -151,7 +161,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHowToPlayCommentAndImageTest, "Soulbound.Game.
 
 bool FHowToPlayCommentAndImageTest::RunTest(const FString& Parameters)
 {
-	// CA-HUD-31 (R-HUD-17): "![](T_Ayuda_Turno)" da ese nombre de imagen, y la línea no está en el texto; sin esa línea, imagen vacía. Precisión del
+	// CA-HUD-31 (R-HUD-17): "![](T_Ayuda_Turno)" da ese nombre de imagen, y la línea no está en el texto; sin esa línea, sin imagen. Ajustado por la
+	// segunda ampliación del autor del 17/11/2026 (CA-HUD-55): la imagen es un bloque, en su sitio, con su nombre. Precisión del
 	// autor del 17/11/2026: "![texto](Nombre)" vale (el texto alternativo se ignora). La imagen se busca en la carpeta fija. Ajustado por la ampliación
 	// del autor del 17/11/2026 (CA-HUD-43): ya no hay comentario de la página; una línea ">" es una frase del Warden, sin el signo, en su bloque y en su
 	// sitio, y varias líneas ">" seguidas son una sola frase.
@@ -178,19 +189,19 @@ bool FHowToPlayCommentAndImageTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	const FHowToPlayPage& Turn = Result.Pages[0];
-	HowToPlayExpectBlocks(*this, TEXT("La regla y la frase del Warden, sin el signo, en su orden"), Turn,
-		{HowToPlayBlockOf(EHowToPlayBlockKind::Paragraph, TEXT("El dado se tira solo.")), HowToPlayBlockOf(EHowToPlayBlockKind::WardenLine, TEXT("Tira. Luego ya veremos si te sirve de algo."))});
-	TestEqual(TEXT("El nombre de la imagen"), Turn.ImageName, FString(TEXT("T_Ayuda_Turno")));
+	HowToPlayExpectBlocks(*this, TEXT("La regla, la imagen con su nombre y la frase del Warden, sin el signo, en su orden"), Turn,
+		{HowToPlayBlockOf(EHowToPlayBlockKind::Paragraph, TEXT("El dado se tira solo.")), HowToPlayImageOf(TEXT("T_Ayuda_Turno")),
+		 HowToPlayBlockOf(EHowToPlayBlockKind::WardenLine, TEXT("Tira. Luego ya veremos si te sirve de algo."))});
 	TestEqual(TEXT("El texto sin marcas: los bloques, sin la imagen"), Turn.Body, FString(TEXT("El dado se tira solo.\n\nTira. Luego ya veremos si te sirve de algo.")));
 
 	const FHowToPlayPage& TwoLines = Result.Pages[1];
-	HowToPlayExpectBlocks(*this, TEXT("Dos líneas \">\" seguidas: una frase, unidas por un espacio"), TwoLines,
-		{HowToPlayBlockOf(EHowToPlayBlockKind::Paragraph, TEXT("Una regla.")), HowToPlayBlockOf(EHowToPlayBlockKind::WardenLine, TEXT("Primera línea segunda línea."))});
-	TestEqual(TEXT("Con texto alternativo: el nombre, sin el texto"), TwoLines.ImageName, FString(TEXT("T_Ayuda_Tablero")));
+	HowToPlayExpectBlocks(*this, TEXT("Dos líneas \">\" seguidas: una frase; con texto alternativo, la imagen con su nombre, sin el texto"), TwoLines,
+		{HowToPlayBlockOf(EHowToPlayBlockKind::Paragraph, TEXT("Una regla.")), HowToPlayBlockOf(EHowToPlayBlockKind::WardenLine, TEXT("Primera línea segunda línea.")),
+		 HowToPlayImageOf(TEXT("T_Ayuda_Tablero"))});
 
 	const FHowToPlayPage& Plain = Result.Pages[2];
 	HowToPlayExpectBlocks(*this, TEXT("Sin línea \">\": solo el párrafo"), Plain, {HowToPlayBlockOf(EHowToPlayBlockKind::Paragraph, TEXT("Solo la regla."))});
-	TestTrue(TEXT("Sin línea de imagen: sin imagen"), Plain.ImageName.IsEmpty());
+	TestFalse(TEXT("Sin línea de imagen: sin imagen"), Plain.Blocks.ContainsByPredicate([](const FHowToPlayBlock& Block) { return Block.Kind == EHowToPlayBlockKind::Image; }));
 
 	// R-HUD-17: el nombre se resuelve en la carpeta fija de la ayuda.
 	using Soulbound::Presentation::HowToPlayImagePath;
@@ -245,6 +256,8 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHowToPlayErrorsTest, "Soulbound.Game.Presentat
 
 bool FHowToPlayErrorsTest::RunTest(const FString& Parameters)
 {
+	// Ajustado por la segunda ampliación del autor del 17/11/2026 (CA-HUD-55): varias imágenes en una página ya no son un error, y una página con solo
+	// una imagen vale; una página sin ningún bloque sigue siéndolo.
 	// CA-HUD-32 (R-HUD-17): sin archivo, el error de archivo no encontrado. Un archivo sin ningún título, o con una página sin texto, da un error cuyo
 	// mensaje nombra el archivo y, en el segundo caso, el título de la página. Precisión del autor del 17/11/2026: una segunda imagen en la misma página,
 	// también, con el archivo y la página. Ningún caso lanza. Ajustado por la ampliación del autor del 17/11/2026 (CA-HUD-43): una página sin texto es
@@ -263,7 +276,7 @@ bool FHowToPlayErrorsTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Un título de tercer nivel no es una página"), HowToPlayErrorOf(Soulbound::Presentation::ParseHowToPlayText(TEXT("### Pequeño\nTexto.\n"), TEXT("prueba.md"))),
 		static_cast<int32>(EHowToPlayError::NoPages));
 
-	const FHowToPlayLoadResult EmptyPage = Soulbound::Presentation::ParseHowToPlayText(TEXT("## Uno\nTexto.\n\n## La vacía\n\n![](T_Algo)\n\n## Tres\nMás.\n"), TEXT("prueba.md"));
+	const FHowToPlayLoadResult EmptyPage = Soulbound::Presentation::ParseHowToPlayText(TEXT("## Uno\nTexto.\n\n## La vacía\n\n\n## Tres\nMás.\n"), TEXT("prueba.md"));
 	TestEqual(TEXT("Una página sin texto: su error"), HowToPlayErrorOf(EmptyPage), static_cast<int32>(EHowToPlayError::EmptyPage));
 	TestTrue(TEXT("Una página sin texto: el motivo nombra el archivo"), EmptyPage.Message.Contains(TEXT("prueba.md")));
 	TestTrue(TEXT("Una página sin texto: el motivo nombra la página"), EmptyPage.Message.Contains(TEXT("La vacía")));
@@ -276,8 +289,9 @@ bool FHowToPlayErrorsTest::RunTest(const FString& Parameters)
 	TestTrue(FString::Printf(TEXT("Una página con solo frases del Warden: vale (%s)"), *OnlyWarden.Message), OnlyWarden.IsSuccess());
 
 	const FHowToPlayLoadResult TwoImages = Soulbound::Presentation::ParseHowToPlayText(TEXT("## Dos fotos\nTexto.\n![](T_Una)\n\n![](T_Otra)\n"), TEXT("prueba.md"));
-	TestEqual(TEXT("Dos imágenes: su error"), HowToPlayErrorOf(TwoImages), static_cast<int32>(EHowToPlayError::DuplicateImage));
-	TestTrue(TEXT("Dos imágenes: el motivo nombra el archivo y la página"), TwoImages.Message.Contains(TEXT("prueba.md")) && TwoImages.Message.Contains(TEXT("Dos fotos")));
+	TestTrue(FString::Printf(TEXT("Dos imágenes: ya no es error (%s)"), *TwoImages.Message), TwoImages.IsSuccess());
+	const FHowToPlayLoadResult OnlyImage = Soulbound::Presentation::ParseHowToPlayText(TEXT("## Lámina\n![](T_Lamina)\n"), TEXT("prueba.md"));
+	TestTrue(FString::Printf(TEXT("Solo una imagen: vale (%s)"), *OnlyImage.Message), OnlyImage.IsSuccess());
 
 	// Una frase y una imagen en páginas distintas no son dobles.
 	TestTrue(TEXT("Una frase y una imagen por página, en dos páginas: vale"), Soulbound::Presentation::ParseHowToPlayText(
@@ -495,6 +509,95 @@ bool FHowToPlayBoldTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHowToPlaySubtitleTest, "Soulbound.Game.Presentation.ComoSeJuega.Subtitulos", HowToPlayTestFlags)
+
+bool FHowToPlaySubtitleTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-53 (R-HUD-17, segunda ampliación del autor del 17/11/2026): "### Texto" da un bloque de subtítulo con ese texto, sin las almohadillas, en
+	// su orden; lleva su marca en el texto enriquecido y sale como una línea en el texto sin marcas. Un subtítulo justo después de un párrafo lo
+	// cierra. Precisión del plan aprobado: los "**" dentro de un subtítulo se quitan, y todo va con su marca.
+	using namespace Soulbound::Presentation;
+	const FHowToPlayLoadResult Result = ParseHowToPlayText(TEXT(
+		"## Página\n"
+		"Intro.\n"
+		"### Primer **apartado**\n"
+		"Texto & más.\n"
+		"\n"
+		"###   Segundo  \n"
+		"- Uno\n"), TEXT("prueba.md"));
+	if (!TestTrue(FString::Printf(TEXT("Se carga (%s)"), *Result.Message), Result.IsSuccess()) || !TestEqual(TEXT("Una página"), Result.Pages.Num(), 1))
+	{
+		return false;
+	}
+	const FHowToPlayPage& Page = Result.Pages[0];
+	HowToPlayExpectBlocks(*this, TEXT("Los subtítulos, sin almohadillas ni asteriscos, en su orden"), Page,
+		{HowToPlayBlockOf(EHowToPlayBlockKind::Paragraph, TEXT("Intro.")), HowToPlayBlockOf(EHowToPlayBlockKind::Subtitle, TEXT("Primer apartado")),
+		 HowToPlayBlockOf(EHowToPlayBlockKind::Paragraph, TEXT("Texto & más.")), HowToPlayBlockOf(EHowToPlayBlockKind::Subtitle, TEXT("Segundo")),
+		 HowToPlayBlockOf(EHowToPlayBlockKind::ListItem, TEXT("Uno"))});
+	TestEqual(TEXT("El texto sin marcas: cada subtítulo, una línea"), Page.Body, FString(TEXT("Intro.\n\nPrimer apartado\n\nTexto & más.\n\nSegundo\n\n• Uno")));
+	TestEqual(TEXT("El texto enriquecido: cada subtítulo, con su marca"), HowToPlayRichText(Page),
+		FString(TEXT("Intro.\n\n<Subtitle>Primer apartado</>\n\nTexto &amp; más.\n\n<Subtitle>Segundo</>\n\n• Uno")));
+	TestEqual(TEXT("Un subtítulo con caracteres de marca, escapados"), HowToPlayBlockRichText(HowToPlayBlockOf(EHowToPlayBlockKind::Subtitle, TEXT("A < B"))),
+		FString(TEXT("<Subtitle>A &lt; B</>")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHowToPlayImageBlocksTest, "Soulbound.Game.Presentation.ComoSeJuega.ImagenesComoBloques", HowToPlayTestFlags)
+
+bool FHowToPlayImageBlocksTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-55 (R-HUD-17, segunda ampliación del autor del 17/11/2026): una página con párrafo, imagen, párrafo e imagen da cuatro bloques en ese
+	// orden, dos de imagen con su nombre; ya no es error. Una página con solo una imagen es válida; "##" sola da una página con el título vacío; una
+	// página sin bloques sigue dando el error que nombra el archivo. Las imágenes no van en el texto sin marcas ni en el enriquecido; el menú las
+	// recibe en los bloques de la página, con el texto enriquecido de cada bloque.
+	using namespace Soulbound::Presentation;
+	const FHowToPlayLoadResult Result = ParseHowToPlayText(TEXT(
+		"## Láminas\n"
+		"Primero.\n"
+		"![](T_Uno)\n"
+		"Segundo.\n"
+		"![Una captura](T_Dos)\n"
+		"\n"
+		"## Solo lámina\n"
+		"![](T_Sola)\n"
+		"\n"
+		"##\n"
+		"Sin título.\n"
+		"\n"
+		"##   \n"
+		"> También sin título.\n"), TEXT("prueba.md"));
+	if (!TestTrue(FString::Printf(TEXT("Se carga (%s)"), *Result.Message), Result.IsSuccess()) || !TestEqual(TEXT("Cuatro páginas"), Result.Pages.Num(), 4))
+	{
+		return false;
+	}
+	const FHowToPlayPage& Plates = Result.Pages[0];
+	HowToPlayExpectBlocks(*this, TEXT("Párrafo, imagen, párrafo e imagen: cuatro bloques en su orden"), Plates,
+		{HowToPlayBlockOf(EHowToPlayBlockKind::Paragraph, TEXT("Primero.")), HowToPlayImageOf(TEXT("T_Uno")),
+		 HowToPlayBlockOf(EHowToPlayBlockKind::Paragraph, TEXT("Segundo.")), HowToPlayImageOf(TEXT("T_Dos"))});
+	TestTrue(TEXT("Un bloque de imagen no lleva texto"), Plates.Blocks.Num() == 4 && Plates.Blocks[1].Text.IsEmpty() && Plates.Blocks[3].Text.IsEmpty());
+	TestEqual(TEXT("El texto sin marcas, sin las imágenes"), Plates.Body, FString(TEXT("Primero.\n\nSegundo.")));
+	TestEqual(TEXT("El texto enriquecido, sin las imágenes"), HowToPlayRichText(Plates), FString(TEXT("Primero.\n\nSegundo.")));
+	HowToPlayExpectBlocks(*this, TEXT("Solo una imagen: vale"), Result.Pages[1], {HowToPlayImageOf(TEXT("T_Sola"))});
+	TestEqual(TEXT("\"##\" sola: el título vacío"), Result.Pages[2].Title, FString());
+	HowToPlayExpectBlocks(*this, TEXT("\"##\" sola: sus bloques"), Result.Pages[2], {HowToPlayBlockOf(EHowToPlayBlockKind::Paragraph, TEXT("Sin título."))});
+	TestEqual(TEXT("\"##\" con espacios: también sin título"), Result.Pages[3].Title, FString());
+
+	// El menú: el texto enriquecido de cada bloque, el mismo que el del Grimorio; el de una imagen, vacío.
+	for (const FHowToPlayBlock& Block : Plates.Blocks)
+	{
+		TestEqual(TEXT("La librería da el texto enriquecido del bloque"), UHowToPlayLibrary::HowToPlayBlockRichText(Block).ToString(), HowToPlayBlockRichText(Block));
+	}
+	TestTrue(TEXT("El de una imagen, vacío"), HowToPlayBlockRichText(HowToPlayImageOf(TEXT("T_Uno"))).IsEmpty());
+	TestEqual(TEXT("El de un párrafo, en la librería"), UHowToPlayLibrary::HowToPlayBlockRichText(HowToPlayBlockOf(EHowToPlayBlockKind::Paragraph, TEXT("a & b"))).ToString(),
+		FString(TEXT("a &amp; b")));
+
+	// Una página sin bloques sigue siendo un error que nombra el archivo y la página.
+	const FHowToPlayLoadResult Empty = ParseHowToPlayText(TEXT("## Vacía\n\n## Otra\nTexto.\n"), TEXT("prueba.md"));
+	TestEqual(TEXT("Sin bloques: su error"), static_cast<int32>(Empty.Error), static_cast<int32>(EHowToPlayError::EmptyPage));
+	TestTrue(TEXT("Sin bloques: el motivo nombra el archivo y la página"), Empty.Message.Contains(TEXT("prueba.md")) && Empty.Message.Contains(TEXT("Vacía")));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHowToPlayLibraryTest, "Soulbound.Game.Presentation.ComoSeJuega.MismasPaginasEnMenuYGrimorio", HowToPlayTestFlags)
 
 bool FHowToPlayLibraryTest::RunTest(const FString& Parameters)
@@ -532,7 +635,11 @@ bool FHowToPlayLibraryTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("El mismo título de libro"), UHowToPlayLibrary::HowToPlayBookTitle().ToString(), Grimoire.Title);
 	TestEqual(TEXT("La misma frase de portada"), UHowToPlayLibrary::HowToPlayCoverLine().ToString(), Grimoire.CoverLine);
 	TestTrue(TEXT("Sin error"), UHowToPlayLibrary::HowToPlayError().IsEmpty());
-	TestTrue(TEXT("La página de teclas no lleva imagen"), UHowToPlayLibrary::HowToPlayPageImage(Count - 1) == nullptr);
+	TestFalse(TEXT("La página de teclas no lleva imagen"), UHowToPlayLibrary::HowToPlayPage(Count - 1).Blocks.ContainsByPredicate([](const FHowToPlayBlock& Block)
+	{
+		return Block.Kind == EHowToPlayBlockKind::Image;
+	}));
+	TestTrue(TEXT("Sin nombre, sin textura"), UHowToPlayLibrary::HowToPlayImage(FString()) == nullptr);
 	// Precisión del autor del 17/11/2026: el texto de hoy del menú es el libro aplanado.
 	TestEqual(TEXT("El bloque de texto del menú de hoy, el libro aplanado"), UHowToPlayLibrary::HowToPlayText().ToString(), HowToPlayFlatText(Grimoire));
 	TestFalse(TEXT("Y no vacío"), UHowToPlayLibrary::HowToPlayText().IsEmpty());

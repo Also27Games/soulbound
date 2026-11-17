@@ -50,12 +50,12 @@ namespace Soulbound::Presentation
 		 * S-048 (R-HUD-18): la página siguiente; en la última, se queda (no es cíclico: un libro tiene principio y final).
 		 * @param PageCount Cuántas páginas tiene el libro, la de teclas incluida.
 		 */
-		void NextPage(int32 PageCount);
+		void NextPage(int32 PageCount, int32 PagesPerView = 1);
 		/**
 		 * S-048 (R-HUD-18): la página anterior; en la primera, se queda.
 		 * @param PageCount Cuántas páginas tiene el libro, la de teclas incluida.
 		 */
-		void PreviousPage(int32 PageCount);
+		void PreviousPage(int32 PageCount, int32 PagesPerView = 1);
 		/** La siguiente pestaña; desde "Crónica", "Tú". */
 		void Next();
 		/** La anterior; desde "Tú", "Crónica". */
@@ -171,12 +171,30 @@ namespace Soulbound::Presentation
 	FHowToPlayBook HowToPlayBook(const FHowToPlayLoadResult& Loaded, const FGrimoireKeyNames& Keys);
 
 	/**
-	 * El pie de una página (S-048, R-HUD-18): "N de M", con la página contada desde 1.
-	 * @param Page La página, desde 0.
+	 * El pie de una vista (S-048, R-HUD-18): "N de M", con la página contada desde 1. Desde la segunda ampliación del autor del 17/11/2026, a doble
+	 * página, "N-N+1 de M", o "N de M" si la vista solo tiene una (la última, con un total impar).
+	 * @param Page La página, desde 0; cuenta la vista en que está.
 	 * @param PageCount Cuántas hay.
-	 * @return "2 de 5"; sin páginas, vacío.
+	 * @param PagesPerView Cuántas se ven a la vez (HowToPlayPagesPerView).
+	 * @return "2 de 5", "1-2 de 5" o "5 de 5"; sin páginas, vacío.
 	 */
-	FString HowToPlayPageFooter(int32 Page, int32 PageCount);
+	FString HowToPlayPageFooter(int32 Page, int32 PageCount, int32 PagesPerView = 1);
+
+	/**
+	 * Cuántas páginas de "Cómo se juega" se ven a la vez (S-048, segunda ampliación del autor del 17/11/2026, R-HUD-18, nombre propuesto): dos con
+	 * la imagen del libro, una en cada hoja; una sin ella.
+	 */
+	int32 HowToPlayPagesPerView(bool bBook);
+
+	/**
+	 * El tamaño de una imagen de "Cómo se juega" dentro de una hoja (S-048, segunda ampliación del autor del 17/11/2026, R-HUD-18, nombre propuesto):
+	 * el mayor que cabe en el ancho de la hoja y en el alto máximo sin deformarla, agrandándola si es pequeña.
+	 * @param SheetWidth El ancho de la hoja.
+	 * @param MaxHeight El alto máximo (HowToPlayImageMaxHeight por el alto de la hoja; a hoja entera, el alto de la hoja).
+	 * @param ImageSize El tamaño de la textura, en píxeles; sus proporciones.
+	 * @return El tamaño; cero si la imagen o los límites no tienen tamaño.
+	 */
+	FVector2f HowToPlayImageSize(float SheetWidth, float MaxHeight, const FVector2f& ImageSize);
 
 	/**
 	 * El libro aplanado para el bloque de texto del menú de hoy (S-048, precisión del autor de R-HUD-19): el título y el texto de cada página,
@@ -218,6 +236,26 @@ namespace Soulbound::Presentation
 	 * @return Las zonas; nunca de tamaño negativo.
 	 */
 	FGrimoireBookLayout GrimoireBookLayout(const FVector2f& PanelSize, const FVector2f& ImageSize, const FMargin& BorderFraction, float PageInset, float SpineGapFraction);
+
+	/** El sitio de la marca de agua de "Cómo se juega" en cada hoja (S-048, segunda ampliación del autor del 17/11/2026, R-HUD-20, nombre propuesto). */
+	struct FGrimoireWatermarks
+	{
+		/** Si hay marca: con la imagen del libro y con la textura de la marca. */
+		bool bShown = false;
+		/** La de la hoja izquierda y la de la derecha, en coordenadas del panel. */
+		FBox2f Left = FBox2f(FVector2f::ZeroVector, FVector2f::ZeroVector);
+		FBox2f Right = FBox2f(FVector2f::ZeroVector, FVector2f::ZeroVector);
+	};
+
+	/**
+	 * Dónde va la marca de agua de cada hoja (S-048, segunda ampliación, corrección del autor del 17/11/2026: en las dos hojas): centrada en su hoja,
+	 * al mayor tamaño que cabe sin deformarse en la fracción dada del ancho y del alto de la hoja.
+	 * @param Book La zona de contenido del libro (GrimoireBookLayout): sus dos hojas.
+	 * @param TextureSize El tamaño de la textura de la marca; cero si no hay.
+	 * @param SizeFraction La fracción de la hoja (HowToPlayWatermarkSize).
+	 * @return Las dos marcas; sin textura o sin el libro, ninguna.
+	 */
+	FGrimoireWatermarks GrimoireWatermarks(const FGrimoireBookLayout& Book, const FVector2f& TextureSize, float SizeFraction);
 
 	/**
 	 * La barra de desplazamiento de las pestañas del Grimorio (S-048, corrección 1 del autor del 17/11/2026, R-HUD-20): su grosor y su margen, que se

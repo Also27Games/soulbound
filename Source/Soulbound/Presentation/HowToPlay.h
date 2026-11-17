@@ -27,6 +27,10 @@ enum class EHowToPlayBlockKind : uint8
 	WardenLine,
 	/** Un elemento de lista: una línea que empieza por "- ", sin el guion. */
 	ListItem,
+	/** S-048 (segunda ampliación del autor del 17/11/2026): un subtítulo, una línea que empieza por "### ", sin las almohadillas. */
+	Subtitle,
+	/** S-048 (segunda ampliación del autor del 17/11/2026): una imagen, una línea "![](Nombre)", con su nombre en ImageName y sin texto. */
+	Image,
 };
 
 /**
@@ -70,9 +74,13 @@ struct SOULBOUND_API FHowToPlayBlock
 	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
 	TArray<FHowToPlaySpan> Spans;
 
+	/** S-048 (segunda ampliación del autor del 17/11/2026): en un bloque de imagen, su nombre (HowToPlayImagePath); en los demás, vacío. */
+	UPROPERTY(BlueprintReadOnly, Category = "Cómo se juega")
+	FString ImageName;
+
 	bool operator==(const FHowToPlayBlock& Other) const
 	{
-		return Kind == Other.Kind && Text == Other.Text && Spans == Other.Spans;
+		return Kind == Other.Kind && Text == Other.Text && Spans == Other.Spans && ImageName == Other.ImageName;
 	}
 };
 

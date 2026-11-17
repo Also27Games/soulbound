@@ -526,6 +526,7 @@ bool FGrimoireBookPagesTest::RunTest(const FString& Parameters)
 {
 	// CA-HUD-33 (R-HUD-18): con cuatro páginas del autor hay cinco en el libro, la última "Teclas". Se empieza en la primera; "Siguiente" avanza una y
 	// se queda en la última; "Anterior" retrocede una y se queda en la primera (no es cíclico); el pie dice "N de M" con la página y el total.
+	// Ajustado por la segunda ampliación del autor del 17/11/2026 (CA-HUD-54): así es sin la imagen del libro, de una en una; con ella, a doble página.
 	using namespace Soulbound::Presentation;
 	FGrimoireKeyNames Keys;
 	const FHowToPlayBook Book = GbFourPageBook(*this, Keys);
@@ -541,30 +542,32 @@ bool FGrimoireBookPagesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("El libro cargó"), Book.IsLoaded());
 	const int32 Count = Book.Pages.Num();
 
+	const int32 One = HowToPlayPagesPerView(false);
+	TestEqual(TEXT("Sin el libro, una página cada vez"), One, 1);
 	FGrimoireTabState Tab;
 	TestEqual(TEXT("Se empieza en la primera"), Tab.Page, 0);
-	TestEqual(TEXT("El pie de la primera"), HowToPlayPageFooter(Tab.Page, Count), FString(TEXT("1 de 5")));
-	Tab.PreviousPage(Count);
+	TestEqual(TEXT("El pie de la primera"), HowToPlayPageFooter(Tab.Page, Count, One), FString(TEXT("1 de 5")));
+	Tab.PreviousPage(Count, One);
 	TestEqual(TEXT("Anterior en la primera: se queda"), Tab.Page, 0);
-	Tab.NextPage(Count);
+	Tab.NextPage(Count, One);
 	TestEqual(TEXT("Siguiente: la segunda"), Tab.Page, 1);
-	TestEqual(TEXT("El pie de la segunda"), HowToPlayPageFooter(Tab.Page, Count), FString(TEXT("2 de 5")));
+	TestEqual(TEXT("El pie de la segunda"), HowToPlayPageFooter(Tab.Page, Count, One), FString(TEXT("2 de 5")));
 	for (int32 Step = 0; Step < 10; ++Step)
 	{
-		Tab.NextPage(Count);
+		Tab.NextPage(Count, One);
 	}
 	TestEqual(TEXT("Siguiente muchas veces: se queda en la última"), Tab.Page, Count - 1);
-	TestEqual(TEXT("El pie de la última"), HowToPlayPageFooter(Tab.Page, Count), FString(TEXT("5 de 5")));
-	Tab.PreviousPage(Count);
+	TestEqual(TEXT("El pie de la última"), HowToPlayPageFooter(Tab.Page, Count, One), FString(TEXT("5 de 5")));
+	Tab.PreviousPage(Count, One);
 	TestEqual(TEXT("Anterior: retrocede una"), Tab.Page, Count - 2);
-	TestEqual(TEXT("El pie de la penúltima"), HowToPlayPageFooter(Tab.Page, Count), FString(TEXT("4 de 5")));
+	TestEqual(TEXT("El pie de la penúltima"), HowToPlayPageFooter(Tab.Page, Count, One), FString(TEXT("4 de 5")));
 	for (int32 Step = 0; Step < 10; ++Step)
 	{
-		Tab.PreviousPage(Count);
+		Tab.PreviousPage(Count, One);
 	}
 	TestEqual(TEXT("Anterior muchas veces: se queda en la primera"), Tab.Page, 0);
-	TestTrue(TEXT("Sin páginas, el pie está vacío"), HowToPlayPageFooter(0, 0).IsEmpty());
-	Tab.NextPage(0);
+	TestTrue(TEXT("Sin páginas, el pie está vacío"), HowToPlayPageFooter(0, 0, One).IsEmpty());
+	Tab.NextPage(0, One);
 	TestEqual(TEXT("Sin páginas, Siguiente no se mueve"), Tab.Page, 0);
 	return true;
 }
@@ -575,14 +578,15 @@ bool FGrimoireBookKeysTest::RunTest(const FString& Parameters)
 {
 	// CA-HUD-34 (R-HUD-18): la página "Teclas" lleva las teclas de la vista con el nombre de las configuradas, en español donde lo haya: las del
 	// Grimorio, sus pestañas y sus páginas (precisión del autor del 17/11/2026: flechas arriba y abajo), 1 a 9 y 0, Intro, la vista y las etiquetas;
-	// sin H, P, T ni D (S-045). Al cerrar y abrir el Grimorio y volver a la pestaña, la página es la que se dejó.
+	// sin H, P, T ni D (S-045). Al cerrar y abrir el Grimorio y volver a la pestaña, la página es la que se dejó. Ajustado por la segunda ampliación
+	// del autor del 17/11/2026 (CA-HUD-54): con el libro, lo que se recuerda es la vista, por su primera página.
 	using namespace Soulbound::Presentation;
 	FGrimoireKeyNames Keys;
 	const FHowToPlayBook Book = GbFourPageBook(*this, Keys);
 	const FHowToPlayPage KeysPage = HowToPlayKeysPage(Keys);
 	TestEqual(TEXT("Su título"), KeysPage.Title, FString(HowToPlayKeysTitle));
 	TestTrue(TEXT("Es la última del libro"), Book.Pages.Num() > 0 && Book.Pages.Last() == KeysPage);
-	TestTrue(TEXT("Sin imagen"), KeysPage.ImageName.IsEmpty());
+	TestFalse(TEXT("Sin imagen"), KeysPage.Blocks.ContainsByPredicate([](const FHowToPlayBlock& Block) { return Block.Kind == EHowToPlayBlockKind::Image; }));
 	// Precisión del autor al aprobar el plan de la ampliación (17/11/2026): la página "Teclas" es una lista, una tecla por elemento; su texto sin
 	// marcas, un elemento por línea, cada uno con su marca.
 	TestTrue(TEXT("Una lista de varias teclas"), KeysPage.Blocks.Num() > 1
@@ -633,16 +637,17 @@ bool FGrimoireBookKeysTest::RunTest(const FString& Parameters)
 
 	// El recuerdo: la página se queda al cerrar, abrir y volver; una partida nueva (un estado nuevo) empieza en la primera.
 	const int32 Count = Book.Pages.Num();
+	const int32 Two = HowToPlayPagesPerView(true);
 	FGrimoireTabState Tab;
 	Tab.Select(EGrimoireTab::HowToPlay);
-	Tab.NextPage(Count);
-	Tab.NextPage(Count);
-	TestEqual(TEXT("En la tercera"), Tab.Page, 2);
+	Tab.NextPage(Count, Two);
+	TestEqual(TEXT("En la segunda vista: la tercera y la cuarta"), Tab.Page, 2);
 	Tab.Open();
 	TestEqual(TEXT("Al abrir, la pestaña es Tú"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::You));
 	Tab.Next();
 	Tab.Select(EGrimoireTab::HowToPlay);
-	TestEqual(TEXT("Al volver a Cómo se juega, la página que se dejó"), Tab.Page, 2);
+	TestEqual(TEXT("Al volver a Cómo se juega, la vista que se dejó"), Tab.Page, 2);
+	TestEqual(TEXT("Y su pie"), HowToPlayPageFooter(Tab.Page, Count, Two), FString(TEXT("3-4 de 5")));
 	TestEqual(TEXT("Una partida nueva, la primera"), FGrimoireTabState().Page, 0);
 	return true;
 }
@@ -708,11 +713,6 @@ bool FGrimoireBookLayoutTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Sin textura, la zona de hoy"), Flat.Content.Min.Equals(GrimoireFlatPadding, 0.01f) && Flat.Content.Max.Equals(Panel - GrimoireFlatPadding, 0.01f));
 	TestTrue(TEXT("Sin textura, una sola columna"), Flat.LeftPage == Flat.Content && Flat.RightPage == Flat.Content);
 	TestTrue(TEXT("Sin textura, nada que pintar"), Flat.BrushSize.IsNearlyZero());
-
-	// R-HUD-18: la imagen al lado del texto si cabe; si no, debajo.
-	TestTrue(TEXT("Ancho de sobra: la imagen al lado"), HowToPlayImageBeside(800.f, 300.f));
-	TestTrue(TEXT("Justo: al lado"), HowToPlayImageBeside(600.f, 300.f));
-	TestFalse(TEXT("Estrecho: la imagen debajo"), HowToPlayImageBeside(500.f, 300.f));
 	return true;
 }
 
@@ -878,6 +878,148 @@ bool FGrimoireItalicFontTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Su negrita: esa fuente, en negrita cursiva"), BoldItalic.FontObject == Own.Font && BoldItalic.TypefaceFontName == Own.BoldItalicTypeface);
 	TestTrue(TEXT("Su tamaño"), FMath::IsNearlyEqual(static_cast<float>(BoldItalic.Size), 18.f));
 	TestTrue(TEXT("Sin cursiva, lo de antes"), GrimoireFontInfo(Own, false, 14).TypefaceFontName == Own.RegularTypeface && GrimoireFontInfo(Own, true, 14, false).TypefaceFontName == Own.BoldTypeface);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireSpreadTest, "Soulbound.Game.Presentation.Grimorio.LibroADoblePagina", GrimoireBookTestFlags)
+
+bool FGrimoireSpreadTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-54 (R-HUD-18, segunda ampliación del autor del 17/11/2026): con cinco páginas y el libro, las vistas son (1, 2), (3, 4) y (5, nada).
+	// "Siguiente" desde la primera lleva a 3 y 4 y se queda en la última; "Anterior", al revés, se queda en la primera. El pie dice "1-2 de 5",
+	// "3-4 de 5" y "5 de 5". Sin el libro, de una en una (CA-HUD-33). La página "Teclas" es la última, caiga en la hoja que caiga.
+	using namespace Soulbound::Presentation;
+	FGrimoireKeyNames Keys;
+	const FHowToPlayBook Book = GbFourPageBook(*this, Keys);
+	const int32 Count = Book.Pages.Num();
+	if (!TestEqual(TEXT("Cinco páginas, la última Teclas"), Count, 5) || !TestEqual(TEXT("La última, Teclas"), Book.Pages.Last().Title, FString(HowToPlayKeysTitle)))
+	{
+		return false;
+	}
+	const int32 Two = HowToPlayPagesPerView(true);
+	TestEqual(TEXT("Con el libro, dos páginas a la vez"), Two, 2);
+	TestEqual(TEXT("Sin el libro, una"), HowToPlayPagesPerView(false), 1);
+
+	FGrimoireTabState Tab;
+	TestEqual(TEXT("La primera vista: 1 y 2"), Tab.Page, 0);
+	TestEqual(TEXT("Su pie"), HowToPlayPageFooter(Tab.Page, Count, Two), FString(TEXT("1-2 de 5")));
+	Tab.PreviousPage(Count, Two);
+	TestEqual(TEXT("Anterior en la primera: se queda"), Tab.Page, 0);
+	Tab.NextPage(Count, Two);
+	TestEqual(TEXT("Siguiente: 3 y 4"), Tab.Page, 2);
+	TestEqual(TEXT("Su pie"), HowToPlayPageFooter(Tab.Page, Count, Two), FString(TEXT("3-4 de 5")));
+	Tab.NextPage(Count, Two);
+	TestEqual(TEXT("Siguiente: la 5, sola a la izquierda"), Tab.Page, 4);
+	TestEqual(TEXT("Su pie, con una sola página"), HowToPlayPageFooter(Tab.Page, Count, Two), FString(TEXT("5 de 5")));
+	for (int32 Step = 0; Step < 5; ++Step)
+	{
+		Tab.NextPage(Count, Two);
+	}
+	TestEqual(TEXT("Siguiente en la última: se queda"), Tab.Page, 4);
+	Tab.PreviousPage(Count, Two);
+	TestEqual(TEXT("Anterior: 3 y 4"), Tab.Page, 2);
+	Tab.PreviousPage(Count, Two);
+	TestEqual(TEXT("Anterior: 1 y 2"), Tab.Page, 0);
+	Tab.PreviousPage(Count, Two);
+	TestEqual(TEXT("Anterior en la primera: se queda"), Tab.Page, 0);
+
+	// Con un total par, la última vista lleva dos; una página que no empieza vista cuenta la suya.
+	TestEqual(TEXT("Seis páginas, la última vista: 5-6"), HowToPlayPageFooter(4, 6, Two), FString(TEXT("5-6 de 6")));
+	TestEqual(TEXT("Una página en medio de una vista: el pie de la vista"), HowToPlayPageFooter(3, 5, Two), FString(TEXT("3-4 de 5")));
+	FGrimoireTabState Odd;
+	Odd.Page = 3;
+	Odd.NextPage(Count, Two);
+	TestEqual(TEXT("Desde una página en medio de una vista, Siguiente lleva a la vista siguiente"), Odd.Page, 4);
+	Odd.Page = 3;
+	Odd.PreviousPage(Count, Two);
+	TestEqual(TEXT("Y Anterior, a la vista anterior"), Odd.Page, 0);
+	TestEqual(TEXT("Una sola página: su pie"), HowToPlayPageFooter(0, 1, Two), FString(TEXT("1 de 1")));
+	TestTrue(TEXT("Sin páginas, el pie está vacío"), HowToPlayPageFooter(0, 0, Two).IsEmpty());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireImageSizeTest, "Soulbound.Game.Presentation.Grimorio.TamanoDeLaImagen", GrimoireBookTestFlags)
+
+bool FGrimoireImageSizeTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-56 (R-HUD-18, segunda ampliación del autor del 17/11/2026): el tamaño de una imagen dentro de una hoja, para el ancho de la hoja, el alto
+	// máximo y las proporciones de la imagen, cabe en los dos límites y conserva las proporciones. Precisión del plan aprobado: el mayor que cabe,
+	// agrandando la imagen si es pequeña; así toca uno de los dos límites.
+	using namespace Soulbound::Presentation;
+	struct FCase
+	{
+		const TCHAR* Name;
+		float Width;
+		float MaxHeight;
+		FVector2f Image;
+	};
+	const FCase Cases[] = {
+		{TEXT("Ancha"), 400.f, 300.f, FVector2f(800.f, 400.f)},
+		{TEXT("Alta"), 400.f, 300.f, FVector2f(100.f, 400.f)},
+		{TEXT("Pequeña"), 400.f, 300.f, FVector2f(40.f, 20.f)},
+		{TEXT("Cuadrada en hoja estrecha"), 200.f, 500.f, FVector2f(512.f, 512.f)},
+		{TEXT("Justa"), 400.f, 300.f, FVector2f(400.f, 300.f)},
+	};
+	for (const FCase& Case : Cases)
+	{
+		const FVector2f Size = HowToPlayImageSize(Case.Width, Case.MaxHeight, Case.Image);
+		const FString Name = Case.Name;
+		TestTrue(Name + TEXT(": cabe en el ancho de la hoja"), Size.X > 0.f && Size.X <= Case.Width + 0.01f);
+		TestTrue(Name + TEXT(": cabe en el alto máximo"), Size.Y > 0.f && Size.Y <= Case.MaxHeight + 0.01f);
+		TestTrue(Name + TEXT(": conserva las proporciones"), Size.Y > 0.f && FMath::IsNearlyEqual(Size.X / Size.Y, Case.Image.X / Case.Image.Y, 0.001f));
+		TestTrue(Name + TEXT(": el mayor que cabe, toca un límite"), FMath::IsNearlyEqual(Size.X, Case.Width, 0.01f) || FMath::IsNearlyEqual(Size.Y, Case.MaxHeight, 0.01f));
+	}
+	TestTrue(TEXT("La ancha: 400 x 200"), HowToPlayImageSize(400.f, 300.f, FVector2f(800.f, 400.f)).Equals(FVector2f(400.f, 200.f), 0.01f));
+	TestTrue(TEXT("La alta: 75 x 300"), HowToPlayImageSize(400.f, 300.f, FVector2f(100.f, 400.f)).Equals(FVector2f(75.f, 300.f), 0.01f));
+	TestTrue(TEXT("Sin imagen: cero"), HowToPlayImageSize(400.f, 300.f, FVector2f::ZeroVector).IsNearlyZero());
+	TestTrue(TEXT("Sin sitio: cero"), HowToPlayImageSize(0.f, 300.f, FVector2f(100.f, 100.f)).IsNearlyZero() && HowToPlayImageSize(400.f, 0.f, FVector2f(100.f, 100.f)).IsNearlyZero());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireWatermarkTest, "Soulbound.Game.Presentation.Grimorio.MarcaDeAguaEnLasDosHojas", GrimoireBookTestFlags)
+
+bool FGrimoireWatermarkTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-57 (R-HUD-20, segunda ampliación y corrección del autor del 17/11/2026): la marca de agua va en las dos hojas: un rectángulo por hoja,
+	// cada uno centrado en la suya y dentro de ella, al mayor tamaño que cabe sin deformarse en la fracción dada de la hoja; sin textura o sin el
+	// libro, ninguna marca.
+	using namespace Soulbound::Presentation;
+	const FMargin Border(0.08f);
+	const FGrimoireBookLayout Book = GrimoireBookLayout(FVector2f(1200.f, 800.f), FVector2f(1600.f, 1000.f), Border, 12.f, 0.06f);
+	if (!TestTrue(TEXT("El libro"), Book.bBook))
+	{
+		return false;
+	}
+	for (const FVector2f& Texture : {FVector2f(512.f, 512.f), FVector2f(800.f, 200.f), FVector2f(100.f, 600.f)})
+	{
+		const FGrimoireWatermarks Marks = GrimoireWatermarks(Book, Texture, 0.7f);
+		const FString Case = FString::Printf(TEXT("Textura %.0fx%.0f"), Texture.X, Texture.Y);
+		TestTrue(Case + TEXT(": hay marca"), Marks.bShown);
+		struct FSheet
+		{
+			const TCHAR* Name;
+			FBox2f Mark;
+			FBox2f Page;
+		};
+		const FSheet Sheets[] = {{TEXT("izquierda"), Marks.Left, Book.LeftPage}, {TEXT("derecha"), Marks.Right, Book.RightPage}};
+		for (const FSheet& Sheet : Sheets)
+		{
+			const FBox2f& Mark = Sheet.Mark;
+			const FBox2f& Page = Sheet.Page;
+			const FString Where = Case + TEXT(", hoja ") + Sheet.Name;
+			TestTrue(Where + TEXT(": centrada en su hoja"), Mark.GetCenter().Equals(Page.GetCenter(), 0.01f));
+			TestTrue(Where + TEXT(": dentro de su hoja"), Mark.Min.X >= Page.Min.X - 0.01f && Mark.Min.Y >= Page.Min.Y - 0.01f
+				&& Mark.Max.X <= Page.Max.X + 0.01f && Mark.Max.Y <= Page.Max.Y + 0.01f);
+			const FVector2f Size = Mark.GetSize();
+			const FVector2f PageSize = Page.GetSize();
+			TestTrue(Where + TEXT(": cabe en la fracción de la hoja"), Size.X <= PageSize.X * 0.7f + 0.01f && Size.Y <= PageSize.Y * 0.7f + 0.01f);
+			TestTrue(Where + TEXT(": la mayor que cabe"), FMath::IsNearlyEqual(Size.X, PageSize.X * 0.7f, 0.01f) || FMath::IsNearlyEqual(Size.Y, PageSize.Y * 0.7f, 0.01f));
+			TestTrue(Where + TEXT(": sin deformarse"), Size.Y > 0.f && FMath::IsNearlyEqual(Size.X / Size.Y, Texture.X / Texture.Y, 0.001f));
+		}
+	}
+	TestFalse(TEXT("Sin textura, ninguna marca"), GrimoireWatermarks(Book, FVector2f::ZeroVector, 0.7f).bShown);
+	const FGrimoireBookLayout Flat = GrimoireBookLayout(FVector2f(1200.f, 800.f), FVector2f::ZeroVector, Border, 12.f, 0.06f);
+	TestFalse(TEXT("Sin el libro, ninguna marca"), GrimoireWatermarks(Flat, FVector2f(512.f, 512.f), 0.7f).bShown);
 	return true;
 }
 

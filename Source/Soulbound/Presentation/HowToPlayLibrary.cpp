@@ -68,6 +68,17 @@ FText UHowToPlayLibrary::HowToPlayPageRichText(int32 Index)
 	return Book.Pages.IsValidIndex(Index) ? FText::FromString(Soulbound::Presentation::HowToPlayRichText(Book.Pages[Index])) : FText();
 }
 
+// TODO(R-HUD-19): stubs del commit de los tests en rojo de la doble página; la implementación va en el commit siguiente.
+FText UHowToPlayLibrary::HowToPlayBlockRichText(const FHowToPlayBlock& Block)
+{
+	return FText();
+}
+
+UTexture2D* UHowToPlayLibrary::HowToPlayImage(const FString& ImageName)
+{
+	return nullptr;
+}
+
 UTexture2D* UHowToPlayLibrary::HowToPlayPageImage(int32 Index)
 {
 	const FHowToPlayPage Page = HowToPlayPage(Index);

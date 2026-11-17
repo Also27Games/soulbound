@@ -55,6 +55,21 @@ public:
 	static FText HowToPlayPageRichText(int32 Index);
 
 	/**
+	 * S-048 (segunda ampliación del autor del 17/11/2026, R-HUD-19): un bloque en texto enriquecido (HowToPlayBlockRichText), para montar la página
+	 * bloque a bloque con sus imágenes en su sitio. Un bloque de imagen, vacío.
+	 */
+	UFUNCTION(BlueprintPure, Category = "Cómo se juega")
+	static FText HowToPlayBlockRichText(const FHowToPlayBlock& Block);
+
+	/**
+	 * S-048 (segunda ampliación del autor del 17/11/2026, R-HUD-19): la textura de una imagen por su nombre (el ImageName de un bloque de imagen), de
+	 * la carpeta de la ayuda (HowToPlayImageFolder). Nula si el nombre está vacío o la textura no existe; esto último se dice una vez en el registro
+	 * por cada nombre.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Cómo se juega")
+	static UTexture2D* HowToPlayImage(const FString& ImageName);
+
+	/**
 	 * S-048 (R-HUD-19): la imagen de una página, de la carpeta de la ayuda (HowToPlayImageFolder). Nula si la página no lleva o si la textura no
 	 * existe; esto último se dice una vez en el registro por cada nombre.
 	 */

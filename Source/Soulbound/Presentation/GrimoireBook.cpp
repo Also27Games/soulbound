@@ -178,7 +178,23 @@ namespace Soulbound::Presentation
 		return Book;
 	}
 
-	FString HowToPlayPageFooter(int32 Page, int32 PageCount)
+	// TODO(R-HUD-18): stubs del commit de los tests en rojo de la doble página; la implementación va en el commit siguiente.
+	int32 HowToPlayPagesPerView(bool bBook)
+	{
+		return 1;
+	}
+
+	FVector2f HowToPlayImageSize(float SheetWidth, float MaxHeight, const FVector2f& ImageSize)
+	{
+		return FVector2f::ZeroVector;
+	}
+
+	FGrimoireWatermarks GrimoireWatermarks(const FGrimoireBookLayout& Book, const FVector2f& TextureSize, float SizeFraction)
+	{
+		return FGrimoireWatermarks();
+	}
+
+	FString HowToPlayPageFooter(int32 Page, int32 PageCount, int32 PagesPerView)
 	{
 		if (PageCount <= 0)
 		{
@@ -310,13 +326,13 @@ namespace Soulbound::Presentation
 		return !bPrologue && !bMatchOver && !bWardenLineOnScreen;
 	}
 
-	void FGrimoireTabState::NextPage(int32 PageCount)
+	void FGrimoireTabState::NextPage(int32 PageCount, int32 PagesPerView)
 	{
 		// R-HUD-18: no es cíclico; en la última se queda.
 		Page = PageCount <= 0 ? 0 : FMath::Clamp(Page + 1, 0, PageCount - 1);
 	}
 
-	void FGrimoireTabState::PreviousPage(int32 PageCount)
+	void FGrimoireTabState::PreviousPage(int32 PageCount, int32 PagesPerView)
 	{
 		// R-HUD-18: en la primera se queda.
 		Page = PageCount <= 0 ? 0 : FMath::Clamp(Page - 1, 0, PageCount - 1);
