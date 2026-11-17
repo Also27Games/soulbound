@@ -174,8 +174,6 @@ Mientras conservéis una runa de ese tipo, mantendréis su poder. Y la runa de v
 
 > «¿Y los Ecos? ¡Ja! Bastante hice permitiéndoles disfrutar de Celeridad… No pienso malgastar más magia en esos fracasados.»
 
-##
-
 ### Mis seis pequeños regalos
 
 - **Celeridad:** Elegid uno o dos dados antes de tirar.
@@ -245,8 +243,6 @@ El ganador podrá **robar una runa** al perdedor. Si el retado no tiene ninguna,
 
 > «¿No eliges a tiempo? ¡Pues te quedas sin nada! Mis regalos no son eternos.»
 
-##
-
 ### El anillo. ¡Demostrad vuestra destreza!
 
 > «Un simple aro acercándose a una runa… Pulsad en el momento preciso. Parece sencillo, ¿verdad? ¡Ya veremos!»
@@ -262,8 +258,6 @@ El ganador podrá **robar una runa** al perdedor. Si el retado no tiene ninguna,
 ## 7. Mis caprichos. Vuestras desgracias.
 
 > «¿Creíais que bastante teníais con enfrentaros entre vosotros? ¡Qué ingenuos! Os habíais olvidado de lo más importante… ¡DE MÍ!»
-
-##
 
 ### ¡Aquí se hace lo que yo diga!
 
