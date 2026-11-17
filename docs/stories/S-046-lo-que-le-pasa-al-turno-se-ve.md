@@ -64,10 +64,12 @@ En `Soulbound`:
 
 Manuales, por el autor, en PIE, con captura:
 
-- **Turno perdido**: tras un evento que quita un turno a un dummy (o `SbEvent` con uno que lo haga), al llegar su turno el panel de abajo dice "El asiento N pierde este turno". Lo mismo con el humano: "Pierdes este turno".
+- **Turno perdido**: tras un evento que quita un turno a un dummy (`SbEvent pierdes-un-turno`; corrección del autor del 17/11/2026), al llegar su turno el panel de abajo dice "El asiento N pierde este turno". Lo mismo con el humano: "Pierdes este turno".
 - **Turno extra**: tras el evento "Prisa" (`SbEvent prisa`) sobre un dummy y sobre el humano, al repetir turno el panel lo dice.
 - **La ficha cortada**: con `SbStrike tropiezo` mientras su ficha camina entre dos casillas, y lo mismo con la de un dummy, la ficha vuelve deslizándose a la casilla en la que estaba; no aparece de golpe.
 - Los desenlaces de siempre (duelo, dilema, trilero, prueba de otro) siguen saliendo.
+
+**Resultado (autor, PIE, 17/11/2026)**. Superadas: el turno perdido de un dummy ("El asiento N pierde este turno", con `SbEvent pierdes-un-turno`); el turno extra de un dummy ("Turno extra del asiento N") y el del humano (su panel de destino lleva "Tienes un turno extra"), con `SbEvent prisa`; y la ficha cortada con `SbStrike tropiezo`, la del humano y la de un dummy, que vuelve deslizándose. Sin verificar a mano, cubiertos por los tests: "Pierdes este turno" del humano (CA-DEC-35), la línea en la elección de dados con Celeridad (CA-DEC-36) y la cola cuando coinciden dos desenlaces (CA-DEC-37).
 
 ## Notas para quien lo implemente
 
