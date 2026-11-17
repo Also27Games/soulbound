@@ -2,6 +2,7 @@
 // Funciones puras sobre un FMatchState armado a mano con los Elegidos de elegidos.json: sin mundo, sin actor y sin Slate.
 // Filtro: "Soulbound.Game.Presentation.Grimorio".
 
+#include "../../Presentation/BoardViewState.h"
 #include "../../Presentation/ChronicleLines.h"
 #include "../../Presentation/EventText.h"
 #include "../../Presentation/GrimoireBook.h"
@@ -156,7 +157,8 @@ bool FGrimoireYouTabTest::RunTest(const FString& Parameters)
 	const FGrimoireYouView Echo = GrimoireYouView(State, EchoSeat, Texts, GbSeatColors);
 	TestFalse(TEXT("Eco: su tarjeta es la de un Eco"), Echo.Row.bElect);
 	TestEqual(TEXT("Eco: la tarjeta es la suya"), Echo.Row.Seat, EchoSeat);
-	TestEqual(TEXT("Eco tras la carrera: la runa de su hogar"), Echo.HomeRuneLine, FString(TEXT("La runa de tu hogar (D4, Dominio 4) te da Celeridad: tiras dos dados")));
+	// Corrección del autor del 17/11/2026: Celeridad deja elegir, así que "puedes tirar dos dados".
+	TestEqual(TEXT("Eco tras la carrera: la runa de su hogar"), Echo.HomeRuneLine, FString(TEXT("La runa de tu hogar (D4, Dominio 4) te da Celeridad: puedes tirar dos dados")));
 	TestEqual(TEXT("Eco: su insolencia, también"), Echo.InsolenceLine, FString(TEXT("Insolencia: 0 de 5")));
 
 	// Durante la carrera, sin hogar.
@@ -426,11 +428,53 @@ bool FGrimoireButtonTest::RunTest(const FString& Parameters)
 	using namespace Soulbound::Presentation;
 	TestEqual(TEXT("Con la tecla por defecto"), GrimoireButtonLabel(TEXT("G")), FString(TEXT("Grimorio (G)")));
 	TestEqual(TEXT("Con otra tecla"), GrimoireButtonLabel(TEXT("F1")), FString(TEXT("Grimorio (F1)")));
+	TestEqual(TEXT("Con una tecla que tiene nombre en español"), GrimoireButtonLabel(TEXT("Enter")), FString(TEXT("Grimorio (Intro)")));
 	TestTrue(TEXT("En partida, sin frase: se ve"), IsGrimoireButtonShown(false, false, false));
 	TestFalse(TEXT("En el prólogo, no"), IsGrimoireButtonShown(true, false, false));
 	TestFalse(TEXT("Con la partida terminada, no"), IsGrimoireButtonShown(false, true, false));
 	TestFalse(TEXT("Con una frase del Warden en pantalla, no"), IsGrimoireButtonShown(false, false, true));
 	TestFalse(TEXT("Con todo a la vez, no"), IsGrimoireButtonShown(true, true, true));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireKeyNamesTest, "Soulbound.Game.Presentation.Grimorio.TeclasEnEspanol", GrimoireBookTestFlags)
+
+bool FGrimoireKeyNamesTest::RunTest(const FString& Parameters)
+{
+	// Corrección del autor del 17/11/2026 tras PIE (R-HUD-10): el título del Grimorio decía "Left y Right, pestañas", los nombres que da Unreal. Dice
+	// "flechas izquierda y derecha"; con otras teclas, su nombre en español donde lo haya, como ya se hacía con Enter (Intro). Lo mismo en el bloque
+	// "Teclas" de "Cómo se juega".
+	using namespace Soulbound::Presentation;
+	TestEqual(TEXT("Enter es Intro"), SpanishKeyName(TEXT("Enter")), FString(TEXT("Intro")));
+	TestEqual(TEXT("Left es flecha izquierda"), SpanishKeyName(TEXT("Left")), FString(TEXT("flecha izquierda")));
+	TestEqual(TEXT("Right es flecha derecha"), SpanishKeyName(TEXT("Right")), FString(TEXT("flecha derecha")));
+	TestEqual(TEXT("Up es flecha arriba"), SpanishKeyName(TEXT("Up")), FString(TEXT("flecha arriba")));
+	TestEqual(TEXT("Down es flecha abajo"), SpanishKeyName(TEXT("Down")), FString(TEXT("flecha abajo")));
+	TestEqual(TEXT("Space Bar es Espacio"), SpanishKeyName(TEXT("Space Bar")), FString(TEXT("Espacio")));
+	TestEqual(TEXT("Una letra, tal cual"), SpanishKeyName(TEXT("G")), FString(TEXT("G")));
+	TestEqual(TEXT("Una tecla de función, tal cual"), SpanishKeyName(TEXT("F1")), FString(TEXT("F1")));
+	TestEqual(TEXT("La línea bajo un botón sigue diciendo Intro"), KeyHintText(TEXT("Enter")), FString(TEXT("o pulsa Intro")));
+
+	TestEqual(TEXT("Título con las teclas por defecto"), GrimoireKeysHint(TEXT("G"), TEXT("H"), TEXT("Left"), TEXT("Right")),
+		FString(TEXT("G o H para cerrar; flechas izquierda y derecha, pestañas")));
+	TestEqual(TEXT("Título con otras teclas de pestaña"), GrimoireKeysHint(TEXT("G"), TEXT("H"), TEXT("Q"), TEXT("E")),
+		FString(TEXT("G o H para cerrar; Q y E, pestañas")));
+	TestEqual(TEXT("Título con teclas que tienen nombre en español"), GrimoireKeysHint(TEXT("Enter"), TEXT("H"), TEXT("Up"), TEXT("Down")),
+		FString(TEXT("Intro o H para cerrar; flecha arriba y flecha abajo, pestañas")));
+
+	FGrimoireKeyNames Keys;
+	Keys.Grimoire = TEXT("G");
+	Keys.PreviousTab = TEXT("Left");
+	Keys.NextTab = TEXT("Right");
+	Keys.ColumnTab = TEXT("P");
+	Keys.Panels = TEXT("H");
+	Keys.View = TEXT("C");
+	Keys.RingStart = TEXT("Enter");
+	const FString HowTo = GrimoireHowToPlayText(ParseHowToPlayText(TEXT("## Qué es esto\nUno.\n\n## Cómo se gana\nDos.\n\n## El Warden\nTres.")), Keys);
+	TestTrue(TEXT("Cómo se juega: las flechas, en español"), HowTo.Contains(TEXT("flechas izquierda y derecha")));
+	TestTrue(TEXT("Cómo se juega: Intro"), HowTo.Contains(TEXT("Intro:")));
+	TestFalse(TEXT("Cómo se juega: sin Left"), HowTo.Contains(TEXT("Left")));
+	TestFalse(TEXT("Cómo se juega: sin Enter"), HowTo.Contains(TEXT("Enter")));
 	return true;
 }
 

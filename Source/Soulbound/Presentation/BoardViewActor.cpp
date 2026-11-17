@@ -1245,8 +1245,9 @@ void ABoardViewActor::BuildOverlay()
 			SAssignNew(GrimoirePanel, SGrimoirePanel)
 			.FontSize(PanelFont)
 			.DomainColors(RuneChipColors)
-			.KeysHint(FString::Printf(TEXT("%s o %s para cerrar; %s y %s, pestañas"), *GrimoireKey.GetDisplayName().ToString(), *PanelsToggleKey.GetDisplayName().ToString(),
-				*GrimoirePreviousTabKey.GetDisplayName().ToString(), *GrimoireNextTabKey.GetDisplayName().ToString()))
+			// Corrección del autor del 17/11/2026 tras PIE: los nombres de las teclas, en español donde lo haya (GrimoireKeysHint).
+			.KeysHint(Soulbound::Presentation::GrimoireKeysHint(GrimoireKey.GetDisplayName().ToString(), PanelsToggleKey.GetDisplayName().ToString(),
+				GrimoirePreviousTabKey.GetDisplayName().ToString(), GrimoireNextTabKey.GetDisplayName().ToString()))
 			// S-029 (R-VIS-21): ancho fijo, el de la capa; no depende de lo pintado antes.
 			.PanelWidth_Lambda([this]() { return Soulbound::Presentation::GrimoirePanelWidth(LayerSlateWidth()); })
 			// S-044: alto fijo, una fracción del de la pantalla menos el margen de la capa; no cambia al cambiar de pestaña.

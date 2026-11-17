@@ -143,7 +143,14 @@ namespace Soulbound::Presentation
 	/** Si el Grimorio se puede abrir (S-044, R-HUD-11): no durante un anillo del humano, ni con el botón ni con la tecla (decisión del autor del 17/11/2026). */
 	bool CanOpenGrimoire(bool bRingOpen);
 
-	/** El texto del botón del Grimorio (S-044, R-HUD-12): "Grimorio (G)", con el nombre de la tecla configurada. */
+	/**
+	 * Lo que dice el título del Grimorio sobre sus teclas (S-044, corrección del autor del 17/11/2026): "G o H para cerrar; flechas izquierda y derecha,
+	 * pestañas". Con otras teclas de pestaña, sus nombres en español donde lo haya (SpanishKeyName): "Q y E, pestañas".
+	 * @param GrimoireKey, PanelsKey, PreviousTabKey, NextTabKey Los nombres que da Unreal a las teclas configuradas.
+	 */
+	FString GrimoireKeysHint(const FString& GrimoireKey, const FString& PanelsKey, const FString& PreviousTabKey, const FString& NextTabKey);
+
+	/** El texto del botón del Grimorio (S-044, R-HUD-12): "Grimorio (G)", con el nombre de la tecla configurada, en español donde lo haya. */
 	FString GrimoireButtonLabel(const FString& KeyName);
 
 	/**

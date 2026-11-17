@@ -1,10 +1,24 @@
 #include "GrimoireBook.h"
 
+#include "BoardViewState.h"
+
 #include "Match/MatchState.h"
 #include "Match/VictoryRules.h"
 
 namespace Soulbound::Presentation
 {
+	namespace
+	{
+		/** Las dos teclas de pestaña: "flechas izquierda y derecha" con las de por defecto; si no, cada una con su nombre en español donde lo haya. */
+		FString TabKeysText(const FString& PreviousTabKey, const FString& NextTabKey)
+		{
+			if (PreviousTabKey == TEXT("Left") && NextTabKey == TEXT("Right"))
+			{
+				return TEXT("flechas izquierda y derecha");
+			}
+			return FString::Printf(TEXT("%s y %s"), *SpanishKeyName(PreviousTabKey), *SpanishKeyName(NextTabKey));
+		}
+	}
 	const TArray<EGrimoireTab>& GrimoireTabs()
 	{
 		static const TArray<EGrimoireTab> Tabs{EGrimoireTab::You, EGrimoireTab::Table, EGrimoireTab::Board, EGrimoireTab::HowToPlay, EGrimoireTab::Chronicle};
@@ -70,7 +84,7 @@ namespace Soulbound::Presentation
 		{
 			const FString Name = State.Board.Domains.IsValidIndex(Seat.DomainId) ? State.Board.Domains[Seat.DomainId].Name : FString();
 			const FString Domain = Name.IsEmpty() ? FString::Printf(TEXT("D%d"), Seat.DomainId) : FString::Printf(TEXT("D%d, %s"), Seat.DomainId, *Name);
-			View.HomeRuneLine = FString::Printf(TEXT("La runa de tu hogar (%s) te da Celeridad: tiras dos dados"), *Domain);
+			View.HomeRuneLine = FString::Printf(TEXT("La runa de tu hogar (%s) te da Celeridad: puedes tirar dos dados"), *Domain);
 		}
 		return View;
 	}
@@ -108,13 +122,14 @@ namespace Soulbound::Presentation
 		const FString Body = Loaded.IsSuccess() ? HowToPlayDisplayText(Loaded.Text).TrimEnd() : Loaded.Message;
 		TArray<FString> Lines;
 		Lines.Add(TEXT("Teclas"));
-		Lines.Add(FString::Printf(TEXT("%s: abre y cierra el Grimorio (también su botón, abajo a la derecha)"), *Keys.Grimoire));
-		Lines.Add(FString::Printf(TEXT("%s y %s: pestaña anterior y siguiente del Grimorio"), *Keys.PreviousTab, *Keys.NextTab));
+		// Los nombres de las teclas, en español donde lo haya (corrección del autor del 17/11/2026).
+		Lines.Add(FString::Printf(TEXT("%s: abre y cierra el Grimorio (también su botón, abajo a la derecha)"), *SpanishKeyName(Keys.Grimoire)));
+		Lines.Add(FString::Printf(TEXT("%s: pestaña anterior y siguiente del Grimorio"), *TabKeysText(Keys.PreviousTab, Keys.NextTab)));
 		Lines.Add(TEXT("1 a 9 y 0: las opciones del panel de decisión, como sus botones"));
-		Lines.Add(FString::Printf(TEXT("%s: empieza la prueba del anillo cuando estás listo"), *Keys.RingStart));
-		Lines.Add(FString::Printf(TEXT("%s: leyenda o crónica en la columna"), *Keys.ColumnTab));
-		Lines.Add(FString::Printf(TEXT("%s: oculta y enseña los paneles"), *Keys.Panels));
-		Lines.Add(FString::Printf(TEXT("%s: cambia la vista"), *Keys.View));
+		Lines.Add(FString::Printf(TEXT("%s: empieza la prueba del anillo cuando estás listo"), *SpanishKeyName(Keys.RingStart)));
+		Lines.Add(FString::Printf(TEXT("%s: leyenda o crónica en la columna"), *SpanishKeyName(Keys.ColumnTab)));
+		Lines.Add(FString::Printf(TEXT("%s: oculta y enseña los paneles"), *SpanishKeyName(Keys.Panels)));
+		Lines.Add(FString::Printf(TEXT("%s: cambia la vista"), *SpanishKeyName(Keys.View)));
 		return Body + TEXT("\n\n") + FString::Join(Lines, TEXT("\n"));
 	}
 
@@ -136,9 +151,16 @@ namespace Soulbound::Presentation
 		return !bRingOpen;
 	}
 
+
+	FString GrimoireKeysHint(const FString& GrimoireKey, const FString& PanelsKey, const FString& PreviousTabKey, const FString& NextTabKey)
+	{
+		// Corrección del autor del 17/11/2026 tras PIE: decía "Left y Right", los nombres que da Unreal.
+		return FString::Printf(TEXT("%s o %s para cerrar; %s, pestañas"), *SpanishKeyName(GrimoireKey), *SpanishKeyName(PanelsKey), *TabKeysText(PreviousTabKey, NextTabKey));
+	}
+
 	FString GrimoireButtonLabel(const FString& KeyName)
 	{
-		return FString::Printf(TEXT("Grimorio (%s)"), *KeyName);
+		return FString::Printf(TEXT("Grimorio (%s)"), *SpanishKeyName(KeyName));
 	}
 
 	bool IsGrimoireButtonShown(bool bPrologue, bool bMatchOver, bool bWardenLineOnScreen)
