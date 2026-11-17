@@ -17,6 +17,7 @@ Decidido por el autor el 17/11/2026:
 
 `como-se-juega.md` sigue siendo Markdown y pasa a leerse así:
 
+- La portada: el título de primer nivel del archivo (`# El Grimorio de los condenados`) es el título del libro, y una línea `>` antes de la primera página es la frase de la portada, del Warden. Las dos son opcionales. Texto del autor (17/11/2026): "El Grimorio de los condenados" y "Aquí está todo escrito… salvo cuánto tardaréis en decepcionarme."
 - Cada título de segundo nivel (`## Tu turno`) empieza una página y es su título.
 - Los párrafos que siguen son el texto de la regla.
 - Una línea que empieza por `>` es el comentario del Warden de esa página. Como mucho uno por página; puede no haber.
@@ -42,6 +43,7 @@ Ya no hay una lista fija de títulos exigidos: el autor decide cuántas páginas
 
 - **R-HUD-17 (nueva, sustituye la carga de S-022). El texto se lee como páginas.** El cargador devuelve una lista de páginas, cada una con su título, su texto, su comentario del Warden y el nombre de su imagen (los dos últimos pueden faltar). Es una función pura, sin Slate, con test.
   - El archivo vale si tiene al menos una página y cada página tiene título y texto. Si falta el archivo, no hay ninguna página o una página no tiene texto, el cargador lo dice con un mensaje que nombra el archivo y la página, como hoy (`FHowToPlayLoadResult`); nunca lanza.
+  - El cargador devuelve también el título del libro y la frase de la portada, vacíos si el archivo no los trae.
   - Desaparece la lista de títulos exigidos (`HowToPlayHeadings`).
   - El nombre de la imagen se resuelve en una carpeta fija de contenido (nombre a proponer; por ejemplo `/Game/Art/Ayuda/`). Si la imagen no existe, la página sale sin imagen y se dice una vez en el registro: no es un error.
 - **R-HUD-18 (nueva). La pestaña "Cómo se juega" del Grimorio es un libro.** En lugar del texto que se desplaza (S-044), la pestaña enseña una página cada vez:
@@ -51,12 +53,13 @@ Ya no hay una lista fija de títulos exigidos: el autor decide cuántas páginas
   - al volver a la pestaña durante la misma partida se ve la página en la que se dejó; en una partida nueva, la primera.
   - **La última página es "Teclas" y la pone el código**, con las teclas configuradas, para que nunca se contradiga con la configuración. El autor no la escribe.
   - Si el archivo no carga, la pestaña enseña el mensaje del cargador.
-- **R-HUD-19 (nueva). El menú lee las mismas páginas.** La librería que ya sirve el texto al menú (`UHowToPlayLibrary`) ofrece también las páginas: cuántas hay y, de cada una, su título, su texto, su comentario y su imagen, incluida la de teclas. Con eso el autor monta el libro en el widget del menú; ese widget es un asset suyo y no es de esta story.
+- **R-HUD-19 (nueva). El menú lee las mismas páginas.** La librería que ya sirve el texto al menú (`UHowToPlayLibrary`) ofrece también las páginas: cuántas hay y, de cada una, su título, su texto, su comentario y su imagen, incluida la de teclas. También el título del libro y la frase de la portada. Con eso el autor monta en el menú la pantalla que ha decidido (17/11/2026): el libro cerrado arriba, con su portada, y el botón "Jugar" debajo; el libro se abre al pulsarlo. Ese widget es un asset suyo y no es de esta story. Dentro de la partida el Grimorio se abre directamente, sin portada.
 - **R-HUD-20 (nueva, añadida por el autor el 17/11/2026). El fondo del libro.** El Grimorio, en todas sus pestañas, se pinta sobre una imagen de libro abierto en vez de sobre el fondo negro liso. La imagen es una textura opcional (ruta en Config, nombre a proponer; por ejemplo `GrimoireBackgroundTexture`, valor inicial `/Game/Art/Grimorio/T_GrimorioFondo.T_GrimorioFondo`), que se estira al tamaño del panel conservando sus bordes (los márgenes del borde en Config, como fracción de la imagen), de modo que el lomo y las esquinas no se deformen. Las páginas de la imagen son oscuras, así que los colores de los textos de hoy no cambian. El contenido de las pestañas se coloca dentro de las páginas, con un margen que no pisa el borde del libro. Ningún texto cruza el lomo: el contenido se reparte en dos columnas, una por página (en "Cómo se juega", el texto en la izquierda y la imagen en la derecha). Si la ruta está vacía o la textura no existe, el Grimorio se pinta con el fondo de hoy y se dice una vez en el registro.
 - **Lo que no cambia.** El archivo sigue en `Content/Data/Textos/` y se empaqueta como archivo suelto. Las demás pestañas del Grimorio. Ninguna regla.
 
 ## Assets (los crea el autor en el editor; commit aparte)
 
+- `Content/Art/Grimorio/T_GrimorioPortada`: la portada del libro cerrado, sin texto (el título lo escribe el juego), generada con IA, placeholder. La usa el widget del menú, no el código de esta story.
 - `Content/Art/Grimorio/T_GrimorioFondo`: la imagen del libro abierto, con las páginas oscuras y vacías, generada con IA, placeholder.
 - Una textura por página que lleve imagen, en la carpeta de la ayuda, con el nombre que diga el archivo (por ejemplo `T_Ayuda_Turno`): capturas del propio juego, recortadas a lo que explica la página.
 - El agente no crea ni toca estos assets. El PR los describe en texto y el autor los verifica en el editor antes de fusionar.
@@ -67,6 +70,7 @@ Automáticos, sin mundo.
 
 - **CA-HUD-30** (R-HUD-17, páginas). Un texto con tres títulos de segundo nivel da tres páginas, en orden, cada una con su título y su texto; los párrafos de una página se conservan como párrafos.
 - **CA-HUD-31** (R-HUD-17, comentario e imagen). Una página con una línea `>` lleva ese texto como comentario del Warden, sin el signo, y no en el texto de la regla. Una página con `![](T_Ayuda_Turno)` lleva ese nombre de imagen, y la línea no aparece en el texto. Sin esas líneas, comentario e imagen vacíos.
+- **CA-HUD-37** (R-HUD-17, portada). Un archivo que empieza por un título de primer nivel y una línea `>` da ese título y esa frase como portada, y ninguno de los dos aparece en las páginas; sin ellos, la portada queda vacía y las páginas son las mismas.
 - **CA-HUD-32** (R-HUD-17, errores). Sin archivo, el error es el de archivo no encontrado. Un archivo sin ningún título, o con una página sin texto, da un error cuyo mensaje nombra el archivo y, en el segundo caso, el título de la página. Ningún caso lanza.
 - **CA-HUD-33** (R-HUD-18, pasar página). Con cuatro páginas del autor hay cinco en el libro, la última "Teclas". Se empieza en la primera; "Siguiente" avanza una y se queda en la última; "Anterior" retrocede una y se queda en la primera; el pie dice "N de M" con la página y el total.
 - **CA-HUD-34** (R-HUD-18, teclas y recuerdo). La página "Teclas" lleva las teclas de la vista con el nombre de las configuradas. Al cerrar y abrir el Grimorio y volver a la pestaña, la página es la que se dejó.
