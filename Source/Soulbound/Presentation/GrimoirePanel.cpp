@@ -3,6 +3,7 @@
 #include "ChroniclePanel.h"
 #include "LegendPanel.h"
 #include "Styling/CoreStyle.h"
+#include "Styling/SlateStyle.h"
 #include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
@@ -13,6 +14,7 @@
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SNullWidget.h"
+#include "Widgets/Text/SRichTextBlock.h"
 #include "Widgets/Text/STextBlock.h"
 
 namespace
@@ -23,12 +25,12 @@ namespace
 	 * fotograma a otro (S-029, R-VIS-21; el mismo motivo que la frase del Warden, R-HUD-3).
 	 */
 	TSharedRef<STextBlock> GrimoireText(const Soulbound::Presentation::FGrimoireFont& Font, const TAttribute<int32>& Size, const TAttribute<float>& Wrap, const FString& Text,
-		const FLinearColor& Color, bool bBold, float Scale = 1.f, bool bItalic = false)
+		const FLinearColor& Color, bool bBold, float Scale = 1.f)
 	{
-		// S-048 (corrección 4 del autor del 17/11/2026): con la fuente del Grimorio si la hay; sin ella, la de hoy. Desde la ampliación, también en cursiva.
+		// S-048 (corrección 4 del autor del 17/11/2026): con la fuente del Grimorio si la hay; sin ella, la de hoy.
 		return SNew(STextBlock)
 			.Text(FText::FromString(Text))
-			.Font_Lambda([Font, Size, bBold, Scale, bItalic]() { return Soulbound::Presentation::GrimoireFontInfo(Font, bBold, FMath::RoundToInt(Size.Get() * Scale), bItalic); })
+			.Font_Lambda([Font, Size, bBold, Scale]() { return Soulbound::Presentation::GrimoireFontInfo(Font, bBold, FMath::RoundToInt(Size.Get() * Scale)); })
 			.ColorAndOpacity(Color)
 			.WrapTextAt_Lambda([Wrap]() { return Wrap.Get(); });
 	}
@@ -64,6 +66,10 @@ namespace
 	constexpr float HowToPlayBlockGap = 8.f;
 	constexpr float HowToPlayListGap = 2.f;
 	constexpr float HowToPlayListIndent = 12.f;
+
+	/** Los estilos del texto enriquecido de "Cómo se juega" (S-048, la negrita): el de los párrafos y el de la frase del Warden; los otros, sus marcas. */
+	const FName HowToPlayNormalStyle(TEXT("Normal"));
+	const FName HowToPlayWardenStyle(TEXT("Warden"));
 
 	/** Cuánto más pequeña va la línea de teclas del pie del Grimorio (S-048, corrección 2 del autor del 17/11/2026). */
 	constexpr float GrimoireFootScale = 0.85f;
@@ -443,7 +449,32 @@ void SGrimoirePanel::Tick(const FGeometry& AllottedGeometry, const double InCurr
 		&& ImageBesideNow() != bLastImageBeside)
 	{
 		RebuildHowToPlay();
+		return;
 	}
+	// La negrita (ampliación del autor del 17/11/2026): los estilos del texto enriquecido llevan el tamaño de letra; si cambia, se rehace la página.
+	if (bHasHowToPlay && HowToPlayStyleSize >= 0 && FMath::Max(FontSize.Get(), 1) != HowToPlayStyleSize)
+	{
+		RebuildHowToPlay();
+	}
+}
+
+void SGrimoirePanel::UpdateHowToPlayStyles()
+{
+	const int32 Size = FMath::Max(FontSize.Get(), 1);
+	if (!HowToPlayStyles.IsValid())
+	{
+		HowToPlayStyles = MakeShared<FSlateStyleSet>(TEXT("GrimoireHowToPlay"));
+	}
+	const auto Style = [this, Size](bool bBold, bool bItalic, const FLinearColor& Color)
+	{
+		return FTextBlockStyle().SetFont(Soulbound::Presentation::GrimoireFontInfo(TextFont, bBold, Size, bItalic)).SetColorAndOpacity(FSlateColor(Color));
+	};
+	// Una entrada por marca del texto enriquecido, más la de los párrafos sin marca.
+	HowToPlayStyles->Set(HowToPlayNormalStyle, Style(false, false, GrimoireTextColor));
+	HowToPlayStyles->Set(TEXT("Bold"), Style(true, false, GrimoireTextColor));
+	HowToPlayStyles->Set(HowToPlayWardenStyle, Style(false, true, WardenColor));
+	HowToPlayStyles->Set(TEXT("WardenBold"), Style(true, true, WardenColor));
+	HowToPlayStyleSize = Size;
 }
 
 bool SGrimoirePanel::ImageBesideNow() const
@@ -610,7 +641,19 @@ void SGrimoirePanel::RebuildHowToPlay()
 	const TSharedRef<SWidget> Title = GrimoireText(TextFont, Size, PageWidth, Shown.Title, GrimoireTitleColor, true, 1.15f);
 	// Ampliación del autor del 17/11/2026 (R-HUD-18): los bloques en su orden, dentro de la zona que se desplaza; el párrafo como hoy, la frase del
 	// Warden con su color y en cursiva, y los elementos de lista con su marca, seguidos sin el hueco de párrafo. Sin comentario fijo al pie.
+	// Con la negrita, cada bloque es texto enriquecido (HowToPlayBlockRichText, el mismo del menú) con los estilos de sus marcas: la negrita en
+	// negrita y, dentro de la frase del Warden, en negrita cursiva.
 	const TAttribute<float> ItemWidth = TAttribute<float>::CreateLambda([BodyWidth]() { return FMath::Max(BodyWidth.Get() - HowToPlayListIndent, 1.f); });
+	UpdateHowToPlayStyles();
+	const ISlateStyle* Styles = HowToPlayStyles.Get();
+	const auto Rich = [Styles](const FHowToPlayBlock& Item, const TAttribute<float>& Wrap) -> TSharedRef<SWidget>
+	{
+		return SNew(SRichTextBlock)
+			.Text(FText::FromString(Soulbound::Presentation::HowToPlayBlockRichText(Item)))
+			.TextStyle(Styles, Item.Kind == EHowToPlayBlockKind::WardenLine ? HowToPlayWardenStyle : HowToPlayNormalStyle)
+			.DecoratorStyleSet(Styles)
+			.WrapTextAt(Wrap);
+	};
 	const TSharedRef<SVerticalBox> Blocks = SNew(SVerticalBox);
 	for (int32 Block = 0; Block < Shown.Blocks.Num(); ++Block)
 	{
@@ -626,15 +669,11 @@ void SGrimoirePanel::RebuildHowToPlay()
 				[
 					SNew(SBox).WidthOverride(HowToPlayListIndent)[GrimoireText(TextFont, Size, BodyWidth, Soulbound::Presentation::HowToPlayListMark, GrimoireTextColor, false)]
 				]
-				+ SHorizontalBox::Slot().FillWidth(1.f)[GrimoireText(TextFont, Size, ItemWidth, Item.Text, GrimoireTextColor, false)];
-		}
-		else if (Item.Kind == EHowToPlayBlockKind::WardenLine)
-		{
-			Content = GrimoireText(TextFont, Size, BodyWidth, Item.Text, WardenColor, false, 1.f, true);
+				+ SHorizontalBox::Slot().FillWidth(1.f)[Rich(Item, ItemWidth)];
 		}
 		else
 		{
-			Content = GrimoireText(TextFont, Size, BodyWidth, Item.Text, GrimoireTextColor, false);
+			Content = Rich(Item, BodyWidth);
 		}
 		Blocks->AddSlot().AutoHeight().Padding(0.f, Gap, 0.f, 0.f)[Content];
 	}

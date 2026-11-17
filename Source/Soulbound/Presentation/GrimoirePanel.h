@@ -170,4 +170,13 @@ private:
 	bool bHasHowToPlay = false;
 	/** Sin el libro: si la imagen iba al lado la última vez que se rehízo la página. */
 	bool bLastImageBeside = true;
+	/**
+	 * S-048 (ampliación del autor del 17/11/2026, la negrita): los estilos del texto enriquecido de "Cómo se juega", uno por marca (Bold, Warden y
+	 * WardenBold) con la fuente del Grimorio y el tamaño de letra de ahora; si el tamaño cambia, se rehacen y se rehace la página.
+	 */
+	TSharedPtr<class FSlateStyleSet> HowToPlayStyles;
+	int32 HowToPlayStyleSize = -1;
+
+	/** Rehace los estilos del texto enriquecido de "Cómo se juega" con el tamaño de letra de ahora. */
+	void UpdateHowToPlayStyles();
 };

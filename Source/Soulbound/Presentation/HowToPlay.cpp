@@ -48,6 +48,35 @@ namespace Soulbound::Presentation
 			return true;
 		}
 
+		/** El texto de unos tramos, sin marcas. */
+		FString SpansText(const TArray<FHowToPlaySpan>& Spans)
+		{
+			FString Text;
+			for (const FHowToPlaySpan& Span : Spans)
+			{
+				Text += Span.Text;
+			}
+			return Text;
+		}
+
+		/** Añade un tramo; si es del mismo tipo que el anterior, lo une a él. Los vacíos no cuentan. */
+		void AddSpan(TArray<FHowToPlaySpan>& Spans, const FString& Text, bool bBold)
+		{
+			if (Text.IsEmpty())
+			{
+				return;
+			}
+			if (!Spans.IsEmpty() && Spans.Last().bBold == bBold)
+			{
+				Spans.Last().Text += Text;
+				return;
+			}
+			FHowToPlaySpan Span;
+			Span.Text = Text;
+			Span.bBold = bBold;
+			Spans.Add(MoveTemp(Span));
+		}
+
 		/**
 		 * Lo que se va leyendo de una página (S-048, ampliación del autor del 17/11/2026): sus bloques y el que está abierto, un párrafo o una frase
 		 * del Warden que puede seguir en la línea de abajo.
@@ -58,14 +87,25 @@ namespace Soulbound::Presentation
 			TOptional<FHowToPlayBlock> Open;
 			bool bHasImage = false;
 
-			/** Cierra el bloque abierto y lo añade, si tiene texto. */
+			/** Cierra el bloque abierto y lo añade, con sus tramos, si tiene texto. */
 			void Close()
 			{
-				if (Open.IsSet() && !Open->Text.IsEmpty())
+				if (Open.IsSet())
 				{
-					Page.Blocks.Add(Open.GetValue());
+					Add(Open.GetValue());
 				}
 				Open.Reset();
+			}
+
+			/** Añade un bloque ya entero: parte su texto en tramos (la negrita) y le quita los asteriscos; sin texto, nada. */
+			void Add(FHowToPlayBlock Block)
+			{
+				Block.Spans = HowToPlaySpans(Block.Text);
+				Block.Text = SpansText(Block.Spans);
+				if (!Block.Text.IsEmpty())
+				{
+					Page.Blocks.Add(MoveTemp(Block));
+				}
 			}
 
 			/** Sigue el bloque abierto si es de esa clase; si no, lo cierra y abre otro. */
@@ -192,7 +232,7 @@ namespace Soulbound::Presentation
 				FHowToPlayBlock Item;
 				Item.Kind = EHowToPlayBlockKind::ListItem;
 				Item.Text = Line.RightChop(ListItemMark.Len()).TrimStartAndEnd();
-				Page.Page.Blocks.Add(Item);
+				Page.Add(Item);
 				continue;
 			}
 
@@ -258,8 +298,25 @@ namespace Soulbound::Presentation
 
 	TArray<FHowToPlaySpan> HowToPlaySpans(const FString& Text)
 	{
-		// TODO(R-HUD-17): stub del commit de los tests en rojo de la negrita; la implementación va en el commit siguiente.
-		return TArray<FHowToPlaySpan>();
+		// Solo "**texto**" es negrita (precisión del autor del 17/11/2026): se busca un "**" que abra y otro que cierre; si no cierra, lo que queda es
+		// texto, con sus asteriscos. Un asterisco suelto nunca abre nada.
+		static const FString BoldMark = TEXT("**");
+		TArray<FHowToPlaySpan> Spans;
+		int32 From = 0;
+		while (From < Text.Len())
+		{
+			const int32 Open = Text.Find(BoldMark, ESearchCase::CaseSensitive, ESearchDir::FromStart, From);
+			const int32 Close = Open == INDEX_NONE ? INDEX_NONE : Text.Find(BoldMark, ESearchCase::CaseSensitive, ESearchDir::FromStart, Open + BoldMark.Len());
+			if (Close == INDEX_NONE)
+			{
+				AddSpan(Spans, Text.Mid(From), false);
+				break;
+			}
+			AddSpan(Spans, Text.Mid(From, Open - From), false);
+			AddSpan(Spans, Text.Mid(Open + BoldMark.Len(), Close - Open - BoldMark.Len()), true);
+			From = Close + BoldMark.Len();
+		}
+		return Spans;
 	}
 
 	FString HowToPlayBodyText(const TArray<FHowToPlayBlock>& Blocks)
@@ -269,8 +326,22 @@ namespace Soulbound::Presentation
 
 	FString HowToPlayBlockRichText(const FHowToPlayBlock& Block)
 	{
-		const FString Escaped = EscapeRichText(Block.Text);
-		return Block.Kind == EHowToPlayBlockKind::WardenLine ? TEXT("<Warden>") + Escaped + TEXT("</>") : Escaped;
+		// Un bloque hecho a mano sin tramos (la página "Teclas", un test) es un solo tramo normal.
+		TArray<FHowToPlaySpan> Spans = Block.Spans;
+		if (Spans.IsEmpty())
+		{
+			AddSpan(Spans, Block.Text, false);
+		}
+		// El texto enriquecido de UMG no anida marcas: dentro de la frase del Warden, su negrita cierra <Warden> y abre <WardenBold>.
+		const bool bWarden = Block.Kind == EHowToPlayBlockKind::WardenLine;
+		FString Rich;
+		for (const FHowToPlaySpan& Span : Spans)
+		{
+			const FString Escaped = EscapeRichText(Span.Text);
+			const TCHAR* Tag = bWarden ? (Span.bBold ? TEXT("WardenBold") : TEXT("Warden")) : (Span.bBold ? TEXT("Bold") : nullptr);
+			Rich += Tag ? FString::Printf(TEXT("<%s>%s</>"), Tag, *Escaped) : Escaped;
+		}
+		return Rich;
 	}
 
 	FString HowToPlayRichText(const FHowToPlayPage& Page)

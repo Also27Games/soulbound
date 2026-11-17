@@ -155,6 +155,7 @@ namespace Soulbound::Presentation
 			FHowToPlayBlock Item;
 			Item.Kind = EHowToPlayBlockKind::ListItem;
 			Item.Text = Line;
+			Item.Spans = HowToPlaySpans(Line);
 			Page.Blocks.Add(Item);
 		}
 		Page.Body = HowToPlayBodyText(Page.Blocks);
