@@ -42,7 +42,7 @@ enum class EWardenRemarkKind : uint8
 
 /**
  * Momento de instrucción (decisión del autor del 22/10/2026, S-021, nombre propuesto): los diez momentos en que el Warden enseña a
- * jugar, y desde S-027 (R-INS-1) cuatro Ayudas más: Eco, robar, Vacío y anillo. Su frase es `instruccion:<momento>` (InstructionKey). El
+ * jugar, desde S-027 (R-INS-1) cuatro Ayudas más: Eco, robar, Vacío y anillo, y desde S-044 (R-HUD-13) el Grimorio. Su frase es `instruccion:<momento>` (InstructionKey). El
  * enum vive en el motor porque el cargador exige sus claves; quien decide cuándo se da cada uno es la presentación (`FInstructionTracker`,
  * corte A3). Los nuevos van al final: el perfil guarda las claves, no los valores, pero así nada cambia de posición.
  */
@@ -77,6 +77,11 @@ enum class EInstructionMoment : uint8
 	Void,
 	/** S-027 (R-INS-1): el anfitrión abre el anillo para el humano por primera vez (lo detecta la vista: el anillo no es un evento del motor). */
 	Ring,
+	/**
+	 * S-044 (R-HUD-13): la primera vez que el humano tiene de verdad algo que consultar en el Grimorio: una afinidad (se vincula) o un poder
+	 * activo (un Eco con la runa de su hogar, Celeridad). Lo detecta la presentación mirando el estado, no un evento.
+	 */
+	Grimoire,
 };
 
 /** Una entrada de frases.json (R-VOZ-5, S-021, nombre propuesto): una situación con una o varias variantes. */
@@ -185,7 +190,7 @@ namespace Soulbound::Rules
 	/** `comentario:<tipo>`, con el tipo en español y en minúsculas con guiones (burla-al-ultimo, cinco-runas...). */
 	SOULBOUNDCORE_API FString WardenRemarkKey(EWardenRemarkKind Kind);
 
-	/** `instruccion:<momento>` (tirar, elegir-casilla, nicho, fuente, dilema, duelo, orbe, voto, seis-runas, insolencia; desde S-027, eco, robar, vacio, anillo). */
+	/** `instruccion:<momento>` (tirar, elegir-casilla, nicho, fuente, dilema, duelo, orbe, voto, seis-runas, insolencia; desde S-027, eco, robar, vacio, anillo; desde S-044, grimorio). */
 	SOULBOUNDCORE_API FString InstructionKey(EInstructionMoment Moment);
 
 	/** `programado:orden-n` para la posición Position (de 1 a OrderLineCount) del orden de turno. */

@@ -213,6 +213,12 @@ namespace Soulbound::Presentation
 	FString BracerText(const FMatchState& State, int32 Seat, int32 ViewerSeat);
 
 	/**
+	 * Lo mismo que BracerText sin el asiento delante (S-044, para "La mesa" del Grimorio, que ya lo dice en la línea del asiento): "D1×2 D5×1 |
+	 * poderes: Celeridad", "0 runas" o, con el Brazal oculto, "3 runas".
+	 */
+	FString BracerSummary(const FMatchState& State, int32 Seat, int32 ViewerSeat);
+
+	/**
 	 * Línea de un Dominio en la leyenda: "D0 El Banquete · Shuten-dōji: del asiento 0" (con dueño), "...: libre" o "...: Olvidado". Un Dominio
 	 * que no existe, solo "D<n>".
 	 * @param bForgotten Si la vista lo pinta como Olvidado (en el prólogo, con la frase de corrupción).

@@ -436,6 +436,18 @@ namespace Soulbound::Presentation
 
 	FString BracerText(const FMatchState& State, int32 Seat, int32 ViewerSeat)
 	{
+		// S-044: el texto es el de BracerSummary con el asiento delante; "(tú)" o "(Brazal revelado)" cuando se ven los tipos.
+		if (!CanSeeBracer(State, Seat, ViewerSeat))
+		{
+			return FString::Printf(TEXT("%d: %s"), Seat, *BracerSummary(State, Seat, ViewerSeat));
+		}
+		// Textos de la leyenda revisados por el autor (13/11/2026): el propio lleva "(tú)"; el de otro, visible solo por la revelación, "(Brazal revelado)".
+		const bool bOwn = State.Seats.IsValidIndex(ViewerSeat) && Seat == ViewerSeat;
+		return FString::Printf(TEXT("%d%s: %s"), Seat, bOwn ? TEXT(" (tú)") : TEXT(" (Brazal revelado)"), *BracerSummary(State, Seat, ViewerSeat));
+	}
+
+	FString BracerSummary(const FMatchState& State, int32 Seat, int32 ViewerSeat)
+	{
 		const FSeatState& SeatState = State.Seats[Seat];
 		TArray<FString> Runes;
 		for (int32 RuneType = 0; RuneType < SeatState.Runes.Num(); ++RuneType)
@@ -467,13 +479,11 @@ namespace Soulbound::Presentation
 			{
 				Total += Count;
 			}
-			return FString::Printf(TEXT("%d: %d runa%s%s"), Seat, Total, Total == 1 ? TEXT("") : TEXT("s"),
+			return FString::Printf(TEXT("%d runa%s%s"), Total, Total == 1 ? TEXT("") : TEXT("s"),
 				Powers.IsEmpty() ? TEXT("") : *(FString(TEXT(" | poderes: ")) + FString::Join(Powers, TEXT(", "))));
 		}
-		// Textos de la leyenda revisados por el autor (13/11/2026): el propio lleva "(tú)"; el de otro, visible solo por la revelación, "(Brazal revelado)".
-		const bool bOwn = State.Seats.IsValidIndex(ViewerSeat) && Seat == ViewerSeat;
 		// Retoque del autor (13/11/2026): sin runas, "0 runas" y no "-"; sin poderes, se omite el trozo.
-		return FString::Printf(TEXT("%d%s: %s%s"), Seat, bOwn ? TEXT(" (tú)") : TEXT(" (Brazal revelado)"),
+		return FString::Printf(TEXT("%s%s"),
 			Runes.IsEmpty() ? TEXT("0 runas") : *FString::Join(Runes, TEXT(" ")),
 			Powers.IsEmpty() ? TEXT("") : *(FString(TEXT(" | poderes: ")) + FString::Join(Powers, TEXT(", "))));
 	}

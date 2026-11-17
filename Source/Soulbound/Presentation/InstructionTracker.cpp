@@ -13,7 +13,7 @@ namespace
 		EInstructionMoment::Roll, EInstructionMoment::ChooseTile, EInstructionMoment::Niche, EInstructionMoment::Source, EInstructionMoment::Dilemma,
 		EInstructionMoment::Duel, EInstructionMoment::Orb, EInstructionMoment::Vote, EInstructionMoment::SixRunes, EInstructionMoment::Insolence,
 	};
-	static_assert(static_cast<int32>(EInstructionMoment::Ring) < 32, "Un bit por momento en FInstructionTracker::Given");
+	static_assert(static_cast<int32>(EInstructionMoment::Grimoire) < 32, "Un bit por momento en FInstructionTracker::Given");
 
 	uint32 Bit(EInstructionMoment Moment)
 	{
