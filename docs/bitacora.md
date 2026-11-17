@@ -42,7 +42,7 @@ La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar
   - `**texto**` es negrita en los tres bloques (`HowToPlaySpans`). El Grimorio pinta cada bloque con `SRichTextBlock` y unos estilos hechos con la fuente del libro (la frase del Warden en cursiva, su negrita en negrita cursiva); la fuente gana dos tipos en Config, `Italic` y `BoldItalic`.
   - El menú recibe cada página como texto enriquecido de UMG (`HowToPlayPageRichText`, marcas `<Bold>`, `<Warden>` y `<WardenBold>`); `Body` y `HowToPlayText` siguen sin marcas.
   - En dos fases, como pidió el autor: primero bloques, frases y listas; después la negrita. Las dos salieron limpias en los tests.
-  - Tests: 5 nuevos (CA-HUD-43 a CA-HUD-47) y 4 ajustados (CA-HUD-30, 31, 32 y 34, más CA-HUD-37 por el comentario). En rojo 9 fallidos en la primera fase y 2 en la negrita; en verde, 589.
+  - Tests: 5 nuevos (CA-HUD-43 a CA-HUD-47) y 5 ajustados (CA-HUD-30, 31, 32, 34 y 37). En rojo 9 fallidos en la primera fase y 2 en la negrita; en verde, 589.
 - **Pendiente**:
   - Las pruebas manuales de las páginas con imagen, y de la ampliación: bloques, cursiva, negrita, listas y el texto enriquecido en el menú (el escapado de `& < > "` se comprueba allí).
   - Los assets del autor: `T_GrimorioPortada`, las capturas `T_Ayuda_*` y los tipos `Italic` y `BoldItalic` de `F_Grimorio`.
