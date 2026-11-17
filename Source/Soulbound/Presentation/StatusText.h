@@ -121,6 +121,81 @@ namespace Soulbound::Presentation
 	 */
 	bool IsGoalPanelShown(bool bPrologue, ESeatGoal Goal, bool bWardenLineOnScreen);
 
+	// ---- La caja de la partida y qué se ve del HUD (S-045, R-HUD-14, R-HUD-15) ----
+
+	/**
+	 * La línea del reloj de la caja de la partida (S-045, R-HUD-14, nombre propuesto): "Carrera M:SS" con lo que queda de la carrera por el vínculo
+	 * y, terminada la carrera, "Partida M:SS" con lo que queda hasta FWardenParams::MatchEndSeconds. Los segundos se redondean hacia arriba y nunca
+	 * bajan de cero: con la carrera agotada y el turno sin acabar, "Carrera 0:00" (precisión del autor del 17/11/2026). Los segundos, siempre con dos
+	 * cifras. Vacía con la partida terminada y, tras la carrera, sin Warden (no hay fin de partida que contar).
+	 * @param State El estado de la partida.
+	 * @return La línea, o vacía.
+	 */
+	FString MatchCountdownText(const FMatchState& State);
+
+	/**
+	 * Lo que pinta la caja de la partida, arriba a la izquierda (S-045, R-HUD-14, nombre propuesto): primero el reloj (MatchCountdownText), en blanco
+	 * y con la letra grande; debajo, los avisos de mesa con Context.WardenLineColor y también grandes: la Noche de los Ecos mientras dura y, por cada
+	 * aspirante que no es el humano (IsAspirant), "El asiento N está a un turno de ganar", en orden de asiento. Ninguna línea en el prólogo
+	 * (Context.bPrologue) ni con la partida terminada. Cuándo se ve la caja, IsMatchPanelShown.
+	 * @param State El estado de la partida.
+	 * @param Context El asiento humano, el prólogo y el color del Warden.
+	 * @return Las líneas, de arriba abajo, o ninguna.
+	 */
+	TArray<FPanelLine> MatchPanelLines(const FMatchState& State, const FStatusContext& Context);
+
+	/**
+	 * Si la caja de la partida se ve (S-045, R-HUD-14, nombre propuesto): no en el prólogo ni con la partida terminada. Ninguna tecla la oculta, y una
+	 * frase del Warden en pantalla no la quita: no comparten sitio.
+	 * @param bPrologue Si el prólogo está en marcha.
+	 * @param bMatchOver Si la partida ha terminado.
+	 * @return Si la caja se ve.
+	 */
+	bool IsMatchPanelShown(bool bPrologue, bool bMatchOver);
+
+	/**
+	 * Las teclas que enseñan y ocultan los paneles de depuración (S-045, R-HUD-15, nombre propuesto): el panel de estado (DebugTextToggleKey, T) y el
+	 * de depuración (DebugPanelKey, D). Los dos empiezan ocultos.
+	 */
+	struct FHudToggles
+	{
+		bool bStatusPanelShown = false;
+		bool bDebugPanelShown = false;
+
+		/** La tecla del panel de estado: lo enseña si está oculto y lo oculta si se ve. */
+		void ToggleStatusPanel();
+		/** La tecla del panel de depuración. */
+		void ToggleDebugPanel();
+	};
+
+	/** Qué piezas del HUD en plano se ven ahora (S-045, R-HUD-14, R-HUD-15, nombre propuesto). El telón lo mira cada capa, como siempre. */
+	struct FHudShown
+	{
+		bool bMatchPanel = false;
+		bool bGoalPanel = false;
+		bool bGrimoireButton = false;
+		bool bStatusPanel = false;
+		bool bDebugPanel = false;
+
+		bool operator==(const FHudShown& Other) const
+		{
+			return bMatchPanel == Other.bMatchPanel && bGoalPanel == Other.bGoalPanel && bGrimoireButton == Other.bGrimoireButton
+				&& bStatusPanel == Other.bStatusPanel && bDebugPanel == Other.bDebugPanel;
+		}
+	};
+
+	/**
+	 * Qué piezas del HUD se ven (S-045, R-HUD-15, nombre propuesto): la caja de la partida (IsMatchPanelShown), la del objetivo (IsGoalPanelShown) y
+	 * el botón del Grimorio (IsGrimoireButtonShown) por sus reglas, sin mirar ninguna tecla; el panel de estado y el de depuración, solo por su tecla.
+	 * @param Toggles Las teclas de los paneles de depuración.
+	 * @param bPrologue Si el prólogo está en marcha.
+	 * @param bMatchOver Si la partida ha terminado.
+	 * @param Goal La meta del asiento humano (SeatGoal).
+	 * @param bWardenLineOnScreen Si hay una frase del Warden en pantalla.
+	 * @return Lo que se ve.
+	 */
+	FHudShown HudShown(const FHudToggles& Toggles, bool bPrologue, bool bMatchOver, ESeatGoal Goal, bool bWardenLineOnScreen);
+
 	/**
 	 * Las líneas del panel de depuración (R-HUD-2): paso a paso, evaluación del Warden, semilla con el tiempo y la ronda, y los asientos con su
 	 * insolencia. Ninguna está también en el panel de estado.
@@ -139,15 +214,6 @@ namespace Soulbound::Presentation
 	 * @return El tamaño, redondeado al entero más cercano.
 	 */
 	int32 ScaledPanelFontSize(float ViewportHeight, int32 FontSizeAt1080, int32 MinFontSize);
-
-	/**
-	 * Ancho de la columna de paneles de la derecha, en píxeles de pantalla, para una pantalla de ViewportHeight de alto (R-HUD-3): WidthAt1080
-	 * a 1080 y en proporción a la altura.
-	 * @param ViewportHeight Altura del viewport en píxeles.
-	 * @param WidthAt1080 El ancho a 1080 de alto (PanelWidthPixels).
-	 * @return El ancho; 0 si alguno de los dos no es positivo.
-	 */
-	float ScaledPanelWidth(float ViewportHeight, float WidthAt1080);
 
 	// ---- Textos de la elección pendiente, que comparten el panel de estado y el de decisión (S-028; en el .cpp desde S-027) ----
 

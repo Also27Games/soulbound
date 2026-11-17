@@ -97,21 +97,26 @@ namespace Soulbound::Presentation
 	TArray<FLegendRow> GrimoireTableRows(const FMatchState& State, int32 HumanSeat, const TArray<bool>& ForgottenShown, const TArray<FLinearColor>& SeatColors,
 		const TArray<FLinearColor>& DomainColors);
 
-	/** Los nombres de las teclas que dice el Grimorio al pie de "Cómo se juega" (S-044, R-HUD-10, nombre propuesto); los pone la vista. */
+	/**
+	 * Los nombres de las teclas que dice el Grimorio al pie de "Cómo se juega" (S-044, R-HUD-10, nombre propuesto); los pone la vista. Desde S-045
+	 * (precisión de R-CAM) sin la de la columna ni la de ocultar paneles, y con la de las etiquetas y la de volver al menú.
+	 */
 	struct FGrimoireKeyNames
 	{
 		FString Grimoire;
 		FString PreviousTab;
 		FString NextTab;
-		FString ColumnTab;
-		FString Panels;
 		FString View;
+		FString Overlay;
 		FString RingStart;
+		FString ReturnToMenu;
 	};
 
 	/**
 	 * La pestaña "Cómo se juega" (S-044, R-HUD-10): el texto del menú tal como lo prepara HowToPlayDisplayText, o, si el cargador falló, su
-	 * mensaje, para que la pestaña nunca quede vacía; al final, las teclas.
+	 * mensaje, para que la pestaña nunca quede vacía; al final, las teclas. Desde S-045 (precisión de R-CAM, decisión del autor del 17/11/2026): la
+	 * del Grimorio, las de sus pestañas, 1 a 9 y 0, la de empezar la prueba del anillo y la de volver al menú (una sola línea si son la misma tecla),
+	 * la de la vista y la de las etiquetas. Ni las de depuración (T y D) ni las que se fueron con la columna (H y P).
 	 * @param Loaded Lo que devolvió LoadHowToPlayText.
 	 * @param Keys Los nombres de las teclas configuradas.
 	 * @return El texto de la pestaña.
@@ -144,11 +149,12 @@ namespace Soulbound::Presentation
 	bool CanOpenGrimoire(bool bRingOpen);
 
 	/**
-	 * Lo que dice el título del Grimorio sobre sus teclas (S-044, corrección del autor del 17/11/2026): "G o H para cerrar; flechas izquierda y derecha,
-	 * pestañas". Con otras teclas de pestaña, sus nombres en español donde lo haya (SpanishKeyName): "Q y E, pestañas".
-	 * @param GrimoireKey, PanelsKey, PreviousTabKey, NextTabKey Los nombres que da Unreal a las teclas configuradas.
+	 * Lo que dice el título del Grimorio sobre sus teclas (S-044, corrección del autor del 17/11/2026): "G para cerrar; flechas izquierda y derecha,
+	 * pestañas" (desde S-045, R-HUD-16, sin la H, que ya no existe). Con otras teclas de pestaña, sus nombres en español donde lo haya
+	 * (SpanishKeyName): "Q y E, pestañas".
+	 * @param GrimoireKey, PreviousTabKey, NextTabKey Los nombres que da Unreal a las teclas configuradas.
 	 */
-	FString GrimoireKeysHint(const FString& GrimoireKey, const FString& PanelsKey, const FString& PreviousTabKey, const FString& NextTabKey);
+	FString GrimoireKeysHint(const FString& GrimoireKey, const FString& PreviousTabKey, const FString& NextTabKey);
 
 	/** El texto del botón del Grimorio (S-044, R-HUD-12): "Grimorio (G)", con el nombre de la tecla configurada, en español donde lo haya. */
 	FString GrimoireButtonLabel(const FString& KeyName);

@@ -845,7 +845,7 @@ void ASpikeOnlinePlayerController::SbHelp()
 		"Los asientos van de 0 a 3 y el tipo de runa es el Dominio de 0 a 5. SbBanish y SbSendHome no valen con quien está jugando su turno, "
 		"y SbEvent solo entre turnos: con SbStepMode 1. SbStrike corta el turno en curso, también a medio camino; "
 		"con oraculo, el golpe va por el Oráculo: la consulta del cortado, con ese evento de sentencia y sin frase."));
-	// S-019: las teclas de la vista, las que tenga configuradas; las de ocultar son independientes y se combinan.
+	// S-019: las teclas de la vista, las que tenga configuradas. Desde S-045 (precisión de R-CAM): C, L, G e Intro, y T y D de depuración; sin H ni P.
 	if (const ABoardViewActor* View = FindBoardView())
 	{
 		Say(FString::Printf(TEXT("[Depuración] Teclas de la vista: %s."), *View->DescribeViewKeys()));

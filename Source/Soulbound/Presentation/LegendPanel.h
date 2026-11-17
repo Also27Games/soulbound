@@ -62,8 +62,8 @@ namespace Soulbound::Presentation
 
 	/**
 	 * Las filas del tablero de la leyenda (S-044, sacadas de ABoardViewActor::BuildOverlay sin cambiar sus textos, revisados por el autor el
-	 * 13/11/2026): "Casillas", "Nichos", "Tablero" y la de los destellos, en ese orden. Las usan la columna de la leyenda y la pestaña "El tablero"
-	 * del Grimorio (R-HUD-10). Ninguna es de jugadores ni de runas.
+	 * 13/11/2026): "Casillas", "Nichos", "Tablero" y la de los destellos, en ese orden. Las usa la pestaña "El tablero" del Grimorio (R-HUD-10;
+	 * hasta S-045, también la columna de la leyenda). Ninguna es de jugadores ni de runas.
 	 * @param Look Kit, suelo de los Olvidados y colores de la vista.
 	 * @return Cuatro filas.
 	 */

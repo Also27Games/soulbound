@@ -10,7 +10,6 @@
 #include "Subsystem/A27OnlineSubsystem.h"
 #include "BoardTileActor.h"
 #include "BoardViewState.h"
-#include "ChroniclePanel.h"
 #include "DecisionPanel.h"
 #include "ElectCardPanel.h"
 #include "EventText.h"
@@ -338,18 +337,6 @@ void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	// S-026: ninguna entrada del anillo sobrevive a la vista (fin de PIE, viaje al menú), haya o no anillo abierto.
 	UnregisterRingInput();
 	GetWorldTimerManager().ClearTimer(HudTimer);
-	if (Overlay.IsValid())
-	{
-		if (UWorld* World = GetWorld())
-		{
-			if (UGameViewportClient* Viewport = World->GetGameViewport())
-			{
-				Viewport->RemoveViewportWidgetContent(Overlay.ToSharedRef());
-			}
-		}
-		Overlay.Reset();
-		PanelColumn.Reset();
-	}
 	if (WardenLineOverlay.IsValid())
 	{
 		if (UWorld* World = GetWorld())
@@ -419,7 +406,7 @@ void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		}
 		RingOverlay.Reset();
 	}
-	// S-027: el panel de estado (con el de depuración) y el Grimorio.
+	// S-027: la caja de la partida (S-045) con el panel de estado y el de depuración, y el Grimorio.
 	for (TSharedPtr<SWidget>* Layer : {&StatusOverlay, &GrimoireOverlay})
 	{
 		UGameViewportClient* Viewport = GetWorld() ? GetWorld()->GetGameViewport() : nullptr;
@@ -927,22 +914,12 @@ void ABoardViewActor::UpdateCamera()
 		return;
 	}
 	LastViewportSize = Viewport;
-	// S-027 (R-HUD-3): la letra y el ancho de los paneles siguen a la altura de la pantalla.
+	// S-027 (R-HUD-3): la letra de los paneles sigue a la altura de la pantalla.
 	UpdatePanelScale(Viewport);
 
-	// Cámara cenital fija: el tablero entero, con el margen CameraMargin, en el hueco que dejan los paneles a la derecha.
-	// Con FOV horizontal de 60 grados, a la altura H se ve media anchura H*tan(30); la media altura es esa entre el aspecto.
-	constexpr float Fov = 60.f;
-	const float Aspect = Viewport.X / Viewport.Y;
-	const float HalfTan = FMath::Tan(FMath::DegreesToRadians(Fov * 0.5f));
-	// Con los paneles ocultos (tecla H), el tablero usa todo el ancho. S-027: el ancho que ocupa de verdad la columna, en píxeles de pantalla.
-	const float PanelPixels = bPanelsHidden ? 0.f : PanelScreenWidth;
-	const float FreeFraction = 1.f - FMath::Clamp(PanelPixels / static_cast<float>(Viewport.X), 0.f, 0.6f);
-	const float Height = CameraMargin * FMath::Max(BoardHalf.Y / (FreeFraction * HalfTan), BoardHalf.X * Aspect / HalfTan);
-	// La pantalla crece hacia +Y a la derecha: para que el tablero quede a la izquierda, la cámara se corre hacia +Y.
-	const float VisibleHalfWidth = Height * HalfTan;
-	const float ShiftY = VisibleHalfWidth * (1.f - FreeFraction);
-	Camera->SetActorLocation(FVector(BoardCenter.X, BoardCenter.Y + ShiftY, Height));
+	// Cámara cenital fija: el tablero entero, con el margen CameraMargin. Desde S-045 (R-HUD-16) no hay columna: usa todo el ancho (TopCameraFraming).
+	const Soulbound::Presentation::FTopCameraFraming Framing = Soulbound::Presentation::TopCameraFraming(BoardHalf, Viewport, CameraMargin);
+	Camera->SetActorLocation(FVector(BoardCenter.X, BoardCenter.Y + Framing.ShiftY, Framing.Height));
 }
 
 void ABoardViewActor::BuildLighting()
@@ -991,220 +968,47 @@ void ABoardViewActor::BuildOverlay()
 	{
 		return;
 	}
-	const FBoardState& Board = Host->GetState().Board;
 
-	// La leyenda sale de los mismos colores que la vista: no pueden contradecirse.
-	TArray<FLegendRow> Rows;
-	FLegendRow Domains;
-	Domains.Title = TEXT("Los seis Dominios y su Elegido");
-	TWeakObjectPtr<UMatchHostSubsystem> WeakHost = Host;
-	TWeakObjectPtr<ABoardViewActor> WeakView = this;
-	for (int32 Id = 0; Id < Board.Domains.Num(); ++Id)
-	{
-		FLegendChip Chip;
-		Chip.Color = DomainColor(Id);
-		// Al día: Olvidado, libre o del asiento que reclamó su Nicho (DomainLegendText).
-		Chip.TextGetter = [WeakHost, WeakView, Id]() -> FString
-		{
-			const UMatchHostSubsystem* HostPtr = WeakHost.Get();
-			const ABoardViewActor* ViewPtr = WeakView.Get();
-			if (!HostPtr || !ViewPtr || !HostPtr->HasMatch() || !HostPtr->GetState().Board.Domains.IsValidIndex(Id))
-			{
-				return FString::Printf(TEXT("D%d"), Id);
-			}
-			// S-023: lo que pinta la vista, que en el prólogo va con la frase de corrupción.
-			return DomainLegendText(HostPtr->GetState(), Id, ViewPtr->IsDomainShownForgotten(Id));
-		};
-		Domains.Chips.Add(Chip);
-	}
-	Rows.Add(Domains);
-	// S-044: las filas del tablero (casillas, Nichos, marcas y destellos) salen de BoardLegendRows, que también pinta "El tablero" del Grimorio. La
-	// columna conserva su orden: los destellos van detrás de los jugadores.
-	const TArray<FLegendRow> BoardRows = Soulbound::Presentation::BoardLegendRows(BoardLegendLookNow());
-	for (int32 Index = 0; Index + 1 < BoardRows.Num(); ++Index)
-	{
-		Rows.Add(BoardRows[Index]);
-	}
-	// Una fila por asiento, con su rol al día: Eco o Elegido, y el Dominio que lleva.
-	FLegendRow Seats;
-	Seats.Title = TEXT("Jugadores. Disco gris: Eco. Disco de color: Elegido de ese Dominio. A quien le toca le late un aro");
-	for (int32 Seat = 0; Seat < Host->GetState().Seats.Num(); ++Seat)
-	{
-		FLegendChip Chip;
-		Chip.Color = SeatColor(Seat);
-		Chip.TextGetter = [WeakHost, Seat]() -> FString
-		{
-			const UMatchHostSubsystem* HostPtr = WeakHost.Get();
-			if (!HostPtr || !HostPtr->HasMatch() || !HostPtr->GetState().Seats.IsValidIndex(Seat))
-			{
-				return FString::Printf(TEXT("%d"), Seat);
-			}
-			return SeatLegendText(HostPtr->GetState(), Seat, HostPtr->GetHumanSeat());
-		};
-		Seats.Chips.Add(Chip);
-	}
-	Rows.Add(Seats);
-	// S-029: lo que se ve al ganar o perder una runa (la última fila de BoardLegendRows).
-	if (!BoardRows.IsEmpty())
-	{
-		Rows.Add(BoardRows.Last());
-	}
-	// Brazal de cada asiento (S-008): runas por tipo y poderes activos, al día.
-	FLegendRow Bracers;
-	Bracers.Title = TEXT("Runas de cada jugador");
-	for (int32 Seat = 0; Seat < Host->GetState().Seats.Num(); ++Seat)
-	{
-		FLegendChip Chip;
-		Chip.Color = SeatColor(Seat);
-		Chip.TextGetter = [WeakHost, Seat]() -> FString
-		{
-			const UMatchHostSubsystem* HostPtr = WeakHost.Get();
-			if (!HostPtr || !HostPtr->HasMatch() || !HostPtr->GetState().Seats.IsValidIndex(Seat))
-			{
-				return FString::Printf(TEXT("%d"), Seat);
-			}
-			return BracerText(HostPtr->GetState(), Seat, HostPtr->GetHumanSeat());
-		};
-		Bracers.Chips.Add(Chip);
-	}
-	Rows.Add(Bracers);
-	// S-027: las teclas de los paneles, también en la leyenda. La D y la T siguen funcionando, pero no se anuncian (decisión del autor, 13/11/2026).
-	Rows.Add({FString::Printf(TEXT("Teclas: %s Grimorio | %s leyenda o crónica | %s ocultar paneles | %s cambiar la vista"), *GrimoireKey.GetDisplayName().ToString(),
-		*ColumnTabKey.GetDisplayName().ToString(), *PanelsToggleKey.GetDisplayName().ToString(), *SeatedViewKey.GetDisplayName().ToString()), {}});
+	// S-045 (R-HUD-16): la columna de la derecha, con la leyenda y la crónica, desaparece; su contenido está en las pestañas del Grimorio (S-044).
 
-	// S-027 (R-HUD-3): la letra y el ancho de todos los paneles se leen en cada pintado, para que sigan a la resolución sin rehacerlos.
+	// S-027 (R-HUD-3): la letra de todos los paneles se lee en cada pintado, para que siga a la resolución sin rehacerlos.
 	const TAttribute<int32> PanelFont = TAttribute<int32>::CreateLambda([this]() { return PanelSlateFontSize; });
-	ChroniclePanel = SNew(SChroniclePanel).FontSize(PanelFont);
-	// S-035 (R-HUD-4): una partida nueva empieza en Leyenda.
-	ColumnTab.Reset();
-	// La cabecera de la columna (S-035, R-HUD-4): dos pestañas. La cabecera se queda el clic, como el panel de decisión (SDecisionPanel): el que
-	// cae en su fondo no llega al tablero.
-	// Cada pestaña es una caja, las dos del mismo ancho (FillWidth 1) y con márgenes iguales. Activa: fondo claro y texto oscuro en negrita. Inactiva:
-	// fondo oscuro con borde, y se ilumina al pasar el ratón. Los colores son los del panel de decisión (el gris de DecisionPanel.cpp y su fondo
-	// negro); el de pasar el ratón es el gris a media luz. Sin foco, y el clic se lo queda la caja.
-	// TODO(R-HUD-4): este gris repite el DecisionGray de DecisionPanel.cpp, que es privado de ese archivo; si un tercer panel lo necesita, extraerlo a un
-	// sitio común (Presentation) y que los dos lo lean de allí.
-	const FLinearColor TabLight = FLinearColor(FColor(190, 190, 190));
-	const FLinearColor TabDark = FLinearColor(0.04f, 0.04f, 0.04f, 1.f);
-	const FLinearColor TabHover = FLinearColor(TabLight.R * 0.35f, TabLight.G * 0.35f, TabLight.B * 0.35f, 1.f);
-	const auto TabButton = [this, PanelFont, TabLight, TabDark, TabHover](const TCHAR* Label, Soulbound::Presentation::EColumnTab Tab) -> TSharedRef<SWidget>
-	{
-		// La caja interior, para saber si el ratón está encima sin que la caja se tenga a sí misma (un puntero débil).
-		const TSharedRef<TWeakPtr<SWidget>> Inner = MakeShared<TWeakPtr<SWidget>>();
-		const auto IsHot = [Inner]()
-		{
-			const TSharedPtr<SWidget> Widget = Inner->Pin();
-			return Widget.IsValid() && Widget->IsHovered();
-		};
-		const TSharedRef<SBorder> Box = SNew(SBorder)
-			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-			.BorderBackgroundColor_Lambda([this, Tab, TabLight, TabDark, TabHover, IsHot]() -> FSlateColor
-			{
-				return ColumnTab.Active == Tab ? TabLight : IsHot() ? TabHover : TabDark;
-			})
-			.Padding(FMargin(8.f, 4.f))
-			.HAlign(HAlign_Center)
-			.VAlign(VAlign_Center)
-			.Cursor(EMouseCursor::Hand)
-			.OnMouseButtonDown_Lambda([this, Tab](const FGeometry&, const FPointerEvent&)
-			{
-				SetColumnTab(Tab);
-				return FReply::Handled();
-			})
-			[
-				SNew(STextBlock)
-				.Text(FText::FromString(Label))
-				.Font_Lambda([PanelFont]() { return FCoreStyle::GetDefaultFontStyle("Bold", PanelFont.Get()); })
-				.ColorAndOpacity_Lambda([this, Tab, IsHot]()
-				{
-					return ColumnTab.Active == Tab ? FSlateColor(FLinearColor::Black) : IsHot() ? FSlateColor(FLinearColor::White) : FSlateColor(FLinearColor(0.75f, 0.75f, 0.75f));
-				})
-			];
-		*Inner = Box;
-		// El borde de una caja inactiva: un marco de un píxel del gris claro (en la activa, del mismo color que el fondo).
-		return SNew(SBorder)
-			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-			.BorderBackgroundColor(TabLight)
-			.Padding(FMargin(1.f))
-			[
-				Box
-			];
-	};
-	const TSharedRef<SWidget> ColumnHeader = SNew(SBorder)
-		.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-		.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.72f))
-		.Padding(FMargin(4.f))
-		.OnMouseButtonDown_Lambda([](const FGeometry&, const FPointerEvent&) { return FReply::Handled(); })
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().FillWidth(1.f).Padding(0.f, 0.f, 2.f, 0.f)[TabButton(TEXT("Leyenda"), Soulbound::Presentation::EColumnTab::Legend)]
-			+ SHorizontalBox::Slot().FillWidth(1.f).Padding(2.f, 0.f, 0.f, 0.f)[TabButton(TEXT("Crónica"), Soulbound::Presentation::EColumnTab::Chronicle)]
-		];
-	Overlay = SNew(SBox)
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Fill)
-		.Padding(FMargin(0.f, 8.f, 8.f, 8.f))
-		// S-024: con el telón bajado (o en su margen) los paneles no se dibujan, se vean o no a través de la pantalla de carga; la tecla de
-		// los paneles sigue mandando después.
-		.Visibility_Lambda([this]()
-		{
-			const UMatchHostSubsystem* HostPtr = Host.Get();
-			return bPanelsHidden || (HostPtr && HostPtr->IsCurtainDown()) ? EVisibility::Collapsed : EVisibility::SelfHitTestInvisible;
-		})
-		[
-			SAssignNew(PanelColumn, SBox)
-			.WidthOverride_Lambda([this]() { return FOptionalSize(PanelSlateWidth); })
-			[
-				SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight()
-				[
-					ColumnHeader
-				]
-				// S-035: una sola pestaña a la vista, a toda la altura. La otra queda sin dibujar pero viva: la crónica se sigue llenando.
-				+ SVerticalBox::Slot().FillHeight(1.f).Padding(0.f, 6.f, 0.f, 0.f)
-				[
-					SNew(SWidgetSwitcher)
-					.WidgetIndex_Lambda([this]() { return ColumnTab.Active == Soulbound::Presentation::EColumnTab::Legend ? 0 : 1; })
-					+ SWidgetSwitcher::Slot().VAlign(VAlign_Top)
-					[
-						SNew(SLegendPanel).FontSize(PanelFont).WrapWidth_Lambda([this]() { return PanelSlateWidth; }).Rows(Rows)
-					]
-					+ SWidgetSwitcher::Slot()
-					[
-						ChroniclePanel.ToSharedRef()
-					]
-				]
-			]
-		];
-	Viewport->AddViewportWidgetContent(Overlay.ToSharedRef(), 10);
 
-	// S-027 (R-HUD-1, R-HUD-2): el panel de estado arriba a la izquierda, en el hueco del tablero, y el de depuración debajo (decisión del autor
-	// del 9/11/2026). Sustituyen a los mensajes de pantalla del motor. No reciben clics: el tablero de debajo sigue respondiendo. Se ocultan con
-	// los paneles (H) y con el telón, como la leyenda; el de estado, también con T; el de depuración solo se ve con D.
+	// S-045 (R-HUD-14, R-HUD-15): arriba a la izquierda, la caja de la partida (el reloj y los avisos de mesa), con el aspecto de la caja del objetivo; debajo,
+	// el panel de estado y el de depuración, cada uno solo si su tecla lo enseña (T y D), en ese orden (decisión del autor del 17/11/2026). Ninguno recibe
+	// clics: el tablero de debajo sigue respondiendo. La capa se oculta con el telón; la caja de la partida, además, en el prólogo y con la partida
+	// terminada, y ninguna tecla la oculta. Sin columna, el panel de estado ya no reserva su hueco a la derecha.
 	StatusOverlay = SNew(SBox)
 		.HAlign(HAlign_Left)
 		.VAlign(VAlign_Top)
-		.Padding_Lambda([this]() { return FMargin(8.f, 8.f, PanelSlateWidth + 16.f, 8.f); })
+		.Padding(FMargin(8.f, 8.f, 16.f, 8.f))
 		.Visibility_Lambda([this]()
 		{
 			const UMatchHostSubsystem* HostPtr = Host.Get();
-			return bPanelsHidden || (HostPtr && HostPtr->IsCurtainDown()) ? EVisibility::Collapsed : EVisibility::HitTestInvisible;
+			return HostPtr && HostPtr->IsCurtainDown() ? EVisibility::Collapsed : EVisibility::HitTestInvisible;
 		})
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot().AutoHeight()
 			[
+				SAssignNew(MatchPanel, SStatusPanel)
+				.FontSize(PanelFont)
+				.LargeScale(StatusLargeFontScale)
+				.Visibility_Lambda([this]() { return IsMatchPanelVisibleNow() ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 6.f, 0.f, 0.f)
+			[
 				SAssignNew(StatusPanel, SStatusPanel)
 				.FontSize(PanelFont)
 				.LargeScale(StatusLargeFontScale)
-				.Visibility_Lambda([this]() { return bDebugTextHidden ? EVisibility::Collapsed : EVisibility::HitTestInvisible; })
+				.Visibility_Lambda([this]() { return HudToggles.bStatusPanelShown ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 6.f, 0.f, 0.f)
 			[
 				SAssignNew(DebugPanel, SStatusPanel)
 				.FontSize(PanelFont)
 				.Title(FString::Printf(TEXT("DEPURACIÓN (%s)"), *DebugPanelKey.GetDisplayName().ToString()))
-				.Visibility_Lambda([this]() { return bDebugPanelShown ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+				.Visibility_Lambda([this]() { return HudToggles.bDebugPanelShown ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
 			]
 		];
 	Viewport->AddViewportWidgetContent(StatusOverlay.ToSharedRef(), 10);
@@ -1246,8 +1050,8 @@ void ABoardViewActor::BuildOverlay()
 			.FontSize(PanelFont)
 			.DomainColors(RuneChipColors)
 			// Corrección del autor del 17/11/2026 tras PIE: los nombres de las teclas, en español donde lo haya (GrimoireKeysHint).
-			.KeysHint(Soulbound::Presentation::GrimoireKeysHint(GrimoireKey.GetDisplayName().ToString(), PanelsToggleKey.GetDisplayName().ToString(),
-				GrimoirePreviousTabKey.GetDisplayName().ToString(), GrimoireNextTabKey.GetDisplayName().ToString()))
+			.KeysHint(Soulbound::Presentation::GrimoireKeysHint(GrimoireKey.GetDisplayName().ToString(), GrimoirePreviousTabKey.GetDisplayName().ToString(),
+				GrimoireNextTabKey.GetDisplayName().ToString()))
 			// S-029 (R-VIS-21): ancho fijo, el de la capa; no depende de lo pintado antes.
 			.PanelWidth_Lambda([this]() { return Soulbound::Presentation::GrimoirePanelWidth(LayerSlateWidth()); })
 			// S-044: alto fijo, una fracción del de la pantalla menos el margen de la capa; no cambia al cambiar de pestaña.
@@ -1262,8 +1066,8 @@ void ABoardViewActor::BuildOverlay()
 	Viewport->AddViewportWidgetContent(GrimoireOverlay.ToSharedRef(), 14);
 	GrimoirePanel->SetBoard(Soulbound::Presentation::BoardLegendRows(BoardLegendLookNow()));
 	GrimoirePanel->SetHowToPlay(Soulbound::Presentation::GrimoireHowToPlayText(HowToPlayLoaded, {GrimoireKey.GetDisplayName().ToString(),
-		GrimoirePreviousTabKey.GetDisplayName().ToString(), GrimoireNextTabKey.GetDisplayName().ToString(), ColumnTabKey.GetDisplayName().ToString(),
-		PanelsToggleKey.GetDisplayName().ToString(), SeatedViewKey.GetDisplayName().ToString(), RingStartKey.GetDisplayName().ToString()}));
+		GrimoirePreviousTabKey.GetDisplayName().ToString(), GrimoireNextTabKey.GetDisplayName().ToString(), SeatedViewKey.GetDisplayName().ToString(),
+		OverlayToggleKey.GetDisplayName().ToString(), RingStartKey.GetDisplayName().ToString(), ReturnToMenuKey.GetDisplayName().ToString()}));
 
 	// S-029 (R-VIS-13): la carta del Elegido. Como la capa de la frase (R-DEC-13) y la del anillo (R-VIS-20), la capa ocupa el hueco libre (HAlign_Fill,
 	// con sus márgenes) y la carta se centra dentro; AlignChild no centra dentro del hueco con márgenes desiguales. Abajo se deja libre una fracción
@@ -1274,7 +1078,7 @@ void ABoardViewActor::BuildOverlay()
 		.Padding_Lambda([this]()
 		{
 			const float Height = static_cast<float>(LastViewportSize.Y) / FMath::Max(PanelDpiScale, 0.01f);
-			return FMargin(16.f, 0.f, PanelSlateWidth + 16.f, Height * ElectCardBottomFraction);
+			return FMargin(16.f, 0.f, 16.f, Height * ElectCardBottomFraction);
 		})
 		.Visibility_Lambda([this]() { return IsElectCardShown() ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed; })
 		[
@@ -1295,16 +1099,17 @@ void ABoardViewActor::BuildOverlay()
 
 	// S-028 (R-DEC-4): el ancho máximo del panel de decisión, en unidades de Slate; dentro, sus botones van en fila si caben.
 	static constexpr float DecisionPanelMaxWidth = 900.f;
-	// S-021: la línea del Warden, grande y abajo, a la izquierda de la columna de paneles. Solo texto: ni assets ni widgets del juego.
+	// S-021: la línea del Warden, grande y abajo. Solo texto: ni assets ni widgets del juego.
 	// S-028 (R-DEC-2 a R-DEC-4): encima, en la misma columna, el panel de decisión, centrado y con la letra de los paneles; va siempre por
 	// encima de la frase. El panel se queda los clics que le caen encima (SDecisionPanel); la capa y la frase siguen sin recibirlos.
 	// R-DEC-13 (S-033, corrección del autor del 12/11/2026): la capa ocupa el hueco libre (HAlign_Fill, con sus márgenes) y el contenido se centra dentro,
 	// sin márgenes laterales. Con HAlign_Center y márgenes desiguales, AlignChild (LayoutUtils.h) coloca en (ancho - hijo) / 2 + izquierdo - derecho: todo
-	// quedaba media columna a la izquierda del centro del hueco y a 1024x768 se cortaba.
+	// quedaba media columna a la izquierda del centro del hueco y a 1024x768 se cortaba. S-045 (R-HUD-16): sin columna, el hueco es todo el ancho, con 16
+	// a cada lado; el panel de decisión, la frase, la caja del objetivo y el botón del Grimorio se colocan en él.
 	WardenLineOverlay = SNew(SBox)
 	.HAlign(HAlign_Fill)
 	.VAlign(VAlign_Bottom)
-	.Padding_Lambda([this]() { return FMargin(16.f, 0.f, PanelSlateWidth + 16.f, 36.f); })
+	.Padding(FMargin(16.f, 0.f, 16.f, 36.f))
 	.Visibility(EVisibility::SelfHitTestInvisible)
 	[
 		SAssignNew(WardenLineContent, SOverlay)
@@ -1328,7 +1133,7 @@ void ABoardViewActor::BuildOverlay()
 					.DiceColor_Lambda([this]() { return DiceFaceColor; })
 					.DicePipColor_Lambda([this]() { return DiceFacePipColor; })
 					.TimeFraction_Lambda([this]() { return DecisionTimeFractionNow(); })
-					// Lo más ancho que puede ser el panel: el hueco del tablero (la capa deja 16 a la izquierda y la columna más 16 a la derecha), con el
+					// Lo más ancho que puede ser el panel: el hueco del tablero (la capa deja 16 a cada lado; desde S-045 no hay columna), con el
 					// tope de la caja. Con él decide si sus botones caben en fila (corrección del autor del 11/11/2026).
 					.MaxWidth_Lambda([this]()
 					{
@@ -1348,7 +1153,7 @@ void ABoardViewActor::BuildOverlay()
 		// S-040 (R-HUD-7; corrección del autor del 16/11/2026 tras PIE): la caja de la línea de objetivo, abajo a la izquierda del hueco del tablero, dentro
 		// de la franja que se reserva a la frase (por debajo del panel de decisión, que va encima de esa franja: no se pisan). Fondo y letra grande de los
 		// paneles, con GoalLineColor. Alineada a la izquierda para medir lo que su texto, que se parte al ancho libre del hueco (WrapWidth, no AutoWrapText:
-		// tras un texto corto, el largo del Eco saldría estrecho) y nunca se mete bajo la columna (el margen derecho de esta capa). Ninguna tecla la oculta;
+		// tras un texto corto, el largo del Eco saldría estrecho) y nunca pasa del margen derecho de esta capa. Ninguna tecla la oculta;
 		// IsGoalPanelVisibleNow la quita en el prólogo, con la meta None, mientras hay frase del Warden (cada frame: nunca se ven encimadas) y con el telón.
 		+ SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Bottom)
 		[
@@ -1443,7 +1248,7 @@ void ABoardViewActor::BuildOverlay()
 
 	// S-039 (R-DEC-16; corrección del autor del 15/11/2026 tras las pruebas en PIE): el aviso de casilla inalcanzable sale junto al punto del clic, no en
 	// el panel de decisión: los ojos están en la casilla pulsada. Una capa que llena el viewport, sin clics (la casilla de debajo sigue respondiendo), con
-	// el aviso en la esquina que le da PlaceNotice: dentro del viewport y sin quedar debajo de la columna de paneles, del panel de estado, de la caja de la línea de objetivo ni del panel de decisión (S-040). Mismo texto y
+	// el aviso en la esquina que le da PlaceNotice: dentro del viewport y sin quedar debajo de las zonas de NoticeAvoidZones (S-040; desde S-045, sin columna). Mismo texto y
 	// color que la línea del Warden; fondo oscuro como los paneles, para leerse sobre el tablero. Se recoloca cada frame con los mismos datos, así que
 	// se queda quieto; el texto y su vida los pone TickHud.
 	{
@@ -1482,7 +1287,7 @@ void ABoardViewActor::BuildOverlay()
 	}
 
 	// S-022 (decisión del autor del 29/10/2026): con la partida terminada, un botón grande para volver al menú, con el ratón (el controlador
-	// deja el cursor visible y la entrada en juego y UI). El botón va en el centro del hueco del tablero, a la izquierda de la columna de paneles;
+	// deja el cursor visible y la entrada en juego y UI). El botón va en el centro del tablero (desde S-045, R-HUD-16, a todo el ancho: ya no hay columna);
 	// desde S-041 (R-HUD-8), con el resultado encima y la tecla debajo. Antes del final no existe; pedido, se desactiva.
 	// R-VIS-20 (S-031, corrección del autor del 12/11/2026): como la capa de la frase (R-DEC-13), la capa ocupa el hueco libre (HAlign_Fill, con sus
 	// márgenes) y el botón se centra dentro, sin márgenes laterales; con HAlign_Center y márgenes desiguales, AlignChild lo dejaba media columna a la
@@ -1490,7 +1295,7 @@ void ABoardViewActor::BuildOverlay()
 	ReturnToMenuOverlay = SNew(SBox)
 		.HAlign(HAlign_Fill)
 		.VAlign(VAlign_Fill)
-		.Padding_Lambda([this]() { return FMargin(16.f, 0.f, PanelSlateWidth + 16.f, 0.f); })
+		.Padding(FMargin(16.f, 0.f, 16.f, 0.f))
 		.Visibility_Lambda([this]() { return IsMatchOverShown() ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed; })
 		[
 			SNew(SBox)
@@ -1607,13 +1412,14 @@ void ABoardViewActor::BuildOverlay()
 	// aro, entre el círculo y la barra (corrección del autor del 16/11/2026: en el centro tapaban la runa y la franja verde). La fila es el hijo del
 	// panel y la coloca él (SRingPanel::OnArrangeChildren) con RingPanelLayout y su tamaño de verdad, el mismo con que pinta: la vista no hace la
 	// cuenta aparte (segunda corrección del 16/11/2026: un hueco de SOverlay con margen la dejaba por debajo del panel). El panel reserva la franja
-	// siempre, así que no cambia de tamaño ni se mueve al empezar. Solo el botón recibe clics: el panel y el resto de la capa los dejan pasar.
+	// siempre, así que no cambia de tamaño ni se mueve al empezar. Solo el botón recibe clics: el panel y el resto de la capa los dejan pasar. Desde S-045
+	// (decisión del autor del 17/11/2026) el anillo se centra a todo el ancho, como la carta del Elegido: ya no hay columna.
 	const int32 StartHintFontSize = FMath::Max(FMath::RoundToInt(RingFontSize * 0.8f), 8);
 	const int32 RingPanelFont = FMath::Max(RingFontSize, 8);
 	RingOverlay = SNew(SBox)
 		.HAlign(HAlign_Fill)
 		.VAlign(VAlign_Fill)
-		.Padding_Lambda([this]() { return FMargin(16.f, 0.f, PanelSlateWidth + 16.f, 0.f); })
+		.Padding(FMargin(16.f, 0.f, 16.f, 0.f))
 		.Visibility_Lambda([this]() { return RingPanelModel().bVisible ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed; })
 		[
 			SNew(SBox)
@@ -1676,17 +1482,6 @@ void ABoardViewActor::BuildOverlay()
 			]
 		];
 	Viewport->AddViewportWidgetContent(RingOverlay.ToSharedRef(), 13);
-}
-
-void ABoardViewActor::RefreshChronicle(const FMatchState& State)
-{
-	if (!ChroniclePanel.IsValid() || State.EventLog.Num() == ChronicleLineCount)
-	{
-		return;
-	}
-	ChronicleLineCount = State.EventLog.Num();
-	// S-044: las líneas salen de ChronicleLines, la misma función que la pestaña "Crónica" del Grimorio (R-HUD-10).
-	ChroniclePanel->SetLines(Soulbound::Presentation::ChronicleLines(State, InstructionNotes, ChronicleLookNow()));
 }
 
 void ABoardViewActor::Refresh()
@@ -1849,7 +1644,6 @@ void ABoardViewActor::Refresh()
 	RefreshEchoNightDim(State);
 	RefreshFlashes(State);
 	RefreshElectCard(State);
-	RefreshChronicle(State);
 }
 
 void ABoardViewActor::RefreshWardenLine(const FMatchState& State)
@@ -1909,32 +1703,49 @@ void ABoardViewActor::TeachInstructions(const FMatchState& State, const TArray<S
 		Item.GameClock = Clock;
 		WardenLineQueue.Push(Item, FPlatformTime::Seconds());
 		InstructionNotes.Add({State.EventLog.Num() - 1, Clock, Line});
-		// La crónica se reconstruye solo si crece el registro: la nota no lo hace crecer. Desde S-044, también la del Grimorio.
-		ChronicleLineCount = -1;
+		// La crónica del Grimorio se reconstruye solo si crece el registro: la nota no lo hace crecer (desde S-045, la única crónica en pantalla).
 		GrimoireChronicleCount = -1;
 	}
 }
 
 bool ABoardViewActor::IsGoalPanelVisibleNow()
 {
-	// S-040 (R-HUD-7): la regla, en IsGoalPanelShown; el telón lo tapa todo, como a las demás capas.
+	// S-040 (R-HUD-7): la regla, en IsGoalPanelShown (desde S-045, a través de HudShown); el telón lo tapa todo, como a las demás capas.
 	const UMatchHostSubsystem* HostPtr = Host.Get();
 	if (!HostPtr || HostPtr->IsCurtainDown())
 	{
 		return false;
 	}
-	return Soulbound::Presentation::IsGoalPanelShown(bGoalPanelPrologue, GoalPanelGoal, !WardenLineNow().IsEmpty());
+	return HudShownNow().bGoalPanel;
 }
 
 bool ABoardViewActor::IsGrimoireButtonVisibleNow()
 {
-	// S-044 (R-HUD-12): la regla, en IsGrimoireButtonShown, con el prólogo de la caja de objetivo (el mismo contexto de TickHud); el telón lo tapa todo.
+	// S-044 (R-HUD-12): la regla, en IsGrimoireButtonShown (desde S-045, a través de HudShown), con el prólogo de la caja de objetivo (el mismo contexto
+	// de TickHud); el telón lo tapa todo.
 	const UMatchHostSubsystem* HostPtr = Host.Get();
 	if (!HostPtr || !HostPtr->HasMatch() || HostPtr->IsCurtainDown())
 	{
 		return false;
 	}
-	return Soulbound::Presentation::IsGrimoireButtonShown(bGoalPanelPrologue, IsMatchOverShown(), !WardenLineNow().IsEmpty());
+	return HudShownNow().bGrimoireButton;
+}
+
+Soulbound::Presentation::FHudShown ABoardViewActor::HudShownNow()
+{
+	// S-045 (R-HUD-15): una sola función decide qué piezas se ven; el prólogo y la meta los guarda TickHud, la frase del Warden es la de este frame.
+	return Soulbound::Presentation::HudShown(HudToggles, bGoalPanelPrologue, IsMatchOverShown(), GoalPanelGoal, !WardenLineNow().IsEmpty());
+}
+
+bool ABoardViewActor::IsMatchPanelVisibleNow()
+{
+	// S-045 (R-HUD-14): la regla, en IsMatchPanelShown a través de HudShown; sin partida o con el telón, nada.
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (!HostPtr || !HostPtr->HasMatch() || HostPtr->IsCurtainDown())
+	{
+		return false;
+	}
+	return HudShownNow().bMatchPanel;
 }
 
 Soulbound::Presentation::FBoardLegendLook ABoardViewActor::BoardLegendLookNow() const
@@ -2259,36 +2070,17 @@ void ABoardViewActor::ToggleOverlay()
 	Refresh();
 }
 
-void ABoardViewActor::TogglePanels()
-{
-	// La visibilidad de los paneles la calcula su capa (bPanelsHidden y el telón, S-024); aquí solo se recoloca el tablero. S-027 (R-HUD-4): H
-	// también cierra el Grimorio, para que uno invisible no siga bloqueando los clics (decisión aceptada por el autor el 9/11/2026).
-	bPanelsHidden = !bPanelsHidden;
-	CloseGrimoire();
-	UpdateCamera();
-}
-
-void ABoardViewActor::ToggleColumnTab()
-{
-	ColumnTab.Toggle();
-}
-
-void ABoardViewActor::SetColumnTab(Soulbound::Presentation::EColumnTab Tab)
-{
-	ColumnTab.Active = Tab;
-}
-
 void ABoardViewActor::ToggleDebugText()
 {
-	// S-027: el panel de estado se oculta en su capa; al volver, se rellena en el acto.
-	bDebugTextHidden = !bDebugTextHidden;
+	// S-045 (R-HUD-15): el panel de estado es de depuración y empieza oculto; se oculta en su capa y, al volver, se rellena en el acto.
+	HudToggles.ToggleStatusPanel();
 	TickHud();
 }
 
 FString ABoardViewActor::DescribeViewKeys() const
 {
 	return Soulbound::Presentation::ViewKeysText(bSeatedView, SeatedViewKey.GetDisplayName().ToString(), OverlayToggleKey.GetDisplayName().ToString(),
-		PanelsToggleKey.GetDisplayName().ToString(), DebugTextToggleKey.GetDisplayName().ToString(), GrimoireKey.GetDisplayName().ToString(),
+		GrimoireKey.GetDisplayName().ToString(), ReturnToMenuKey.GetDisplayName().ToString(), DebugTextToggleKey.GetDisplayName().ToString(),
 		DebugPanelKey.GetDisplayName().ToString());
 }
 
@@ -2387,7 +2179,7 @@ void ABoardViewActor::ApplyViewTarget()
 			{
 				InputComponent->BindKey(SeatedViewKey, IE_Pressed, this, &ABoardViewActor::ToggleSeatedView);
 				InputComponent->BindKey(OverlayToggleKey, IE_Pressed, this, &ABoardViewActor::ToggleOverlay);
-				InputComponent->BindKey(PanelsToggleKey, IE_Pressed, this, &ABoardViewActor::TogglePanels);
+				// S-045 (R-HUD-16): ya no hay tecla de ocultar paneles (H) ni de pestaña de la columna (P). T enseña el panel de estado, de depuración.
 				InputComponent->BindKey(DebugTextToggleKey, IE_Pressed, this, &ABoardViewActor::ToggleDebugText);
 				// S-027: el Grimorio (G) y el panel de depuración (D).
 				InputComponent->BindKey(GrimoireKey, IE_Pressed, this, &ABoardViewActor::ToggleGrimoire);
@@ -2395,8 +2187,6 @@ void ABoardViewActor::ApplyViewTarget()
 				InputComponent->BindKey(GrimoirePreviousTabKey, IE_Pressed, this, &ABoardViewActor::PreviousGrimoireTab).bConsumeInput = false;
 				InputComponent->BindKey(GrimoireNextTabKey, IE_Pressed, this, &ABoardViewActor::NextGrimoireTab).bConsumeInput = false;
 				InputComponent->BindKey(DebugPanelKey, IE_Pressed, this, &ABoardViewActor::ToggleDebugPanel);
-				// S-035: la pestaña de la columna (P).
-				InputComponent->BindKey(ColumnTabKey, IE_Pressed, this, &ABoardViewActor::ToggleColumnTab);
 				// S-022: la tecla de volver al menú, alternativa al botón, no se consume: antes del final sigue llegando a quien la use.
 				InputComponent->BindKey(ReturnToMenuKey, IE_Pressed, this, &ABoardViewActor::ReturnToMenu).bConsumeInput = false;
 				// S-042 (R-MIN-19): la tecla de "Empezar" del anillo; fuera de la espera no hace nada y tampoco se consume.
@@ -2417,22 +2207,20 @@ void ABoardViewActor::UpdatePanelScale(const FVector2D& ViewportSize)
 	PanelDpiScale = Dpi > KINDA_SMALL_NUMBER ? Dpi : 1.f;
 	const int32 ScreenFont = Soulbound::Presentation::ScaledPanelFontSize(ViewportSize.Y, PanelFontSize, PanelMinFontSize);
 	const int32 SlateFont = FMath::Max(1, FMath::RoundToInt(ScreenFont / PanelDpiScale));
-	const float ScreenWidth = Soulbound::Presentation::ScaledPanelWidth(ViewportSize.Y, PanelWidthPixels);
-	const bool bChanged = SlateFont != PanelSlateFontSize || !FMath::IsNearlyEqual(ScreenWidth, PanelScreenWidth, 0.5f) || !bPanelScaleLogged;
+	// S-045 (R-HUD-16): sin columna, no hay ancho de columna que calcular.
+	const bool bChanged = SlateFont != PanelSlateFontSize || !bPanelScaleLogged;
 	PanelSlateFontSize = SlateFont;
-	PanelScreenWidth = ScreenWidth;
-	PanelSlateWidth = ScreenWidth / PanelDpiScale;
 	if (bChanged)
 	{
 		bPanelScaleLogged = true;
-		UE_LOG(LogSoulboundView, Log, TEXT("Paneles: viewport %dx%d, escala DPI de Unreal %.3f; letra %d px en pantalla (%d en Slate, mínimo %d); columna %.0f px en pantalla (%.0f en Slate)."),
-			Size.X, Size.Y, PanelDpiScale, ScreenFont, PanelSlateFontSize, PanelMinFontSize, PanelScreenWidth, PanelSlateWidth);
+		UE_LOG(LogSoulboundView, Log, TEXT("Paneles: viewport %dx%d, escala DPI de Unreal %.3f; letra %d px en pantalla (%d en Slate, mínimo %d)."),
+			Size.X, Size.Y, PanelDpiScale, ScreenFont, PanelSlateFontSize, PanelMinFontSize);
 	}
 }
 
 void ABoardViewActor::ToggleDebugPanel()
 {
-	bDebugPanelShown = !bDebugPanelShown;
+	HudToggles.ToggleDebugPanel();
 	TickHud();
 }
 
@@ -2510,7 +2298,7 @@ bool ABoardViewActor::IsElectCardShown() const
 {
 	const UWorld* World = GetWorld();
 	const UMatchHostSubsystem* HostPtr = Host.Get();
-	return World && HostPtr && !bPanelsHidden && !bGrimoireOpen && !HostPtr->IsCurtainDown() && ElectCard.IsVisible(World->GetTimeSeconds(), ElectCardSeconds);
+	return World && HostPtr && !bGrimoireOpen && !HostPtr->IsCurtainDown() && ElectCard.IsVisible(World->GetTimeSeconds(), ElectCardSeconds);
 }
 
 void ABoardViewActor::RefreshFlashes(const FMatchState& State)
@@ -2753,8 +2541,8 @@ void ABoardViewActor::TickHud()
 	}
 
 	// S-033 (R-DEC-13): los números para medir a 1024x768, en la línea "Paneles:" cuando cambian: la geometría real de la capa de la frase, de su contenido
-	// (dónde empieza y cuánto mide dentro de la capa) y de la columna de paneles, lo que da la cuenta con la ventana y la escala de DPI, y el hueco libre
-	// que sale de cada una (tope 1000, el de la frase). El centro del contenido y el del hueco tienen que coincidir.
+	// (dónde empieza y cuánto mide dentro de la capa), lo que da la cuenta con la ventana y la escala de DPI, y el hueco libre que sale de cada una (tope
+	// 1000, el de la frase). El centro del contenido y el del hueco tienen que coincidir. Desde S-045 (R-HUD-16) no hay columna: el hueco es todo el ancho.
 	if (WardenLineOverlay.IsValid() && WardenLineContent.IsValid())
 	{
 		const FGeometry& LayerGeometry = WardenLineOverlay->GetTickSpaceGeometry();
@@ -2764,16 +2552,15 @@ void ABoardViewActor::TickHud()
 		{
 			const FVector2D ContentAt = FVector2D(LayerGeometry.AbsoluteToLocal(ContentGeometry.GetAbsolutePosition()));
 			const FVector2D ContentSize = FVector2D(ContentGeometry.GetLocalSize());
-			const float ColumnWidth = PanelColumn.IsValid() ? static_cast<float>(PanelColumn->GetTickSpaceGeometry().GetLocalSize().X) : -1.f;
-			const FString Key = FString::Printf(TEXT("%.0f|%.0f|%.0f|%.0f"), LayerSize.X, ContentAt.X, ContentSize.X, ColumnWidth);
+			const FString Key = FString::Printf(TEXT("%.0f|%.0f|%.0f"), LayerSize.X, ContentAt.X, ContentSize.X);
 			if (Key != LoggedLayoutKey)
 			{
 				LoggedLayoutKey = Key;
 				const float ByWindow = static_cast<float>(LastViewportSize.X) / PanelDpiScale;
-				const float HoleCenter = 16.f + (static_cast<float>(LayerSize.X) - PanelSlateWidth - 32.f) * 0.5f;
-				UE_LOG(LogSoulboundView, Verbose, TEXT("Paneles: capa de la frase %.1fx%.1f en Slate (geometría real); contenido en x %.1f con ancho %.1f (centro %.1f; centro del hueco %.1f); columna real %.1f (PanelSlateWidth %.1f); la cuenta con la ventana da %.1f de ancho (%.0f px / escala %.3f); hueco libre con tope 1000: %.1f por geometría, %.1f por la cuenta."),
-					LayerSize.X, LayerSize.Y, ContentAt.X, ContentSize.X, ContentAt.X + ContentSize.X * 0.5, HoleCenter, ColumnWidth, PanelSlateWidth, ByWindow, LastViewportSize.X, PanelDpiScale,
-					Soulbound::Presentation::BoardFreeWidth(static_cast<float>(LayerSize.X), PanelSlateWidth, 1000.f), Soulbound::Presentation::BoardFreeWidth(ByWindow, PanelSlateWidth, 1000.f));
+				const float HoleCenter = 16.f + (static_cast<float>(LayerSize.X) - 32.f) * 0.5f;
+				UE_LOG(LogSoulboundView, Verbose, TEXT("Paneles: capa de la frase %.1fx%.1f en Slate (geometría real); contenido en x %.1f con ancho %.1f (centro %.1f; centro del hueco %.1f); la cuenta con la ventana da %.1f de ancho (%.0f px / escala %.3f); hueco libre con tope 1000: %.1f por geometría, %.1f por la cuenta."),
+					LayerSize.X, LayerSize.Y, ContentAt.X, ContentSize.X, ContentAt.X + ContentSize.X * 0.5, HoleCenter, ByWindow, LastViewportSize.X, PanelDpiScale,
+					Soulbound::Presentation::BoardFreeWidth(static_cast<float>(LayerSize.X), 1000.f), Soulbound::Presentation::BoardFreeWidth(ByWindow, 1000.f));
 			}
 		}
 	}
@@ -2830,9 +2617,15 @@ void ABoardViewActor::TickHud()
 
 	Soulbound::Presentation::FStatusContext Context = MakeStatusContext();
 	Context.bDecisionPanelShown = Soulbound::Presentation::IsOwnDecisionShown(Panel, bRingOpen);
+	if (MatchPanel.IsValid())
+	{
+		// S-045 (R-HUD-14): la caja de la partida, arriba a la izquierda; cuándo se ve lo dice HudShownNow cada frame.
+		MatchPanel->SetLines(Soulbound::Presentation::MatchPanelLines(State, Context));
+	}
 	if (StatusPanel.IsValid())
 	{
-		StatusPanel->SetLines(Soulbound::Presentation::StatusLines(State, Context));
+		// S-045 (R-HUD-15): el panel de estado es de depuración; oculto, no se rellena (su tecla lo rellena en el acto al enseñarlo).
+		StatusPanel->SetLines(HudToggles.bStatusPanelShown ? Soulbound::Presentation::StatusLines(State, Context) : TArray<Soulbound::Presentation::FPanelLine>());
 	}
 	if (GoalPanel.IsValid())
 	{
@@ -2843,7 +2636,7 @@ void ABoardViewActor::TickHud()
 	}
 	if (DebugPanel.IsValid())
 	{
-		DebugPanel->SetLines(bDebugPanelShown ? Soulbound::Presentation::DebugLines(State, Context) : TArray<Soulbound::Presentation::FPanelLine>());
+		DebugPanel->SetLines(HudToggles.bDebugPanelShown ? Soulbound::Presentation::DebugLines(State, Context) : TArray<Soulbound::Presentation::FPanelLine>());
 	}
 	if (GrimoirePanel.IsValid() && bGrimoireOpen)
 	{
@@ -2990,9 +2783,8 @@ FMargin ABoardViewActor::NoticeMarginNow(int32 FontSize) const
 	{
 		return FMargin(0.f);
 	}
-	const bool bPanels = !bPanelsHidden;
-	// El tablero visible acaba donde empieza la columna de paneles (con ella oculta, es todo el viewport).
-	const FBox2f Bounds(FVector2f(0.f, 0.f), FVector2f(FMath::Max(ViewportSize.X - (bPanels ? PanelSlateWidth : 0.f), 1.f), ViewportSize.Y));
+	// S-045 (R-HUD-16): el tablero usa todo el ancho; el aviso se coloca en toda la capa (NoticeBounds), sin columna que lo recorte.
+	const FBox2f Bounds = Soulbound::Presentation::NoticeBounds(ViewportSize);
 	TArray<FBox2f> Avoid;
 	// La zona de un widget a la vista, en las coordenadas de la capa del aviso.
 	auto AddWidgetZone = [&](const TSharedPtr<SWidget>& Widget)
@@ -3004,25 +2796,22 @@ FMargin ABoardViewActor::NoticeMarginNow(int32 FontSize) const
 			Avoid.Add(FBox2f(At, At + FVector2f(Zone.GetLocalSize())));
 		}
 	};
-	auto AddZone = [&](const TSharedPtr<SStatusPanel>& Panel, bool bShown)
+	// S-045: qué zonas esquiva lo dice NoticeAvoidZones (la caja de la partida, la del objetivo, el panel de decisión y el botón del Grimorio; los paneles
+	// de estado y de depuración, solo con su tecla). Antes, desde S-040: la caja del objetivo; S-044, el botón; y el panel de decisión, corrección tras
+	// PIE del 16/11/2026 de un defecto de S-039 (un clic cerca del panel ponía el aviso encima de "Tu turno"). Cada widget cuenta si además se ve (telón).
+	const Soulbound::Presentation::FHudShown Shown = const_cast<ABoardViewActor*>(this)->HudShownNow();
+	for (const Soulbound::Presentation::EHudZone Zone : Soulbound::Presentation::NoticeAvoidZones(Shown, IsDecisionPanelVisible()))
 	{
-		if (bPanels && bShown)
+		switch (Zone)
 		{
-			AddWidgetZone(Panel);
+		case Soulbound::Presentation::EHudZone::MatchPanel: AddWidgetZone(MatchPanel); break;
+		case Soulbound::Presentation::EHudZone::GoalPanel: AddWidgetZone(GoalPanel); break;
+		case Soulbound::Presentation::EHudZone::DecisionPanel: AddWidgetZone(DecisionPanel); break;
+		case Soulbound::Presentation::EHudZone::GrimoireButton: AddWidgetZone(GrimoireButton); break;
+		case Soulbound::Presentation::EHudZone::StatusPanel: AddWidgetZone(StatusPanel); break;
+		case Soulbound::Presentation::EHudZone::DebugPanel: AddWidgetZone(DebugPanel); break;
 		}
-	};
-	AddZone(StatusPanel, !bDebugTextHidden);
-	// S-040 (R-HUD-7): también la caja de la línea de objetivo, abajo a la izquierda. Ninguna tecla la oculta, así que cuenta aunque los paneles no se vean.
-	AddWidgetZone(GoalPanel);
-	// S-044 (R-HUD-12): y el botón del Grimorio, abajo a la derecha, por la misma razón.
-	AddWidgetZone(GrimoireButton);
-	// S-040, corrección tras PIE del 16/11/2026 de un defecto de S-039: el panel de decisión, mientras está a la vista. Sin él, un clic cerca del panel
-	// ponía el aviso encima de "Tu turno" y "Has sacado". Su visibilidad la lleva la caja que lo envuelve; IsDecisionPanelVisible dice lo mismo.
-	if (IsDecisionPanelVisible())
-	{
-		AddWidgetZone(DecisionPanel);
 	}
-	AddZone(DebugPanel, bDebugPanelShown);
 
 	// El tamaño del aviso: el texto medido con su letra, partido al ancho libre, más el margen del fondo.
 	const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle("Bold", FontSize);
@@ -3058,7 +2847,7 @@ float ABoardViewActor::LayerSlateWidth() const
 
 float ABoardViewActor::BoardFreeWidthNow(float Cap) const
 {
-	return Soulbound::Presentation::BoardFreeWidth(LayerSlateWidth(), PanelSlateWidth, Cap);
+	return Soulbound::Presentation::BoardFreeWidth(LayerSlateWidth(), Cap);
 }
 
 float ABoardViewActor::WardenLineReservedHeight() const
@@ -3075,9 +2864,9 @@ float ABoardViewActor::WardenLineReservedHeight() const
 
 bool ABoardViewActor::IsDecisionPanelVisible() const
 {
-	// La regla (decisión abierta, sin anillo) la calcula TickHud; la tecla de los paneles y el telón mandan en el acto, como en las demás capas.
+	// La regla (decisión abierta, sin anillo) la calcula TickHud; el telón manda en el acto, como en las demás capas. Desde S-045 no hay tecla de los paneles.
 	const UMatchHostSubsystem* HostPtr = Host.Get();
-	return bDecisionShown && !bPanelsHidden && HostPtr && !HostPtr->IsCurtainDown() && !HostPtr->GetRingRun();
+	return bDecisionShown && HostPtr && !HostPtr->IsCurtainDown() && !HostPtr->GetRingRun();
 }
 
 float ABoardViewActor::DecisionTimeFractionNow() const

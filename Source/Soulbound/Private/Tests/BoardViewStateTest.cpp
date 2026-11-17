@@ -259,12 +259,63 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FViewKeysTextTest, "Soulbound.Game.Presentation
 
 bool FViewKeysTextTest::RunTest(const FString& Parameters)
 {
-	// Texto de S-022 (R-CAM-1): la línea de teclas nombra la vista actual, sentada o cenital, y la tecla que cambia a la otra. Desde S-027,
-	// T oculta el panel de estado, G abre el Grimorio y D el panel de depuración (decisión del autor del 9/11/2026: D en vez de F1).
-	TestEqual(TEXT("Sentada"), Soulbound::Presentation::ViewKeysText(true, TEXT("C"), TEXT("L"), TEXT("H"), TEXT("T"), TEXT("G"), TEXT("D")),
-		FString(TEXT("vista sentada (C: cenital) | L etiquetas | H paneles | T panel de estado | G Grimorio | D depuración")));
-	TestEqual(TEXT("Cenital"), Soulbound::Presentation::ViewKeysText(false, TEXT("C"), TEXT("L"), TEXT("H"), TEXT("T"), TEXT("G"), TEXT("D")),
-		FString(TEXT("vista cenital (C: sentada) | L etiquetas | H paneles | T panel de estado | G Grimorio | D depuración")));
+	// Texto de S-022 (R-CAM-1): la línea de teclas nombra la vista actual, sentada o cenital, y la tecla que cambia a la otra. Desde S-027, G abre el
+	// Grimorio y D el panel de depuración (decisión del autor del 9/11/2026: D en vez de F1). CA-HUD-28 (R-HUD-16, precisión de R-CAM, S-045): nombra C,
+	// L, G e Intro, y no H ni P; T y D, aparte, como teclas de depuración. Los nombres que da Unreal ("Enter"), en español.
+	using Soulbound::Presentation::ViewKeysText;
+	const FString Seated = ViewKeysText(true, TEXT("C"), TEXT("L"), TEXT("G"), TEXT("Enter"), TEXT("T"), TEXT("D"));
+	TestEqual(TEXT("Sentada"), Seated,
+		FString(TEXT("vista sentada (C: cenital) | L etiquetas | G Grimorio | Intro volver al menú al acabar | depuración: T panel de estado, D panel de depuración")));
+	TestEqual(TEXT("Cenital"), ViewKeysText(false, TEXT("C"), TEXT("L"), TEXT("G"), TEXT("Enter"), TEXT("T"), TEXT("D")),
+		FString(TEXT("vista cenital (C: sentada) | L etiquetas | G Grimorio | Intro volver al menú al acabar | depuración: T panel de estado, D panel de depuración")));
+	// Ninguna palabra suelta es H ni P, y no queda nada de la columna ni de ocultar paneles.
+	TArray<FString> Words;
+	Seated.Replace(TEXT("|"), TEXT(" ")).Replace(TEXT(","), TEXT(" ")).Replace(TEXT(":"), TEXT(" ")).Replace(TEXT("("), TEXT(" ")).Replace(TEXT(")"), TEXT(" "))
+		.ParseIntoArray(Words, TEXT(" "));
+	for (const TCHAR* Key : {TEXT("C"), TEXT("L"), TEXT("G"), TEXT("Intro")})
+	{
+		TestTrue(FString::Printf(TEXT("Nombra %s"), Key), Words.Contains(Key));
+	}
+	TestFalse(TEXT("No nombra H"), Words.Contains(TEXT("H")));
+	TestFalse(TEXT("No nombra P"), Words.Contains(TEXT("P")));
+	TestFalse(TEXT("Nada de paneles que ocultar"), Seated.Contains(TEXT("paneles")));
+	TestFalse(TEXT("Nada de leyenda ni crónica"), Seated.Contains(TEXT("leyenda")) || Seated.Contains(TEXT("crónica")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTopCameraFullWidthTest, "Soulbound.Game.Presentation.Vista.TableroATodoElAncho", ViewStateTestFlags)
+
+bool FTopCameraFullWidthTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-28 (R-HUD-16): el ancho que usa el tablero es siempre el de todo el viewport. La cámara cenital no se corre hacia ningún lado (sin columna
+	// a la derecha) y su altura es la menor a la que el tablero, con su margen, cabe a lo ancho y a lo alto de toda la pantalla: en uno de los dos ejes
+	// justo, en el otro con holgura. A 1920x1080 y a 1024x768, con un tablero cuadrado y con uno muy ancho.
+	using Soulbound::Presentation::FTopCameraFraming;
+	using Soulbound::Presentation::TopCameraFraming;
+	const float HalfTan = FMath::Tan(FMath::DegreesToRadians(30.f));
+	const float Margin = 1.04f;
+	const FVector2D Viewports[] = {FVector2D(1920.0, 1080.0), FVector2D(1024.0, 768.0)};
+	const FVector2D Boards[] = {FVector2D(60.0, 60.0), FVector2D(10.0, 120.0)};
+	for (const FVector2D& Viewport : Viewports)
+	{
+		for (const FVector2D& Board : Boards)
+		{
+			const FString Case = FString::Printf(TEXT("%.0fx%.0f, tablero %.0fx%.0f"), Viewport.X, Viewport.Y, Board.X * 2.0, Board.Y * 2.0);
+			const FTopCameraFraming Framing = TopCameraFraming(Board, Viewport, Margin);
+			TestEqual(FString::Printf(TEXT("%s: centrada, sin correrse"), *Case), Framing.ShiftY, 0.f, 1e-3f);
+			// Lo que se ve a cada lado del centro: a lo ancho (Y del tablero) y a lo alto (X del tablero).
+			const float HalfWide = Framing.Height * HalfTan;
+			const float HalfHigh = HalfWide * static_cast<float>(Viewport.Y / Viewport.X);
+			const float NeedWide = Margin * static_cast<float>(Board.Y);
+			const float NeedHigh = Margin * static_cast<float>(Board.X);
+			TestTrue(FString::Printf(TEXT("%s: cabe a lo ancho en toda la pantalla"), *Case), HalfWide >= NeedWide - 0.01f);
+			TestTrue(FString::Printf(TEXT("%s: cabe a lo alto"), *Case), HalfHigh >= NeedHigh - 0.01f);
+			TestTrue(FString::Printf(TEXT("%s: justo en un eje (la más baja que cabe)"), *Case),
+				FMath::IsNearlyEqual(HalfWide, NeedWide, 0.01f) || FMath::IsNearlyEqual(HalfHigh, NeedHigh, 0.01f));
+		}
+	}
+	const FTopCameraFraming Empty = TopCameraFraming(FVector2D(60.0, 60.0), FVector2D(0.0, 0.0), Margin);
+	TestTrue(TEXT("Sin viewport, cero"), Empty.Height == 0.f && Empty.ShiftY == 0.f);
 	return true;
 }
 

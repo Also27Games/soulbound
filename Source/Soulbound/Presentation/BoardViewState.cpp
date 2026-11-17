@@ -62,12 +62,30 @@ FString Soulbound::Presentation::MenuMapPackage(const FString& ReturnToMenuMap, 
 	return FPackageName::ObjectPathToPackageName(Map);
 }
 
-FString Soulbound::Presentation::ViewKeysText(bool bSeated, const FString& ViewKey, const FString& OverlayKey, const FString& PanelsKey, const FString& DebugTextKey,
-	const FString& GrimoireKey, const FString& DebugPanelKey)
+FString Soulbound::Presentation::ViewKeysText(bool bSeated, const FString& ViewKey, const FString& OverlayKey, const FString& GrimoireKey, const FString& ReturnToMenuKey,
+	const FString& DebugTextKey, const FString& DebugPanelKey)
 {
-	// S-027: T oculta el panel de estado; G abre el Grimorio y D el panel de depuración.
-	return FString::Printf(TEXT("vista %s (%s: %s) | %s etiquetas | %s paneles | %s panel de estado | %s Grimorio | %s depuración"), bSeated ? TEXT("sentada") : TEXT("cenital"),
-		*ViewKey, bSeated ? TEXT("cenital") : TEXT("sentada"), *OverlayKey, *PanelsKey, *DebugTextKey, *GrimoireKey, *DebugPanelKey);
+	// S-045 (precisión de R-CAM): C, L, G e Intro; T y D, aparte, de depuración. Ni H ni P, que se fueron con la columna (R-HUD-16).
+	return FString::Printf(TEXT("vista %s (%s: %s) | %s etiquetas | %s Grimorio | %s volver al menú al acabar | depuración: %s panel de estado, %s panel de depuración"),
+		bSeated ? TEXT("sentada") : TEXT("cenital"), *SpanishKeyName(ViewKey), bSeated ? TEXT("cenital") : TEXT("sentada"), *SpanishKeyName(OverlayKey),
+		*SpanishKeyName(GrimoireKey), *SpanishKeyName(ReturnToMenuKey), *SpanishKeyName(DebugTextKey), *SpanishKeyName(DebugPanelKey));
+}
+
+Soulbound::Presentation::FTopCameraFraming Soulbound::Presentation::TopCameraFraming(const FVector2D& BoardHalf, const FVector2D& Viewport, float CameraMargin)
+{
+	FTopCameraFraming Framing;
+	if (Viewport.X < 1.0 || Viewport.Y < 1.0)
+	{
+		return Framing;
+	}
+	// Con FOV horizontal de 60 grados, a la altura H se ve media anchura H*tan(30); la media altura es esa entre el aspecto. Hasta S-045 la cámara
+	// dejaba a la derecha el hueco de la columna y se corría hacia +Y; sin columna (R-HUD-16), el tablero usa todo el ancho y la cámara va centrada.
+	constexpr float Fov = 60.f;
+	const float Aspect = static_cast<float>(Viewport.X / Viewport.Y);
+	const float HalfTan = FMath::Tan(FMath::DegreesToRadians(Fov * 0.5f));
+	Framing.Height = CameraMargin * FMath::Max(static_cast<float>(BoardHalf.Y) / HalfTan, static_cast<float>(BoardHalf.X) * Aspect / HalfTan);
+	Framing.ShiftY = 0.f;
+	return Framing;
 }
 
 FString Soulbound::Presentation::MatchResultText(const FMatchState& State)

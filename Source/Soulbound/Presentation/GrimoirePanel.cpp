@@ -38,8 +38,8 @@ namespace
 	/**
 	 * Los colores de las pestañas: los de la cabecera de la columna (S-035), que repiten el gris del panel de decisión y su fondo negro. Activa: fondo
 	 * claro y texto oscuro en negrita; inactiva: fondo oscuro con borde, que se ilumina al pasar el ratón.
-	 * TODO(R-HUD-4): el mismo gris está ya en DecisionPanel.cpp y en BoardViewActor.cpp (la cabecera de la columna); con este, tres: extraerlo a un sitio
-	 * común de Presentation y que los tres lo lean de allí.
+	 * TODO(R-HUD-4): el mismo gris está ya en DecisionPanel.cpp (la cabecera de la columna, que también lo repetía, se fue en S-045); con este, dos:
+	 * si un tercer panel lo necesita, extraerlo a un sitio común de Presentation y que lo lean de allí.
 	 */
 	const FLinearColor TabLight = FLinearColor(FColor(190, 190, 190));
 	const FLinearColor TabDark = FLinearColor(0.04f, 0.04f, 0.04f, 1.f);
