@@ -1638,8 +1638,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionOutcomeTurnWhenTest, "Soulbound.Game.P
 bool FDecisionOutcomeTurnWhenTest::RunTest(const FString& Parameters)
 {
 	// CA-DEC-36 (R-DEC-19, S-046, cuándo): se enseñan durante OutcomeSeconds desde su instante y después no; los del humano igual que los de
-	// otros asientos; los desenlaces que ya existían siguen como antes. Ajuste del autor del 17/11/2026: con el panel de destino del humano
-	// abierto en su turno extra, el panel lleva "Tienes un turno extra" mientras dura su desenlace, y después no.
+	// otros asientos; los desenlaces que ya existían siguen como antes. Ajustes del autor del 17/11/2026: el primer panel propio del humano en su
+	// turno extra (la elección de dados con Celeridad o, sin ella, el destino) lleva "Tienes un turno extra" mientras dura su desenlace, y
+	// después no; tras elegir dados, el destino ya no.
 	for (const EMatchEventType Type : {EMatchEventType::TurnSkipped, EMatchEventType::ExtraTurnTaken})
 	{
 		for (const int32 Seat : {2, DtHuman})
@@ -1686,6 +1687,31 @@ bool FDecisionOutcomeTurnWhenTest::RunTest(const FString& Parameters)
 		State.ClockSeconds = DtNow + DtOutcomeSeconds;
 		const TOptional<FDecisionView> Later = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
 		TestTrue(TEXT("Pasado OutcomeSeconds, el destino sin la línea"), Later.IsSet() && Later->Input == EDecisionInput::Tile && Later->Lines.IsEmpty());
+	}
+	// Ajuste del autor del 17/11/2026: con Celeridad, el primer panel propio es la elección de dados, y la lleva él; el destino que viene
+	// después de elegir dados ya no.
+	{
+		FMatchState State = DtMakeState();
+		DtLog(State, EMatchEventType::TurnEnded, DtNow, DtHuman);
+		DtLog(State, EMatchEventType::ExtraTurnTaken, DtNow, DtHuman, INDEX_NONE, 0);
+		DtLog(State, EMatchEventType::TurnStarted, DtNow, DtHuman);
+		DtOpenDice(State, DtHuman);
+		const TOptional<FDecisionView> Dice = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
+		if (TestTrue(TEXT("Con Celeridad: el panel es su elección de dados"), Dice.IsSet() && Dice->Input == EDecisionInput::Buttons))
+		{
+			TestTrue(TEXT("Con la línea \"Tienes un turno extra\""), Dice->Lines.Contains(TEXT("Tienes un turno extra")));
+		}
+		State.ClockSeconds = DtNow + DtOutcomeSeconds;
+		const TOptional<FDecisionView> LateDice = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
+		TestTrue(TEXT("Pasado OutcomeSeconds, los dados sin la línea"), LateDice.IsSet() && LateDice->Lines.IsEmpty());
+
+		// Elige dos dados al segundo: su destino, aún dentro de OutcomeSeconds, no lleva la línea.
+		State.PendingChoice = FPendingChoice();
+		DtLog(State, EMatchEventType::DiceChosen, DtNow + 1.0, DtHuman, INDEX_NONE, 2);
+		DtOpenTile(State);
+		State.ClockSeconds = DtNow + 1.0;
+		const TOptional<FDecisionView> Tile = Soulbound::Presentation::PanelView(State, DtHuman, false, DtResultSeconds, DtOutcomeSeconds);
+		TestTrue(TEXT("Tras elegir dados, el destino sin la línea"), Tile.IsSet() && Tile->Input == EDecisionInput::Tile && Tile->Lines.IsEmpty());
 	}
 	// Control: el turno extra de otro asiento o un turno normal del humano no ponen la línea en su destino.
 	{
