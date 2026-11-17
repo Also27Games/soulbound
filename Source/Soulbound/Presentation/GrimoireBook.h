@@ -220,6 +220,45 @@ namespace Soulbound::Presentation
 	FGrimoireBookLayout GrimoireBookLayout(const FVector2f& PanelSize, const FVector2f& ImageSize, const FMargin& BorderFraction, float PageInset, float SpineGapFraction);
 
 	/**
+	 * La barra de desplazamiento de las pestañas del Grimorio (S-048, corrección 1 del autor del 17/11/2026, R-HUD-20): su grosor y su margen, que se
+	 * le dan a cada SScrollBox, y el hueco entre el texto y la barra. Lo que reservan entre los tres, GrimoireScrollRoom, se resta siempre, se vea la
+	 * barra o no, para que el texto no cambie de ancho al aparecer (R-VIS-21).
+	 */
+	inline constexpr float GrimoireScrollBarThickness = 8.f;
+	inline constexpr float GrimoireScrollBarPadding = 2.f;
+	inline constexpr float GrimoireScrollGap = 4.f;
+	inline constexpr float GrimoireScrollRoom = GrimoireScrollBarThickness + 2.f * GrimoireScrollBarPadding + GrimoireScrollGap;
+
+	/**
+	 * El ancho al que se parte un texto del Grimorio dentro de su columna (S-048, corrección 1 del autor del 17/11/2026, R-HUD-20): el de su propia
+	 * columna (con el libro, la página en que va; sin él, la única), menos lo que reserva la barra de desplazamiento y menos la sangría de la línea
+	 * (sus márgenes a izquierda y derecha). Así nada se corta por el borde.
+	 * @param ColumnWidth El ancho de la columna (FGrimoireBookLayout::LeftPage, RightPage o Content).
+	 * @param Indent Los márgenes de la línea, izquierdo y derecho sumados.
+	 * @return El ancho de partir; nunca menos de 1.
+	 */
+	float GrimoireColumnTextWidth(float ColumnWidth, float Indent);
+
+	/** El título del Grimorio (S-048, corrección 2 del autor del 17/11/2026): solo "Grimorio"; las teclas van al pie (GrimoireFootHints). */
+	inline const TCHAR* const GrimoireTitleText = TEXT("Grimorio");
+
+	/** La línea pequeña de teclas al pie del Grimorio (S-048, corrección 2, nombre propuesto): una mitad por página, para no cruzar el lomo. */
+	struct FGrimoireFootHints
+	{
+		/** Al pie de la página izquierda: cerrar y pestañas ("G para cerrar; flechas izquierda y derecha, pestañas", GrimoireKeysHint). */
+		FString Left;
+		/** Al pie de la derecha: páginas ("flechas arriba y abajo, páginas"). */
+		FString Right;
+	};
+
+	/**
+	 * Las teclas del pie del Grimorio (S-048, corrección 2 del autor del 17/11/2026), con los nombres de las configuradas en español donde lo haya. Sin
+	 * el libro, se enseñan las dos en una línea.
+	 * @param Keys Los nombres que da Unreal a las teclas configuradas.
+	 */
+	FGrimoireFootHints GrimoireFootHints(const FGrimoireKeyNames& Keys);
+
+	/**
 	 * Si la imagen de una página de "Cómo se juega" va al lado del texto o debajo (S-048, R-HUD-18): al lado si, partido el ancho en dos, el texto
 	 * tiene al menos MinTextWidth.
 	 * @param ColumnsWidth El ancho de que disponen texto e imagen juntos.

@@ -8,6 +8,10 @@
 #include "../../Presentation/ChronicleLines.h"
 #include "../../Presentation/EventText.h"
 #include "../../Presentation/GrimoireBook.h"
+#include "../../Presentation/GrimoireFont.h"
+#include "Engine/Font.h"
+#include "Styling/CoreStyle.h"
+#include "UObject/Package.h"
 #include "Elects/ElectsLoader.h"
 #include "Match/MatchState.h"
 #include "Misc/AutomationTest.h"
@@ -701,6 +705,115 @@ bool FGrimoireBookLayoutTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Ancho de sobra: la imagen al lado"), HowToPlayImageBeside(800.f, 300.f));
 	TestTrue(TEXT("Justo: al lado"), HowToPlayImageBeside(600.f, 300.f));
 	TestFalse(TEXT("Estrecho: la imagen debajo"), HowToPlayImageBeside(500.f, 300.f));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireColumnTextWidthTest, "Soulbound.Game.Presentation.Grimorio.TextoAlAnchoDeSuColumna", GrimoireBookTestFlags)
+
+bool FGrimoireColumnTextWidthTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-39 (R-HUD-20, corrección 1 del autor del 17/11/2026 tras PIE): en "Tú" los poderes de la página derecha se cortaban por el borde, porque
+	// se partían a un ancho mayor que el de su columna. Para cada columna del libro (y la única sin él) y cada sangría, el ancho de partir más la
+	// sangría y la reserva de la barra de desplazamiento no pasa del ancho de la columna; y cada página usa el suyo, no el de la otra.
+	using namespace Soulbound::Presentation;
+	TestTrue(TEXT("La reserva cubre la barra, sus márgenes y el hueco"),
+		GrimoireScrollRoom >= GrimoireScrollBarThickness + 2.f * GrimoireScrollBarPadding + GrimoireScrollGap - 0.01f && GrimoireScrollBarThickness > 0.f);
+
+	// Márgenes distintos a cada lado, para que las dos páginas no midan lo mismo.
+	const FMargin Border(0.12f, 0.08f, 0.05f, 0.08f);
+	const TArray<FVector2f> Panels{FVector2f(1100.f, 830.f), FVector2f(992.f, 582.f), FVector2f(600.f, 900.f)};
+	// Las sangrías de las líneas del panel: ninguna, la de la insolencia (4 y 4), la tarjeta (8 y 8) y la de cada poder (12 y 4).
+	const TArray<float> Indents{0.f, 8.f, 16.f, 16.f, 30.f};
+	for (const FVector2f& Panel : Panels)
+	{
+		for (const bool bBook : {true, false})
+		{
+			const FGrimoireBookLayout Layout = GrimoireBookLayout(Panel, bBook ? FVector2f(2048.f, 1365.f) : FVector2f::ZeroVector, Border, 12.f, 0.06f);
+			const float Left = Layout.LeftPage.Max.X - Layout.LeftPage.Min.X;
+			const float Right = Layout.RightPage.Max.X - Layout.RightPage.Min.X;
+			if (bBook)
+			{
+				TestFalse(FString::Printf(TEXT("Panel %.0f: las dos páginas miden distinto"), Panel.X), FMath::IsNearlyEqual(Left, Right, 0.5f));
+			}
+			for (const float Column : {Left, Right})
+			{
+				for (const float Indent : Indents)
+				{
+					const FString Case = FString::Printf(TEXT("Panel %.0fx%.0f, %s, columna %.0f, sangría %.0f"), Panel.X, Panel.Y, bBook ? TEXT("libro") : TEXT("sin libro"), Column, Indent);
+					const float Width = GrimoireColumnTextWidth(Column, Indent);
+					TestTrue(Case + TEXT(": nunca menos de 1"), Width >= 1.f);
+					TestTrue(Case + TEXT(": cabe en su columna con la sangría y la barra"), Width + Indent + GrimoireScrollRoom <= Column + 0.01f);
+					TestTrue(Case + TEXT(": usa todo el ancho de su columna, no el de la otra"), FMath::IsNearlyEqual(Width, Column - Indent - GrimoireScrollRoom, 0.01f));
+				}
+			}
+		}
+	}
+	TestEqual(TEXT("Una columna sin sitio: 1"), GrimoireColumnTextWidth(10.f, 30.f), 1.f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireTitleAndFootTest, "Soulbound.Game.Presentation.Grimorio.TituloYTeclasAlPie", GrimoireBookTestFlags)
+
+bool FGrimoireTitleAndFootTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-40 (R-HUD-20, corrección 2 del autor del 17/11/2026 tras PIE): el título ocupaba tres líneas. Dice solo "Grimorio"; las teclas van en una
+	// línea pequeña al pie, una mitad por página: a la izquierda, cerrar y pestañas; a la derecha, páginas. Con los nombres de las teclas configuradas.
+	using namespace Soulbound::Presentation;
+	TestEqual(TEXT("El título"), FString(GrimoireTitleText), FString(TEXT("Grimorio")));
+	FGrimoireKeyNames Keys;
+	Keys.Grimoire = TEXT("G");
+	Keys.PreviousTab = TEXT("Left");
+	Keys.NextTab = TEXT("Right");
+	Keys.PreviousPage = TEXT("Up");
+	Keys.NextPage = TEXT("Down");
+	const FGrimoireFootHints Foot = GrimoireFootHints(Keys);
+	TestEqual(TEXT("Al pie de la izquierda: cerrar y pestañas"), Foot.Left, FString(TEXT("G para cerrar; flechas izquierda y derecha, pestañas")));
+	TestEqual(TEXT("Al pie de la izquierda: lo mismo que GrimoireKeysHint"), Foot.Left, GrimoireKeysHint(Keys.Grimoire, Keys.PreviousTab, Keys.NextTab));
+	TestEqual(TEXT("Al pie de la derecha: páginas"), Foot.Right, FString(TEXT("flechas arriba y abajo, páginas")));
+
+	FGrimoireKeyNames Other = Keys;
+	Other.Grimoire = TEXT("F1");
+	Other.PreviousTab = TEXT("Q");
+	Other.NextTab = TEXT("E");
+	Other.PreviousPage = TEXT("Z");
+	Other.NextPage = TEXT("Space Bar");
+	const FGrimoireFootHints OtherFoot = GrimoireFootHints(Other);
+	TestEqual(TEXT("Otras teclas, a la izquierda"), OtherFoot.Left, FString(TEXT("F1 para cerrar; Q y E, pestañas")));
+	TestEqual(TEXT("Otras teclas, a la derecha, en español donde lo haya"), OtherFoot.Right, FString(TEXT("Z y Espacio, páginas")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireFontTest, "Soulbound.Game.Presentation.Grimorio.FuenteDelLibro", GrimoireBookTestFlags)
+
+bool FGrimoireFontTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-41 (R-HUD-20, corrección 4 del autor del 17/11/2026): sin fuente, la letra es la de hoy, con el tipo y el tamaño pedidos; con fuente, esa
+	// fuente, con su tipo normal o negrita y el tamaño pedido.
+	using namespace Soulbound::Presentation;
+	const FGrimoireFont None;
+	for (const bool bBold : {false, true})
+	{
+		const FSlateFontInfo Expected = FCoreStyle::GetDefaultFontStyle(bBold ? "Bold" : "Regular", 17);
+		const FSlateFontInfo Got = GrimoireFontInfo(None, bBold, 17);
+		const FString Kind = bBold ? TEXT("negrita") : TEXT("normal");
+		TestTrue(TEXT("Sin fuente, la de hoy: ") + Kind, Got.FontObject == Expected.FontObject && Got.TypefaceFontName == Expected.TypefaceFontName
+			&& Got.CompositeFont == Expected.CompositeFont);
+		TestTrue(TEXT("Sin fuente, el tamaño pedido: ") + Kind, FMath::IsNearlyEqual(static_cast<float>(Got.Size), static_cast<float>(Expected.Size)));
+	}
+	TestTrue(TEXT("Un tamaño de 0 se queda en 1"), FMath::IsNearlyEqual(static_cast<float>(GrimoireFontInfo(None, false, 0).Size), 1.f));
+
+	FGrimoireFont Own;
+	Own.Font = NewObject<UFont>(GetTransientPackage());
+	Own.RegularTypeface = TEXT("Normal");
+	Own.BoldTypeface = TEXT("Negrita");
+	const FSlateFontInfo Regular = GrimoireFontInfo(Own, false, 14);
+	const FSlateFontInfo Bold = GrimoireFontInfo(Own, true, 20);
+	TestTrue(TEXT("Con fuente, la normal es esa fuente"), Regular.FontObject == Own.Font);
+	TestTrue(TEXT("Con fuente, su tipo normal"), Regular.TypefaceFontName == Own.RegularTypeface);
+	TestTrue(TEXT("Con fuente, el tamaño de la normal"), FMath::IsNearlyEqual(static_cast<float>(Regular.Size), 14.f));
+	TestTrue(TEXT("Con fuente, la negrita es esa fuente"), Bold.FontObject == Own.Font);
+	TestTrue(TEXT("Con fuente, su tipo negrita"), Bold.TypefaceFontName == Own.BoldTypeface);
+	TestTrue(TEXT("Con fuente, el tamaño de la negrita"), FMath::IsNearlyEqual(static_cast<float>(Bold.Size), 20.f));
 	return true;
 }
 

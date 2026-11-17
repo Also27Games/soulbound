@@ -242,6 +242,17 @@ namespace Soulbound::Presentation
 		return ColumnsWidth * 0.5f >= MinTextWidth;
 	}
 
+	// TODO(R-HUD-20): por implementar (correcciones del autor del 17/11/2026); los tests están en rojo.
+	float GrimoireColumnTextWidth(float ColumnWidth, float Indent)
+	{
+		return ColumnWidth;
+	}
+
+	FGrimoireFootHints GrimoireFootHints(const FGrimoireKeyNames& Keys)
+	{
+		return FGrimoireFootHints();
+	}
+
 	bool FGrimoireCloseWatch::Observe(const TOptional<FDecisionView>& Panel, bool bRingOpen)
 	{
 		// Una decisión propia es lo que no es espera ni resultado (IsOwnDecisionShown); bloqueada o no, cuenta (precisión del autor del 17/11/2026).
