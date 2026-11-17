@@ -86,19 +86,39 @@ namespace Soulbound::Presentation
 	SOULBOUND_API float WedgeFloorDim(bool bForgotten, bool bForgottenMaterial, float ForgottenFloorDim, float ForgottenDim);
 
 	/**
-	 * Las teclas de la vista para el HUD (S-022, R-CAM-1): qué vista está activa, sentada o cenital, y con qué tecla se cambia a la otra; y las
-	 * teclas de ocultar. Es lo que dice ABoardViewActor::DescribeViewKeys.
+	 * Las teclas de la vista para SbHelp y la línea del paso a paso (S-022, R-CAM-1; desde S-045, la precisión de R-CAM): qué vista está activa,
+	 * sentada o cenital, y con qué tecla se cambia a la otra; la de las etiquetas, la del Grimorio y la de volver al menú; y, aparte, las dos de
+	 * depuración. Sin teclas de ocultar paneles ni de columna (R-HUD-16). Los nombres, en español donde lo haya (SpanishKeyName). Es lo que dice
+	 * ABoardViewActor::DescribeViewKeys.
 	 * @param bSeated Si la vista activa es la sentada.
 	 * @param ViewKey Nombre de la tecla que alterna la vista (SeatedViewKey).
-	 * @param OverlayKey Nombre de la tecla de las etiquetas.
-	 * @param PanelsKey Nombre de la tecla de los paneles.
-	 * @param DebugTextKey Nombre de la tecla que oculta el panel de estado (desde S-027; antes, el texto de depuración).
-	 * @param GrimoireKey Nombre de la tecla del Grimorio (S-027).
-	 * @param DebugPanelKey Nombre de la tecla del panel de depuración (S-027).
+	 * @param OverlayKey Nombre de la tecla de las etiquetas (OverlayToggleKey).
+	 * @param GrimoireKey Nombre de la tecla del Grimorio (GrimoireKey).
+	 * @param ReturnToMenuKey Nombre de la tecla de volver al menú (ReturnToMenuKey).
+	 * @param DebugTextKey Nombre de la tecla del panel de estado, de depuración desde S-045 (DebugTextToggleKey).
+	 * @param DebugPanelKey Nombre de la tecla del panel de depuración (DebugPanelKey).
 	 * @return La línea de teclas.
 	 */
-	SOULBOUND_API FString ViewKeysText(bool bSeated, const FString& ViewKey, const FString& OverlayKey, const FString& PanelsKey, const FString& DebugTextKey,
-		const FString& GrimoireKey, const FString& DebugPanelKey);
+	SOULBOUND_API FString ViewKeysText(bool bSeated, const FString& ViewKey, const FString& OverlayKey, const FString& GrimoireKey, const FString& ReturnToMenuKey,
+		const FString& DebugTextKey, const FString& DebugPanelKey);
+
+	/** Dónde va la cámara cenital (S-045, R-HUD-16, nombre propuesto): su altura sobre la mesa y cuánto se corre hacia +Y desde el centro del tablero. */
+	struct FTopCameraFraming
+	{
+		float Height = 0.f;
+		float ShiftY = 0.f;
+	};
+
+	/**
+	 * El encuadre de la cámara cenital, sacado de ABoardViewActor::UpdateCamera (S-045, R-HUD-16, nombre propuesto): con un campo de visión horizontal
+	 * de 60 grados, la altura más baja a la que el tablero entero, con su margen, cabe en todo el viewport; sin columna a la derecha, centrada en el
+	 * tablero (ShiftY 0). La pantalla crece hacia +Y a la derecha y hacia +X hacia arriba.
+	 * @param BoardHalf La mitad del tablero en X y en Y, en cm.
+	 * @param Viewport El tamaño del viewport, en píxeles.
+	 * @param CameraMargin El margen alrededor del tablero (1 = justo al borde; ABoardViewActor::CameraMargin).
+	 * @return La altura y el desplazamiento; cero los dos con un viewport vacío.
+	 */
+	SOULBOUND_API FTopCameraFraming TopCameraFraming(const FVector2D& BoardHalf, const FVector2D& Viewport, float CameraMargin);
 
 	/**
 	 * El mapa al que vuelve "Volver al menú" (S-027, R-MEN-1): el de ReturnToMenuMap si tiene valor y existe; si no, el de arranque del juego

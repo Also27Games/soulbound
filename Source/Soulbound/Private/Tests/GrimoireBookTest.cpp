@@ -328,20 +328,32 @@ bool FGrimoireOtherTabsTest::RunTest(const FString& Parameters)
 	Keys.Grimoire = TEXT("G");
 	Keys.PreviousTab = TEXT("Izquierda");
 	Keys.NextTab = TEXT("Derecha");
-	Keys.ColumnTab = TEXT("P");
-	Keys.Panels = TEXT("H");
 	Keys.View = TEXT("C");
+	Keys.Overlay = TEXT("L");
 	Keys.RingStart = TEXT("Intro");
+	Keys.ReturnToMenu = TEXT("Intro");
 	const FHowToPlayLoadResult Loaded = ParseHowToPlayText(TEXT("## Qué es esto\nUn texto.\n\n## Cómo se gana\nOtro.\n\n## El Warden\nEl último."));
 	TestTrue(TEXT("El texto de prueba carga"), Loaded.IsSuccess());
 	const FString HowTo = GrimoireHowToPlayText(Loaded, Keys);
 	TestTrue(TEXT("Cómo se juega: empieza por el texto, como en el menú"), HowTo.StartsWith(HowToPlayDisplayText(Loaded.Text)));
 	const int32 KeysAt = HowTo.Find(TEXT("Teclas"));
 	TestTrue(TEXT("Y al final, las teclas"), KeysAt > HowToPlayDisplayText(Loaded.Text).Len() - 1);
-	for (const FString& Name : {Keys.Grimoire, Keys.PreviousTab, Keys.NextTab, Keys.ColumnTab, Keys.Panels, Keys.View, Keys.RingStart})
+	// S-045 (precisión de R-CAM, decisión del autor del 17/11/2026): C, L y G, las flechas, 1 a 9 y 0, e Intro para empezar una prueba y volver al
+	// menú; sin H, P, T ni D.
+	const FString KeysBlock = HowTo.Mid(FMath::Max(KeysAt, 0));
+	for (const FString& Name : {Keys.Grimoire, Keys.PreviousTab, Keys.NextTab, Keys.View, Keys.Overlay, Keys.RingStart, FString(TEXT("1 a 9 y 0"))})
 	{
-		TestTrue(FString::Printf(TEXT("Las teclas nombran %s"), *Name), HowTo.Mid(FMath::Max(KeysAt, 0)).Contains(Name));
+		TestTrue(FString::Printf(TEXT("Las teclas nombran %s"), *Name), KeysBlock.Contains(Name));
 	}
+	TestTrue(TEXT("Intro también vuelve al menú al acabar"), KeysBlock.Contains(TEXT("vuelve al menú")));
+	TArray<FString> KeyLines;
+	KeysBlock.ParseIntoArrayLines(KeyLines);
+	for (const TCHAR* Gone : {TEXT("H"), TEXT("P"), TEXT("T"), TEXT("D")})
+	{
+		TestFalse(FString::Printf(TEXT("Ninguna línea de teclas empieza por %s"), Gone),
+			KeyLines.ContainsByPredicate([Gone](const FString& Line) { return Line.StartsWith(FString(Gone) + TEXT(":")); }));
+	}
+	TestFalse(TEXT("Ni columna ni paneles que ocultar"), KeysBlock.Contains(TEXT("columna")) || KeysBlock.Contains(TEXT("paneles")));
 	const FHowToPlayLoadResult Missing = LoadHowToPlayText(TEXT("no/existe/como-se-juega.md"));
 	TestFalse(TEXT("Sin archivo, el cargador falla"), Missing.IsSuccess());
 	const FString MissingText = GrimoireHowToPlayText(Missing, Keys);
@@ -455,21 +467,22 @@ bool FGrimoireKeyNamesTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Una tecla de función, tal cual"), SpanishKeyName(TEXT("F1")), FString(TEXT("F1")));
 	TestEqual(TEXT("La línea bajo un botón sigue diciendo Intro"), KeyHintText(TEXT("Enter")), FString(TEXT("o pulsa Intro")));
 
-	TestEqual(TEXT("Título con las teclas por defecto"), GrimoireKeysHint(TEXT("G"), TEXT("H"), TEXT("Left"), TEXT("Right")),
-		FString(TEXT("G o H para cerrar; flechas izquierda y derecha, pestañas")));
-	TestEqual(TEXT("Título con otras teclas de pestaña"), GrimoireKeysHint(TEXT("G"), TEXT("H"), TEXT("Q"), TEXT("E")),
-		FString(TEXT("G o H para cerrar; Q y E, pestañas")));
-	TestEqual(TEXT("Título con teclas que tienen nombre en español"), GrimoireKeysHint(TEXT("Enter"), TEXT("H"), TEXT("Up"), TEXT("Down")),
-		FString(TEXT("Intro o H para cerrar; flecha arriba y flecha abajo, pestañas")));
+	// S-045 (R-HUD-16): el Grimorio deja de anunciar H para cerrarlo.
+	TestEqual(TEXT("Título con las teclas por defecto"), GrimoireKeysHint(TEXT("G"), TEXT("Left"), TEXT("Right")),
+		FString(TEXT("G para cerrar; flechas izquierda y derecha, pestañas")));
+	TestEqual(TEXT("Título con otras teclas de pestaña"), GrimoireKeysHint(TEXT("G"), TEXT("Q"), TEXT("E")),
+		FString(TEXT("G para cerrar; Q y E, pestañas")));
+	TestEqual(TEXT("Título con teclas que tienen nombre en español"), GrimoireKeysHint(TEXT("Enter"), TEXT("Up"), TEXT("Down")),
+		FString(TEXT("Intro para cerrar; flecha arriba y flecha abajo, pestañas")));
 
 	FGrimoireKeyNames Keys;
 	Keys.Grimoire = TEXT("G");
 	Keys.PreviousTab = TEXT("Left");
 	Keys.NextTab = TEXT("Right");
-	Keys.ColumnTab = TEXT("P");
-	Keys.Panels = TEXT("H");
 	Keys.View = TEXT("C");
+	Keys.Overlay = TEXT("L");
 	Keys.RingStart = TEXT("Enter");
+	Keys.ReturnToMenu = TEXT("Enter");
 	const FString HowTo = GrimoireHowToPlayText(ParseHowToPlayText(TEXT("## Qué es esto\nUno.\n\n## Cómo se gana\nDos.\n\n## El Warden\nTres.")), Keys);
 	TestTrue(TEXT("Cómo se juega: las flechas, en español"), HowTo.Contains(TEXT("flechas izquierda y derecha")));
 	TestTrue(TEXT("Cómo se juega: Intro"), HowTo.Contains(TEXT("Intro:")));

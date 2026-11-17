@@ -4,6 +4,7 @@
 #include "DecisionText.h"
 #include "Dom/JsonObject.h"
 #include "EventText.h"
+#include "GrimoireBook.h"
 #include "RingPanelModel.h"
 #include "Match/BondRaceRules.h"
 #include "Match/MatchState.h"
@@ -538,7 +539,7 @@ namespace
 	const FLinearColor StatusGreen = StatusLineColor(FColor::Green);
 	const FLinearColor StatusGray = StatusLineColor(FColor(190, 190, 190));
 
-	/** Altura de pantalla a la que PanelFontSize y PanelWidthPixels valen lo que dicen (R-HUD-3). */
+	/** Altura de pantalla a la que PanelFontSize vale lo que dice (R-HUD-3). */
 	constexpr float StatusReferenceHeight = 1080.f;
 
 	/** La clave de un enumerado en los datos: su nombre con la inicial en minúscula, como en elegidos.json ("FreePassage" pasa a "freePassage"). */
@@ -617,6 +618,80 @@ namespace Soulbound::Presentation
 	{
 		// R-HUD-7 (corrección del 16/11/2026): en partida, con meta, y sin frase del Warden en pantalla; ninguna tecla.
 		return !bPrologue && Goal != ESeatGoal::None && !bWardenLineOnScreen;
+	}
+
+	FString MatchCountdownText(const FMatchState& State)
+	{
+		if (State.IsMatchOver())
+		{
+			return FString();
+		}
+		// R-HUD-14: los datos de la línea de la carrera y de "fin de la partida en MM:SS" del panel de estado. Hacia arriba y nunca por debajo de cero
+		// (precisión del autor del 17/11/2026): con la carrera agotada y el turno sin acabar, "Carrera 0:00".
+		const bool bRace = State.MatchPhase == EMatchPhase::BondRace;
+		if (!bRace && !State.WardenParams.HasWarden())
+		{
+			return FString();
+		}
+		const double Left = bRace ? State.Params.RaceDurationSeconds - State.ClockSeconds : State.WardenParams.MatchEndSeconds - State.ClockSeconds;
+		const int32 Seconds = FMath::Max(0, FMath::CeilToInt32(Left));
+		return FString::Printf(TEXT("%s %d:%02d"), bRace ? TEXT("Carrera") : TEXT("Partida"), Seconds / 60, Seconds % 60);
+	}
+
+	TArray<FPanelLine> MatchPanelLines(const FMatchState& State, const FStatusContext& Context)
+	{
+		TArray<FPanelLine> Lines;
+		if (Context.bPrologue || State.IsMatchOver())
+		{
+			return Lines;
+		}
+		// R-HUD-14: el reloj primero, en blanco y grande; debajo, los avisos de mesa con el color del Warden y también grandes (decisión del autor del
+		// 17/11/2026).
+		const FString Countdown = MatchCountdownText(State);
+		if (!Countdown.IsEmpty())
+		{
+			Lines.Add({Countdown, FLinearColor::White, true});
+		}
+		if (State.IsEchoNight())
+		{
+			Lines.Add({TEXT("Noche de los Ecos: los Ecos entran en cualquier Dominio"), Context.WardenLineColor, true});
+		}
+		// El aspirante humano no: su caja del objetivo ya lo dice (S-040).
+		for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
+		{
+			if (Seat != Context.HumanSeat && Soulbound::Rules::IsAspirant(State, Seat))
+			{
+				Lines.Add({FString::Printf(TEXT("El asiento %d está a un turno de ganar"), Seat), Context.WardenLineColor, true});
+			}
+		}
+		return Lines;
+	}
+
+	bool IsMatchPanelShown(bool bPrologue, bool bMatchOver)
+	{
+		return !bPrologue && !bMatchOver;
+	}
+
+	void FHudToggles::ToggleStatusPanel()
+	{
+		bStatusPanelShown = !bStatusPanelShown;
+	}
+
+	void FHudToggles::ToggleDebugPanel()
+	{
+		bDebugPanelShown = !bDebugPanelShown;
+	}
+
+	FHudShown HudShown(const FHudToggles& Toggles, bool bPrologue, bool bMatchOver, ESeatGoal Goal, bool bWardenLineOnScreen)
+	{
+		// R-HUD-15: las cajas y el botón, por sus reglas; los paneles de depuración, solo por su tecla.
+		FHudShown Shown;
+		Shown.bMatchPanel = IsMatchPanelShown(bPrologue, bMatchOver);
+		Shown.bGoalPanel = IsGoalPanelShown(bPrologue, Goal, bWardenLineOnScreen);
+		Shown.bGrimoireButton = IsGrimoireButtonShown(bPrologue, bMatchOver, bWardenLineOnScreen);
+		Shown.bStatusPanel = Toggles.bStatusPanelShown;
+		Shown.bDebugPanel = Toggles.bDebugPanelShown;
+		return Shown;
 	}
 
 	TArray<FPanelLine> StatusLines(const FMatchState& State, const FStatusContext& Context)
@@ -889,11 +964,6 @@ namespace Soulbound::Presentation
 	{
 		const float Scaled = ViewportHeight > 0.f ? static_cast<float>(FontSizeAt1080) * ViewportHeight / StatusReferenceHeight : 0.f;
 		return FMath::Max(MinFontSize, FMath::RoundToInt(Scaled));
-	}
-
-	float ScaledPanelWidth(float ViewportHeight, float WidthAt1080)
-	{
-		return ViewportHeight > 0.f && WidthAt1080 > 0.f ? WidthAt1080 * ViewportHeight / StatusReferenceHeight : 0.f;
 	}
 
 	FGrimoireTextsLoadResult ParseGrimoireTexts(const FString& Json)

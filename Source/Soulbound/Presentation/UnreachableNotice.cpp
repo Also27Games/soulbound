@@ -91,3 +91,40 @@ FVector2f Soulbound::Presentation::PlaceNotice(const FVector2f& Click, const FVe
 	}
 	return bFound ? Best : Clamp(Candidates[0].Corner);
 }
+
+TArray<Soulbound::Presentation::EHudZone> Soulbound::Presentation::NoticeAvoidZones(const FHudShown& Shown, bool bDecisionPanelShown)
+{
+	// S-045: las de la regla mientras se ven; los paneles de depuración, solo si su tecla los enseña. No hay columna (R-HUD-16).
+	TArray<EHudZone> Zones;
+	if (Shown.bMatchPanel)
+	{
+		Zones.Add(EHudZone::MatchPanel);
+	}
+	if (Shown.bGoalPanel)
+	{
+		Zones.Add(EHudZone::GoalPanel);
+	}
+	if (bDecisionPanelShown)
+	{
+		Zones.Add(EHudZone::DecisionPanel);
+	}
+	if (Shown.bGrimoireButton)
+	{
+		Zones.Add(EHudZone::GrimoireButton);
+	}
+	if (Shown.bStatusPanel)
+	{
+		Zones.Add(EHudZone::StatusPanel);
+	}
+	if (Shown.bDebugPanel)
+	{
+		Zones.Add(EHudZone::DebugPanel);
+	}
+	return Zones;
+}
+
+FBox2f Soulbound::Presentation::NoticeBounds(const FVector2f& LayerSize)
+{
+	// R-HUD-16: el tablero usa todo el ancho; la capa del aviso llena el viewport.
+	return FBox2f(FVector2f::ZeroVector, FVector2f(FMath::Max(LayerSize.X, 1.f), FMath::Max(LayerSize.Y, 1.f)));
+}

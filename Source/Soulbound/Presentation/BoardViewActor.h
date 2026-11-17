@@ -6,7 +6,6 @@
 #include "BoardKit.h"
 #include "BoardLayout.h"
 #include "ChronicleLines.h"
-#include "ColumnTab.h"
 #include "DecisionText.h"
 #include "ElectCard.h"
 #include "FlashCues.h"
@@ -28,7 +27,6 @@ class ACameraActor;
 class APostProcessVolume;
 class ASeatTokenActor;
 class IInputProcessor;
-class SChroniclePanel;
 class SDecisionPanel;
 class SElectCardPanel;
 class SGrimoirePanel;
@@ -59,7 +57,7 @@ class UTextRenderComponent;
  * Desde S-007 es legible sin leer la crónica de consola: un volumen de posproceso de exposición fija para que los
  * colores salgan como se escriben, paleta separada por Dominio, el tipo de casilla por su forma, etiqueta con el
  * identificador y el Dominio en cada casilla (TileLabel), leyenda (Legend), asiento activo elevado y con aro
- * (SeatRing), y el panel de crónica (ChroniclePanel) con todos los sucesos.
+ * (SeatRing), y el panel de crónica (ChroniclePanel) con todos los sucesos (desde S-045, solo en el Grimorio).
  * Desde S-009 enseña la elección pendiente: una línea de petición con las opciones numeradas y el tiempo que queda, el
  * halo en los Nodos a los que se puede saltar, y el efecto de cada Nodo en su etiqueta tras el Despertar.
  * Desde S-019 coloca el kit de arte desde los datos sobre una mesa de radio de datos (BoardLayout): una losa por casilla,
@@ -71,6 +69,9 @@ class UTextRenderComponent;
  * decorado del autor vive en el nivel, fuera de esta vista.
  * Desde S-027 el texto del turno ya no son mensajes de pantalla del motor: es el panel de estado (SStatusPanel) arriba a la izquierda,
  * con el de depuración debajo (tecla D), y el Grimorio (tecla G); los paneles escalan con la altura de la pantalla (R-HUD-3).
+ * Desde S-045 la pantalla queda limpia: arriba a la izquierda, la caja de la partida (el reloj y los avisos de mesa, R-HUD-14); el panel de estado
+ * pasa a ser de depuración, oculto hasta la tecla T (R-HUD-15); la columna de la leyenda y la crónica desaparece, con sus teclas H y P, y el
+ * tablero usa todo el ancho (R-HUD-16).
  */
 UCLASS(NotBlueprintable, Config = Game)
 class SOULBOUND_API ABoardViewActor : public AActor
@@ -414,14 +415,7 @@ public:
 	// ---- Paneles ----
 
 	/**
-	 * Ancho de la columna de la derecha (leyenda y crónica) a 1080 píxeles de alto; con otra altura, en proporción (S-027, R-HUD-3). La cámara
-	 * deja ese hueco al tablero, en píxeles de pantalla. Valor inicial 460.
-	 */
-	UPROPERTY(EditAnywhere, Category = "Vista|Paneles")
-	float PanelWidthPixels = 460.f;
-
-	/**
-	 * Tamaño de la letra de los paneles (estado, depuración, leyenda, crónica y Grimorio) a 1080 píxeles de alto; con otra altura, en
+	 * Tamaño de la letra de los paneles (cajas, estado, depuración y Grimorio) a 1080 píxeles de alto; con otra altura, en
 	 * proporción y nunca menos de PanelMinFontSize (S-027, R-HUD-3). Valor inicial 13.
 	 */
 	UPROPERTY(EditAnywhere, Category = "Vista|Paneles")
@@ -652,15 +646,8 @@ public:
 	FKey OverlayToggleKey = EKeys::L;
 
 	/**
-	 * Tecla que oculta y muestra los paneles de Slate (leyenda, crónica y, desde S-027, estado y depuración; también cierra el Grimorio);
-	 * ocultos, la cenital usa todo el ancho. Valor inicial H.
-	 */
-	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
-	FKey PanelsToggleKey = EKeys::H;
-
-	/**
-	 * Tecla que oculta y muestra el panel de estado de arriba a la izquierda (desde S-027; antes, el texto de depuración). Valor inicial T.
-	 * TODO(R-HUD-1): el nombre viene de cuando era texto de depuración; renombrarlo con Rider (StatusPanelToggleKey) toca DefaultGame.ini.
+	 * Tecla que enseña y oculta el panel de estado (desde S-027; antes, el texto de depuración). Desde S-045 (R-HUD-15) el panel vuelve a ser de
+	 * depuración: empieza oculto y sale debajo de la caja de la partida. Valor inicial T.
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey DebugTextToggleKey = EKeys::T;
@@ -685,13 +672,6 @@ public:
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey DebugPanelKey = EKeys::D;
-
-	/**
-	 * Tecla que cambia la pestaña de la columna de la derecha, de Leyenda a Crónica y al revés (S-035, R-HUD-4). Valor inicial P (de pestaña): la
-	 * tabuladora la consume Slate para el foco, C ya cambia la vista y el resto de letras de la vista y del controlador están en uso.
-	 */
-	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
-	FKey ColumnTabKey = EKeys::P;
 
 	/** Color de un Dominio (0 a 5); gris oscuro si no existe. Lo usa también el kit para teñir el suelo de las cuñas. */
 	FLinearColor DomainColor(int32 DomainId) const;
@@ -942,12 +922,7 @@ private:
 	void PlaceSeatedCamera();
 	/** Oculta o enseña etiquetas (S-019, R-VIS-9). */
 	void ToggleOverlay();
-	/** Oculta o enseña la leyenda y la crónica, y recoloca la cenital en el hueco que queda. */
-	void TogglePanels();
-	/**
-	 * Oculta o enseña el panel de estado (desde S-027; antes, el texto de depuración de pantalla).
-	 * TODO(R-HUD-1): el nombre viene de cuando era texto de depuración; renombrarlo con Rider (ToggleStatusPanel).
-	 */
+	/** Enseña u oculta el panel de estado, de depuración desde S-045 (R-HUD-15; antes de S-027, el texto de depuración de pantalla). Al empezar, oculto. */
 	void ToggleDebugText();
 	/** Muestra u oculta el panel de depuración (S-027, R-HUD-2). Al empezar, oculto. */
 	void ToggleDebugPanel();
@@ -956,27 +931,30 @@ private:
 	 * anillo del humano (R-HUD-11); la tecla y el botón llaman aquí.
 	 */
 	void ToggleGrimoire();
-	/** Cierra el Grimorio si está abierto (S-044, R-HUD-11: al aparecer una decisión propia nueva o un anillo; H también lo cierra). */
+	/** Cierra el Grimorio si está abierto (S-044, R-HUD-11: al aparecer una decisión propia nueva o un anillo). */
 	void CloseGrimoire();
 	/** La pestaña anterior y la siguiente del Grimorio, con sus teclas (S-044, R-HUD-10); cerrado, no hacen nada. */
 	void PreviousGrimoireTab();
 	void NextGrimoireTab();
 	/** Rellena el Grimorio abierto con el estado de ahora: cada pestaña solo se rehace si su contenido cambia (S-044, R-VIS-21). */
 	void RefreshGrimoire(const FMatchState& State, const Soulbound::Presentation::FStatusContext& Context);
-	/** Lo que pintan la leyenda de la columna y "El tablero" del Grimorio (S-044, BoardLegendRows): kit, suelo de los Olvidados y colores de la vista. */
+	/** Lo que pinta "El tablero" del Grimorio (S-044, BoardLegendRows): kit, suelo de los Olvidados y colores de la vista. */
 	Soulbound::Presentation::FBoardLegendLook BoardLegendLookNow() const;
 	/** Colores, asiento del anillo y límite de la crónica (S-044, ChronicleLines). */
 	Soulbound::Presentation::FChronicleLook ChronicleLookNow() const;
 	/** Si el botón del Grimorio se ve ahora (S-044, R-HUD-12): IsGrimoireButtonShown con la frase del Warden de este frame, y nunca con el telón. */
 	bool IsGrimoireButtonVisibleNow();
-	/** Cambia la pestaña de la columna de la derecha (S-035, R-HUD-4): la tecla ColumnTabKey. */
-	void ToggleColumnTab();
-	/** Pone la pestaña activa de la columna (S-035): el clic en su nombre de la cabecera. */
-	void SetColumnTab(Soulbound::Presentation::EColumnTab Tab);
 	/**
-	 * Recalcula la letra y el ancho de los paneles para un viewport de ViewportSize (S-027, R-HUD-3): el tamaño en píxeles de pantalla
-	 * (ScaledPanelFontSize, ScaledPanelWidth) entre la escala de DPI que Unreal ya aplica a la interfaz. Lo escribe en el registro al
-	 * arrancar y cada vez que cambia.
+	 * Qué piezas del HUD se ven ahora (S-045, R-HUD-15): HudShown con las teclas de depuración, el prólogo, el final, la meta del humano y la frase
+	 * del Warden de este frame. El telón lo mira cada capa.
+	 */
+	Soulbound::Presentation::FHudShown HudShownNow();
+	/** Si la caja de la partida se ve ahora (S-045, R-HUD-14): IsMatchPanelShown a través de HudShownNow, y nunca sin partida ni con el telón. */
+	bool IsMatchPanelVisibleNow();
+	/**
+	 * Recalcula la letra de los paneles para un viewport de ViewportSize (S-027, R-HUD-3): el tamaño en píxeles de pantalla (ScaledPanelFontSize)
+	 * entre la escala de DPI que Unreal ya aplica a la interfaz. Lo escribe en el registro al arrancar y cada vez que cambia. Desde S-045 no hay
+	 * columna cuyo ancho calcular (R-HUD-16).
 	 */
 	void UpdatePanelScale(const FVector2D& ViewportSize);
 	/** Enseña en la línea del Warden las instrucciones de Cues que el perfil deje (S-021, A3), y las anota para la crónica. */
@@ -1003,7 +981,7 @@ private:
 	/** Lado de la losa de respaldo: el de la pieza. */
 	float SlabSize() const { return LayoutParams.SlabHalfSize * 2.f; }
 
-	/** Coloca la cámara cenital para que el tablero quepa en el hueco que dejan los paneles, con el tamaño actual del viewport. */
+	/** Coloca la cámara cenital para que el tablero quepa en todo el viewport, con su tamaño actual (desde S-045, TopCameraFraming, R-HUD-16). */
 	void UpdateCamera();
 
 	/** Repinta casillas y recoloca fichas según el estado. */
@@ -1028,9 +1006,6 @@ private:
 	void OnTokenTileEntered(int32 Seat, int32 TileId, bool bLast);
 	/** Base de una ficha sobre el centro de la casilla (la cara superior de la losa). */
 	FVector TokenBase(int32 TileId) const;
-	/** Reconstruye el panel de crónica si el registro de eventos ha crecido. */
-	void RefreshChronicle(const FMatchState& State);
-
 	/**
 	 * Recoge los WardenSpoke nuevos del registro y los pone en la cola de la línea del Warden (S-021), con el prefijo de a quién hablan.
 	 * Un registro más corto que lo recorrido es una partida nueva: la cola empieza de cero.
@@ -1128,7 +1103,7 @@ private:
 	/** Si la caja de la línea de objetivo se ve ahora (S-040, R-HUD-7): IsGoalPanelShown con la frase del Warden de este frame, y nunca con el telón. */
 	bool IsGoalPanelVisibleNow();
 
-	/** Si la capa del panel de decisión se enseña (S-028, R-DEC-3): la regla de DecisionText, la tecla de los paneles (H) y el telón. */
+	/** Si la capa del panel de decisión se enseña (S-028, R-DEC-3): la regla de DecisionText y el telón (desde S-045 ya no hay tecla de los paneles). */
 	bool IsDecisionPanelVisible() const;
 
 	/** Qué parte del plazo de la decisión que se enseña queda ahora, para la barra del panel (S-028), con el reloj de partida del momento. */
@@ -1156,14 +1131,12 @@ private:
 	FBoardKitStructures KitStructures;
 	bool bSeatedView = false;
 	bool bOverlayHidden = false;
-	bool bPanelsHidden = false;
-	/** La pestaña de la columna de la derecha (S-035, R-HUD-4): empieza en Leyenda en cada partida (la vista se crea con ella). */
-	Soulbound::Presentation::FColumnTabState ColumnTab;
-	/** Si el panel de estado está oculto (tecla T). TODO(R-HUD-1): renombrarlo con Rider (bStatusPanelHidden). */
-	bool bDebugTextHidden = false;
-	/** Si el panel de depuración se ve (tecla D, S-027). Al empezar, no. */
-	bool bDebugPanelShown = false;
-	/** Si el Grimorio está abierto (tecla G, S-027). H lo cierra. */
+	/**
+	 * Si se ven el panel de estado (tecla T) y el de depuración (tecla D) (S-045, R-HUD-15): los dos empiezan ocultos. Sustituye a bDebugTextHidden, que
+	 * empezaba visible, y a bDebugPanelShown.
+	 */
+	Soulbound::Presentation::FHudToggles HudToggles;
+	/** Si el Grimorio está abierto (tecla G, S-027). */
 	bool bGrimoireOpen = false;
 	/** Cuándo se enseña la carta del Elegido (S-029), la capa y el panel. */
 	Soulbound::Presentation::FElectCardTracker ElectCard;
@@ -1201,12 +1174,12 @@ private:
 	FVector2D BoardCenter = FVector2D::ZeroVector;
 	FVector2D BoardHalf = FVector2D::ZeroVector;
 	FVector2D LastViewportSize = FVector2D::ZeroVector;
-	int32 ChronicleLineCount = -1;
 
-	TSharedPtr<SChroniclePanel> ChroniclePanel;
-	TSharedPtr<SWidget> Overlay;
-
-	/** Los paneles de estado y de depuración (S-027): una capa arriba a la izquierda, que se oculta con los paneles (H) y con el telón. */
+	/**
+	 * Arriba a la izquierda, en una capa que se oculta con el telón (S-045): la caja de la partida (R-HUD-14, MatchPanelLines), y debajo, si su tecla los
+	 * enseña, el panel de estado (S-027, de depuración desde R-HUD-15) y el de depuración (R-HUD-2), en ese orden (decisión del autor del 17/11/2026).
+	 */
+	TSharedPtr<SStatusPanel> MatchPanel;
 	TSharedPtr<SStatusPanel> StatusPanel;
 	TSharedPtr<SStatusPanel> DebugPanel;
 	/**
@@ -1230,33 +1203,27 @@ private:
 	Soulbound::Presentation::FGrimoireCloseWatch GrimoireCloseWatch;
 	/** El texto de "Cómo se juega" (S-044), leído una vez al construir los paneles con el cargador del menú. */
 	FHowToPlayLoadResult HowToPlayLoaded;
-	/** Cuántos eventos tenía el registro la última vez que se rellenó la crónica del Grimorio; -1, nunca (se rehace al crecer, como la de la columna). */
+	/** Cuántos eventos tenía el registro la última vez que se rellenó la crónica del Grimorio; -1, nunca (se rehace al crecer). */
 	int32 GrimoireChronicleCount = -1;
 	/** El botón del Grimorio (S-044, R-HUD-12): en la capa de la frase del Warden, abajo a la derecha, en espejo de la caja de la línea de objetivo. */
 	TSharedPtr<SWidget> GrimoireButton;
 
-	/**
-	 * La escala de los paneles (S-027, R-HUD-3), calculada por UpdatePanelScale: letra y ancho de la columna de la derecha en unidades de Slate
-	 * (lo que se le da a los widgets) y el ancho en píxeles de pantalla (lo que la cámara deja al tablero).
-	 */
+	/** La escala de los paneles (S-027, R-HUD-3), calculada por UpdatePanelScale: la letra en unidades de Slate (lo que se le da a los widgets). */
 	int32 PanelSlateFontSize = 13;
-	float PanelSlateWidth = 460.f;
-	float PanelScreenWidth = 460.f;
 	float PanelDpiScale = 1.f;
 	/** Si ya se escribió la escala en el registro (al arrancar se escribe siempre; después, solo si cambia). */
 	bool bPanelScaleLogged = false;
 	/** Los números de la última línea "Paneles: capa de la frase" (S-033, R-DEC-13); para escribir solo si cambian. */
 	FString LoggedLayoutKey;
-	/** La columna de paneles y el contenido de la capa de la frase: su geometría real va al registro (S-033, R-DEC-13). */
-	TSharedPtr<SWidget> PanelColumn;
+	/** El contenido de la capa de la frase: su geometría real va al registro (S-033, R-DEC-13). */
 	TSharedPtr<SWidget> WardenLineContent;
 	/** La pieza del Altar ya colocada y la última visibilidad de su halo que se escribió en el registro (-1: ninguna; S-033, R-DEC-12). */
 	TWeakObjectPtr<UStaticMeshComponent> AltarPieceComponent;
 	int32 LoggedAltarHalo = -1;
 
 	/**
-	 * La línea del Warden en pantalla (S-021): una capa aparte, que no se oculta con los paneles (H). Desde S-028 lleva encima, en la misma
-	 * columna, el panel de decisión, que sí se oculta con H: así va siempre por encima de la frase, sea cual sea su alto.
+	 * La línea del Warden en pantalla (S-021): una capa aparte. Desde S-028 lleva encima, en la misma columna, el panel de decisión: así va siempre
+	 * por encima de la frase, sea cual sea su alto. Desde S-045 (R-HUD-16) ocupa todo el ancho, con 16 de margen a cada lado.
 	 */
 	TSharedPtr<SWidget> WardenLineOverlay;
 
@@ -1279,12 +1246,12 @@ private:
 	bool bDecisionShown = false;
 
 	/**
-	 * El botón "Volver al menú" (S-022): una capa aparte, centrada en el hueco del tablero, que solo existe con la partida terminada y no se
-	 * oculta con los paneles (H) ni con el texto de depuración (T).
+	 * El botón "Volver al menú" (S-022): una capa aparte, centrada en el tablero (a todo el ancho desde S-045), que solo existe con la partida
+	 * terminada y no se oculta con ninguna tecla.
 	 */
 	TSharedPtr<SWidget> ReturnToMenuOverlay;
 
-	/** El panel del anillo (S-026): una capa aparte, centrada en el hueco del tablero, visible mientras hay prueba o su resultado. */
+	/** El panel del anillo (S-026): una capa aparte, centrada en el tablero (a todo el ancho desde S-045), visible mientras hay prueba o su resultado. */
 	TSharedPtr<SWidget> RingOverlay;
 
 	/** La entrada del anillo (S-026): preprocesador de Slate, registrado solo mientras hay prueba del humano. */
@@ -1326,7 +1293,7 @@ private:
 	Soulbound::Presentation::FUnreachableNotice UnreachableNotice;
 	/** La capa del aviso de casilla inalcanzable (S-039, R-DEC-16): llena el viewport, no recibe clics y pone el aviso donde lo coloca PlaceNotice. */
 	TSharedPtr<SWidget> NoticeOverlay;
-	/** El margen que coloca el aviso en la capa (PlaceNotice con el viewport, la columna de paneles, el panel de estado, la caja de la línea de objetivo y el panel de decisión de este frame, S-040). */
+	/** El margen que coloca el aviso en la capa (PlaceNotice en NoticeBounds, esquivando las zonas de NoticeAvoidZones de este frame; S-040, S-045). */
 	FMargin NoticeMarginNow(int32 FontSize) const;
 	/** Margen del fondo del aviso por cada lado, y separación entre el punto del clic y el aviso, en unidades de Slate. */
 	static constexpr float NoticePadding = 8.f;

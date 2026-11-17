@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "StatusText.h"
 
 /**
  * El aviso de casilla inalcanzable (S-039, R-DEC-16; nombre propuesto): cuándo se ve, dónde y cuándo se quita. Funciones puras del tiempo y de
@@ -40,7 +41,7 @@ namespace Soulbound::Presentation
 
 	/**
 	 * Dónde pone el aviso su esquina superior izquierda para verse entero (S-039, R-DEC-16): dentro de Bounds y sin tapar ninguna de las zonas de
-	 * Avoid (la columna de paneles, el panel de estado y, desde S-040, la caja de la línea de objetivo y el panel de decisión). Prueba, en este orden, centrado encima del punto del clic, centrado debajo, a la izquierda
+	 * Avoid (desde S-045, las de NoticeAvoidZones). Prueba, en este orden, centrado encima del punto del clic, centrado debajo, a la izquierda
 	 * y a la derecha, cada uno recortado a Bounds, y se queda con el primero que no toque ninguna zona; si ninguno vale, la posición libre más cercana
 	 * al clic de una rejilla sobre Bounds. Con Size mayor que Bounds, la esquina de Bounds.
 	 * @param Click El punto del clic rechazado.
@@ -51,4 +52,32 @@ namespace Soulbound::Presentation
 	 * @return La esquina superior izquierda del aviso.
 	 */
 	FVector2f PlaceNotice(const FVector2f& Click, const FVector2f& Size, const FBox2f& Bounds, const TArray<FBox2f>& Avoid, float Gap);
+
+	/** Las piezas del HUD que el aviso puede tener que esquivar (S-045, nombre propuesto). La columna de la derecha ya no existe (R-HUD-16). */
+	enum class EHudZone : uint8
+	{
+		MatchPanel,
+		GoalPanel,
+		DecisionPanel,
+		GrimoireButton,
+		StatusPanel,
+		DebugPanel,
+	};
+
+	/**
+	 * Las zonas que esquiva el aviso (S-045, nombre propuesto): la caja de la partida, la del objetivo, el panel de decisión y el botón del Grimorio,
+	 * cada una mientras se ve; el panel de estado y el de depuración, solo si su tecla los enseña. En ese orden.
+	 * @param Shown Lo que se ve del HUD (HudShown).
+	 * @param bDecisionPanelShown Si el panel de decisión está a la vista.
+	 * @return Las zonas.
+	 */
+	TArray<EHudZone> NoticeAvoidZones(const FHudShown& Shown, bool bDecisionPanelShown);
+
+	/**
+	 * El área en que se coloca el aviso (S-045, R-HUD-16, nombre propuesto): la capa entera, porque el tablero usa todo el ancho; ninguna columna la
+	 * recorta.
+	 * @param LayerSize El tamaño de la capa del aviso, que llena el viewport.
+	 * @return El rectángulo de (0, 0) a LayerSize.
+	 */
+	FBox2f NoticeBounds(const FVector2f& LayerSize);
 }

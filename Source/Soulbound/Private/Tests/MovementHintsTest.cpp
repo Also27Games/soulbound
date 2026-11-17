@@ -324,6 +324,45 @@ bool FNoticePlacementTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNoticeZonesTest, "Soulbound.Game.Presentation.Decision.ZonasQueEsquivaElAviso", HintsTestFlags)
+
+bool FNoticeZonesTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-29 (S-045, lo que se recoloca): el aviso de casilla inalcanzable esquiva la caja de la partida, la caja del objetivo, el panel de decisión y
+	// el botón del Grimorio, cada uno mientras se ve; el panel de estado no, salvo que su tecla lo enseñe. La columna no está nunca: no hay zona de
+	// columna, y el área en que se coloca es la capa entera (NoticeBounds), sin recortar a la derecha (R-HUD-16).
+	using Soulbound::Presentation::EHudZone;
+	using Soulbound::Presentation::FHudShown;
+	using Soulbound::Presentation::NoticeAvoidZones;
+	FHudShown Shown;
+	Shown.bMatchPanel = true;
+	Shown.bGoalPanel = true;
+	Shown.bGrimoireButton = true;
+	const TArray<EHudZone> Normal = NoticeAvoidZones(Shown, true);
+	TestTrue(TEXT("Con el panel de estado oculto: las cuatro de la regla, en su orden"),
+		Normal == TArray<EHudZone>{EHudZone::MatchPanel, EHudZone::GoalPanel, EHudZone::DecisionPanel, EHudZone::GrimoireButton});
+	TestFalse(TEXT("Sin el panel de estado"), Normal.Contains(EHudZone::StatusPanel));
+
+	FHudShown Status = Shown;
+	Status.bStatusPanel = true;
+	TestTrue(TEXT("Con su tecla, el panel de estado sí"), NoticeAvoidZones(Status, true).Contains(EHudZone::StatusPanel));
+	FHudShown Debug = Shown;
+	Debug.bDebugPanel = true;
+	TestTrue(TEXT("Y el de depuración, con la suya"), NoticeAvoidZones(Debug, true).Contains(EHudZone::DebugPanel));
+
+	TestFalse(TEXT("Sin panel de decisión a la vista, no se esquiva"), NoticeAvoidZones(Shown, false).Contains(EHudZone::DecisionPanel));
+	FHudShown Speaking = Shown;
+	Speaking.bGoalPanel = false;
+	Speaking.bGrimoireButton = false;
+	TestTrue(TEXT("Con frase del Warden: la caja de la partida y el panel de decisión"),
+		NoticeAvoidZones(Speaking, true) == TArray<EHudZone>{EHudZone::MatchPanel, EHudZone::DecisionPanel});
+
+	const FBox2f Bounds = Soulbound::Presentation::NoticeBounds(FVector2f(1920.f, 1080.f));
+	TestEqual(TEXT("El área es la capa entera: desde la esquina"), Bounds.Min, FVector2f(0.f, 0.f));
+	TestEqual(TEXT("Hasta el borde derecho y el de abajo, sin columna"), Bounds.Max, FVector2f(1920.f, 1080.f));
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusDiceLineTest, "Soulbound.Game.Presentation.Estado.LineaDeLosDados", HintsTestFlags)
 
 bool FStatusDiceLineTest::RunTest(const FString& Parameters)

@@ -455,8 +455,8 @@ namespace Soulbound::Presentation
 		{
 			return {};
 		}
-		// Los casos, en el orden del panel de estado (R-DEC-5): elección de otro, destino de otro, Oráculo de otro, votación y, al final, la prueba
-		// de habilidad o el duelo de otros. Cada uno se mira solo si no es del humano: lo propio lo enseña DecisionView.
+		// Los casos, en el orden del panel de estado (R-DEC-5): elección de otro, destino de otro, Oráculo de otro, votación, el trilero en la muestra o
+		// la mezcla (S-045) y, al final, la prueba de habilidad o el duelo de otros. Cada uno se mira solo si no es del humano: lo propio lo enseña DecisionView.
 		FDecisionView View;
 		View.Input = EDecisionInput::Wait;
 		bool bFound = false;
@@ -499,6 +499,26 @@ namespace Soulbound::Presentation
 				View.Identity = TEXT("W|V");
 				bFound = true;
 			}
+		}
+		// S-045 (precisión de R-HUD-15, del autor del 17/11/2026): el trilero en la muestra y en la mezcla, en las que nadie elige y que solo decía el
+		// panel de estado. Los mismos datos que su línea (ShellGameLine), sea el humano el ladrón, la víctima o ninguno; con el plazo de la etapa.
+		const FShellGameState& Shell = State.ShellGame;
+		if (!bFound && (Shell.Stage == EShellGameStage::Reveal || Shell.Stage == EShellGameStage::Shuffle))
+		{
+			View.Title = FString::Printf(TEXT("Trilero: %s roba a %s"), *SeatLabel(State, Shell.Thief), *SeatLabel(State, Shell.Victim));
+			if (Shell.Stage == EShellGameStage::Reveal)
+			{
+				const FString Runes = FString::JoinBy(Shell.Orbs, TEXT(" "), [](int32 Rune) { return FString::Printf(TEXT("D%d"), Rune); });
+				const FString Aside = Shell.SetAsideRune != INDEX_NONE ? FString::Printf(TEXT(" (a salvo: D%d)"), Shell.SetAsideRune) : FString();
+				View.Context = FString::Printf(TEXT("Runas a la vista: %s%s"), *Runes, *Aside);
+			}
+			else
+			{
+				View.Context = FString::Printf(TEXT("Mezclando %d esferas"), Shell.Orbs.Num());
+			}
+			View.DeadlineSeconds = Shell.StageDeadlineSeconds;
+			View.Identity = FString::Printf(TEXT("W|R|%d|%d|%d"), static_cast<int32>(Shell.Stage), Shell.Thief, Shell.Victim);
+			bFound = true;
 		}
 		if (!bFound && State.TurnPhase == ETurnPhase::SkillTrial && State.ActiveSeat != HumanSeat && State.Seats.IsValidIndex(State.ActiveSeat))
 		{
@@ -789,9 +809,10 @@ namespace Soulbound::Presentation
 		return Count <= 0 || Count * (WidestButton + SlotGap) <= AvailableWidth;
 	}
 
-	float BoardFreeWidth(float ViewportSlateWidth, float PanelColumnWidth, float Cap)
+	float BoardFreeWidth(float ViewportSlateWidth, float Cap)
 	{
-		return FMath::Clamp(ViewportSlateWidth - PanelColumnWidth - 32.f, 0.f, FMath::Max(Cap, 0.f));
+		// R-HUD-16 (S-045): sin columna de paneles, el hueco es la ventana con 16 de margen a cada lado.
+		return FMath::Clamp(ViewportSlateWidth - 32.f, 0.f, FMath::Max(Cap, 0.f));
 	}
 
 	float WardenLineBandHeight(float ReservedHeight, bool bHasLine, float NeededHeight)

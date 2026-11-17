@@ -103,7 +103,9 @@ namespace Soulbound::Presentation
 	/**
 	 * Qué enseña el panel mientras la mesa espera a otro asiento (S-033, R-DEC-5, nombre propuesto). En el orden del panel de estado: la
 	 * elección pendiente de otro asiento, su destino (su turno de tirada), su consulta del Oráculo, la votación abierta en la que el humano ya
-	 * votó o no puede votar (con quién falta) y la prueba de habilidad o el duelo de otros asientos. No decide nada: quién y qué lo dice el estado.
+	 * votó o no puede votar (con quién falta), el trilero en la muestra o en la mezcla (S-045, precisión de R-HUD-15: "Trilero: X roba a Y", con
+	 * "Runas a la vista: D1 D3", y " (a salvo: D2)" si Koschei apartó una, o "Mezclando N esferas", y el plazo de la etapa; sea el humano el ladrón,
+	 * la víctima o ninguno) y la prueba de habilidad o el duelo de otros asientos. No decide nada: quién y qué lo dice el estado.
 	 * @param State El estado de la partida.
 	 * @param HumanSeat El asiento humano de esta máquina.
 	 * @return La vista de tipo Wait, sin opciones, o nada si la mesa no espera a otro asiento o la partida ha terminado.
@@ -232,15 +234,14 @@ namespace Soulbound::Presentation
 	bool DecisionButtonsInRow(int32 Count, float WidestButton, float SlotGap, float AvailableWidth);
 
 	/**
-	 * El hueco libre del tablero en horizontal (corrección del autor del 11/11/2026, R-HUD-3): lo que queda del ancho de la ventana, en unidades de
-	 * Slate, a la izquierda de la columna de paneles, con 16 de margen a cada lado. Con él se decide el ancho máximo del panel de decisión y el
-	 * ancho en que se parte la frase del Warden.
+	 * El hueco libre del tablero en horizontal (corrección del autor del 11/11/2026, R-HUD-3): el ancho de la ventana, en unidades de Slate, con 16
+	 * de margen a cada lado; desde S-045 (R-HUD-16) no hay columna de paneles que restar: el tablero usa todo el ancho. Con él se decide el ancho
+	 * máximo del panel de decisión y el ancho en que se parte la frase del Warden.
 	 * @param ViewportSlateWidth El ancho de la ventana, ya dividido por la escala de DPI.
-	 * @param PanelColumnWidth El ancho de la columna de paneles.
 	 * @param Cap El tope del ancho.
 	 * @return El ancho libre, entre 0 y Cap.
 	 */
-	float BoardFreeWidth(float ViewportSlateWidth, float PanelColumnWidth, float Cap);
+	float BoardFreeWidth(float ViewportSlateWidth, float Cap);
 
 	/**
 	 * El alto de la franja del Warden bajo el panel de decisión (S-041, R-DEC-17, nombre propuesto): lo reservado (R-DEC-9) si la frase y su línea

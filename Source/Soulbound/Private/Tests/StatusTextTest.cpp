@@ -1,8 +1,7 @@
 // Tests de los paneles de estado y de depuración del HUD (S-027, R-HUD-1, R-HUD-2, R-HUD-3, R-HUD-5): qué líneas van a cada panel, en qué
-// orden, y la escala de la letra con la altura de la pantalla. Funciones puras sobre un FMatchState armado a mano: sin mundo, sin actor y sin
+// orden, y la escala de la letra con la altura de la pantalla. Desde S-045 (R-HUD-14, R-HUD-15), la caja de la partida y qué piezas se ven. Funciones puras sobre un FMatchState armado a mano: sin mundo, sin actor y sin
 // disco, como BoardLayoutTest. Filtro: "Soulbound.Game.Presentation.Estado".
 
-#include "../../Presentation/ColumnTab.h"
 #include "../../Presentation/StatusText.h"
 #include "Elects/ElectsLoader.h"
 #include "Match/MatchState.h"
@@ -212,21 +211,18 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusScaleTest, "Soulbound.Game.Presentation.
 
 bool FStatusScaleTest::RunTest(const FString& Parameters)
 {
-	// CA-HUD-5 (R-HUD-3): la letra es PanelFontSize a 1080 de alto, la mitad a 540 y nunca menos de PanelMinFontSize; el ancho de la columna
-	// de la derecha escala igual.
+	// CA-HUD-5 (R-HUD-3): la letra es PanelFontSize a 1080 de alto, la mitad a 540 y nunca menos de PanelMinFontSize. S-045 (R-HUD-16): el ancho
+	// de la columna de la derecha (ScaledPanelWidth) ya no se comprueba: la columna y su ancho desaparecen.
 	TestEqual(TEXT("A 1080, el tamaño de base"), Soulbound::Presentation::ScaledPanelFontSize(1080.f, 20, 9), 20);
 	TestEqual(TEXT("A 540, la mitad"), Soulbound::Presentation::ScaledPanelFontSize(540.f, 20, 9), 10);
 	TestEqual(TEXT("A 2160, el doble"), Soulbound::Presentation::ScaledPanelFontSize(2160.f, 20, 9), 40);
 	TestEqual(TEXT("A 270, el mínimo y no 5"), Soulbound::Presentation::ScaledPanelFontSize(270.f, 20, 9), 9);
 	TestEqual(TEXT("Con los valores iniciales a 768, el mínimo"), Soulbound::Presentation::ScaledPanelFontSize(768.f, 13, 9), 9);
 	TestEqual(TEXT("Con los valores iniciales a 1080, 13"), Soulbound::Presentation::ScaledPanelFontSize(1080.f, 13, 9), 13);
-	TestEqual(TEXT("Ancho a 1080"), Soulbound::Presentation::ScaledPanelWidth(1080.f, 460.f), 460.f);
-	TestEqual(TEXT("Ancho a 540, la mitad"), Soulbound::Presentation::ScaledPanelWidth(540.f, 460.f), 230.f);
-	TestEqual(TEXT("Sin altura, 0"), Soulbound::Presentation::ScaledPanelWidth(0.f, 460.f), 0.f);
 	return true;
 }
 
-// ---- S-035: la pestaña de la columna y lo que se ve de los demás ----
+// ---- S-035: lo que se ve de los demás (la pestaña de la columna se fue con la columna en S-045) ----
 
 namespace
 {
@@ -264,25 +260,6 @@ namespace
 		OutState.Seats[StOther].Runes[3] = 1;
 		return true;
 	}
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusColumnTabTest, "Soulbound.Game.Presentation.Estado.PestanaInicialYCambio", StatusTestFlags)
-
-bool FStatusColumnTabTest::RunTest(const FString& Parameters)
-{
-	// CA-HUD-6 (R-HUD-4): la pestaña inicial es Leyenda; cambiar da Crónica y volver a cambiar, Leyenda; una partida nueva (Reset) empieza otra
-	// vez en Leyenda aunque se hubiera dejado en Crónica.
-	using Soulbound::Presentation::EColumnTab;
-	Soulbound::Presentation::FColumnTabState Tab;
-	TestTrue(TEXT("Empieza en Leyenda"), Tab.Active == EColumnTab::Legend);
-	Tab.Toggle();
-	TestTrue(TEXT("Cambiar da Crónica"), Tab.Active == EColumnTab::Chronicle);
-	Tab.Toggle();
-	TestTrue(TEXT("Y volver a cambiar, Leyenda"), Tab.Active == EColumnTab::Legend);
-	Tab.Toggle();
-	Tab.Reset();
-	TestTrue(TEXT("Una partida nueva empieza otra vez en Leyenda"), Tab.Active == EColumnTab::Legend);
-	return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusCanSeeBracerTest, "Soulbound.Game.Presentation.Estado.VerElBrazalAjeno", StatusTestFlags)
@@ -599,6 +576,241 @@ bool FStatusEchoNightNoRoundTest::RunTest(const FString& Parameters)
 		TestEqual(TEXT("Sin la ronda"), Night->Text, FString(TEXT("NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio")));
 	}
 	TestFalse(TEXT("Ninguna línea dice la ronda tope"), StAnyContains(Lines, TEXT("hasta la ronda")));
+	return true;
+}
+
+// ---- S-045: la caja de la partida y el panel de estado de depuración ----
+
+namespace
+{
+	/** El color del Warden de las pruebas de la caja de la partida: uno que no es blanco ni el de ningún asiento. */
+	const FLinearColor StWardenColor(0.7f, 0.2f, 0.9f);
+	constexpr int32 StAltarTile = 0;
+	constexpr int32 StPlainTile = 1;
+
+	/**
+	 * Tras la carrera, con Warden y el fin de la partida a 2400 s, en el segundo 395 (quedan 2005 s): un tablero de dos casillas (0, el Altar; 1,
+	 * normal), los cuatro asientos en la normal y sin runas; sin Noche de los Ecos.
+	 */
+	FMatchState StMakeMatchPanelState()
+	{
+		FMatchState State = StMakeState();
+		State.MatchPhase = EMatchPhase::RuneHunt;
+		State.ClockSeconds = 395.0;
+		State.WardenParams.Acts.SetNum(1);
+		State.WardenParams.MatchEndSeconds = 2400.0;
+		State.Board.Tiles.SetNum(2);
+		State.Board.Tiles[StAltarTile].TileId = StAltarTile;
+		State.Board.Tiles[StAltarTile].Type = ETileType::Altar;
+		State.Board.Tiles[StPlainTile].TileId = StPlainTile;
+		for (FSeatState& Seat : State.Seats)
+		{
+			Seat.TileId = StPlainTile;
+		}
+		return State;
+	}
+
+	/** El asiento Seat, aspirante: en el Altar con los seis tipos de runa (IsAspirant). */
+	void StMakeAspirant(FMatchState& State, int32 Seat)
+	{
+		State.Seats[Seat].TileId = StAltarTile;
+		for (int32& Count : State.Seats[Seat].Runes)
+		{
+			Count = 1;
+		}
+	}
+
+	FStatusContext StMakeMatchPanelContext()
+	{
+		FStatusContext Context = StMakeContext();
+		Context.WardenLineColor = StWardenColor;
+		return Context;
+	}
+
+	/** Las líneas de aspirante de la caja, en su orden. */
+	TArray<FString> StAspirantLines(const TArray<FPanelLine>& Lines)
+	{
+		TArray<FString> Out;
+		for (const FPanelLine& Line : Lines)
+		{
+			if (Line.Text.Contains(TEXT("a un turno de ganar")))
+			{
+				Out.Add(Line.Text);
+			}
+		}
+		return Out;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchPanelClockTest, "Soulbound.Game.Presentation.Estado.CajaDeLaPartidaReloj", StatusTestFlags)
+
+bool FMatchPanelClockTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-25 (R-HUD-14, reloj): "Carrera 4:11" con 251 s de carrera por delante y "Partida 33:25" con 2005 s de partida por delante y la carrera
+	// terminada; los segundos, siempre con dos cifras ("Carrera 0:07"); ninguna línea en el prólogo ni con la partida terminada. Precisiones del autor
+	// del 17/11/2026: hacia arriba, "Carrera 0:00" con la carrera agotada y el turno sin acabar, y sin Warden no hay "Partida".
+	using Soulbound::Presentation::MatchCountdownText;
+	using Soulbound::Presentation::MatchPanelLines;
+	FMatchState Race = StMakeMatchPanelState();
+	Race.MatchPhase = EMatchPhase::BondRace;
+	Race.Params.RaceDurationSeconds = 300.0;
+	Race.ClockSeconds = 49.0;
+	TestEqual(TEXT("251 s de carrera"), MatchCountdownText(Race), FString(TEXT("Carrera 4:11")));
+	{
+		const TArray<FPanelLine> Lines = MatchPanelLines(Race, StMakeMatchPanelContext());
+		if (TestTrue(TEXT("La caja lleva el reloj"), Lines.Num() >= 1))
+		{
+			TestEqual(TEXT("La primera línea es el reloj"), Lines[0].Text, FString(TEXT("Carrera 4:11")));
+			TestEqual(TEXT("En blanco"), Lines[0].Color, FLinearColor::White);
+			TestTrue(TEXT("Con la letra grande"), Lines[0].bLarge);
+		}
+	}
+	Race.ClockSeconds = 293.0;
+	TestEqual(TEXT("Los segundos con dos cifras"), MatchCountdownText(Race), FString(TEXT("Carrera 0:07")));
+	Race.ClockSeconds = 49.6;
+	TestEqual(TEXT("250,4 s se redondean hacia arriba"), MatchCountdownText(Race), FString(TEXT("Carrera 4:11")));
+	Race.ClockSeconds = 310.0;
+	TestEqual(TEXT("Carrera agotada, el turno sin acabar: 0:00"), MatchCountdownText(Race), FString(TEXT("Carrera 0:00")));
+
+	const FMatchState Match = StMakeMatchPanelState();
+	TestEqual(TEXT("2005 s de partida tras la carrera"), MatchCountdownText(Match), FString(TEXT("Partida 33:25")));
+	{
+		const TArray<FPanelLine> Lines = MatchPanelLines(Match, StMakeMatchPanelContext());
+		TestTrue(TEXT("La caja lleva el reloj de partida"), Lines.Num() >= 1 && Lines[0].Text == TEXT("Partida 33:25"));
+	}
+
+	FMatchState NoWarden = StMakeMatchPanelState();
+	NoWarden.WardenParams.Acts.Reset();
+	TestEqual(TEXT("Sin Warden, tras la carrera no hay reloj"), MatchCountdownText(NoWarden), FString());
+	TestFalse(TEXT("Ni línea de Partida en la caja"), StAnyContains(MatchPanelLines(NoWarden, StMakeMatchPanelContext()), TEXT("Partida")));
+
+	FStatusContext Prologue = StMakeMatchPanelContext();
+	Prologue.bPrologue = true;
+	TestEqual(TEXT("En el prólogo, ninguna línea"), MatchPanelLines(Race, Prologue).Num(), 0);
+
+	FMatchState Over = StMakeMatchPanelState();
+	Over.MatchPhase = EMatchPhase::MatchOver;
+	TestEqual(TEXT("Con la partida terminada, sin reloj"), MatchCountdownText(Over), FString());
+	TestEqual(TEXT("Ni ninguna línea en la caja"), MatchPanelLines(Over, StMakeMatchPanelContext()).Num(), 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMatchPanelNoticesTest, "Soulbound.Game.Presentation.Estado.CajaDeLaPartidaAvisos", StatusTestFlags)
+
+bool FMatchPanelNoticesTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-26 (R-HUD-14, avisos de mesa): con la Noche de los Ecos, su línea con el color del Warden; sin Noche, no. Con el asiento 3 de aspirante y
+	// el humano en el 0, "El asiento 3 está a un turno de ganar"; si el aspirante es el humano, ninguna línea de aspirante; con dos aspirantes ajenos,
+	// dos líneas en orden de asiento. El reloj, siempre primero. Precisión del autor del 17/11/2026: los avisos, también con la letra grande.
+	using Soulbound::Presentation::MatchPanelLines;
+	const FStatusContext Context = StMakeMatchPanelContext();
+	const FString NightText = TEXT("Noche de los Ecos: los Ecos entran en cualquier Dominio");
+	{
+		const TArray<FPanelLine> Lines = MatchPanelLines(StMakeMatchPanelState(), Context);
+		TestEqual(TEXT("Sin Noche ni aspirantes, solo el reloj"), Lines.Num(), 1);
+		TestFalse(TEXT("Sin Noche, sin su línea"), StAnyContains(Lines, TEXT("Noche de los Ecos")));
+	}
+	{
+		FMatchState Night = StMakeMatchPanelState();
+		Night.Round = 3;
+		Night.EchoNightUntilRound = 9;
+		const TArray<FPanelLine> Lines = MatchPanelLines(Night, Context);
+		if (TestEqual(TEXT("Con la Noche, el reloj y su línea"), Lines.Num(), 2))
+		{
+			TestTrue(TEXT("El reloj primero"), Lines[0].Text.StartsWith(TEXT("Partida")));
+			TestEqual(TEXT("La línea de la Noche"), Lines[1].Text, NightText);
+			TestEqual(TEXT("Con el color del Warden"), Lines[1].Color, StWardenColor);
+			TestTrue(TEXT("Y grande"), Lines[1].bLarge);
+		}
+	}
+	{
+		FMatchState Other = StMakeMatchPanelState();
+		StMakeAspirant(Other, 3);
+		const TArray<FPanelLine> Lines = MatchPanelLines(Other, Context);
+		TestEqual(TEXT("El asiento 3, aspirante"), StAspirantLines(Lines), TArray<FString>{TEXT("El asiento 3 está a un turno de ganar")});
+		if (TestEqual(TEXT("El reloj y una línea"), Lines.Num(), 2))
+		{
+			TestTrue(TEXT("El reloj primero"), Lines[0].Text.StartsWith(TEXT("Partida")));
+			TestEqual(TEXT("La del aspirante, con el color del Warden"), Lines[1].Color, StWardenColor);
+			TestTrue(TEXT("Y grande"), Lines[1].bLarge);
+		}
+	}
+	{
+		FMatchState Own = StMakeMatchPanelState();
+		StMakeAspirant(Own, StHuman);
+		TestEqual(TEXT("El humano aspirante: ninguna línea de aspirante"), StAspirantLines(MatchPanelLines(Own, Context)).Num(), 0);
+	}
+	{
+		FMatchState Two = StMakeMatchPanelState();
+		Two.Round = 3;
+		Two.EchoNightUntilRound = 9;
+		StMakeAspirant(Two, 3);
+		StMakeAspirant(Two, 1);
+		StMakeAspirant(Two, StHuman);
+		const TArray<FPanelLine> Lines = MatchPanelLines(Two, Context);
+		TestEqual(TEXT("Dos aspirantes ajenos, en orden de asiento"), StAspirantLines(Lines),
+			TArray<FString>{TEXT("El asiento 1 está a un turno de ganar"), TEXT("El asiento 3 está a un turno de ganar")});
+		TestTrue(TEXT("Con todo, el reloj sigue primero"), Lines.Num() == 4 && Lines[0].Text.StartsWith(TEXT("Partida")));
+	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHudShownTest, "Soulbound.Game.Presentation.Estado.PanelDeEstadoOcultoYSuTecla", StatusTestFlags)
+
+bool FHudShownTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-27 (R-HUD-15): al empezar la partida, el panel de estado oculto; con su tecla una vez, visible; otra vez, oculto. La caja de la partida, la
+	// del objetivo y el botón del Grimorio no dependen de esa tecla. R-HUD-14: la caja de la partida, ni en el prólogo ni con la partida terminada, y
+	// sigue con una frase del Warden en pantalla.
+	using Soulbound::Presentation::FHudShown;
+	using Soulbound::Presentation::FHudToggles;
+	using Soulbound::Presentation::HudShown;
+	FHudToggles Toggles;
+	const FHudShown Start = HudShown(Toggles, false, false, ESeatGoal::Runes, false);
+	TestFalse(TEXT("Al empezar, el panel de estado oculto"), Start.bStatusPanel);
+	TestFalse(TEXT("Y el de depuración también"), Start.bDebugPanel);
+	TestTrue(TEXT("La caja de la partida se ve"), Start.bMatchPanel);
+	TestTrue(TEXT("La del objetivo también"), Start.bGoalPanel);
+	TestTrue(TEXT("Y el botón del Grimorio"), Start.bGrimoireButton);
+
+	Toggles.ToggleStatusPanel();
+	const FHudShown Once = HudShown(Toggles, false, false, ESeatGoal::Runes, false);
+	TestTrue(TEXT("Con la tecla una vez, visible"), Once.bStatusPanel);
+	TestTrue(TEXT("Las cajas y el botón no cambian"), Once.bMatchPanel == Start.bMatchPanel && Once.bGoalPanel == Start.bGoalPanel && Once.bGrimoireButton == Start.bGrimoireButton);
+	TestFalse(TEXT("Ni el panel de depuración"), Once.bDebugPanel);
+
+	Toggles.ToggleStatusPanel();
+	const FHudShown Twice = HudShown(Toggles, false, false, ESeatGoal::Runes, false);
+	TestFalse(TEXT("Otra vez, oculto"), Twice.bStatusPanel);
+	TestTrue(TEXT("Y lo demás, como al empezar"), Twice == Start);
+
+	Toggles.ToggleDebugPanel();
+	TestTrue(TEXT("La tecla de depuración enseña el suyo"), HudShown(Toggles, false, false, ESeatGoal::Runes, false).bDebugPanel);
+
+	// Las tres piezas siguen sus reglas, con el panel de estado a la vista o no.
+	for (const bool bStatus : {false, true})
+	{
+		FHudToggles Status;
+		if (bStatus)
+		{
+			Status.ToggleStatusPanel();
+		}
+		const FHudShown Prologue = HudShown(Status, true, false, ESeatGoal::Niche, false);
+		TestFalse(TEXT("En el prólogo, sin caja de la partida"), Prologue.bMatchPanel);
+		TestFalse(TEXT("Ni caja del objetivo"), Prologue.bGoalPanel);
+		TestFalse(TEXT("Ni botón"), Prologue.bGrimoireButton);
+		const FHudShown Over = HudShown(Status, false, true, ESeatGoal::None, false);
+		TestFalse(TEXT("Con la partida terminada, sin caja de la partida"), Over.bMatchPanel);
+		TestFalse(TEXT("Ni botón"), Over.bGrimoireButton);
+		const FHudShown Speaking = HudShown(Status, false, false, ESeatGoal::Runes, true);
+		TestTrue(TEXT("Con frase del Warden, la caja de la partida sigue"), Speaking.bMatchPanel);
+		TestFalse(TEXT("La del objetivo, no"), Speaking.bGoalPanel);
+		TestFalse(TEXT("Ni el botón"), Speaking.bGrimoireButton);
+		TestTrue(TEXT("El panel de estado, solo por su tecla"), Speaking.bStatusPanel == bStatus);
+	}
+	TestFalse(TEXT("IsMatchPanelShown: no en el prólogo"), Soulbound::Presentation::IsMatchPanelShown(true, false));
+	TestFalse(TEXT("IsMatchPanelShown: no con la partida terminada"), Soulbound::Presentation::IsMatchPanelShown(false, true));
+	TestTrue(TEXT("IsMatchPanelShown: en partida"), Soulbound::Presentation::IsMatchPanelShown(false, false));
 	return true;
 }
 

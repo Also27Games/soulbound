@@ -788,12 +788,13 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionFreeWidthTest, "Soulbound.Game.Present
 bool FDecisionFreeWidthTest::RunTest(const FString& Parameters)
 {
 	// R-HUD-3 (corrección del autor del 11/11/2026): el ancho en que se parte la frase del Warden y el máximo del panel de decisión salen del mismo
-	// cálculo: el hueco del tablero (el ancho de la ventana menos la columna de paneles y los 16 de cada lado), con un tope.
+	// cálculo: el hueco del tablero con los 16 de cada lado, con un tope. CA-HUD-28 (R-HUD-16, S-045): sin columna de paneles, el hueco es todo el ancho.
 	using Soulbound::Presentation::BoardFreeWidth;
-	TestEqual(TEXT("1920 de ventana, columna de 420: sobran 1468, topados en 1000"), BoardFreeWidth(1920.f, 420.f, 1000.f), 1000.f);
-	TestEqual(TEXT("Topado en 900 para el panel de decisión"), BoardFreeWidth(1920.f, 420.f, 900.f), 900.f);
-	TestEqual(TEXT("1024 de ventana: 1024 menos 420 menos 32"), BoardFreeWidth(1024.f, 420.f, 1000.f), 572.f);
-	TestEqual(TEXT("Nunca negativo"), BoardFreeWidth(300.f, 420.f, 1000.f), 0.f);
+	TestEqual(TEXT("1920 de ventana: sobran 1888, topados en 1000"), BoardFreeWidth(1920.f, 1000.f), 1000.f);
+	TestEqual(TEXT("Topado en 900 para el panel de decisión"), BoardFreeWidth(1920.f, 900.f), 900.f);
+	TestEqual(TEXT("1024 de ventana: 1024 menos 32, por debajo del tope"), BoardFreeWidth(1024.f, 1000.f), 992.f);
+	TestEqual(TEXT("800 de ventana: 800 menos 32, sin columna que restar"), BoardFreeWidth(800.f, 1000.f), 768.f);
+	TestEqual(TEXT("Nunca negativo"), BoardFreeWidth(20.f, 1000.f), 0.f);
 	return true;
 }
 
@@ -955,6 +956,85 @@ bool FDecisionWaitTrialTest::RunTest(const FString& Parameters)
 	FMatchState OwnDuel = Duel;
 	OwnDuel.Duel.Challenger = DtHuman;
 	TestFalse(TEXT("Control: un duelo en que juega el humano no es espera"), Soulbound::Presentation::WaitView(OwnDuel, DtHuman).IsSet());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDecisionWaitShellGameTest, "Soulbound.Game.Presentation.Decision.EsperaTrileroMuestraYMezcla", DecisionTestFlags)
+
+bool FDecisionWaitShellGameTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-38 (R-HUD-15, precisión del autor del 17/11/2026 al aprobar el plan de S-045): con un trilero en la muestra, del asiento 1 al 2 con las
+	// runas D1 y D3, la espera dice "Trilero: X roba a Y" y "Runas a la vista: D1 D3"; con la runa D2 apartada, "Runas a la vista: D1 D3 (a salvo: D2)";
+	// en la mezcla de tres esferas, "Mezclando 3 esferas". Sea el humano el ladrón, la víctima o ninguno. En la etapa de elegir esfera manda la elección,
+	// como antes.
+	auto MakeShell = [](EShellGameStage Stage, int32 Thief, int32 Victim, const TArray<int32>& Orbs)
+	{
+		FMatchState State = DtMakeState();
+		State.TurnPhase = ETurnPhase::ShellGame;
+		State.ShellGame.Stage = Stage;
+		State.ShellGame.Thief = Thief;
+		State.ShellGame.Victim = Victim;
+		State.ShellGame.Orbs = Orbs;
+		State.ShellGame.StageDeadlineSeconds = DtNow + 5.0;
+		return State;
+	};
+
+	const FMatchState Reveal = MakeShell(EShellGameStage::Reveal, 1, 2, {1, 3});
+	const TOptional<FDecisionView> RevealView = Soulbound::Presentation::WaitView(Reveal, DtHuman);
+	if (TestTrue(TEXT("En la muestra hay espera"), RevealView.IsSet()))
+	{
+		TestTrue(TEXT("De tipo espera"), RevealView->Input == EDecisionInput::Wait);
+		TestEqual(TEXT("Quién roba a quién"), RevealView->Title, FString(TEXT("Trilero: Asiento 1 (Eco) roba a Asiento 2 (Eco)")));
+		TestEqual(TEXT("Las runas a la vista"), RevealView->Context, FString(TEXT("Runas a la vista: D1 D3")));
+		TestTrue(TEXT("Con el plazo de la etapa"), RevealView->bHasDeadline && RevealView->DeadlineSeconds == DtNow + 5.0);
+		TestTrue(TEXT("Sin opciones"), RevealView->Options.IsEmpty());
+	}
+
+	FMatchState Aside = Reveal;
+	Aside.ShellGame.SetAsideRune = 2;
+	const TOptional<FDecisionView> AsideView = Soulbound::Presentation::WaitView(Aside, DtHuman);
+	if (TestTrue(TEXT("Con una runa apartada, también"), AsideView.IsSet()))
+	{
+		TestEqual(TEXT("Y la apartada detrás"), AsideView->Context, FString(TEXT("Runas a la vista: D1 D3 (a salvo: D2)")));
+	}
+
+	const FMatchState Shuffle = MakeShell(EShellGameStage::Shuffle, 1, 2, {1, 3, 4});
+	const TOptional<FDecisionView> ShuffleView = Soulbound::Presentation::WaitView(Shuffle, DtHuman);
+	if (TestTrue(TEXT("En la mezcla hay espera"), ShuffleView.IsSet()))
+	{
+		TestEqual(TEXT("El mismo título"), ShuffleView->Title, FString(TEXT("Trilero: Asiento 1 (Eco) roba a Asiento 2 (Eco)")));
+		TestEqual(TEXT("Mezclando"), ShuffleView->Context, FString(TEXT("Mezclando 3 esferas")));
+		TestTrue(TEXT("Con el plazo de la etapa"), ShuffleView->bHasDeadline && ShuffleView->DeadlineSeconds == DtNow + 5.0);
+		if (RevealView.IsSet())
+		{
+			TestNotEqual(TEXT("Otra identidad: la barra empieza de nuevo"), ShuffleView->Identity, RevealView->Identity);
+		}
+	}
+
+	// El humano ladrón o víctima: lo mismo, y es lo que enseña el panel (no hay decisión suya abierta).
+	for (const TPair<int32, int32>& Pair : {TPair<int32, int32>(DtHuman, 2), TPair<int32, int32>(1, DtHuman)})
+	{
+		const FMatchState Own = MakeShell(EShellGameStage::Reveal, Pair.Key, Pair.Value, {1, 3});
+		const TOptional<FDecisionView> Panel = Soulbound::Presentation::PanelView(Own, DtHuman, false, 5.0, 4.0);
+		const FString Case = Pair.Key == DtHuman ? TEXT("ladrón") : TEXT("víctima");
+		if (TestTrue(FString::Printf(TEXT("El humano %s: el panel enseña el trilero"), *Case), Panel.IsSet()))
+		{
+			TestTrue(FString::Printf(TEXT("El humano %s: es espera"), *Case), Panel->Input == EDecisionInput::Wait);
+			TestEqual(FString::Printf(TEXT("El humano %s: las runas a la vista"), *Case), Panel->Context, FString(TEXT("Runas a la vista: D1 D3")));
+		}
+	}
+
+	// Control: en la elección de esfera de un dummy, la espera es la de su elección, como antes.
+	FMatchState Pick = MakeShell(EShellGameStage::Pick, 1, 2, {1, 3});
+	Pick.PendingChoice.Kind = EChoiceKind::ShellPick;
+	Pick.PendingChoice.Seat = 1;
+	Pick.PendingChoice.Options = {0, 1};
+	Pick.PendingChoice.DeadlineSeconds = DtNow + 10.0;
+	const TOptional<FDecisionView> PickView = Soulbound::Presentation::WaitView(Pick, DtHuman);
+	if (TestTrue(TEXT("Control: hay espera en la elección"), PickView.IsSet()))
+	{
+		TestEqual(TEXT("Control: la de la elección"), PickView->Title, FString(TEXT("Asiento 1 (Eco) elige una esfera del trilero")));
+	}
 	return true;
 }
 

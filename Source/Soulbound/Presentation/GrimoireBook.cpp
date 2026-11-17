@@ -126,10 +126,18 @@ namespace Soulbound::Presentation
 		Lines.Add(FString::Printf(TEXT("%s: abre y cierra el Grimorio (también su botón, abajo a la derecha)"), *SpanishKeyName(Keys.Grimoire)));
 		Lines.Add(FString::Printf(TEXT("%s: pestaña anterior y siguiente del Grimorio"), *TabKeysText(Keys.PreviousTab, Keys.NextTab)));
 		Lines.Add(TEXT("1 a 9 y 0: las opciones del panel de decisión, como sus botones"));
-		Lines.Add(FString::Printf(TEXT("%s: empieza la prueba del anillo cuando estás listo"), *SpanishKeyName(Keys.RingStart)));
-		Lines.Add(FString::Printf(TEXT("%s: leyenda o crónica en la columna"), *SpanishKeyName(Keys.ColumnTab)));
-		Lines.Add(FString::Printf(TEXT("%s: oculta y enseña los paneles"), *SpanishKeyName(Keys.Panels)));
+		// S-045 (precisión de R-CAM, decisión del autor del 17/11/2026): Intro empieza la prueba y vuelve al menú al acabar; con la misma tecla, una línea.
+		if (SpanishKeyName(Keys.RingStart) == SpanishKeyName(Keys.ReturnToMenu))
+		{
+			Lines.Add(FString::Printf(TEXT("%s: empieza la prueba del anillo cuando estás listo y, al acabar la partida, vuelve al menú"), *SpanishKeyName(Keys.RingStart)));
+		}
+		else
+		{
+			Lines.Add(FString::Printf(TEXT("%s: empieza la prueba del anillo cuando estás listo"), *SpanishKeyName(Keys.RingStart)));
+			Lines.Add(FString::Printf(TEXT("%s: al acabar la partida, vuelve al menú"), *SpanishKeyName(Keys.ReturnToMenu)));
+		}
 		Lines.Add(FString::Printf(TEXT("%s: cambia la vista"), *SpanishKeyName(Keys.View)));
+		Lines.Add(FString::Printf(TEXT("%s: oculta y enseña las etiquetas y los números de las casillas"), *SpanishKeyName(Keys.Overlay)));
 		return Body + TEXT("\n\n") + FString::Join(Lines, TEXT("\n"));
 	}
 
@@ -152,10 +160,10 @@ namespace Soulbound::Presentation
 	}
 
 
-	FString GrimoireKeysHint(const FString& GrimoireKey, const FString& PanelsKey, const FString& PreviousTabKey, const FString& NextTabKey)
+	FString GrimoireKeysHint(const FString& GrimoireKey, const FString& PreviousTabKey, const FString& NextTabKey)
 	{
-		// Corrección del autor del 17/11/2026 tras PIE: decía "Left y Right", los nombres que da Unreal.
-		return FString::Printf(TEXT("%s o %s para cerrar; %s, pestañas"), *SpanishKeyName(GrimoireKey), *SpanishKeyName(PanelsKey), *TabKeysText(PreviousTabKey, NextTabKey));
+		// Corrección del autor del 17/11/2026 tras PIE: decía "Left y Right", los nombres que da Unreal. S-045 (R-HUD-16): sin la H, que ya no existe.
+		return FString::Printf(TEXT("%s para cerrar; %s, pestañas"), *SpanishKeyName(GrimoireKey), *TabKeysText(PreviousTabKey, NextTabKey));
 	}
 
 	FString GrimoireButtonLabel(const FString& KeyName)

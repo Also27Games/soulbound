@@ -42,7 +42,7 @@ public:
 		SLATE_ATTRIBUTE(int32, FontSize)
 		/** Color de cada Dominio, el de la vista, para el cuadrito de cada runa. */
 		SLATE_ARGUMENT(TArray<FLinearColor>, DomainColors)
-		/** Lo que dice el título sobre cómo se cierra y se cambia de pestaña ("G o H para cerrar; Izquierda y Derecha, pestañas"). */
+		/** Lo que dice el título sobre cómo se cierra y se cambia de pestaña ("G para cerrar; flechas izquierda y derecha, pestañas", GrimoireKeysHint). */
 		SLATE_ARGUMENT(FString, KeysHint)
 		/** Ancho del panel (GrimoirePanelWidth de la capa); se lee cada vez que se pinta y no depende de lo pintado (S-029, R-VIS-21). */
 		SLATE_ATTRIBUTE(float, PanelWidth)
