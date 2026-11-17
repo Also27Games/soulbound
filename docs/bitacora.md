@@ -37,15 +37,21 @@ La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar
   - (6) "CRONICA (la ultima…)" pasa a "CRÓNICA (la última…)" en `ChronicleHeadingText` (CA-HUD-42). Revisados los demás textos del Grimorio y sus datos: no había más sin tildes.
   - (7) Margen de 12 sobre el pie (`GrimoireFootGap`; antes, 6), en las cinco pestañas.
   - 1 test nuevo y 1 ajustado, vistos en rojo (2 fallidos) y en verde: 584.
+- **Ampliación del autor (17/11, noche)**: superadas en PIE las correcciones 5 a 7. El texto real del libro (27 páginas, casi todo en voz del Warden) no cabía en el formato, y se amplía. Plan aprobado con las siete recomendaciones del agente y una precisión: dos bloques `>` separados por una línea en blanco son dos frases.
+  - La página es su título y una lista de bloques (`FHowToPlayBlock`): párrafo, frase del Warden y elemento de lista. Desaparecen el comentario fijo (`WardenComment`) y su error (`DuplicateComment`). La página "Teclas" pasa a ser una lista.
+  - `**texto**` es negrita en los tres bloques (`HowToPlaySpans`). El Grimorio pinta cada bloque con `SRichTextBlock` y unos estilos hechos con la fuente del libro (la frase del Warden en cursiva, su negrita en negrita cursiva); la fuente gana dos tipos en Config, `Italic` y `BoldItalic`.
+  - El menú recibe cada página como texto enriquecido de UMG (`HowToPlayPageRichText`, marcas `<Bold>`, `<Warden>` y `<WardenBold>`); `Body` y `HowToPlayText` siguen sin marcas.
+  - En dos fases, como pidió el autor: primero bloques, frases y listas; después la negrita. Las dos salieron limpias en los tests.
+  - Tests: 5 nuevos (CA-HUD-43 a CA-HUD-47) y 4 ajustados (CA-HUD-30, 31, 32 y 34, más CA-HUD-37 por el comentario). En rojo 9 fallidos en la primera fase y 2 en la negrita; en verde, 589.
 - **Pendiente**:
-  - Las pruebas manuales de las páginas con imagen y comentario, y de las correcciones 5 y 7.
-  - Los assets del autor: `T_GrimorioPortada`, las capturas `T_Ayuda_*` y `F_Grimorio`.
+  - Las pruebas manuales de las páginas con imagen, y de la ampliación: bloques, cursiva, negrita, listas y el texto enriquecido en el menú (el escapado de `& < > "` se comprueba allí).
+  - Los assets del autor: `T_GrimorioPortada`, las capturas `T_Ayuda_*` y los tipos `Italic` y `BoldItalic` de `F_Grimorio`.
   - Los tamaños de letra del libro, que se ajustan con el texto final.
   - El widget del menú que lee las páginas, y después quitar `HowToPlayText` (`TODO(R-HUD-19)`).
   - `como-se-juega.md` sigue con su párrafo de teclas, que nombra H y P y ahora repite la página "Teclas".
 - **Proceso**:
-  - Tiempo: agente Opus 5.5 en una conversación nueva; unos 30 minutos desde el plan aprobado hasta el PR, unos 35 más para las cuatro correcciones del autor tras PIE y unos 25 para las tres de la segunda prueba.
-  - Preguntas que pararon al agente: una parada, el plan con siete dudas.
+  - Tiempo: agente Opus 5.5 en una conversación nueva; unos 30 minutos desde el plan aprobado hasta el PR, unos 35 más para las cuatro correcciones del autor tras PIE, unos 25 para las tres de la segunda prueba y unos 50 para la ampliación del formato.
+  - Preguntas que pararon al agente: dos paradas, cada una un plan con siete dudas (el de la story y el de la ampliación).
   - Correcciones tras fusionar: (las rellena el autor). Antes de fusionar, siete, en dos pruebas en PIE; la primera fue un fallo del agente (el ancho de partir no restaba sangrías ni la barra de desplazamiento); la sexta corrige un texto sin tildes anterior a S-048.
   - Build y tests: en rojo y en verde compiló y pasó a la primera, también en las correcciones.
 
