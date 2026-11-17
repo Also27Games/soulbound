@@ -2224,6 +2224,21 @@ void ABoardViewActor::ToggleDebugPanel()
 	TickHud();
 }
 
+Soulbound::Presentation::FGrimoireKeyNames ABoardViewActor::GrimoireKeyNames() const
+{
+	Soulbound::Presentation::FGrimoireKeyNames Keys;
+	Keys.Grimoire = GrimoireKey.GetDisplayName().ToString();
+	Keys.PreviousTab = GrimoirePreviousTabKey.GetDisplayName().ToString();
+	Keys.NextTab = GrimoireNextTabKey.GetDisplayName().ToString();
+	Keys.View = SeatedViewKey.GetDisplayName().ToString();
+	Keys.Overlay = OverlayToggleKey.GetDisplayName().ToString();
+	Keys.RingStart = RingStartKey.GetDisplayName().ToString();
+	Keys.ReturnToMenu = ReturnToMenuKey.GetDisplayName().ToString();
+	Keys.PreviousPage = GrimoirePreviousPageKey.GetDisplayName().ToString();
+	Keys.NextPage = GrimoireNextPageKey.GetDisplayName().ToString();
+	return Keys;
+}
+
 void ABoardViewActor::ToggleGrimoire()
 {
 	if (bGrimoireOpen)

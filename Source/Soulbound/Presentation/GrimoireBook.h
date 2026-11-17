@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "DecisionText.h"
 #include "HowToPlay.h"
+#include "Layout/Margin.h"
 #include "LegendPanel.h"
 #include "StatusText.h"
 
@@ -33,14 +34,28 @@ namespace Soulbound::Presentation
 
 	/**
 	 * La pestaña activa del Grimorio (S-044, R-HUD-10, nombre propuesto). Al abrirse vuelve siempre a "Tú" (decisión del autor del 16/11/2026: no
-	 * recuerda la última). Con las flechas pasa a la siguiente o a la anterior de forma cíclica (aceptado por el autor el 17/11/2026).
+	 * recuerda la última). Con las flechas pasa a la siguiente o a la anterior de forma cíclica (aceptado por el autor el 17/11/2026). Desde S-048
+	 * (R-HUD-18) lleva también la página de "Cómo se juega", que sí se recuerda durante la partida: abrir el Grimorio no la toca.
 	 */
 	struct FGrimoireTabState
 	{
 		EGrimoireTab Active = EGrimoireTab::You;
 
-		/** El Grimorio se abre: la pestaña activa es "Tú". */
+		/** S-048 (R-HUD-18): la página de "Cómo se juega" que se ve, desde 0. Una partida nueva empieza en la primera. */
+		int32 Page = 0;
+
+		/** El Grimorio se abre: la pestaña activa es "Tú"; la página de "Cómo se juega" se queda donde estaba (S-048, R-HUD-18). */
 		void Open();
+		/**
+		 * S-048 (R-HUD-18): la página siguiente; en la última, se queda (no es cíclico: un libro tiene principio y final).
+		 * @param PageCount Cuántas páginas tiene el libro, la de teclas incluida.
+		 */
+		void NextPage(int32 PageCount);
+		/**
+		 * S-048 (R-HUD-18): la página anterior; en la primera, se queda.
+		 * @param PageCount Cuántas páginas tiene el libro, la de teclas incluida.
+		 */
+		void PreviousPage(int32 PageCount);
 		/** La siguiente pestaña; desde "Crónica", "Tú". */
 		void Next();
 		/** La anterior; desde "Tú", "Crónica". */
@@ -110,6 +125,9 @@ namespace Soulbound::Presentation
 		FString Overlay;
 		FString RingStart;
 		FString ReturnToMenu;
+		/** S-048 (R-HUD-18): las teclas de la página anterior y la siguiente de "Cómo se juega". */
+		FString PreviousPage;
+		FString NextPage;
 	};
 
 	/**
@@ -122,6 +140,101 @@ namespace Soulbound::Presentation
 	 * @return El texto de la pestaña.
 	 */
 	FString GrimoireHowToPlayText(const FHowToPlayLoadResult& Loaded, const FGrimoireKeyNames& Keys);
+
+	/** El título de la última página del libro, la que pone el código (S-048, R-HUD-18). */
+	inline const TCHAR* const HowToPlayKeysTitle = TEXT("Teclas");
+
+	/**
+	 * El libro de "Cómo se juega" tal como lo leen el Grimorio y el menú (S-048, R-HUD-18 y R-HUD-19, nombre propuesto): el mismo para los dos, que
+	 * se escribe una vez. Si el archivo no cargó, sin páginas y con el mensaje del cargador.
+	 */
+	struct FHowToPlayBook
+	{
+		/** El título del libro (el "# " del archivo); vacío si no lo trae. */
+		FString Title;
+		/** La frase de la portada, del Warden; vacía si no la trae. */
+		FString CoverLine;
+		/** Las páginas del autor y, al final, la de teclas. Vacío si el archivo no cargó. */
+		TArray<FHowToPlayPage> Pages;
+		/** El mensaje del cargador si el archivo no cargó; vacío si cargó. */
+		FString ErrorMessage;
+
+		bool IsLoaded() const { return ErrorMessage.IsEmpty(); }
+	};
+
+	/**
+	 * La página "Teclas" (S-048, R-HUD-18; antes, el bloque del final de GrimoireHowToPlayText): la pone el código con los nombres de las teclas
+	 * configuradas, en español donde lo haya, para que nunca se contradiga con la configuración. Las del Grimorio, sus pestañas y sus páginas, 1 a 9
+	 * y 0, la de empezar la prueba del anillo y la de volver al menú (una línea si son la misma), la de la vista y la de las etiquetas.
+	 * @param Keys Los nombres que da Unreal a las teclas configuradas.
+	 * @return La página, sin comentario ni imagen.
+	 */
+	FHowToPlayPage HowToPlayKeysPage(const FGrimoireKeyNames& Keys);
+
+	/**
+	 * El libro (S-048, R-HUD-18 y R-HUD-19): las páginas del archivo y, al final, la de teclas; o, si el cargador falló, ninguna página y su mensaje.
+	 * @param Loaded Lo que devolvió LoadHowToPlayText.
+	 * @param Keys Los nombres de las teclas configuradas.
+	 * @return El libro.
+	 */
+	FHowToPlayBook HowToPlayBook(const FHowToPlayLoadResult& Loaded, const FGrimoireKeyNames& Keys);
+
+	/**
+	 * El pie de una página (S-048, R-HUD-18): "N de M", con la página contada desde 1.
+	 * @param Page La página, desde 0.
+	 * @param PageCount Cuántas hay.
+	 * @return "2 de 5"; sin páginas, vacío.
+	 */
+	FString HowToPlayPageFooter(int32 Page, int32 PageCount);
+
+	/**
+	 * El libro aplanado para el bloque de texto del menú de hoy (S-048, precisión del autor de R-HUD-19): el título y el texto de cada página,
+	 * separados por una línea en blanco; si el archivo no cargó, vacío.
+	 * TODO(R-HUD-19): quitarlo, con UHowToPlayLibrary::HowToPlayText, cuando el widget nuevo del menú lea las páginas.
+	 */
+	FString HowToPlayFlatText(const FHowToPlayBook& Book);
+
+	/** El margen del Grimorio sin la imagen del libro (S-044; desde S-048, R-HUD-20, la zona de contenido de hoy): 16 a los lados y 12 arriba y abajo. */
+	inline const FVector2f GrimoireFlatPadding(16.f, 12.f);
+
+	/**
+	 * Dónde va el contenido del Grimorio dentro del panel (S-048, R-HUD-20, nombre propuesto), en coordenadas del panel (el origen, arriba a la
+	 * izquierda). Con la imagen del libro, dentro de sus páginas y partido en dos por el lomo; sin ella, la zona de hoy, de una columna.
+	 */
+	struct FGrimoireBookLayout
+	{
+		/** Si hay libro: con la imagen del fondo cargada. */
+		bool bBook = false;
+		/** La zona de contenido: dentro del panel y fuera de los bordes del libro. */
+		FBox2f Content = FBox2f(FVector2f::ZeroVector, FVector2f::ZeroVector);
+		/** La página izquierda y la derecha, a cada lado del lomo; sin libro, las dos son Content. */
+		FBox2f LeftPage = FBox2f(FVector2f::ZeroVector, FVector2f::ZeroVector);
+		FBox2f RightPage = FBox2f(FVector2f::ZeroVector, FVector2f::ZeroVector);
+		/** El tamaño al que se pinta la imagen del libro para que sus bordes no se deformen (escala uniforme); cero sin libro. */
+		FVector2f BrushSize = FVector2f::ZeroVector;
+	};
+
+	/**
+	 * La zona de contenido del Grimorio (S-048, R-HUD-20). La imagen se estira al panel conservando sus bordes: se escala igual en los dos ejes (la
+	 * menor de las dos escalas que la llevan al panel), y sus bordes miden la fracción de la imagen escalada que dice BorderFraction. El contenido
+	 * queda dentro de esos bordes con PageInset más de margen, y el lomo (el centro del panel) deja un hueco de SpineGapFraction del ancho del
+	 * contenido que ninguna página pisa.
+	 * @param PanelSize El tamaño del panel.
+	 * @param ImageSize El tamaño de la imagen del libro, en píxeles; cero si no hay textura (entonces, la zona de hoy, GrimoireFlatPadding).
+	 * @param BorderFraction Los márgenes del borde de la imagen, como fracción de la imagen (GrimoireBackgroundMargin).
+	 * @param PageInset Margen añadido dentro de los bordes, en unidades de Slate (GrimoirePageInset).
+	 * @param SpineGapFraction Hueco del lomo, en fracción del ancho del contenido (GrimoireSpineGap).
+	 * @return Las zonas; nunca de tamaño negativo.
+	 */
+	FGrimoireBookLayout GrimoireBookLayout(const FVector2f& PanelSize, const FVector2f& ImageSize, const FMargin& BorderFraction, float PageInset, float SpineGapFraction);
+
+	/**
+	 * Si la imagen de una página de "Cómo se juega" va al lado del texto o debajo (S-048, R-HUD-18): al lado si, partido el ancho en dos, el texto
+	 * tiene al menos MinTextWidth.
+	 * @param ColumnsWidth El ancho de que disponen texto e imagen juntos.
+	 * @param MinTextWidth El ancho mínimo del texto (HowToPlayMinTextWidth).
+	 */
+	bool HowToPlayImageBeside(float ColumnsWidth, float MinTextWidth);
 
 	/**
 	 * Cuándo se cierra solo el Grimorio (S-044, R-HUD-11, nombre propuesto). Se mira en cada refresco del HUD, esté abierto o no, y dice si acaba

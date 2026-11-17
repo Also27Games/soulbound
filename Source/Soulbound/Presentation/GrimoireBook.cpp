@@ -175,4 +175,43 @@ namespace Soulbound::Presentation
 	{
 		return !bPrologue && !bMatchOver && !bWardenLineOnScreen;
 	}
+
+	// TODO(R-HUD-18): por implementar (S-048); los tests están en rojo.
+	void FGrimoireTabState::NextPage(int32 PageCount)
+	{
+	}
+
+	void FGrimoireTabState::PreviousPage(int32 PageCount)
+	{
+	}
+
+	FHowToPlayPage HowToPlayKeysPage(const FGrimoireKeyNames& Keys)
+	{
+		return FHowToPlayPage();
+	}
+
+	FHowToPlayBook HowToPlayBook(const FHowToPlayLoadResult& Loaded, const FGrimoireKeyNames& Keys)
+	{
+		return FHowToPlayBook();
+	}
+
+	FString HowToPlayPageFooter(int32 Page, int32 PageCount)
+	{
+		return FString();
+	}
+
+	FString HowToPlayFlatText(const FHowToPlayBook& Book)
+	{
+		return FString();
+	}
+
+	FGrimoireBookLayout GrimoireBookLayout(const FVector2f& PanelSize, const FVector2f& ImageSize, const FMargin& BorderFraction, float PageInset, float SpineGapFraction)
+	{
+		return FGrimoireBookLayout();
+	}
+
+	bool HowToPlayImageBeside(float ColumnsWidth, float MinTextWidth)
+	{
+		return false;
+	}
 }

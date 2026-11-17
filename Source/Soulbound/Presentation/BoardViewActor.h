@@ -98,6 +98,12 @@ public:
 	/** Si el Grimorio está abierto (S-027, R-HUD-4): mientras lo está, los clics sobre el tablero no cuentan (el controlador los ignora). */
 	bool IsGrimoireOpen() const { return bGrimoireOpen; }
 
+	/**
+	 * Los nombres de las teclas configuradas que nombra el libro de "Cómo se juega" (S-044; desde S-048, R-HUD-18 y R-HUD-19, también las de página).
+	 * Público para que el menú (UHowToPlayLibrary) los lea del objeto por defecto, con la misma Config que la partida.
+	 */
+	Soulbound::Presentation::FGrimoireKeyNames GrimoireKeyNames() const;
+
 	// ---- Mesa (S-019) ----
 
 	/**
@@ -665,6 +671,53 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey GrimoireNextTabKey = EKeys::Right;
+
+	/**
+	 * Teclas que pasan a la página anterior y a la siguiente de "Cómo se juega" (S-048, R-HUD-18, nombres aprobados por el autor el 17/11/2026): solo con
+	 * el Grimorio abierto en esa pestaña; no son cíclicas. Valores iniciales flecha arriba y flecha abajo: distintas de las de pestaña y libres.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	FKey GrimoirePreviousPageKey = EKeys::Up;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	FKey GrimoireNextPageKey = EKeys::Down;
+
+	/**
+	 * La carpeta de las imágenes de "Cómo se juega" (S-048, R-HUD-17): "![](T_Ayuda_Turno)" es la textura T_Ayuda_Turno de esta carpeta. Valor inicial
+	 * /Game/Art/Ayuda/ (Config/DefaultGame.ini). Una imagen que no existe deja la página sin imagen y se dice una vez en el registro.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FString HowToPlayImageFolder = TEXT("/Game/Art/Ayuda/");
+
+	/**
+	 * El ancho mínimo del texto de una página de "Cómo se juega" con la imagen al lado (S-048, R-HUD-18): si no cabe, la imagen va debajo. Valor
+	 * inicial 300, en unidades de Slate; a ciegas, se ajusta en PIE a 1024x768.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
+	float HowToPlayMinTextWidth = 300.f;
+
+	/**
+	 * La imagen del libro abierto sobre la que se pinta el Grimorio (S-048, R-HUD-20, nombre aprobado): páginas oscuras y vacías. Valor inicial
+	 * /Game/Art/Grimorio/T_GrimorioFondo.T_GrimorioFondo (Config/DefaultGame.ini); el asset lo importa el autor. Vacía o inexistente, el Grimorio
+	 * se pinta con el fondo negro de siempre y se dice una vez en el registro.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (AllowedClasses = "/Script/Engine.Texture2D"))
+	FSoftObjectPath GrimoireBackgroundTexture;
+
+	/**
+	 * Los márgenes del borde de la imagen del libro, en fracción de la imagen (S-048, R-HUD-20): lo que queda fuera se estira sin deformarse (las
+	 * esquinas y el lomo no cambian de proporción) y el contenido nunca lo pisa. Valor inicial 0,08 por lado; depende de la imagen y se ajusta en PIE.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FMargin GrimoireBackgroundMargin = FMargin(0.08f);
+
+	/** Margen añadido dentro de los bordes del libro, en unidades de Slate (S-048, R-HUD-20). Valor inicial 12. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
+	float GrimoirePageInset = 12.f;
+
+	/** El hueco del lomo, en fracción del ancho del contenido, que ninguna página pisa (S-048, R-HUD-20). Valor inicial 0,06. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0", ClampMax = "0.5"))
+	float GrimoireSpineGap = 0.06f;
 
 	/**
 	 * Tecla que muestra y oculta el panel de depuración (S-027, R-HUD-2). Valor inicial D (decisión del autor del 9/11/2026: F1 es una tecla de

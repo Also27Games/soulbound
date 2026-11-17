@@ -24,7 +24,7 @@ namespace Soulbound::Presentation
 		return Headings;
 	}
 
-	FHowToPlayLoadResult ParseHowToPlayText(const FString& Markdown)
+	FHowToPlayLoadResult ParseHowToPlayText(const FString& Markdown, const FString& SourceName)
 	{
 		TArray<FString> Lines;
 		Markdown.ParseIntoArrayLines(Lines, false);
@@ -72,5 +72,11 @@ namespace Soulbound::Presentation
 			LineStart = LineEnd;
 		}
 		return Display;
+	}
+
+	FString HowToPlayImagePath(const FString& Folder, const FString& ImageName)
+	{
+		// TODO(R-HUD-17): por implementar (S-048); el test está en rojo.
+		return FString();
 	}
 }
