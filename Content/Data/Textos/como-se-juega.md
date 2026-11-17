@@ -24,6 +24,8 @@ Las Fuentes os dan una por visita, mientras queden. Las repetidas sirven de rese
 
 Nicho: Elegido. Fuente: runa. Nodo de Duelo: retad a cualquiera. Oráculo: sentencia y fin del turno. Planar: salto con el poder adecuado.
 
+![](T_Ayuda_Sello)
+
 ## ANTES DE QUE LO ESTROPEÉIS TODO (sigue)
 
 **5. ¡Fastidiaos entre vosotros!**
@@ -44,6 +46,8 @@ Vuestra insolencia crece con cada demora y mis castigos empeoran. Y si se agota 
 
 > «Ya tenéis vuestra chuleta. Si aun así os perdéis… procurad al menos que sea entretenido.»
 
+![](T_Ayuda_Sello)
+
 ## 1. Vuestra absurda idea de ganar
 
 > «Os doy cuarenta minutos para robarme la victoria. Qué generoso por mi parte… qué improbable por la vuestra.»
@@ -57,6 +61,8 @@ Si sois tan miserables que en 40 minutos no lo lográis… ¡la victoria será m
 Y si os superáis y ninguno consigue vincularse en los primeros 5 minutos… me marcharé, dejándoos aquí atrapados para siempre.
 
 > «Adoro las partidas cortas…»
+
+![](T_Ayuda_Sello)
 
 ## 2. Mi tablero. Vuestra prisión.
 
@@ -72,6 +78,8 @@ Cada Dominio conecta con mi Altar y con sus dos vecinos. En cada uno os he dejad
 
 > «¡Las Fuentes y los Nodos seguirán dormidos hasta que aparezca un Elegido! ¿Acaso creíais que iba a revelar mis secretos a unos miserables como vosotros?»
 
+![](T_Ayuda_Sello)
+
 ## 3. Cinco minutos. Empezad a correr.
 
 > «Empezáis como **Ecos**… porque es lo que os merecéis. Tenéis cinco minutos para demostrar que valéis para algo… Lo dudo.»
@@ -82,6 +90,8 @@ La carrera termina a los **cinco minutos** o antes, si ya no quedan Nichos libre
 
 > «Los Dominios que nadie haya reclamado me los quedaré yo… ¡Desagradecidos!»
 
+![](T_Ayuda_Sello)
+
 ## ¿Has conseguido un Elegido?
 
 > «¡Vaya, vaya! Alguien ha logrado no fracasar a la primera… No te acostumbres.»
@@ -89,6 +99,8 @@ La carrera termina a los **cinco minutos** o antes, si ya no quedan Nichos libre
 Conservas su **afinidad** durante toda la partida, tu **Nicho será tu hogar** y podrás recoger runas de cualquier Fuente.
 
 Eso sí, en mis Dominios Olvidados tendrás que ganarte cada runa superando una prueba… **¡No pensarías que iba a regalártelas!**
+
+![](T_Ayuda_Sello)
 
 ## ¿Sigues siendo un Eco?
 
@@ -102,6 +114,8 @@ Podrás recoger runas de sus Fuentes sin prueba y **robar a otros jugadores** si
 
 > «Y lo más lamentable… es que todavía puedes ganar. Tendrás que robar, vencer duelos o aprovechar mis caprichos para conseguir las demás runas.»
 
+![](T_Ayuda_Sello)
+
 ## La Noche de los Ecos
 
 > «¡Salid de vuestros rincones, sombras miserables! Os concedo una noche de libertad… intentad no desperdiciarla también.»
@@ -109,6 +123,8 @@ Podrás recoger runas de sus Fuentes sin prueba y **robar a otros jugadores** si
 Durante la noche podréis entrar en **cualquier Dominio y robar**, pero no recoger runas de las Fuentes de los Dominios con Elegido.
 
 > «La fiesta termina cuando yo quiera… Después, todos de vuelta a vuestros Dominios. ¡Bastante generoso he sido ya!»
+
+![](T_Ayuda_Sello)
 
 ## 4. ¡Moveos! Mi paciencia tiene un límite.
 
@@ -119,6 +135,8 @@ En cada turno, el dado se lanza automáticamente. Si tienes **Celeridad**, podr�
 Después, escoge una de las **casillas que laten** y tu ficha se moverá hasta ella.
 
 > «¡Treinta segundos para decidir! Si me hacéis esperar, os quedaréis quietecitos… y vuestra insolencia aumentará. ¡Luego no vengáis llorando!»
+
+![](T_Ayuda_Sello)
 
 ## ¿Tan difícil es mover una ficha?
 
@@ -132,6 +150,8 @@ Después, escoge una de las **casillas que laten** y tu ficha se moverá hasta e
 
 Al llegar, la casilla dicta sentencia. Y si hay otro jugador allí, os permitiré **una sola jugarreta contra él**… siempre que podáis hacerla.
 
+![](T_Ayuda_Sello)
+
 ## ¡Cuando yo hablo, vosotros calláis!
 
 > «¡Y si decido interrumpiros, se acabó vuestro turno! ¿Aún no habéis elegido? ¡Perdéis la tirada! ¿Estabais moviéndoos? ¡Os quedáis donde os pille!»
@@ -139,6 +159,8 @@ Al llegar, la casilla dicta sentencia. Y si hay otro jugador allí, os permitir�
 La ficha se detiene en la última casilla alcanzada, **sin activar su efecto**. Nada de continuar el movimiento ni realizar más acciones.
 
 > «¡A mí nadie me hace esperar! Pero si os toca esperar a vosotros… me importa bien poco.»
+
+![](T_Ayuda_Sello)
 
 ## 5. Mis runas. Vuestras pequeñas obsesiones.
 
@@ -154,6 +176,8 @@ Las runas que perdáis sin que nadie os las robe regresarán a su Fuente.
 
 > «¡Y nada de cotillear! Solo os permitiré ver cuántas runas tienen vuestros rivales, no cuáles… salvo que me apetezca revelar sus secretos.»
 
+![](T_Ayuda_Sello)
+
 ## ¿Queréis poderes? Ganáoslos.
 
 Cada tipo de runa os concederá **un poder diferente según vuestro Elegido**. Consultad vuestro Grimorio para descubrirlos.
@@ -161,6 +185,8 @@ Cada tipo de runa os concederá **un poder diferente según vuestro Elegido**. C
 Mientras conservéis una runa de ese tipo, mantendréis su poder. Y la runa de vuestro propio Dominio siempre os concederá **Celeridad**.
 
 > «¿Y los Ecos? ¡Ja! Bastante hice permitiéndoles disfrutar de Celeridad… No pienso malgastar más magia en esos fracasados.»
+
+![](T_Ayuda_Sello)
 
 ## Mis seis pequeños regalos
 
@@ -170,6 +196,8 @@ Mientras conservéis una runa de ese tipo, mantendréis su poder. Y la runa de v
 - **Expulsión:** Mandad a un rival a su hogar. Sin defensa.
 - **Vuelo Planar:** Saltad de un Nodo Planar a otro.
 - **Desvío:** Sacrificad la runa, escapad del Vacío y jugad vuestro turno.
+
+![](T_Ayuda_Sello)
 
 ## Las afinidades de mis criaturas
 
@@ -184,9 +212,13 @@ Mientras conservéis una runa de ese tipo, mantendréis su poder. Y la runa de v
 
 > «Disfrutad de vuestros poderes… Será todavía más divertido cuando os los arrebaten.»
 
+![](T_Ayuda_Sello)
+
 ## 6. ¡Pelead! ¡Robad! ¡Decepcionadme!
 
 > «¡Ah, por fin empieza lo divertido! Ahora podréis traicionaros, robaros y destrozar las esperanzas de vuestros rivales… ¡Qué espectáculo tan delicioso!»
+
+![](T_Ayuda_Sello)
 
 ## Mis casillas, mis sorpresas
 
@@ -201,6 +233,8 @@ Cada casilla tiene sus propios encantos…
 
 > «¿Compartís casilla? ¡Maravilloso! Os permitiré una sola jugarreta: retar, expulsar… ¡o robar, si sois de esos Ecos desesperados!»
 
+![](T_Ayuda_Sello)
+
 ## ¡Un duelo! ¡Que empiece la humillación!
 
 > «¿Queréis pelear? ¡Adelante! Aquí nadie rechaza un duelo… ¡Quiero ver quién acaba suplicando!»
@@ -213,6 +247,8 @@ El ganador podrá **robar una runa** al perdedor. Si el retado no tiene ninguna,
 
 > «¡Y cuidado cuando sea yo quien ordene el duelo! Puede que acabéis perdiendo todas vuestras preciadas runas… ¡Adoro las apuestas desiguales!»
 
+![](T_Ayuda_Sello)
+
 ## ¡El trilero! ¿Dónde estará tu preciosa runa?
 
 > «¡Enseñad vuestras runas! Las esconderé en esferas, las mezclaré… y dejaré que vuestro querido ladrón pruebe suerte.»
@@ -220,6 +256,8 @@ El ganador podrá **robar una runa** al perdedor. Si el retado no tiene ninguna,
 > «¡Cinco segundos para escoger una esfera! La runa que esconda será tuya… ¿Qué pasa? ¿Esperabas que te dejara elegir la mejor?»
 
 > «¿No eliges a tiempo? ¡Pues te quedas sin nada! Mis regalos no son eternos.»
+
+![](T_Ayuda_Sello)
 
 ## El anillo. ¡Demostrad vuestra destreza!
 
@@ -229,9 +267,13 @@ El ganador podrá **robar una runa** al perdedor. Si el retado no tiene ninguna,
 
 > «Y cuando lleguéis a mi **desafío final**… ¡seis aciertos sin un solo fallo! ¡Un solo fallo y todos vuestros esfuerzos se irán al infierno!»
 
+![](T_Ayuda_Sello)
+
 ## 7. Mis caprichos. Vuestras desgracias.
 
 > «¿Creíais que bastante teníais con enfrentaros entre vosotros? ¡Qué ingenuos! Os habíais olvidado de lo más importante… ¡DE MÍ!»
+
+![](T_Ayuda_Sello)
 
 ## ¡Aquí se hace lo que yo diga!
 
@@ -245,6 +287,8 @@ También puedo quitaros runas, regalaros o robaros turnos, mandaros a casa, ence
 
 > «¡Y por supuesto, puedo sellar vuestros caminos! ¿Creíais que os permitiría pasearos libremente por mi tablero? ¡Qué ocurrencia!»
 
+![](T_Ayuda_Sello)
+
 ## El Oráculo. ¡Consultad vuestro destino!
 
 > «¡Ah, mi querido Oráculo! A veces os recompensará… otras desearéis no haberlo mirado. ¡Me encantan las sorpresas!»
@@ -254,6 +298,8 @@ Cuando lleguéis a su Nodo, o cuando yo lo ordene, tendréis que consultarlo.
 > «¿No lo hacéis? ¡La sentencia caerá igualmente! Y de regalo… un poquito más de insolencia. ¡De nada!»
 
 > «¡Y después de consultar, se acabó vuestro turno! No pretenderéis que os deje seguir jugando después de semejante privilegio.»
+
+![](T_Ayuda_Sello)
 
 ## ¡Mi paciencia no es eterna!
 
@@ -265,11 +311,15 @@ Cuando lleguéis a su Nodo, o cuando yo lo ordene, tendréis que consultarlo.
 
 > «Pero si os atrevéis a hacerme esperar demasiado… ¡BASTA! ¡SE ACABÓ MI PACIENCIA! ¡AL VACÍO DE LA FURIA! ¡Ahora descubriréis lo que significa despertar mi verdadero odio!»
 
+![](T_Ayuda_Sello)
+
 ## 8. El Vacío. Qué bien se está sin vosotros.
 
 > «¡AL VACÍO! ¡Fuera de mi tablero! Por fin un poco de paz… Lástima que no pueda dejaros ahí eternamente.»
 
 > «Allí nadie podrá tocaros. Ni duelos, ni robos, ni expulsiones… ¿Os sentís a salvo? ¡Qué tierno! No es protección… es que estaba cansado de veros las caras.»
+
+![](T_Ayuda_Sello)
 
 ## ¿Ya queréis salir?
 
@@ -283,11 +333,15 @@ Cuando lleguéis a su Nodo, o cuando yo lo ordene, tendréis que consultarlo.
 
 > «¡Todos volveréis a vuestro hogar al escapar! ¿Seguir jugando? ¡JA! Solo si habéis sacrificado Desvío… ¡No pienso regalaros más favores!»
 
+![](T_Ayuda_Sello)
+
 ## El Vacío de la Furia. Ahora sí que me habéis enfadado.
 
 > «¡Este rincón lo reservo para quienes agotan mi paciencia! ¿Creíais que vuestros poderes os salvarían? ¡JA! Aquí no hay Desvío ni Liberación que valga.»
 
 > «Me hicisteis perder el tiempo… Ahora me toca a mí disfrutar viendo cómo perdéis el vuestro.»
+
+![](T_Ayuda_Sello)
 
 ## 9. Tan cerca de ganar… qué desagradable.
 
@@ -296,6 +350,8 @@ Cuando lleguéis a su Nodo, o cuando yo lo ordene, tendréis que consultarlo.
 Si conseguís **las seis runas distintas** y llegáis a **mi Altar**, os concederé el título de **aspirante**… ¡No os emocionéis! Todavía no habéis ganado nada.
 
 > «¡Y vosotros, miserables! Tenéis hasta su próximo turno para arrebatarle una runa o echarlo de mi Altar… ¡No me decepcionéis ahora!»
+
+![](T_Ayuda_Sello)
 
 ## Mi desafío final. ¡Atreveos!
 
@@ -306,3 +362,5 @@ Si conseguís **las seis runas distintas** y llegáis a **mi Altar**, os concede
 > «¿Has fallado? ¡Qué sorpresa tan inesperada! ¡Te arrancaré una runa al azar y te mandaré de vuelta a casa! ¡Qué placer verte caer tan cerca de la gloria!»
 
 > «¿Se ha agotado el tiempo? ¡Maravilloso! ¡Cuarenta minutos de esfuerzos inútiles… y todavía pensabais que podíais vencerme!»
+
+![](T_Ayuda_Sello)
