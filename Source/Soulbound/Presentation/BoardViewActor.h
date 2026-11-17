@@ -989,6 +989,16 @@ private:
 	/** La pestaña anterior y la siguiente del Grimorio, con sus teclas (S-044, R-HUD-10); cerrado, no hacen nada. */
 	void PreviousGrimoireTab();
 	void NextGrimoireTab();
+	/**
+	 * La página anterior y la siguiente de "Cómo se juega" (S-048, R-HUD-18), con sus botones y sus teclas; las teclas solo con el Grimorio abierto en
+	 * esa pestaña. No son cíclicas.
+	 */
+	void PreviousHowToPlayPage();
+	void NextHowToPlayPage();
+	/** Con el Grimorio abierto en "Cómo se juega": sus teclas de página hacen algo (S-048, R-HUD-18). */
+	bool IsHowToPlayShown() const;
+	/** Carga las imágenes de las páginas de "Cómo se juega" (S-048, R-HUD-17): una vez por nombre; la que falta, sin imagen y dicho una vez en el registro. */
+	void LoadHowToPlayImages();
 	/** Rellena el Grimorio abierto con el estado de ahora: cada pestaña solo se rehace si su contenido cambia (S-044, R-VIS-21). */
 	void RefreshGrimoire(const FMatchState& State, const Soulbound::Presentation::FStatusContext& Context);
 	/** Lo que pinta "El tablero" del Grimorio (S-044, BoardLegendRows): kit, suelo de los Olvidados y colores de la vista. */
@@ -1254,8 +1264,13 @@ private:
 	Soulbound::Presentation::FGrimoireTabState GrimoireTab;
 	/** Cuándo se cierra solo el Grimorio (S-044, R-HUD-11): mira en cada TickHud si aparece una decisión propia nueva o un anillo. */
 	Soulbound::Presentation::FGrimoireCloseWatch GrimoireCloseWatch;
-	/** El texto de "Cómo se juega" (S-044), leído una vez al construir los paneles con el cargador del menú. */
-	FHowToPlayLoadResult HowToPlayLoaded;
+	/**
+	 * El libro de "Cómo se juega" (S-044; desde S-048, R-HUD-18, por páginas y con la de teclas al final), leído una vez al construir los paneles con
+	 * el cargador del menú. La página que se ve está en GrimoireTab.
+	 */
+	Soulbound::Presentation::FHowToPlayBook HowToPlay;
+	/** Los pinceles de las imágenes de "Cómo se juega" por nombre (S-048, R-HUD-17); un nombre sin textura no está. Se llenan una vez, antes del panel. */
+	TMap<FString, FSlateBrush> HowToPlayBrushes;
 	/** Cuántos eventos tenía el registro la última vez que se rellenó la crónica del Grimorio; -1, nunca (se rehace al crecer). */
 	int32 GrimoireChronicleCount = -1;
 	/** El botón del Grimorio (S-044, R-HUD-12): en la capa de la frase del Warden, abajo a la derecha, en espejo de la caja de la línea de objetivo. */
@@ -1339,6 +1354,12 @@ private:
 	 */
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> DiceTexture;
+	/** Las texturas de las páginas de "Cómo se juega" (S-048, R-HUD-17), vivas mientras la vista lo esté; las apuntan HowToPlayBrushes. */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTexture2D>> HowToPlayTextures;
+	/** La imagen del libro abierto del Grimorio (S-048, R-HUD-20); nula si no hay (entonces, el fondo negro de siempre). */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> GrimoireBackground;
 	/** El pincel de las caras del dado: apunta a DiceTexture; vacío si no hay textura (entonces el panel dibuja la cara por código). */
 	FSlateBrush DiceBrush;
 

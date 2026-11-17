@@ -4,8 +4,10 @@
 #include "ChronicleLines.h"
 #include "GrimoireBook.h"
 #include "StatusText.h"
+#include "Styling/SlateBrush.h"
 #include "Widgets/SCompoundWidget.h"
 
+class SBox;
 class SChroniclePanel;
 class SLegendPanel;
 class STextBlock;
@@ -28,16 +30,21 @@ namespace Soulbound::Presentation
 /**
  * El Grimorio en PC (glosario "Grimorio", `Grimoire`): un panel centrado, bajo demanda, que no pausa nada (S-027, R-HUD-4). Desde S-044 (R-HUD-10) es
  * el libro del juego, con cinco pestañas: "Tú" (la tarjeta del humano, su insolencia, la runa de su hogar si es un Eco y, al pie, una línea por poder),
- * "La mesa" y "El tablero" (filas de leyenda), "Cómo se juega" (el texto del menú y las teclas) y "Crónica". Cada pestaña se desplaza con la rueda; el
- * panel tiene ancho y alto fijos (los de la capa) para no cambiar de tamaño al cambiar de pestaña. Las pestañas se cambian con un clic en su nombre
- * (OnTabClicked); cuál está activa lo dice el atributo ActiveTab. Slate puro: solo pinta lo que le dan.
+ * "La mesa" y "El tablero" (filas de leyenda), "Cómo se juega" y "Crónica". Cada pestaña se desplaza con la rueda; el panel tiene ancho y alto fijos
+ * (los de la capa) para no cambiar de tamaño al cambiar de pestaña. Las pestañas se cambian con un clic en su nombre (OnTabClicked); cuál está activa
+ * lo dice el atributo ActiveTab. Slate puro: solo pinta lo que le dan.
+ * Desde S-048: "Cómo se juega" es un libro que se lee una página cada vez, con "Anterior", "N de M" y "Siguiente" (R-HUD-18); y, con la imagen del libro
+ * abierto (BookBrush), el Grimorio se pinta sobre ella, con el contenido dentro de sus páginas y repartido en dos columnas, una por página, de modo
+ * que nada cruza el lomo (R-HUD-20, GrimoireBookLayout). Sin ella, se ve como antes, de una columna.
  */
 class SGrimoirePanel : public SCompoundWidget
 {
 public:
 	DECLARE_DELEGATE_OneParam(FOnTabClicked, Soulbound::Presentation::EGrimoireTab);
+	/** S-048 (R-HUD-18): la imagen de una página de "Cómo se juega" por su nombre; nula si no hay. */
+	using FImageForPage = TFunction<const FSlateBrush*(const FString& ImageName)>;
 
-	SLATE_BEGIN_ARGS(SGrimoirePanel) : _FontSize(13) {}
+	SLATE_BEGIN_ARGS(SGrimoirePanel) : _FontSize(13), _PageInset(12.f), _SpineGap(0.06f), _WardenColor(FLinearColor(1.f, 0.45f, 0.05f)) {}
 		/** Tamaño de la letra, en unidades de Slate; se lee cada vez que se pinta. */
 		SLATE_ATTRIBUTE(int32, FontSize)
 		/** Color de cada Dominio, el de la vista, para el cuadrito de cada runa. */
@@ -52,9 +59,30 @@ public:
 		SLATE_ATTRIBUTE(Soulbound::Presentation::EGrimoireTab, ActiveTab)
 		/** S-044: el clic en el nombre de una pestaña. */
 		SLATE_EVENT(FOnTabClicked, OnTabClicked)
+		/**
+		 * S-048 (R-HUD-20): la imagen del libro abierto, con su textura, dibujada como caja (Box) con los márgenes del borde (GrimoireBackgroundMargin)
+		 * y su tamaño en píxeles como ImageSize. Sin ella, el fondo negro de siempre. Se decide al construir.
+		 */
+		SLATE_ARGUMENT(TOptional<FSlateBrush>, BookBrush)
+		/** S-048 (R-HUD-20): margen dentro de los bordes del libro (GrimoirePageInset). */
+		SLATE_ARGUMENT(float, PageInset)
+		/** S-048 (R-HUD-20): hueco del lomo, en fracción del ancho del contenido (GrimoireSpineGap). */
+		SLATE_ARGUMENT(float, SpineGap)
+		/** S-048 (R-HUD-18): ancho mínimo del texto de una página con la imagen al lado, sin el libro (HowToPlayMinTextWidth). */
+		SLATE_ATTRIBUTE(float, MinTextWidth)
+		/** S-048 (R-HUD-18): el color del comentario del Warden, el de su línea (WardenLineColor). */
+		SLATE_ARGUMENT(FLinearColor, WardenColor)
+		/** S-048 (R-HUD-18): la imagen de una página por su nombre (las carga y las mantiene la vista). */
+		SLATE_ARGUMENT(FImageForPage, ImageForPage)
+		/** S-048 (R-HUD-18): los botones "Anterior" y "Siguiente". */
+		SLATE_EVENT(FSimpleDelegate, OnPreviousPage)
+		SLATE_EVENT(FSimpleDelegate, OnNextPage)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
+
+	/** S-048 (R-HUD-18): sin el libro, si la imagen de la página cabe al lado del texto cambia con el ancho; si cambia, se rehace la página. */
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 	/** "Tú": se rehace solo si cambia respecto a lo último que pintó (R-VIS-21). */
 	void SetYou(const Soulbound::Presentation::FGrimoireYouView& View);
@@ -62,14 +90,29 @@ public:
 	void SetTable(const TArray<FLegendRow>& Rows);
 	/** "El tablero", con las filas de BoardLegendRows; solo se rehace si cambian. */
 	void SetBoard(const TArray<FLegendRow>& Rows);
-	/** "Cómo se juega", con el texto de GrimoireHowToPlayText. */
-	void SetHowToPlay(const FString& Text);
+	/**
+	 * "Cómo se juega" (S-048, R-HUD-18): el libro (HowToPlayBook) y la página que se ve, desde 0. Si el libro no cargó, su mensaje. Se rehace solo si
+	 * cambia el libro o la página.
+	 */
+	void SetHowToPlay(const Soulbound::Presentation::FHowToPlayBook& Book, int32 Page);
 	/** "Crónica", con las líneas de ChronicleLines (la más reciente arriba). */
 	void SetChronicle(const TArray<FChronicleLine>& NewestFirst);
 
 private:
-	/** El ancho al que se parten los textos dentro de una pestaña: el del panel menos sus márgenes y la barra de desplazamiento. */
+	/** El tamaño del panel, el de la capa. */
+	FVector2f PanelSize() const;
+	/** S-048 (R-HUD-20): dónde va el contenido, con el libro o sin él. */
+	Soulbound::Presentation::FGrimoireBookLayout Layout() const;
+	/** El ancho al que se parten los textos dentro de una pestaña: el de su columna menos la barra de desplazamiento. */
 	float PageTextWidth() const;
+	/** Las cajas de las pestañas dadas, todas del mismo ancho (S-044); con el libro, la cabecera se reparte entre las dos páginas (S-048). */
+	TSharedRef<SWidget> MakeTabHeader(const TArray<Soulbound::Presentation::EGrimoireTab>& Tabs);
+	/** S-048 (R-HUD-18): rehace la página de "Cómo se juega" con lo último que se le dio. */
+	void RebuildHowToPlay();
+	/** S-048 (R-HUD-18): un botón de pasar página; apagado, se ve gris y no hace nada. */
+	TSharedRef<SWidget> MakePageButton(const FString& Label, bool bEnabled, const FSimpleDelegate& OnClicked);
+	/** S-048 (R-HUD-18): sin el libro, si la imagen de la página va al lado del texto con el ancho de ahora. */
+	bool ImageBesideNow() const;
 
 	TAttribute<int32> FontSize;
 	TAttribute<float> PanelWidth;
@@ -83,6 +126,31 @@ private:
 	TSharedPtr<SVerticalBox> YouBody;
 	TSharedPtr<SLegendPanel> TablePanel;
 	TSharedPtr<SLegendPanel> BoardPanel;
-	TSharedPtr<STextBlock> HowToPlayText;
 	TSharedPtr<SChroniclePanel> Chronicle;
+
+	/** S-048 (R-HUD-20): la imagen del libro, si la hay; su ImageSize se ajusta al pintar (FGrimoireBookLayout::BrushSize). */
+	TOptional<FSlateBrush> BookBrush;
+	/** El tamaño de la textura del libro, en píxeles; cero sin libro. */
+	FVector2f BookImageSize = FVector2f::ZeroVector;
+	FMargin BookMargin;
+	float PageInset = 12.f;
+	float SpineGap = 0.06f;
+	/** Con el libro, la otra mitad de cada pestaña, en la página derecha (S-048, R-HUD-20). Sin él, no existen y todo va en la columna única. */
+	TSharedPtr<SVerticalBox> YouSide;
+	TSharedPtr<SLegendPanel> TableSide;
+	TSharedPtr<SLegendPanel> BoardSide;
+
+	/** S-048 (R-HUD-18): "Cómo se juega". Sin el libro, todo en HowToPlayLeft. */
+	TSharedPtr<SBox> HowToPlayLeft;
+	TSharedPtr<SBox> HowToPlayRight;
+	TAttribute<float> MinTextWidth;
+	FLinearColor WardenColor;
+	FImageForPage ImageForPage;
+	FSimpleDelegate OnPreviousPage;
+	FSimpleDelegate OnNextPage;
+	Soulbound::Presentation::FHowToPlayBook HowToPlayBook;
+	int32 HowToPlayPage = 0;
+	bool bHasHowToPlay = false;
+	/** Sin el libro: si la imagen iba al lado la última vez que se rehízo la página. */
+	bool bLastImageBeside = true;
 };

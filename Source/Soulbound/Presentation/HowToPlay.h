@@ -9,8 +9,6 @@ enum class EHowToPlayError : uint8
 	None,
 	/** El archivo no existe o no se puede leer. */
 	FileNotFound,
-	/** Falta un título exigido, o no está en su orden. */
-	MissingHeading,
 	/** S-048 (R-HUD-17): el texto no tiene ningún título de segundo nivel ("## "), así que no tiene ninguna página. */
 	NoPages,
 	/** S-048 (R-HUD-17): una página tiene título pero no texto de la regla. */
@@ -60,9 +58,6 @@ struct FHowToPlayLoadResult
 	/** Motivo legible del rechazo, con el archivo y, si es de una página, su título. Vacío si hay éxito. */
 	FString Message;
 
-	/** El texto tal como está en el archivo, en Markdown. Solo tiene sentido si IsSuccess(). */
-	FString Text;
-
 	/** S-048 (R-HUD-17): el título del libro, el de primer nivel ("# "); vacío si el archivo no lo trae. */
 	FString BookTitle;
 
@@ -85,9 +80,6 @@ namespace Soulbound::Presentation
 	/** Ruta del texto, relativa a Content/. */
 	inline const FString HowToPlayRelativePath = TEXT("Data/Textos/como-se-juega.md");
 
-	/** Los títulos que el texto tiene que tener, en este orden, cada uno en su propia línea. La única lista de títulos. */
-	const TArray<FString>& HowToPlayHeadings();
-
 	/**
 	 * Lee un texto de "cómo se juega" ya cargado como libro (S-048, R-HUD-17). Vale si tiene al menos una página y cada página tiene título y
 	 * texto; con las precisiones del autor del 17/11/2026: varias líneas ">" seguidas son un comentario; un segundo comentario o una segunda imagen
@@ -105,14 +97,6 @@ namespace Soulbound::Presentation
 	 * @return El libro, FileNotFound si no se puede leer o lo que diga ParseHowToPlayText.
 	 */
 	FHowToPlayLoadResult LoadHowToPlayText(const FString& FilePath);
-
-	/**
-	 * El texto preparado para un bloque de texto, que no entiende Markdown: los títulos sin las almohadillas ("## Qué es esto" pasa a "Qué es
-	 * esto"); el resto, igual.
-	 * @param Markdown El texto cargado.
-	 * @return El texto para enseñar.
-	 */
-	FString HowToPlayDisplayText(const FString& Markdown);
 
 	/**
 	 * La ruta de la textura de una página (S-048, R-HUD-17): el nombre de la imagen dentro de la carpeta fija de la ayuda. "T_Ayuda_Turno" en

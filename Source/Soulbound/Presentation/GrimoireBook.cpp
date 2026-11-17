@@ -18,6 +18,16 @@ namespace Soulbound::Presentation
 			}
 			return FString::Printf(TEXT("%s y %s"), *SpanishKeyName(PreviousTabKey), *SpanishKeyName(NextTabKey));
 		}
+
+		/** S-048 (R-HUD-18): las dos teclas de página: "flechas arriba y abajo" con las de por defecto; si no, cada una con su nombre en español. */
+		FString PageKeysText(const FString& PreviousPageKey, const FString& NextPageKey)
+		{
+			if (PreviousPageKey == TEXT("Up") && NextPageKey == TEXT("Down"))
+			{
+				return TEXT("flechas arriba y abajo");
+			}
+			return FString::Printf(TEXT("%s y %s"), *SpanishKeyName(PreviousPageKey), *SpanishKeyName(NextPageKey));
+		}
 	}
 	const TArray<EGrimoireTab>& GrimoireTabs()
 	{
@@ -116,15 +126,14 @@ namespace Soulbound::Presentation
 		return {Players, Domains};
 	}
 
-	FString GrimoireHowToPlayText(const FHowToPlayLoadResult& Loaded, const FGrimoireKeyNames& Keys)
+	FHowToPlayPage HowToPlayKeysPage(const FGrimoireKeyNames& Keys)
 	{
-		// Sin archivo (o con un título que falta), el mensaje del cargador: la pestaña nunca queda vacía.
-		const FString Body = Loaded.IsSuccess() ? HowToPlayDisplayText(Loaded.Text).TrimEnd() : Loaded.Message;
 		TArray<FString> Lines;
-		Lines.Add(TEXT("Teclas"));
 		// Los nombres de las teclas, en español donde lo haya (corrección del autor del 17/11/2026).
 		Lines.Add(FString::Printf(TEXT("%s: abre y cierra el Grimorio (también su botón, abajo a la derecha)"), *SpanishKeyName(Keys.Grimoire)));
 		Lines.Add(FString::Printf(TEXT("%s: pestaña anterior y siguiente del Grimorio"), *TabKeysText(Keys.PreviousTab, Keys.NextTab)));
+		// S-048 (R-HUD-18, precisión del autor del 17/11/2026): las de página, flechas arriba y abajo por defecto.
+		Lines.Add(FString::Printf(TEXT("%s: página anterior y siguiente de Cómo se juega"), *PageKeysText(Keys.PreviousPage, Keys.NextPage)));
 		Lines.Add(TEXT("1 a 9 y 0: las opciones del panel de decisión, como sus botones"));
 		// S-045 (precisión de R-CAM, decisión del autor del 17/11/2026): Intro empieza la prueba y vuelve al menú al acabar; con la misma tecla, una línea.
 		if (SpanishKeyName(Keys.RingStart) == SpanishKeyName(Keys.ReturnToMenu))
@@ -138,7 +147,99 @@ namespace Soulbound::Presentation
 		}
 		Lines.Add(FString::Printf(TEXT("%s: cambia la vista"), *SpanishKeyName(Keys.View)));
 		Lines.Add(FString::Printf(TEXT("%s: oculta y enseña las etiquetas y los números de las casillas"), *SpanishKeyName(Keys.Overlay)));
-		return Body + TEXT("\n\n") + FString::Join(Lines, TEXT("\n"));
+		FHowToPlayPage Page;
+		Page.Title = HowToPlayKeysTitle;
+		Page.Body = FString::Join(Lines, TEXT("\n"));
+		return Page;
+	}
+
+	FHowToPlayBook HowToPlayBook(const FHowToPlayLoadResult& Loaded, const FGrimoireKeyNames& Keys)
+	{
+		FHowToPlayBook Book;
+		if (!Loaded.IsSuccess())
+		{
+			// Sin páginas y con el mensaje del cargador: la pestaña lo enseña y el menú lo puede enseñar (R-HUD-18, R-HUD-19).
+			Book.ErrorMessage = Loaded.Message.IsEmpty() ? FString(TEXT("No se pudo cargar el texto de cómo se juega")) : Loaded.Message;
+			return Book;
+		}
+		Book.Title = Loaded.BookTitle;
+		Book.CoverLine = Loaded.CoverLine;
+		Book.Pages = Loaded.Pages;
+		Book.Pages.Add(HowToPlayKeysPage(Keys));
+		return Book;
+	}
+
+	FString HowToPlayPageFooter(int32 Page, int32 PageCount)
+	{
+		if (PageCount <= 0)
+		{
+			return FString();
+		}
+		return FString::Printf(TEXT("%d de %d"), FMath::Clamp(Page, 0, PageCount - 1) + 1, PageCount);
+	}
+
+	FString HowToPlayFlatText(const FHowToPlayBook& Book)
+	{
+		TArray<FString> Blocks;
+		for (const FHowToPlayPage& Page : Book.Pages)
+		{
+			Blocks.Add(Page.Title + TEXT("\n\n") + Page.Body);
+		}
+		return FString::Join(Blocks, TEXT("\n\n"));
+	}
+
+	FGrimoireBookLayout GrimoireBookLayout(const FVector2f& PanelSize, const FVector2f& ImageSize, const FMargin& BorderFraction, float PageInset, float SpineGapFraction)
+	{
+		FGrimoireBookLayout Layout;
+		const FVector2f Panel(FMath::Max(PanelSize.X, 0.f), FMath::Max(PanelSize.Y, 0.f));
+		// Una zona que nunca da la vuelta: si los márgenes no caben, se queda en una línea en el centro del hueco.
+		const auto Inset = [](const FVector2f& Size, float Left, float Top, float Right, float Bottom)
+		{
+			FVector2f Min(Left, Top);
+			FVector2f Max(Size.X - Right, Size.Y - Bottom);
+			if (Max.X < Min.X)
+			{
+				Min.X = Max.X = (Min.X + Max.X) * 0.5f;
+			}
+			if (Max.Y < Min.Y)
+			{
+				Min.Y = Max.Y = (Min.Y + Max.Y) * 0.5f;
+			}
+			Min = FVector2f(FMath::Clamp(Min.X, 0.f, Size.X), FMath::Clamp(Min.Y, 0.f, Size.Y));
+			Max = FVector2f(FMath::Clamp(Max.X, Min.X, Size.X), FMath::Clamp(Max.Y, Min.Y, Size.Y));
+			return FBox2f(Min, Max);
+		};
+
+		if (ImageSize.X <= KINDA_SMALL_NUMBER || ImageSize.Y <= KINDA_SMALL_NUMBER)
+		{
+			// Sin la imagen del libro: la zona de hoy, de una columna (S-044).
+			Layout.Content = Inset(Panel, GrimoireFlatPadding.X, GrimoireFlatPadding.Y, GrimoireFlatPadding.X, GrimoireFlatPadding.Y);
+			Layout.LeftPage = Layout.Content;
+			Layout.RightPage = Layout.Content;
+			return Layout;
+		}
+
+		// Escala uniforme: la menor de las dos que llevan la imagen al panel, para que las esquinas y el lomo no se deformen.
+		const float Scale = FMath::Min(Panel.X / ImageSize.X, Panel.Y / ImageSize.Y);
+		Layout.bBook = true;
+		Layout.BrushSize = ImageSize * Scale;
+		const float Margin = FMath::Max(PageInset, 0.f);
+		Layout.Content = Inset(Panel, FMath::Max(BorderFraction.Left, 0.f) * Layout.BrushSize.X + Margin, FMath::Max(BorderFraction.Top, 0.f) * Layout.BrushSize.Y + Margin,
+			FMath::Max(BorderFraction.Right, 0.f) * Layout.BrushSize.X + Margin, FMath::Max(BorderFraction.Bottom, 0.f) * Layout.BrushSize.Y + Margin);
+
+		// El lomo, en el centro del panel; su hueco, una fracción del ancho del contenido. Ninguna página lo pisa.
+		const float Center = Panel.X * 0.5f;
+		const float HalfGap = FMath::Clamp(SpineGapFraction, 0.f, 1.f) * (Layout.Content.Max.X - Layout.Content.Min.X) * 0.5f;
+		const float LeftEnd = FMath::Clamp(Center - HalfGap, Layout.Content.Min.X, Layout.Content.Max.X);
+		const float RightStart = FMath::Clamp(Center + HalfGap, Layout.Content.Min.X, Layout.Content.Max.X);
+		Layout.LeftPage = FBox2f(Layout.Content.Min, FVector2f(LeftEnd, Layout.Content.Max.Y));
+		Layout.RightPage = FBox2f(FVector2f(RightStart, Layout.Content.Min.Y), Layout.Content.Max);
+		return Layout;
+	}
+
+	bool HowToPlayImageBeside(float ColumnsWidth, float MinTextWidth)
+	{
+		return ColumnsWidth * 0.5f >= MinTextWidth;
 	}
 
 	bool FGrimoireCloseWatch::Observe(const TOptional<FDecisionView>& Panel, bool bRingOpen)
@@ -176,42 +277,15 @@ namespace Soulbound::Presentation
 		return !bPrologue && !bMatchOver && !bWardenLineOnScreen;
 	}
 
-	// TODO(R-HUD-18): por implementar (S-048); los tests están en rojo.
 	void FGrimoireTabState::NextPage(int32 PageCount)
 	{
+		// R-HUD-18: no es cíclico; en la última se queda.
+		Page = PageCount <= 0 ? 0 : FMath::Clamp(Page + 1, 0, PageCount - 1);
 	}
 
 	void FGrimoireTabState::PreviousPage(int32 PageCount)
 	{
-	}
-
-	FHowToPlayPage HowToPlayKeysPage(const FGrimoireKeyNames& Keys)
-	{
-		return FHowToPlayPage();
-	}
-
-	FHowToPlayBook HowToPlayBook(const FHowToPlayLoadResult& Loaded, const FGrimoireKeyNames& Keys)
-	{
-		return FHowToPlayBook();
-	}
-
-	FString HowToPlayPageFooter(int32 Page, int32 PageCount)
-	{
-		return FString();
-	}
-
-	FString HowToPlayFlatText(const FHowToPlayBook& Book)
-	{
-		return FString();
-	}
-
-	FGrimoireBookLayout GrimoireBookLayout(const FVector2f& PanelSize, const FVector2f& ImageSize, const FMargin& BorderFraction, float PageInset, float SpineGapFraction)
-	{
-		return FGrimoireBookLayout();
-	}
-
-	bool HowToPlayImageBeside(float ColumnsWidth, float MinTextWidth)
-	{
-		return false;
+		// R-HUD-18: en la primera se queda.
+		Page = PageCount <= 0 ? 0 : FMath::Clamp(Page - 1, 0, PageCount - 1);
 	}
 }

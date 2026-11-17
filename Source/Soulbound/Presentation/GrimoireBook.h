@@ -113,8 +113,9 @@ namespace Soulbound::Presentation
 		const TArray<FLinearColor>& DomainColors);
 
 	/**
-	 * Los nombres de las teclas que dice el Grimorio al pie de "Cómo se juega" (S-044, R-HUD-10, nombre propuesto); los pone la vista. Desde S-045
-	 * (precisión de R-CAM) sin la de la columna ni la de ocultar paneles, y con la de las etiquetas y la de volver al menú.
+	 * Los nombres de las teclas que dice el Grimorio en "Cómo se juega" (S-044, R-HUD-10, nombre propuesto); los pone la vista. Desde S-045
+	 * (precisión de R-CAM) sin la de la columna ni la de ocultar paneles, y con la de las etiquetas y la de volver al menú. Desde S-048 (R-HUD-18),
+	 * con las de página, y son la última página del libro (HowToPlayKeysPage).
 	 */
 	struct FGrimoireKeyNames
 	{
@@ -129,17 +130,6 @@ namespace Soulbound::Presentation
 		FString PreviousPage;
 		FString NextPage;
 	};
-
-	/**
-	 * La pestaña "Cómo se juega" (S-044, R-HUD-10): el texto del menú tal como lo prepara HowToPlayDisplayText, o, si el cargador falló, su
-	 * mensaje, para que la pestaña nunca quede vacía; al final, las teclas. Desde S-045 (precisión de R-CAM, decisión del autor del 17/11/2026): la
-	 * del Grimorio, las de sus pestañas, 1 a 9 y 0, la de empezar la prueba del anillo y la de volver al menú (una sola línea si son la misma tecla),
-	 * la de la vista y la de las etiquetas. Ni las de depuración (T y D) ni las que se fueron con la columna (H y P).
-	 * @param Loaded Lo que devolvió LoadHowToPlayText.
-	 * @param Keys Los nombres de las teclas configuradas.
-	 * @return El texto de la pestaña.
-	 */
-	FString GrimoireHowToPlayText(const FHowToPlayLoadResult& Loaded, const FGrimoireKeyNames& Keys);
 
 	/** El título de la última página del libro, la que pone el código (S-048, R-HUD-18). */
 	inline const TCHAR* const HowToPlayKeysTitle = TEXT("Teclas");
@@ -163,9 +153,10 @@ namespace Soulbound::Presentation
 	};
 
 	/**
-	 * La página "Teclas" (S-048, R-HUD-18; antes, el bloque del final de GrimoireHowToPlayText): la pone el código con los nombres de las teclas
-	 * configuradas, en español donde lo haya, para que nunca se contradiga con la configuración. Las del Grimorio, sus pestañas y sus páginas, 1 a 9
-	 * y 0, la de empezar la prueba del anillo y la de volver al menú (una línea si son la misma), la de la vista y la de las etiquetas.
+	 * La página "Teclas" (S-048, R-HUD-18; antes, el bloque del final del texto de la pestaña, S-044): la pone el código con los nombres de las
+	 * teclas configuradas, en español donde lo haya, para que nunca se contradiga con la configuración. Las del Grimorio, sus pestañas y sus páginas,
+	 * 1 a 9 y 0, la de empezar la prueba del anillo y la de volver al menú (una línea si son la misma), la de la vista y la de las etiquetas. Desde
+	 * S-045 (precisión de R-CAM), ni las de depuración (T y D) ni las que se fueron con la columna (H y P).
 	 * @param Keys Los nombres que da Unreal a las teclas configuradas.
 	 * @return La página, sin comentario ni imagen.
 	 */
