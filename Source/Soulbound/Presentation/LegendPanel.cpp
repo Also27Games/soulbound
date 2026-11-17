@@ -40,6 +40,7 @@ void SLegendPanel::Construct(const FArguments& InArgs)
 	FontSize = InArgs._FontSize;
 	// S-035: el ancho al que se parten los textos.
 	WrapWidth = InArgs._WrapWidth;
+	TextFont = InArgs._Font;
 	Heading = InArgs._Heading;
 	SAssignNew(Body, SVerticalBox);
 	if (InArgs._Background)
@@ -89,7 +90,9 @@ void SLegendPanel::SetRows(const TArray<FLegendRow>& Rows)
 			return Column > 0.f ? FMath::Max(Column - 16.f - (bChip ? 8.f + static_cast<float>(InSize.Get()) + 5.f : 0.f), 1.f) : 0.f;
 		};
 	};
-	const auto Font = [Size](const ANSICHAR* Style) { return FCoreStyle::GetDefaultFontStyle(Style, FMath::Max(Size.Get(), 1)); };
+	// S-048 (corrección 4 del autor del 17/11/2026): la fuente del Grimorio si la hay; sin ella, la de hoy (GrimoireFontInfo).
+	const Soulbound::Presentation::FGrimoireFont Face = TextFont;
+	const auto Font = [Size, Face](const ANSICHAR* Style) { return Soulbound::Presentation::GrimoireFontInfo(Face, FCStringAnsi::Strcmp(Style, "Bold") == 0, Size.Get()); };
 	if (!Heading.IsEmpty())
 	{
 		Body->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 3.f)

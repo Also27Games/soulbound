@@ -38,6 +38,7 @@ enum class ESkillTrial : uint8;
 enum class ESkillDifficulty : uint8;
 class UInstancedStaticMeshComponent;
 class UTexture2D;
+class UFont;
 class UMaterialInterface;
 class UMatchHostSubsystem;
 class USkyLightComponent;
@@ -720,6 +721,24 @@ public:
 	float GrimoireSpineGap = 0.06f;
 
 	/**
+	 * La fuente de todo el texto del Grimorio (S-048, corrección 4 del autor del 17/11/2026, R-HUD-20, nombre propuesto): un asset de fuente con sus
+	 * tipos normal y negrita. Valor inicial /Game/Art/Fuentes/F_Grimorio.F_Grimorio (Config/DefaultGame.ini); el asset lo importa el autor. Vacía o
+	 * inexistente, la fuente de siempre y se dice una vez en el registro. Los tamaños no cambian.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (AllowedClasses = "/Script/Engine.Font"))
+	FSoftObjectPath GrimoireFont;
+
+	/**
+	 * Los nombres de los tipos normal y negrita dentro del asset de GrimoireFont (S-048, corrección 4, nombres propuestos). Valores iniciales Regular
+	 * y Bold; si el asset los llama de otro modo, se cambian aquí sin compilar.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FName GrimoireFontRegularTypeface = TEXT("Regular");
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FName GrimoireFontBoldTypeface = TEXT("Bold");
+
+	/**
 	 * Tecla que muestra y oculta el panel de depuración (S-027, R-HUD-2). Valor inicial D (decisión del autor del 9/11/2026: F1 es una tecla de
 	 * depuración del propio Unreal).
 	 */
@@ -1360,6 +1379,9 @@ private:
 	/** La imagen del libro abierto del Grimorio (S-048, R-HUD-20); nula si no hay (entonces, el fondo negro de siempre). */
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> GrimoireBackground;
+	/** La fuente del Grimorio (S-048, corrección 4), viva mientras la vista lo esté; nula si no hay (entonces, la de siempre). */
+	UPROPERTY(Transient)
+	TObjectPtr<UFont> GrimoireFontAsset;
 	/** El pincel de las caras del dado: apunta a DiceTexture; vacío si no hay textura (entonces el panel dibuja la cara por código). */
 	FSlateBrush DiceBrush;
 

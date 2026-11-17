@@ -22,25 +22,46 @@ namespace
 	 * pintado antes: con AutoWrapText el ancho sale del tamaño de la pasada anterior de pintado, y un texto recién creado cambiaba de tamaño de un
 	 * fotograma a otro (S-029, R-VIS-21; el mismo motivo que la frase del Warden, R-HUD-3).
 	 */
-	TSharedRef<STextBlock> GrimoireText(const TAttribute<int32>& Size, const TAttribute<float>& Wrap, const FString& Text, const FLinearColor& Color, bool bBold, float Scale = 1.f)
+	TSharedRef<STextBlock> GrimoireText(const Soulbound::Presentation::FGrimoireFont& Font, const TAttribute<int32>& Size, const TAttribute<float>& Wrap, const FString& Text,
+		const FLinearColor& Color, bool bBold, float Scale = 1.f)
 	{
+		// S-048 (corrección 4 del autor del 17/11/2026): con la fuente del Grimorio si la hay; sin ella, la de hoy.
 		return SNew(STextBlock)
 			.Text(FText::FromString(Text))
-			.Font_Lambda([Size, bBold, Scale]() { return FCoreStyle::GetDefaultFontStyle(bBold ? "Bold" : "Regular", FMath::Max(FMath::RoundToInt(Size.Get() * Scale), 1)); })
+			.Font_Lambda([Font, Size, bBold, Scale]() { return Soulbound::Presentation::GrimoireFontInfo(Font, bBold, FMath::RoundToInt(Size.Get() * Scale)); })
 			.ColorAndOpacity(Color)
 			.WrapTextAt_Lambda([Wrap]() { return Wrap.Get(); });
 	}
 
+	/** Un SScrollBox de pestaña con la barra que reserva GrimoireColumnTextWidth (S-048, corrección 1): su grosor, su margen y el hueco hasta el texto. */
+	TSharedRef<SWidget> GrimoireScroll(const TSharedRef<SWidget>& Content)
+	{
+		using namespace Soulbound::Presentation;
+		return SNew(SScrollBox)
+			.ScrollBarThickness(FVector2D(GrimoireScrollBarThickness, GrimoireScrollBarThickness))
+			.ScrollBarPadding(FMargin(GrimoireScrollBarPadding))
+			+ SScrollBox::Slot().Padding(0.f, 0.f, GrimoireScrollGap, 0.f)[Content];
+	}
+
+	/** Las sangrías de las líneas del Grimorio, izquierda y derecha sumadas (S-048, corrección 1): las de la pestaña "Tú" y la de la tarjeta. */
+	constexpr float GrimoireLineIndent = 8.f;
+	constexpr float GrimoirePowerIndent = 16.f;
+	constexpr float GrimoireCardIndent = 16.f;
+
+	/** Cuánto más pequeña va la línea de teclas del pie del Grimorio (S-048, corrección 2 del autor del 17/11/2026). */
+	constexpr float GrimoireFootScale = 0.85f;
+
 	const FLinearColor GrimoireTitleColor(1.f, 0.85f, 0.4f);
 	const FLinearColor GrimoireTextColor(0.9f, 0.9f, 0.9f);
 	const FLinearColor GrimoireDimColor(0.55f, 0.55f, 0.55f);
+	/** El color de la línea de teclas del pie (S-048, corrección 2): un gris claro, más discreto que el texto. */
+	const FLinearColor GrimoireFootColor(0.7f, 0.7f, 0.7f);
 
 	/**
 	 * Los márgenes del panel sin la imagen del libro (16 a los lados y 12 arriba y abajo; desde S-048, en GrimoireBook.h, porque son la zona de contenido
 	 * de hoy de GrimoireBookLayout) y lo que se deja a la barra de desplazamiento de una pestaña.
 	 */
 	const FVector2f GrimoireFlatPadding = Soulbound::Presentation::GrimoireFlatPadding;
-	constexpr float GrimoireScrollBarRoom = 14.f;
 
 	/**
 	 * Los colores de las pestañas: los de la cabecera de la columna (S-035), que repiten el gris del panel de decisión y su fondo negro. Activa: fondo
@@ -53,7 +74,8 @@ namespace
 	const FLinearColor TabHover = FLinearColor(TabLight.R * 0.35f, TabLight.G * 0.35f, TabLight.B * 0.35f, 1.f);
 }
 
-TSharedRef<SWidget> Soulbound::Presentation::MakeGrimoireCard(const FGrimoireRow& Row, const TAttribute<int32>& FontSize, const TArray<FLinearColor>& DomainColors, const TAttribute<float>& TextWidth)
+TSharedRef<SWidget> Soulbound::Presentation::MakeGrimoireCard(const FGrimoireRow& Row, const TAttribute<int32>& FontSize, const TArray<FLinearColor>& DomainColors, const TAttribute<float>& TextWidth,
+	const FGrimoireFont& Font, bool bBackground)
 {
 	const FString Who = Row.bHuman ? FString::Printf(TEXT("Asiento %d (tú)"), Row.Seat) : FString::Printf(TEXT("Asiento %d"), Row.Seat);
 	const FString Domain = Row.DomainId == INDEX_NONE ? FString() : FString::Printf(TEXT("D%d %s"), Row.DomainId, *Row.DomainName).TrimEnd();
@@ -64,11 +86,11 @@ TSharedRef<SWidget> Soulbound::Presentation::MakeGrimoireCard(const FGrimoireRow
 	const TAttribute<float> RuneWidth = TAttribute<float>::CreateLambda([FontSize, TextWidth]() { return FMath::Max(TextWidth.Get() - FontSize.Get() - 14.f, 1.f); });
 
 	TSharedRef<SVerticalBox> Card = SNew(SVerticalBox);
-	Card->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 2.f)[GrimoireText(FontSize, TextWidth, Header, Row.Color, true)];
+	Card->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 2.f)[GrimoireText(Font, FontSize, TextWidth, Header, Row.Color, true)];
 	Card->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 3.f)
 	[
-		Row.bElect ? GrimoireText(FontSize, TextWidth, FString::Printf(TEXT("Afinidad: %s. %s"), *Row.AffinityName, *Row.AffinityText), GrimoireTextColor, false)
-			: GrimoireText(FontSize, TextWidth, TEXT("Sin afinidad."), GrimoireDimColor, false)
+		Row.bElect ? GrimoireText(Font, FontSize, TextWidth, FString::Printf(TEXT("Afinidad: %s. %s"), *Row.AffinityName, *Row.AffinityText), GrimoireTextColor, false)
+			: GrimoireText(Font, FontSize, TextWidth, TEXT("Sin afinidad."), GrimoireDimColor, false)
 	];
 	for (const FGrimoireRune& Rune : Row.Runes)
 	{
@@ -91,20 +113,21 @@ TSharedRef<SWidget> Soulbound::Presentation::MakeGrimoireCard(const FGrimoireRow
 			]
 			+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center)
 			[
-				GrimoireText(FontSize, RuneWidth, FString::Printf(TEXT("D%d%s%s"), Rune.RuneType, *(Count.IsEmpty() ? Count : FString(TEXT(" ")) + Count), *Power),
+				GrimoireText(Font, FontSize, RuneWidth, FString::Printf(TEXT("D%d%s%s"), Rune.RuneType, *(Count.IsEmpty() ? Count : FString(TEXT(" ")) + Count), *Power),
 					Rune.bActive ? FLinearColor::White : Row.bTypesHidden || Rune.Count > 0 ? GrimoireTextColor : GrimoireDimColor, Rune.bActive)
 			]
 		];
 	}
 	Card->AddSlot().AutoHeight().Padding(0.f, 3.f, 0.f, 0.f)
 	[
-		GrimoireText(FontSize, TextWidth, Row.bTypesHidden ? FString::Printf(TEXT("%d runa%s; sus tipos están ocultos"), Row.TotalRunes, Row.TotalRunes == 1 ? TEXT("") : TEXT("s"))
+		GrimoireText(Font, FontSize, TextWidth, Row.bTypesHidden ? FString::Printf(TEXT("%d runa%s; sus tipos están ocultos"), Row.TotalRunes, Row.TotalRunes == 1 ? TEXT("") : TEXT("s"))
 			: FString::Printf(TEXT("Poderes activos: %s"), Row.ActivePowers.IsEmpty() ? TEXT("ninguno") : *FString::Join(Row.ActivePowers, TEXT(", "))),
 			GrimoireTitleColor, false)
 	];
+	// S-048 (corrección 3 del autor del 17/11/2026): sobre la imagen del libro, sin fondo; el margen se queda, para que el texto se parta igual.
 	return SNew(SBorder)
 		.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-		.BorderBackgroundColor(FLinearColor(1.f, 1.f, 1.f, 0.05f))
+		.BorderBackgroundColor(bBackground ? FLinearColor(1.f, 1.f, 1.f, 0.05f) : FLinearColor::Transparent)
 		.Padding(FMargin(8.f, 6.f))
 		[
 			Card
@@ -135,27 +158,30 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 	ImageForPage = InArgs._ImageForPage;
 	OnPreviousPage = InArgs._OnPreviousPage;
 	OnNextPage = InArgs._OnNextPage;
+	TextFont = InArgs._Font;
+	const Soulbound::Presentation::FGrimoireFootHints Foot = InArgs._FootHints;
+	const bool bBook = BookBrush.IsSet();
 
 	const TAttribute<float> Width = PanelWidth;
-	const TAttribute<float> PageWidth = TAttribute<float>::CreateSP(this, &SGrimoirePanel::PageTextWidth);
 	const TAttribute<int32> Size = FontSize;
+	const TAttribute<int32> FootSize = TAttribute<int32>::CreateLambda([Size]() { return FMath::Max(FMath::RoundToInt(Size.Get() * GrimoireFootScale), 1); });
 
 	// Una página por pestaña, en el orden de GrimoireTabs. Cada una con su desplazamiento (la crónica ya lleva el suyo).
-	const auto Page = [](const TSharedRef<SWidget>& Content) -> TSharedRef<SWidget>
+	const auto Page = [](const TSharedRef<SWidget>& Content) -> TSharedRef<SWidget> { return GrimoireScroll(Content); };
+	// S-048 (corrección 1): la leyenda parte sus textos al ancho que le queda dentro de su columna, la izquierda o la derecha.
+	const auto MakeLegend = [this, Size](TSharedPtr<SLegendPanel>& Out, bool bRight) -> TSharedRef<SWidget>
 	{
-		return SNew(SScrollBox) + SScrollBox::Slot().Padding(0.f, 0.f, GrimoireScrollBarRoom, 0.f)[Content];
-	};
-	const TAttribute<float> LegendWidth = TAttribute<float>::CreateLambda([PageWidth]() { return PageWidth.Get() + 16.f; });
-	const auto MakeLegend = [Size, LegendWidth](TSharedPtr<SLegendPanel>& Out) -> TSharedRef<SWidget>
-	{
-		return SAssignNew(Out, SLegendPanel).FontSize(Size).WrapWidth(LegendWidth).Heading(FString()).Background(false);
+		return SAssignNew(Out, SLegendPanel).FontSize(Size).WrapWidth(TextWidth(bRight, 0.f)).Heading(FString()).Background(false).Font(TextFont);
 	};
 	const auto WidgetIndex = [this]() { return FMath::Max(Soulbound::Presentation::GrimoireTabs().Find(ActiveTab.Get()), 0); };
 	SAssignNew(HowToPlayLeft, SBox);
+	// S-048 (corrección 3 del autor del 17/11/2026): sobre la imagen del libro, la crónica sin su caja oscura.
+	SAssignNew(Chronicle, SChroniclePanel).FontSize(Size).Background(!bBook).Font(TextFont);
 
-	if (!BookBrush.IsSet())
+	if (!bBook)
 	{
-		// Sin la imagen del libro, como antes (S-044): una columna, sobre el fondo negro.
+		// Sin la imagen del libro, como antes (S-044): una columna, sobre el fondo negro. Desde la corrección 2 del autor del 17/11/2026, el título
+		// dice solo "Grimorio" y las teclas van en una línea pequeña al pie, entera.
 		const TAttribute<float> TitleWidth = TAttribute<float>::CreateLambda([Width]() { return FMath::Max(Width.Get() - 2.f * GrimoireFlatPadding.X, 1.f); });
 		ChildSlot
 		[
@@ -174,7 +200,7 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 					SNew(SVerticalBox)
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
 					[
-						GrimoireText(Size, TitleWidth, FString::Printf(TEXT("GRIMORIO  (%s; la partida sigue)"), *InArgs._KeysHint), FLinearColor::White, true, 1.3f)
+						GrimoireText(TextFont, Size, TitleWidth, Soulbound::Presentation::GrimoireTitleText, FLinearColor::White, true, 1.3f)
 					]
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
 					[
@@ -185,10 +211,14 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 						SNew(SWidgetSwitcher)
 						.WidgetIndex_Lambda(WidgetIndex)
 						+ SWidgetSwitcher::Slot()[Page(SAssignNew(YouBody, SVerticalBox))]
-						+ SWidgetSwitcher::Slot()[Page(MakeLegend(TablePanel))]
-						+ SWidgetSwitcher::Slot()[Page(MakeLegend(BoardPanel))]
+						+ SWidgetSwitcher::Slot()[Page(MakeLegend(TablePanel, false))]
+						+ SWidgetSwitcher::Slot()[Page(MakeLegend(BoardPanel, false))]
 						+ SWidgetSwitcher::Slot()[HowToPlayLeft.ToSharedRef()]
-						+ SWidgetSwitcher::Slot()[SAssignNew(Chronicle, SChroniclePanel).FontSize(Size)]
+						+ SWidgetSwitcher::Slot()[Chronicle.ToSharedRef()]
+					]
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 6.f, 0.f, 0.f)
+					[
+						GrimoireText(TextFont, FootSize, TitleWidth, Foot.Left + TEXT("; ") + Foot.Right, GrimoireFootColor, false)
 					]
 				]
 			]
@@ -200,11 +230,8 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 	// una por página, con el hueco del lomo entre las dos: nada lo cruza. La cabecera también se reparte (precisión del autor del 17/11/2026): el
 	// título y "Tú · La mesa · El tablero" a la izquierda, "Cómo se juega · Crónica" a la derecha, a la misma altura.
 	SAssignNew(HowToPlayRight, SBox);
-	const TAttribute<float> LeftWidth = TAttribute<float>::CreateLambda([this]()
-	{
-		const Soulbound::Presentation::FGrimoireBookLayout Book = Layout();
-		return FMath::Max(Book.LeftPage.Max.X - Book.LeftPage.Min.X, 1.f);
-	});
+	const TAttribute<float> LeftWidth = TAttribute<float>::CreateLambda([this]() { return ColumnWidth(false); });
+	const TAttribute<float> RightWidth = TAttribute<float>::CreateLambda([this]() { return ColumnWidth(true); });
 	const TAttribute<float> SpineWidth = TAttribute<float>::CreateLambda([this]()
 	{
 		const Soulbound::Presentation::FGrimoireBookLayout Book = Layout();
@@ -224,6 +251,7 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 			]
 			+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(RightAlign)[Right];
 	};
+	// Corrección 2 del autor del 17/11/2026: el título, solo "Grimorio"; sin barra de desplazamiento, se parte al ancho de su página.
 	const TAttribute<float> TitleWidth = LeftWidth;
 	const TArray<EGrimoireTab> LeftTabs{EGrimoireTab::You, EGrimoireTab::Table, EGrimoireTab::Board};
 	const TArray<EGrimoireTab> RightTabs{EGrimoireTab::HowToPlay, EGrimoireTab::Chronicle};
@@ -255,7 +283,7 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 						SNew(SVerticalBox)
 						+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
 						[
-							GrimoireText(Size, TitleWidth, FString::Printf(TEXT("GRIMORIO  (%s; la partida sigue)"), *InArgs._KeysHint), FLinearColor::White, true, 1.3f)
+							GrimoireText(TextFont, Size, TitleWidth, Soulbound::Presentation::GrimoireTitleText, FLinearColor::White, true, 1.3f)
 						]
 						+ SVerticalBox::Slot().AutoHeight()[MakeTabHeader(LeftTabs)],
 						MakeTabHeader(RightTabs),
@@ -267,19 +295,27 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 						SNew(SWidgetSwitcher)
 						.WidgetIndex_Lambda(WidgetIndex)
 						+ SWidgetSwitcher::Slot()[Page(SAssignNew(YouBody, SVerticalBox))]
-						+ SWidgetSwitcher::Slot()[Page(MakeLegend(TablePanel))]
-						+ SWidgetSwitcher::Slot()[Page(MakeLegend(BoardPanel))]
+						+ SWidgetSwitcher::Slot()[Page(MakeLegend(TablePanel, false))]
+						+ SWidgetSwitcher::Slot()[Page(MakeLegend(BoardPanel, false))]
 						+ SWidgetSwitcher::Slot()[HowToPlayLeft.ToSharedRef()]
 						// Precisión del autor del 17/11/2026: la crónica, entera en la página izquierda.
-						+ SWidgetSwitcher::Slot()[SAssignNew(Chronicle, SChroniclePanel).FontSize(Size)],
+						+ SWidgetSwitcher::Slot()[Chronicle.ToSharedRef()],
 						SNew(SWidgetSwitcher)
 						.WidgetIndex_Lambda(WidgetIndex)
 						+ SWidgetSwitcher::Slot()[Page(SAssignNew(YouSide, SVerticalBox))]
-						+ SWidgetSwitcher::Slot()[Page(MakeLegend(TableSide))]
-						+ SWidgetSwitcher::Slot()[Page(MakeLegend(BoardSide))]
+						+ SWidgetSwitcher::Slot()[Page(MakeLegend(TableSide, true))]
+						+ SWidgetSwitcher::Slot()[Page(MakeLegend(BoardSide, true))]
 						+ SWidgetSwitcher::Slot()[HowToPlayRight.ToSharedRef()]
 						+ SWidgetSwitcher::Slot()[SNew(SSpacer)],
 						VAlign_Fill)
+				]
+				// Corrección 2 del autor del 17/11/2026: las teclas, en una línea pequeña al pie; cerrar y pestañas a la izquierda, páginas a la derecha.
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 6.f, 0.f, 0.f)
+				[
+					Columns(
+						GrimoireText(TextFont, FootSize, LeftWidth, Foot.Left, GrimoireFootColor, false),
+						SNew(SBox).HAlign(HAlign_Right)[GrimoireText(TextFont, FootSize, RightWidth, Foot.Right, GrimoireFootColor, false)],
+						VAlign_Top)
 				]
 			]
 		]
@@ -318,7 +354,7 @@ TSharedRef<SWidget> SGrimoirePanel::MakeTabHeader(const TArray<Soulbound::Presen
 			[
 				SNew(STextBlock)
 				.Text(FText::FromString(Soulbound::Presentation::GrimoireTabTitle(Tab)))
-				.Font_Lambda([Size]() { return FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(Size.Get(), 1)); })
+				.Font_Lambda([this, Size]() { return Soulbound::Presentation::GrimoireFontInfo(TextFont, true, Size.Get()); })
 				.ColorAndOpacity_Lambda([Active, Tab, IsHot]()
 				{
 					return Active.Get() == Tab ? FSlateColor(FLinearColor::Black) : IsHot() ? FSlateColor(FLinearColor::White) : FSlateColor(FLinearColor(0.75f, 0.75f, 0.75f));
@@ -350,13 +386,23 @@ Soulbound::Presentation::FGrimoireBookLayout SGrimoirePanel::Layout() const
 	return Soulbound::Presentation::GrimoireBookLayout(PanelSize(), BookBrush.IsSet() ? BookImageSize : FVector2f::ZeroVector, BookMargin, PageInset, SpineGap);
 }
 
-float SGrimoirePanel::PageTextWidth() const
+float SGrimoirePanel::ColumnWidth(bool bRight) const
 {
-	// Sin el libro, la columna única; con él, la más estrecha de las dos páginas, para que nada cruce el lomo.
+	// Con el libro, la página en que va el texto; sin él, la columna única (LeftPage y RightPage son la misma, Content).
 	const Soulbound::Presentation::FGrimoireBookLayout Book = Layout();
-	const float Column = Book.bBook ? FMath::Min(Book.LeftPage.Max.X - Book.LeftPage.Min.X, Book.RightPage.Max.X - Book.RightPage.Min.X)
-		: Book.Content.Max.X - Book.Content.Min.X;
-	return FMath::Max(Column - GrimoireScrollBarRoom, 1.f);
+	const FBox2f& Column = bRight ? Book.RightPage : Book.LeftPage;
+	return FMath::Max(Column.Max.X - Column.Min.X, 1.f);
+}
+
+TAttribute<float> SGrimoirePanel::TextWidth(bool bRight, float Indent) const
+{
+	// Corrección 1 del autor del 17/11/2026: el ancho de su propia columna, menos la barra de desplazamiento y la sangría de la línea.
+	const TWeakPtr<const SGrimoirePanel> Weak = SharedThis(this);
+	return TAttribute<float>::CreateLambda([Weak, bRight, Indent]()
+	{
+		const TSharedPtr<const SGrimoirePanel> Panel = Weak.Pin();
+		return Soulbound::Presentation::GrimoireColumnTextWidth(Panel.IsValid() ? Panel->ColumnWidth(bRight) : 1.f, Indent);
+	});
 }
 
 void SGrimoirePanel::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
@@ -389,25 +435,30 @@ void SGrimoirePanel::SetYou(const Soulbound::Presentation::FGrimoireYouView& Vie
 	YouBody->ClearChildren();
 	Side->ClearChildren();
 	const TAttribute<int32> Size = FontSize;
-	const TAttribute<float> PageWidth = TAttribute<float>::CreateSP(this, &SGrimoirePanel::PageTextWidth);
-	// La tarjeta ocupa el ancho de la página: su texto, el de la página menos los 16 de margen de la tarjeta.
-	const TAttribute<float> CardText = TAttribute<float>::CreateLambda([PageWidth]() { return FMath::Max(PageWidth.Get() - 16.f, 1.f); });
+	// Corrección 1 del autor del 17/11/2026: cada texto se parte al ancho de su columna (la tarjeta, la izquierda; lo demás, la derecha con el libro),
+	// menos su sangría: la tarjeta, sus 8 a cada lado; la insolencia, el hogar y el título de los poderes, 4 y 4; cada poder, 12 y 4.
+	const bool bSideRight = YouSide.IsValid();
 	if (View.Row.Seat != INDEX_NONE)
 	{
-		YouBody->AddSlot().AutoHeight()[Soulbound::Presentation::MakeGrimoireCard(View.Row, Size, DomainColors, CardText)];
+		YouBody->AddSlot().AutoHeight()
+		[
+			Soulbound::Presentation::MakeGrimoireCard(View.Row, Size, DomainColors, TextWidth(false, GrimoireCardIndent), TextFont, !BookBrush.IsSet())
+		];
 	}
+	const TAttribute<float> LineWidth = TextWidth(bSideRight, GrimoireLineIndent);
 	if (!View.InsolenceLine.IsEmpty())
 	{
-		Side->AddSlot().AutoHeight().Padding(4.f, 6.f, 4.f, 0.f)[GrimoireText(Size, PageWidth, View.InsolenceLine, GrimoireTextColor, true)];
+		Side->AddSlot().AutoHeight().Padding(4.f, 6.f, 4.f, 0.f)[GrimoireText(TextFont, Size, LineWidth, View.InsolenceLine, GrimoireTextColor, true)];
 	}
 	if (!View.HomeRuneLine.IsEmpty())
 	{
-		Side->AddSlot().AutoHeight().Padding(4.f, 4.f, 4.f, 0.f)[GrimoireText(Size, PageWidth, View.HomeRuneLine, FLinearColor::White, true)];
+		Side->AddSlot().AutoHeight().Padding(4.f, 4.f, 4.f, 0.f)[GrimoireText(TextFont, Size, LineWidth, View.HomeRuneLine, FLinearColor::White, true)];
 	}
-	Side->AddSlot().AutoHeight().Padding(4.f, 10.f, 4.f, 2.f)[GrimoireText(Size, PageWidth, TEXT("PODERES (los da cada runa a un Elegido, según su mapa)"), GrimoireTitleColor, true)];
+	Side->AddSlot().AutoHeight().Padding(4.f, 10.f, 4.f, 2.f)[GrimoireText(TextFont, Size, LineWidth, TEXT("PODERES (los da cada runa a un Elegido, según su mapa)"), GrimoireTitleColor, true)];
+	const TAttribute<float> PowerWidth = TextWidth(bSideRight, GrimoirePowerIndent);
 	for (const FString& Line : View.PowerLines)
 	{
-		Side->AddSlot().AutoHeight().Padding(12.f, 0.f, 4.f, 0.f)[GrimoireText(Size, PageWidth, Line, GrimoireTextColor, false)];
+		Side->AddSlot().AutoHeight().Padding(12.f, 0.f, 4.f, 0.f)[GrimoireText(TextFont, Size, PowerWidth, Line, GrimoireTextColor, false)];
 	}
 }
 
@@ -480,7 +531,7 @@ TSharedRef<SWidget> SGrimoirePanel::MakePageButton(const FString& Label, bool bE
 			[
 				SNew(STextBlock)
 				.Text(FText::FromString(Label))
-				.Font_Lambda([Size]() { return FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(Size.Get(), 1)); })
+				.Font_Lambda([this, Size]() { return Soulbound::Presentation::GrimoireFontInfo(TextFont, true, Size.Get()); })
 				.ColorAndOpacity(bEnabled ? FLinearColor(0.9f, 0.9f, 0.9f) : GrimoireDimColor)
 			]
 		];
@@ -493,16 +544,14 @@ void SGrimoirePanel::RebuildHowToPlay()
 		return;
 	}
 	const TAttribute<int32> Size = FontSize;
-	const TAttribute<float> PageWidth = TAttribute<float>::CreateSP(this, &SGrimoirePanel::PageTextWidth);
-	const auto Scroll = [](const TSharedRef<SWidget>& Content) -> TSharedRef<SWidget>
-	{
-		return SNew(SScrollBox) + SScrollBox::Slot().Padding(0.f, 0.f, GrimoireScrollBarRoom, 0.f)[Content];
-	};
+	// Corrección 1 del autor del 17/11/2026: todo se parte al ancho de la página izquierda (sin el libro, la columna única).
+	const TAttribute<float> PageWidth = TextWidth(false, 0.f);
+	const auto Scroll = [](const TSharedRef<SWidget>& Content) -> TSharedRef<SWidget> { return GrimoireScroll(Content); };
 
 	// R-HUD-18: si el archivo no carga, la pestaña enseña el mensaje del cargador.
 	if (!HowToPlayBook.IsLoaded() || HowToPlayBook.Pages.IsEmpty())
 	{
-		HowToPlayLeft->SetContent(Scroll(GrimoireText(Size, PageWidth, HowToPlayBook.ErrorMessage, GrimoireTextColor, false)));
+		HowToPlayLeft->SetContent(Scroll(GrimoireText(TextFont, Size, PageWidth, HowToPlayBook.ErrorMessage, GrimoireTextColor, false)));
 		if (HowToPlayRight.IsValid())
 		{
 			HowToPlayRight->SetContent(SNullWidget::NullWidget);
@@ -520,22 +569,25 @@ void SGrimoirePanel::RebuildHowToPlay()
 	// Sin el libro y con la imagen al lado, el texto ocupa la mitad de la columna menos el hueco entre los dos.
 	constexpr float ImageGap = 12.f;
 	const bool bHalf = !bBook && Image && bBeside;
-	const TAttribute<float> BodyWidth = TAttribute<float>::CreateLambda([PageWidth, bHalf]()
+	const TWeakPtr<SGrimoirePanel> Weak = SharedThis(this);
+	const TAttribute<float> BodyWidth = !bHalf ? PageWidth : TAttribute<float>::CreateLambda([Weak]()
 	{
-		return bHalf ? FMath::Max(PageWidth.Get() * 0.5f - ImageGap, 1.f) : PageWidth.Get();
+		// Texto e imagen reparten la columna a partes iguales, con el hueco entre los dos; el texto lleva su barra.
+		const TSharedPtr<SGrimoirePanel> Panel = Weak.Pin();
+		return Soulbound::Presentation::GrimoireColumnTextWidth(Panel.IsValid() ? (Panel->ColumnWidth(false) - ImageGap) * 0.5f : 1.f, 0.f);
 	});
 
-	const TSharedRef<SWidget> Title = GrimoireText(Size, PageWidth, Shown.Title, GrimoireTitleColor, true, 1.15f);
-	const TSharedRef<SWidget> Body = Scroll(GrimoireText(Size, BodyWidth, Shown.Body, GrimoireTextColor, false));
+	const TSharedRef<SWidget> Title = GrimoireText(TextFont, Size, PageWidth, Shown.Title, GrimoireTitleColor, true, 1.15f);
+	const TSharedRef<SWidget> Body = Scroll(GrimoireText(TextFont, Size, BodyWidth, Shown.Body, GrimoireTextColor, false));
 	const TSharedRef<SWidget> Comment = Shown.WardenComment.IsEmpty() ? SNullWidget::NullWidget
-		: StaticCastSharedRef<SWidget>(GrimoireText(Size, PageWidth, Shown.WardenComment, WardenColor, false));
+		: StaticCastSharedRef<SWidget>(GrimoireText(TextFont, Size, PageWidth, Shown.WardenComment, WardenColor, false));
 	const TSharedRef<SWidget> Picture = !Image ? SNullWidget::NullWidget
 		: StaticCastSharedRef<SWidget>(SNew(SScaleBox).Stretch(EStretch::ScaleToFit).StretchDirection(EStretchDirection::DownOnly)[SNew(SImage).Image(Image)]);
 	const TSharedRef<SWidget> Previous = MakePageButton(TEXT("Anterior"), Index > 0, OnPreviousPage);
 	const TSharedRef<SWidget> Next = MakePageButton(TEXT("Siguiente"), Index < Count - 1, OnNextPage);
 	const TSharedRef<SWidget> Footer = SNew(STextBlock)
 		.Text(FText::FromString(Soulbound::Presentation::HowToPlayPageFooter(Index, Count)))
-		.Font_Lambda([Size]() { return FCoreStyle::GetDefaultFontStyle("Regular", FMath::Max(Size.Get(), 1)); })
+		.Font_Lambda([this, Size]() { return Soulbound::Presentation::GrimoireFontInfo(TextFont, false, Size.Get()); })
 		.ColorAndOpacity(GrimoireTextColor);
 	const float CommentGap = Shown.WardenComment.IsEmpty() ? 0.f : 8.f;
 
@@ -547,7 +599,7 @@ void SGrimoirePanel::RebuildHowToPlay()
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 6.f)[Title]
 			+ SVerticalBox::Slot().FillHeight(1.f)[Body]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, CommentGap, GrimoireScrollBarRoom, 0.f)[Comment]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, CommentGap, 0.f, 0.f)[Comment]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 8.f, 0.f, 0.f).HAlign(HAlign_Left)[Previous]);
 		HowToPlayRight->SetContent(
 			SNew(SVerticalBox)
@@ -587,7 +639,7 @@ void SGrimoirePanel::RebuildHowToPlay()
 		SNew(SVerticalBox)
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 6.f)[Title]
 		+ SVerticalBox::Slot().FillHeight(1.f)[Middle]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, CommentGap, GrimoireScrollBarRoom, 0.f)[Comment]
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, CommentGap, 0.f, 0.f)[Comment]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 8.f, 0.f, 0.f).HAlign(HAlign_Center)
 		[
 			SNew(SHorizontalBox)

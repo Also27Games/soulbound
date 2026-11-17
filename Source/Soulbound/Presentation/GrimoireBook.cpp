@@ -242,15 +242,19 @@ namespace Soulbound::Presentation
 		return ColumnsWidth * 0.5f >= MinTextWidth;
 	}
 
-	// TODO(R-HUD-20): por implementar (correcciones del autor del 17/11/2026); los tests están en rojo.
 	float GrimoireColumnTextWidth(float ColumnWidth, float Indent)
 	{
-		return ColumnWidth;
+		// Corrección 1 del autor del 17/11/2026: el ancho de su propia columna, menos la barra de desplazamiento y la sangría de la línea.
+		return FMath::Max(ColumnWidth - GrimoireScrollRoom - FMath::Max(Indent, 0.f), 1.f);
 	}
 
 	FGrimoireFootHints GrimoireFootHints(const FGrimoireKeyNames& Keys)
 	{
-		return FGrimoireFootHints();
+		// Corrección 2 del autor del 17/11/2026: cerrar y pestañas al pie de la página izquierda; páginas al pie de la derecha.
+		FGrimoireFootHints Foot;
+		Foot.Left = GrimoireKeysHint(Keys.Grimoire, Keys.PreviousTab, Keys.NextTab);
+		Foot.Right = FString::Printf(TEXT("%s, páginas"), *PageKeysText(Keys.PreviousPage, Keys.NextPage));
+		return Foot;
 	}
 
 	bool FGrimoireCloseWatch::Observe(const TOptional<FDecisionView>& Panel, bool bRingOpen)

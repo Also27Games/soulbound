@@ -26,6 +26,7 @@
 #include "PresentationShapes.h"
 #include "RingPanel.h"
 #include "RingPanelModel.h"
+#include "Engine/Font.h"
 #include "Engine/Texture2D.h"
 #include "Warden/WardenBrain.h"
 #include "SeatTokenActor.h"
@@ -1063,6 +1064,27 @@ void ABoardViewActor::BuildOverlay()
 			UE_LOG(LogSoulboundView, Warning, TEXT("Grimorio: no existe la imagen del libro %s; se pinta con el fondo negro de siempre."), *GrimoireBackgroundTexture.ToString());
 		}
 	}
+	// S-048 (corrección 4 del autor del 17/11/2026): la fuente del Grimorio, con el mismo patrón: sin ella, la de siempre, y se dice una vez.
+	GrimoireFontAsset = nullptr;
+	Soulbound::Presentation::FGrimoireFont BookFont;
+	BookFont.RegularTypeface = GrimoireFontRegularTypeface;
+	BookFont.BoldTypeface = GrimoireFontBoldTypeface;
+	if (GrimoireFont.IsNull())
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Grimorio: GrimoireFont está vacío; el texto sale con la fuente de siempre."));
+	}
+	else
+	{
+		GrimoireFontAsset = Cast<UFont>(GrimoireFont.TryLoad());
+		if (GrimoireFontAsset)
+		{
+			BookFont.Font = GrimoireFontAsset;
+		}
+		else
+		{
+			UE_LOG(LogSoulboundView, Warning, TEXT("Grimorio: no existe la fuente %s; el texto sale con la fuente de siempre."), *GrimoireFont.ToString());
+		}
+	}
 	// S-044: la capa ya no deja pasar los clics por encima del panel (las pestañas y la rueda son del Grimorio); fuera del panel, sí.
 	GrimoireOverlay = SNew(SBox)
 		.HAlign(HAlign_Center)
@@ -1077,9 +1099,10 @@ void ABoardViewActor::BuildOverlay()
 			SAssignNew(GrimoirePanel, SGrimoirePanel)
 			.FontSize(PanelFont)
 			.DomainColors(RuneChipColors)
-			// Corrección del autor del 17/11/2026 tras PIE: los nombres de las teclas, en español donde lo haya (GrimoireKeysHint).
-			.KeysHint(Soulbound::Presentation::GrimoireKeysHint(GrimoireKey.GetDisplayName().ToString(), GrimoirePreviousTabKey.GetDisplayName().ToString(),
-				GrimoireNextTabKey.GetDisplayName().ToString()))
+			// Corrección del autor del 17/11/2026 tras PIE: los nombres de las teclas, en español donde lo haya. Desde la corrección 2 de S-048, en una
+			// línea pequeña al pie (GrimoireFootHints), con las de página.
+			.FootHints(Soulbound::Presentation::GrimoireFootHints(GrimoireKeyNames()))
+			.Font(BookFont)
 			// S-029 (R-VIS-21): ancho fijo, el de la capa; no depende de lo pintado antes.
 			.PanelWidth_Lambda([this]() { return Soulbound::Presentation::GrimoirePanelWidth(LayerSlateWidth()); })
 			// S-044: alto fijo, una fracción del de la pantalla menos el margen de la capa; no cambia al cambiar de pestaña.

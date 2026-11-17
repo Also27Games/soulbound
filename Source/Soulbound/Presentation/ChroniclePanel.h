@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GrimoireFont.h"
 #include "Widgets/SCompoundWidget.h"
 
 class SScrollBox;
@@ -20,9 +21,13 @@ struct FChronicleLine
 class SChroniclePanel : public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SChroniclePanel) : _FontSize(11) {}
+	SLATE_BEGIN_ARGS(SChroniclePanel) : _FontSize(11), _Background(true) {}
 		/** Tamaño de la letra, en unidades de Slate; se lee cada vez que se pinta (S-027: escala con la pantalla). */
 		SLATE_ATTRIBUTE(int32, FontSize)
+		/** S-048 (corrección 3 del autor del 17/11/2026): si lleva su caja oscura; sobre la imagen del libro, no. */
+		SLATE_ARGUMENT(bool, Background)
+		/** S-048 (corrección 4): la fuente del Grimorio; sin asset, la de hoy. */
+		SLATE_ARGUMENT(Soulbound::Presentation::FGrimoireFont, Font)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -36,4 +41,5 @@ public:
 private:
 	TSharedPtr<SScrollBox> ScrollBox;
 	TAttribute<int32> FontSize = 11;
+	Soulbound::Presentation::FGrimoireFont TextFont;
 };

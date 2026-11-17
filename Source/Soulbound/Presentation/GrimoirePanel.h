@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "ChronicleLines.h"
 #include "GrimoireBook.h"
+#include "GrimoireFont.h"
 #include "StatusText.h"
 #include "Styling/SlateBrush.h"
 #include "Widgets/SCompoundWidget.h"
@@ -23,8 +24,11 @@ namespace Soulbound::Presentation
 	 * @param FontSize Tamaño de la letra, se lee cada vez que se pinta.
 	 * @param DomainColors Color de cada Dominio, para el cuadrito de cada runa.
 	 * @param TextWidth Ancho al que se parten los textos (GrimoireCardTextWidth), se lee cada vez que se pinta.
+	 * @param Font S-048 (corrección 4 del autor del 17/11/2026): la fuente del Grimorio; sin asset, la de hoy (la carta del Elegido la deja así).
+	 * @param bBackground S-048 (corrección 3): si lleva su fondo; sobre la imagen del libro, no (el margen se queda).
 	 */
-	TSharedRef<SWidget> MakeGrimoireCard(const FGrimoireRow& Row, const TAttribute<int32>& FontSize, const TArray<FLinearColor>& DomainColors, const TAttribute<float>& TextWidth);
+	TSharedRef<SWidget> MakeGrimoireCard(const FGrimoireRow& Row, const TAttribute<int32>& FontSize, const TArray<FLinearColor>& DomainColors, const TAttribute<float>& TextWidth,
+		const FGrimoireFont& Font = FGrimoireFont(), bool bBackground = true);
 }
 
 /**
@@ -49,8 +53,13 @@ public:
 		SLATE_ATTRIBUTE(int32, FontSize)
 		/** Color de cada Dominio, el de la vista, para el cuadrito de cada runa. */
 		SLATE_ARGUMENT(TArray<FLinearColor>, DomainColors)
-		/** Lo que dice el título sobre cómo se cierra y se cambia de pestaña ("G para cerrar; flechas izquierda y derecha, pestañas", GrimoireKeysHint). */
-		SLATE_ARGUMENT(FString, KeysHint)
+		/**
+		 * S-048 (corrección 2 del autor del 17/11/2026): la línea pequeña de teclas del pie (GrimoireFootHints): con el libro, cerrar y pestañas al pie
+		 * de la página izquierda y páginas al de la derecha; sin él, las dos en una línea. El título dice solo "Grimorio".
+		 */
+		SLATE_ARGUMENT(Soulbound::Presentation::FGrimoireFootHints, FootHints)
+		/** S-048 (corrección 4): la fuente de todo el texto del Grimorio; sin asset, la de hoy. */
+		SLATE_ARGUMENT(Soulbound::Presentation::FGrimoireFont, Font)
 		/** Ancho del panel (GrimoirePanelWidth de la capa); se lee cada vez que se pinta y no depende de lo pintado (S-029, R-VIS-21). */
 		SLATE_ATTRIBUTE(float, PanelWidth)
 		/** S-044: alto del panel, fijo; se lee cada vez que se pinta. */
@@ -103,8 +112,13 @@ private:
 	FVector2f PanelSize() const;
 	/** S-048 (R-HUD-20): dónde va el contenido, con el libro o sin él. */
 	Soulbound::Presentation::FGrimoireBookLayout Layout() const;
-	/** El ancho al que se parten los textos dentro de una pestaña: el de su columna menos la barra de desplazamiento. */
-	float PageTextWidth() const;
+	/** El ancho de una columna: con el libro, la página izquierda o la derecha; sin él, la única (S-048, R-HUD-20). */
+	float ColumnWidth(bool bRight) const;
+	/**
+	 * El ancho al que se parte un texto de una columna (S-048, corrección 1 del autor del 17/11/2026): GrimoireColumnTextWidth con el de su propia
+	 * columna y la sangría de la línea; se lee cada vez que se pinta.
+	 */
+	TAttribute<float> TextWidth(bool bRight, float Indent) const;
 	/** Las cajas de las pestañas dadas, todas del mismo ancho (S-044); con el libro, la cabecera se reparte entre las dos páginas (S-048). */
 	TSharedRef<SWidget> MakeTabHeader(const TArray<Soulbound::Presentation::EGrimoireTab>& Tabs);
 	/** S-048 (R-HUD-18): rehace la página de "Cómo se juega" con lo último que se le dio. */
@@ -144,6 +158,8 @@ private:
 	TSharedPtr<SBox> HowToPlayLeft;
 	TSharedPtr<SBox> HowToPlayRight;
 	TAttribute<float> MinTextWidth;
+	/** S-048 (corrección 4): la fuente del Grimorio. */
+	Soulbound::Presentation::FGrimoireFont TextFont;
 	FLinearColor WardenColor;
 	FImageForPage ImageForPage;
 	FSimpleDelegate OnPreviousPage;

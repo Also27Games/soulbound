@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GrimoireFont.h"
 #include "Widgets/SCompoundWidget.h"
 
 class SVerticalBox;
@@ -90,6 +91,8 @@ public:
 		SLATE_ARGUMENT(FString, Heading)
 		/** S-044: si lleva su fondo oscuro (la columna sí; dentro del Grimorio, que ya tiene el suyo, no). */
 		SLATE_ARGUMENT(bool, Background)
+		/** S-048 (corrección 4 del autor del 17/11/2026): la fuente del Grimorio; sin asset, la de hoy. */
+		SLATE_ARGUMENT(Soulbound::Presentation::FGrimoireFont, Font)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -100,6 +103,7 @@ public:
 private:
 	TAttribute<int32> FontSize;
 	TAttribute<float> WrapWidth;
+	Soulbound::Presentation::FGrimoireFont TextFont;
 	FString Heading;
 	TArray<FLegendRow> LastRows;
 	bool bHasRows = false;

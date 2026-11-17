@@ -9,6 +9,25 @@
 void SChroniclePanel::Construct(const FArguments& InArgs)
 {
 	FontSize = InArgs._FontSize;
+	TextFont = InArgs._Font;
+	const TSharedRef<SWidget> Content = SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 4.f)
+		[
+			SNew(STextBlock)
+			.Text(FText::FromString(TEXT("CRONICA (la ultima arriba; rueda para ir al inicio)")))
+			.Font_Lambda([this]() { return Soulbound::Presentation::GrimoireFontInfo(TextFont, true, FontSize.Get()); })
+			.ColorAndOpacity(FLinearColor::White)
+		]
+		+ SVerticalBox::Slot().FillHeight(1.f)
+		[
+			SAssignNew(ScrollBox, SScrollBox)
+		];
+	// S-048 (corrección 3 del autor del 17/11/2026): sobre la imagen del libro, sin la caja oscura; el texto va directamente sobre la página.
+	if (!InArgs._Background)
+	{
+		ChildSlot[Content];
+		return;
+	}
 	ChildSlot
 	[
 		SNew(SBorder)
@@ -16,18 +35,7 @@ void SChroniclePanel::Construct(const FArguments& InArgs)
 		.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.72f))
 		.Padding(FMargin(8.f, 6.f))
 		[
-			SNew(SVerticalBox)
-			+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 4.f)
-			[
-				SNew(STextBlock)
-				.Text(FText::FromString(TEXT("CRONICA (la ultima arriba; rueda para ir al inicio)")))
-				.Font_Lambda([this]() { return FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(FontSize.Get(), 1)); })
-				.ColorAndOpacity(FLinearColor::White)
-			]
-			+ SVerticalBox::Slot().FillHeight(1.f)
-			[
-				SAssignNew(ScrollBox, SScrollBox)
-			]
+			Content
 		]
 	];
 }
@@ -46,7 +54,7 @@ void SChroniclePanel::SetLines(const TArray<FChronicleLine>& NewestFirst)
 		[
 			SNew(STextBlock)
 			.Text(FText::FromString(Line.Text))
-			.Font_Lambda([this]() { return FCoreStyle::GetDefaultFontStyle("Regular", FMath::Max(FontSize.Get(), 1)); })
+			.Font_Lambda([this]() { return Soulbound::Presentation::GrimoireFontInfo(TextFont, false, FontSize.Get()); })
 			.ColorAndOpacity(Line.Color)
 			.AutoWrapText(true)
 		];

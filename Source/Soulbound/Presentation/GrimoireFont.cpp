@@ -4,9 +4,14 @@
 
 namespace Soulbound::Presentation
 {
-	// TODO(R-HUD-20): por implementar (corrección 4 del autor del 17/11/2026); el test está en rojo.
 	FSlateFontInfo GrimoireFontInfo(const FGrimoireFont& Font, bool bBold, int32 Size)
 	{
-		return FSlateFontInfo();
+		const int32 Points = FMath::Max(Size, 1);
+		if (!Font.Font)
+		{
+			// Sin fuente propia, la de hoy.
+			return FCoreStyle::GetDefaultFontStyle(bBold ? "Bold" : "Regular", Points);
+		}
+		return FSlateFontInfo(Font.Font, Points, bBold ? Font.BoldTypeface : Font.RegularTypeface);
 	}
 }
