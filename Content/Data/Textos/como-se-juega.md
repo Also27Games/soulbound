@@ -245,8 +245,6 @@ El ganador podrá **robar una runa** al perdedor. Si el retado no tiene ninguna,
 
 > «¿No eliges a tiempo? ¡Pues te quedas sin nada! Mis regalos no son eternos.»
 
-![](T_Ayuda_Trilero)
-
 ##
 
 ### El anillo. ¡Demostrad vuestra destreza!
@@ -257,13 +255,13 @@ El ganador podrá **robar una runa** al perdedor. Si el retado no tiene ninguna,
 
 > «Y cuando lleguéis a mi **desafío final**… ¡seis aciertos sin un solo fallo! ¡Un solo fallo y todos vuestros esfuerzos se irán al infierno!»
 
+##
+
 ![](T_Ayuda_Anillo)
 
 ## 7. Mis caprichos. Vuestras desgracias.
 
 > «¿Creíais que bastante teníais con enfrentaros entre vosotros? ¡Qué ingenuos! Os habíais olvidado de lo más importante… ¡DE MÍ!»
-
-![](T_Ayuda_Caprichos)
 
 ##
 
@@ -291,8 +289,6 @@ Cuando lleguéis a su Nodo, o cuando yo lo ordene, tendréis que consultarlo.
 
 > «¡Y después de consultar, se acabó vuestro turno! No pretenderéis que os deje seguir jugando después de semejante privilegio.»
 
-![](T_Ayuda_Oraculo)
-
 ##
 
 ### ¡Mi paciencia no es eterna!
@@ -310,8 +306,6 @@ Cuando lleguéis a su Nodo, o cuando yo lo ordene, tendréis que consultarlo.
 > «¡AL VACÍO! ¡Fuera de mi tablero! Por fin un poco de paz… Lástima que no pueda dejaros ahí eternamente.»
 
 > «Allí nadie podrá tocaros. Ni duelos, ni robos, ni expulsiones… ¿Os sentís a salvo? ¡Qué tierno! No es protección… es que estaba cansado de veros las caras.»
-
-![](T_Ayuda_Vacio)
 
 ##
 
@@ -354,5 +348,3 @@ Si conseguís **las seis runas distintas** y llegáis a **mi Altar**, os concede
 > «¿Has fallado? ¡Qué sorpresa tan inesperada! ¡Te arrancaré una runa al azar y te mandaré de vuelta a casa! ¡Qué placer verte caer tan cerca de la gloria!»
 
 > «¿Se ha agotado el tiempo? ¡Maravilloso! ¡Cuarenta minutos de esfuerzos inútiles… y todavía pensabais que podíais vencerme!»
-
-![](T_Ayuda_Desafio)
