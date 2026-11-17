@@ -4,6 +4,38 @@ Una entrada por story, en orden cronológico. Diez líneas: qué se pidió, qué
 
 La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar stories: tiempo del agente, desde el plan aprobado hasta abrir el PR; preguntas que pararon al agente; correcciones necesarias después de fusionar (las anota el autor cuando aparecen); y si build y tests pasaron a la primera. Las correcciones se rellenaron el 6/11/2026 a partir del historial de Git, de las conversaciones de trabajo del autor y de las sesiones de los agentes; "ninguna" significa que no consta ninguna en esas fuentes.
 
+## S-048. "Cómo se juega" es un libro: una página por tema, con su imagen y el comentario del Warden (17/11/2026, rama `story/S-048-como-se-juega-es-un-libro`, base `main`)
+
+- **Qué se pidió**: en la prueba del 15/11 con probadores, el "Cómo se juega" no se entendió: era un bloque largo y desordenado. Pasa a ser un libro: una página por tema, con título, la regla dicha en claro, una imagen y el comentario del Warden. `como-se-juega.md` se lee por páginas: `#` es el título del libro, `>` antes de la primera página es la portada, cada `##` empieza una página, `>` es el comentario y `![](Nombre)` la imagen (R-HUD-17). En el Grimorio se ve una página cada vez, con "Anterior", "N de M" y "Siguiente", sin ciclo; la página se recuerda durante la partida y la última, "Teclas", la pone el código (R-HUD-18). El menú lee el mismo libro desde la librería (R-HUD-19). El Grimorio se pinta sobre la imagen de un libro abierto, y nada cruza el lomo (R-HUD-20).
+- **Qué se decidió**: el autor aprobó el plan el 17/11, con siete dudas resueltas y pasadas a la story:
+  - formato: las líneas `>` seguidas son un solo comentario, y un segundo comentario o una segunda imagen en la misma página son un error;
+  - teclas de página: flechas arriba y abajo;
+  - la cabecera, repartida entre las dos páginas, y un reparto en dos columnas para cada pestaña, con la crónica entera a la izquierda;
+  - el comentario y "Anterior", al pie de la página izquierda;
+  - `HowToPlayText()` se mantiene para el widget de hoy, con el libro aplanado;
+  - `como-se-juega.md` no se toca.
+
+  El libro (`FHowToPlayBook`) vive en `GrimoireBook.h` y no en `HowToPlay.h`, porque necesita `FGrimoireKeyNames`.
+- **Cómo funciona**: `ParseHowToPlayText` recorre las líneas y devuelve título, portada y `FHowToPlayPage` (un `USTRUCT`, para que lo lea el widget). `HowToPlayBook` le añade la página de teclas. La vista y `UHowToPlayLibrary` usan las mismas funciones; la librería toma las teclas y la carpeta de imágenes del objeto por defecto de `ABoardViewActor`. La página está en `FGrimoireTabState::Page`, que `Open` no toca. `GrimoireBookLayout` escala la imagen del libro de forma uniforme, saca la zona de contenido de sus bordes y la parte por el lomo. `SGrimoirePanel` construye una o dos columnas según haya imagen o no.
+- **Dudas y resolución**: siete, las del plan, resueltas por el autor antes de escribir código. Durante la implementación, ninguna nueva.
+- **Tests**:
+  - 8 nuevos: `ComoSeJuega.Paginas` (CA-HUD-30), `ComoSeJuega.ComentarioEImagen` (CA-HUD-31), `ComoSeJuega.Portada` (CA-HUD-37), `ComoSeJuega.Errores` (CA-HUD-32), `ComoSeJuega.MismasPaginasEnMenuYGrimorio` (CA-HUD-35), `Grimorio.LibroPasarPagina` (CA-HUD-33), `Grimorio.LibroTeclasYRecuerdo` (CA-HUD-34) y `Grimorio.ZonaDeContenidoDelLibro` (CA-HUD-36).
+  - 3 actualizados: `ComoSeJuega.ArchivoDelRepositorio`, `Grimorio.TableroComoSeJuegaYCronica` y `Grimorio.TeclasEnEspanol`.
+  - 3 borrados (`ArchivoQueNoExiste`, que pasa a `Errores`; `TitulosEnOrden` y `TextoParaUGT`), que comprobaban la lista de títulos y el texto sin almohadillas, ya inexistentes.
+  - Vistos en rojo con implementaciones vacías (11 fallidos, todos los nuevos o actualizados) y en verde después: 580.
+- **Pruebas manuales**: pendientes del autor en PIE, a 1920x1080 y a 1024x768: las del final de la story, con y sin la imagen del libro.
+- **Pendiente**:
+  - Las pruebas manuales.
+  - Los valores de `GrimoireBackgroundMargin` (0,08), `GrimoirePageInset` y `GrimoireSpineGap` se pusieron sin ver la imagen; se ajustan en PIE.
+  - Los assets del autor: `T_GrimorioFondo`, `T_GrimorioPortada` y las capturas `T_Ayuda_*`.
+  - El widget del menú que lee las páginas, y después quitar `HowToPlayText` (`TODO(R-HUD-19)`).
+  - `como-se-juega.md` sigue con su párrafo de teclas, que nombra H y P y ahora repite la página "Teclas".
+- **Proceso**:
+  - Tiempo: agente Opus 5.5 en una conversación nueva; unos 30 minutos desde el plan aprobado hasta el PR.
+  - Preguntas que pararon al agente: una parada, el plan con siete dudas.
+  - Correcciones tras fusionar: (las rellena el autor).
+  - Build y tests: en rojo y en verde compiló y pasó a la primera.
+
 ## S-045. La pantalla queda limpia: arriba, la partida; abajo, tú; lo demás, en el Grimorio (17/11/2026, rama `story/S-045-la-pantalla-queda-limpia`, base `main`)
 
 - **Qué se pidió**: con todo lo de consulta ya en el Grimorio (S-044), dejar en pantalla solo el reloj, la caja del objetivo, el panel de decisión, la frase del Warden y el botón del Grimorio. Una caja de la partida arriba a la izquierda, con el reloj ("Carrera 4:11", "Partida 33:25") y dos avisos de mesa: la Noche de los Ecos y quién está a un turno de ganar (R-HUD-14). El panel de estado pasa a ser de depuración, oculto hasta T (R-HUD-15). Fuera la columna de la leyenda y la crónica, con sus teclas H y P, y el tablero a todo el ancho (R-HUD-16). Además, las teclas que se nombran pasan a ser solo C, L, G, Intro, T y D (R-CAM).
