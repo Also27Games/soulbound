@@ -29,10 +29,15 @@ struct FLegendRow
 {
 	FString Title;
 	TArray<FLegendChip> Chips;
+	/**
+	 * S-048 (ronda de maquetación del 18/11/2026, R-HUD-10, nombre propuesto): una muestra debajo de otra, con el cuadrito y el texto empezando a la
+	 * misma altura ("Jugadores" de "La mesa"); si no, las muestras se reparten por la línea mientras quepan.
+	 */
+	bool bOnePerLine = false;
 
 	bool operator==(const FLegendRow& Other) const
 	{
-		return Title == Other.Title && Chips == Other.Chips;
+		return Title == Other.Title && Chips == Other.Chips && bOnePerLine == Other.bOnePerLine;
 	}
 };
 

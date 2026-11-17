@@ -97,6 +97,35 @@ namespace Soulbound::Presentation
 	 */
 	FGrimoireYouView GrimoireYouView(const FMatchState& State, int32 HumanSeat, const FGrimoireTexts& Texts, const TArray<FLinearColor>& SeatColors);
 
+	/**
+	 * La hoja del jugador de "La mesa" (S-048, ronda de maquetación del 18/11/2026, R-HUD-10, nombre propuesto): su fila del Grimorio, con la frase de
+	 * cada poder en sus runas, y su insolencia.
+	 */
+	struct FGrimoirePlayerSheet
+	{
+		/** Su fila de GrimoireRows; si es un Eco con hogar, la runa de su hogar le da Celeridad (R-ECO-7). */
+		FGrimoireRow Row;
+		/** "Insolencia: N de 5". */
+		FString InsolenceLine;
+
+		/** Igualdad de todo lo que se pinta (R-VIS-21): el panel solo se reconstruye si cambia. */
+		bool operator==(const FGrimoirePlayerSheet& Other) const
+		{
+			return Row == Other.Row && InsolenceLine == Other.InsolenceLine;
+		}
+	};
+
+	/**
+	 * La hoja del jugador (S-048, ronda de maquetación del 18/11/2026, R-HUD-10): asiento y papel, afinidad, insolencia, sus seis runas, cada una con
+	 * el poder que le da y qué hace ese poder, y sus poderes activos.
+	 * @param State El estado de la partida.
+	 * @param HumanSeat El asiento humano de esta máquina.
+	 * @param Texts Los textos de grimorio.json.
+	 * @param SeatColors El color de cada asiento, el de la vista.
+	 * @return Lo que se pinta; con un asiento humano no válido, una fila vacía y sin insolencia.
+	 */
+	FGrimoirePlayerSheet GrimoirePlayerSheet(const FMatchState& State, int32 HumanSeat, const FGrimoireTexts& Texts, const TArray<FLinearColor>& SeatColors);
+
 	/** El texto que marca a un aspirante en "La mesa" (S-044, R-HUD-10). */
 	inline const TCHAR* const TableAspirantMark = TEXT(" | ASPIRANTE");
 
@@ -206,6 +235,15 @@ namespace Soulbound::Presentation
 	 * @return El tamaño; cero si la imagen o los límites no tienen tamaño.
 	 */
 	FVector2f HowToPlayImageSize(float SheetWidth, float MaxHeight, const FVector2f& ImageSize);
+
+	/**
+	 * El sitio de una imagen a hoja entera (S-048, ronda de maquetación del 18/11/2026, R-HUD-18, nombre propuesto): la de una página cuyo único bloque
+	 * es una imagen. Centrada en horizontal y en vertical, al mayor tamaño que cabe en la hoja sin deformarse, agrandándose si es pequeña.
+	 * @param SheetSize El ancho y el alto que hay de verdad en la hoja.
+	 * @param ImageSize El tamaño de la textura, en píxeles; sus proporciones.
+	 * @return El rectángulo, en coordenadas de la hoja (el origen, arriba a la izquierda); vacío en el origen si la hoja o la imagen no tienen tamaño.
+	 */
+	FBox2f HowToPlayFullSheetImage(const FVector2f& SheetSize, const FVector2f& ImageSize);
 
 	/**
 	 * El libro aplanado para el bloque de texto del menú de hoy (S-048, precisión del autor de R-HUD-19): el título y el texto de cada página,

@@ -361,10 +361,16 @@ namespace Soulbound::Presentation
 		FString PowerName;
 		/** Si el poder está activo ahora (IsPowerActive). */
 		bool bActive = false;
+		/**
+		 * S-048 (ronda de maquetación del 18/11/2026, R-HUD-10, nombre propuesto): qué hace el poder, en una frase (PowerText, de grimorio.json);
+		 * vacía si la runa no da poder. La hoja del jugador la pinta debajo de la runa; la carta del Elegido no.
+		 */
+		FString PowerText;
 
 		bool operator==(const FGrimoireRune& Other) const
 		{
-			return RuneType == Other.RuneType && Count == Other.Count && bHasPower == Other.bHasPower && Power == Other.Power && PowerName == Other.PowerName && bActive == Other.bActive;
+			return RuneType == Other.RuneType && Count == Other.Count && bHasPower == Other.bHasPower && Power == Other.Power && PowerName == Other.PowerName && bActive == Other.bActive
+				&& PowerText == Other.PowerText;
 		}
 	};
 

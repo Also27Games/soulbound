@@ -89,52 +89,51 @@ namespace
 	}
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireTabsTest, "Soulbound.Game.Presentation.Grimorio.PestanasOrdenYAbreEnTu", GrimoireBookTestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireTabsTest, "Soulbound.Game.Presentation.Grimorio.PestanasOrdenYAbreEnLaMesa", GrimoireBookTestFlags)
 
 bool FGrimoireTabsTest::RunTest(const FString& Parameters)
 {
-	// CA-HUD-18 (R-HUD-10): la lista de pestañas es, en este orden, Tú, La mesa, El tablero, Cómo se juega y Crónica. Al abrir el Grimorio la
-	// activa es Tú, también si antes se cerró en otra. Con las flechas, cíclico (aceptado por el autor el 17/11/2026): la siguiente de Crónica es
-	// Tú y la anterior de Tú es Crónica.
+	// CA-HUD-58 (R-HUD-10; S-048, ronda de maquetación del 18/11/2026, ajusta CA-HUD-18): las pestañas son tres, en este orden, La mesa, Cómo se juega
+	// y Crónica. Al abrir el Grimorio la activa es La mesa, también si antes se cerró en otra. Siguiente y anterior son cíclicas entre las tres.
 	using namespace Soulbound::Presentation;
-	const TArray<EGrimoireTab> Expected{EGrimoireTab::You, EGrimoireTab::Table, EGrimoireTab::Board, EGrimoireTab::HowToPlay, EGrimoireTab::Chronicle};
-	TestTrue(TEXT("Cinco pestañas, en su orden"), GrimoireTabs() == Expected);
-	const TArray<FString> Titles{TEXT("Tú"), TEXT("La mesa"), TEXT("El tablero"), TEXT("Cómo se juega"), TEXT("Crónica")};
+	const TArray<EGrimoireTab> Expected{EGrimoireTab::Table, EGrimoireTab::HowToPlay, EGrimoireTab::Chronicle};
+	TestEqual(TEXT("Tres pestañas"), GrimoireTabs().Num(), 3);
+	TestTrue(TEXT("En su orden"), GrimoireTabs() == Expected);
+	const TArray<FString> Titles{TEXT("La mesa"), TEXT("Cómo se juega"), TEXT("Crónica")};
 	for (int32 Index = 0; Index < Expected.Num(); ++Index)
 	{
 		TestEqual(FString::Printf(TEXT("El nombre de la pestaña %d"), Index), GrimoireTabTitle(Expected[Index]), Titles[Index]);
 	}
 
 	FGrimoireTabState Tab;
-	TestEqual(TEXT("Empieza en Tú"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::You));
-	Tab.Select(EGrimoireTab::HowToPlay);
-	TestEqual(TEXT("Un clic en su nombre la activa"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::HowToPlay));
+	TestEqual(TEXT("Empieza en La mesa"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::Table));
+	Tab.Select(EGrimoireTab::Chronicle);
+	TestEqual(TEXT("Un clic en su nombre la activa"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::Chronicle));
 	Tab.Open();
-	TestEqual(TEXT("Cerrado en Cómo se juega, se abre en Tú"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::You));
+	TestEqual(TEXT("Cerrado en Crónica, se abre en La mesa"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::Table));
 
-	// La siguiente recorre el orden y vuelve a Tú.
+	// La siguiente recorre las tres y vuelve a La mesa.
 	for (int32 Index = 1; Index <= Expected.Num(); ++Index)
 	{
 		Tab.Next();
 		TestEqual(FString::Printf(TEXT("Siguiente %d"), Index), static_cast<int32>(Tab.Active), static_cast<int32>(Expected[Index % Expected.Num()]));
 	}
 	Tab.Previous();
-	TestEqual(TEXT("La anterior de Tú es Crónica"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::Chronicle));
+	TestEqual(TEXT("La anterior de La mesa es Crónica"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::Chronicle));
 	Tab.Previous();
 	TestEqual(TEXT("Y la de Crónica, Cómo se juega"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::HowToPlay));
-	Tab.Select(EGrimoireTab::Chronicle);
-	Tab.Next();
-	TestEqual(TEXT("La siguiente de Crónica es Tú"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::You));
+	Tab.Previous();
+	TestEqual(TEXT("Y la de Cómo se juega, La mesa"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::Table));
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireYouTabTest, "Soulbound.Game.Presentation.Grimorio.PestanaTu", GrimoireBookTestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoirePlayerSheetTest, "Soulbound.Game.Presentation.Grimorio.HojaDelJugador", GrimoireBookTestFlags)
 
-bool FGrimoireYouTabTest::RunTest(const FString& Parameters)
+bool FGrimoirePlayerSheetTest::RunTest(const FString& Parameters)
 {
-	// CA-HUD-19 (R-HUD-10): para un Elegido, la pestaña lleva lo que llevaba el Grimorio (su fila de GrimoireRows y las seis líneas de poderes al
-	// pie) y su insolencia. Para un Eco tras la carrera con hogar en el Dominio 4, la línea de la runa de su hogar con Celeridad, con el número y el
-	// nombre de ese Dominio; durante la carrera, sin hogar, no la lleva.
+	// CA-HUD-59 (R-HUD-10, R-ECO-7; S-048, ronda de maquetación del 18/11/2026, sustituye a CA-HUD-19): las filas del jugador llevan, por cada runa que
+	// le da un poder, el nombre del poder y su descripción; una runa sin poder no lleva descripción; un Eco con la runa de su hogar lleva Celeridad
+	// con su descripción. La insolencia va en la hoja del jugador.
 	using namespace Soulbound::Presentation;
 	FMatchState State;
 	if (!GbMakeState(*this, State))
@@ -142,41 +141,73 @@ bool FGrimoireYouTabTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	FGrimoireTexts Texts;
-	Texts.PowerTexts.Add(EPower::Haste, TEXT("Frase de prueba de Celeridad"));
+	for (const EPower Power : {EPower::Duel, EPower::Haste, EPower::FreePassage, EPower::Expel, EPower::PlanarFlight, EPower::Deflection})
+	{
+		Texts.PowerTexts.Add(Power, FString::Printf(TEXT("Frase de prueba de %s"), PowerName(Power)));
+	}
 	State.Seats[GbHuman].Role = ESeatRole::Elect;
 	State.Seats[GbHuman].DomainId = GbFenrirDomain;
 	State.Seats[GbHuman].Runes[GbFenrirDomain] = 1;
 	State.Seats[GbHuman].Insolence = 2;
 
-	const FGrimoireYouView Elect = GrimoireYouView(State, GbHuman, Texts, GbSeatColors);
-	const TArray<FGrimoireRow> Rows = GrimoireRows(State, GbHuman, Texts, GbSeatColors);
-	TestTrue(TEXT("Elegido: su tarjeta es su fila del Grimorio"), Rows.IsValidIndex(GbHuman) && Elect.Row == Rows[GbHuman]);
+	// Un Elegido: el mapa de su Elegido da un poder por runa, y cada una lleva el nombre del poder y qué hace.
+	const FGrimoirePlayerSheet Elect = GrimoirePlayerSheet(State, GbHuman, Texts, GbSeatColors);
+	TestEqual(TEXT("Elegido: la hoja es la suya"), Elect.Row.Seat, GbHuman);
+	TestTrue(TEXT("Elegido: es un Elegido"), Elect.Row.bElect);
 	TestEqual(TEXT("Elegido: con su insolencia"), Elect.InsolenceLine, FString(TEXT("Insolencia: 2 de 5")));
-	TestTrue(TEXT("Elegido: sin línea de hogar"), Elect.HomeRuneLine.IsEmpty());
-	TestEqual(TEXT("Al pie, las seis líneas de poderes"), Elect.PowerLines, GrimoirePowerLines(Texts));
+	if (TestEqual(TEXT("Elegido: seis runas"), Elect.Row.Runes.Num(), Soulbound::Board::DomainCount))
+	{
+		for (const FGrimoireRune& Rune : Elect.Row.Runes)
+		{
+			const FString Case = FString::Printf(TEXT("Elegido, runa D%d"), Rune.RuneType);
+			TestTrue(Case + TEXT(": le da un poder"), Rune.bHasPower);
+			TestEqual(Case + TEXT(": el nombre del poder"), Rune.PowerName, FString(PowerName(Rune.Power)));
+			TestEqual(Case + TEXT(": qué hace"), Rune.PowerText, PowerText(Texts, Rune.Power));
+		}
+		TestEqual(TEXT("Elegido: la runa de su Dominio, Celeridad"), Elect.Row.Runes[GbFenrirDomain].PowerName, FString(TEXT("Celeridad")));
+	}
 
-	// Un Eco tras la carrera, con hogar en el Dominio 4.
+	// Un Eco tras la carrera, con hogar en el Dominio 4: la runa de su hogar le da Celeridad, con su descripción; las demás, nada.
 	constexpr int32 EchoSeat = 1;
 	constexpr int32 Home = 4;
 	State.MatchPhase = EMatchPhase::RuneHunt;
 	State.Seats[EchoSeat].DomainId = Home;
-	const FGrimoireYouView Echo = GrimoireYouView(State, EchoSeat, Texts, GbSeatColors);
-	TestFalse(TEXT("Eco: su tarjeta es la de un Eco"), Echo.Row.bElect);
-	TestEqual(TEXT("Eco: la tarjeta es la suya"), Echo.Row.Seat, EchoSeat);
-	// Corrección del autor del 17/11/2026: Celeridad deja elegir, así que "puedes tirar dos dados".
-	TestEqual(TEXT("Eco tras la carrera: la runa de su hogar"), Echo.HomeRuneLine, FString(TEXT("La runa de tu hogar (D4, Dominio 4) te da Celeridad: puedes tirar dos dados")));
-	TestEqual(TEXT("Eco: su insolencia, también"), Echo.InsolenceLine, FString(TEXT("Insolencia: 0 de 5")));
+	State.Seats[EchoSeat].Insolence = 1;
+	const FGrimoirePlayerSheet Echo = GrimoirePlayerSheet(State, EchoSeat, Texts, GbSeatColors);
+	TestEqual(TEXT("Eco: la hoja es la suya"), Echo.Row.Seat, EchoSeat);
+	TestFalse(TEXT("Eco: no es un Elegido"), Echo.Row.bElect);
+	TestEqual(TEXT("Eco: su insolencia, también"), Echo.InsolenceLine, FString(TEXT("Insolencia: 1 de 5")));
+	if (TestEqual(TEXT("Eco: seis runas"), Echo.Row.Runes.Num(), Soulbound::Board::DomainCount))
+	{
+		for (const FGrimoireRune& Rune : Echo.Row.Runes)
+		{
+			const FString Case = FString::Printf(TEXT("Eco, runa D%d"), Rune.RuneType);
+			if (Rune.RuneType == Home)
+			{
+				TestTrue(Case + TEXT(" (su hogar): le da un poder"), Rune.bHasPower);
+				TestEqual(Case + TEXT(" (su hogar): Celeridad"), Rune.PowerName, FString(TEXT("Celeridad")));
+				TestEqual(Case + TEXT(" (su hogar): qué hace"), Rune.PowerText, PowerText(Texts, EPower::Haste));
+			}
+			else
+			{
+				TestFalse(Case + TEXT(": sin poder"), Rune.bHasPower);
+				TestTrue(Case + TEXT(": sin descripción"), Rune.PowerText.IsEmpty());
+			}
+		}
+	}
 
-	// Durante la carrera, sin hogar.
+	// Durante la carrera, sin hogar: ninguna runa le da poder ni lleva descripción.
 	State.MatchPhase = EMatchPhase::BondRace;
 	State.Seats[EchoSeat].DomainId = INDEX_NONE;
-	TestTrue(TEXT("Eco durante la carrera: sin la línea"), GrimoireYouView(State, EchoSeat, Texts, GbSeatColors).HomeRuneLine.IsEmpty());
+	const FGrimoirePlayerSheet Racing = GrimoirePlayerSheet(State, EchoSeat, Texts, GbSeatColors);
+	TestEqual(TEXT("Eco en la carrera: seis runas"), Racing.Row.Runes.Num(), Soulbound::Board::DomainCount);
+	TestFalse(TEXT("Eco en la carrera: ninguna con poder"), Racing.Row.Runes.ContainsByPredicate([](const FGrimoireRune& Rune) { return Rune.bHasPower || !Rune.PowerText.IsEmpty(); }));
 
-	// El panel solo se rehace si cambia (R-VIS-21): la misma vista dos veces es igual; con otra insolencia, no.
-	TestTrue(TEXT("Dos veces el mismo estado: iguales"), Elect == GrimoireYouView(State, GbHuman, Texts, GbSeatColors));
+	// El panel solo se rehace si cambia (R-VIS-21): la misma hoja dos veces es igual; con otra insolencia, no.
+	TestTrue(TEXT("Dos veces el mismo estado: iguales"), Elect == GrimoirePlayerSheet(State, GbHuman, Texts, GbSeatColors));
 	FMatchState Angrier = State;
 	Angrier.Seats[GbHuman].Insolence = 3;
-	TestFalse(TEXT("Con otra insolencia: distintas"), Elect == GrimoireYouView(Angrier, GbHuman, Texts, GbSeatColors));
+	TestFalse(TEXT("Con otra insolencia: distintas"), Elect == GrimoirePlayerSheet(Angrier, GbHuman, Texts, GbSeatColors));
 	return true;
 }
 
@@ -184,9 +215,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireTableTabTest, "Soulbound.Game.Presenta
 
 bool FGrimoireTableTabTest::RunTest(const FString& Parameters)
 {
-	// CA-HUD-20 (R-HUD-10, corrección del autor del 17/11/2026): una entrada por asiento, con su rol, sus runas por Dominio y sus poderes activos (los
-	// de otro asiento, como "N runas" salvo con su Brazal revelado), la insolencia solo en la del humano, y las marcas de Prueba del Warden pendiente
-	// y de aspirante cuando tocan; y una entrada por Dominio con su dueño u "Olvidado". De cada asiento, lo mismo que la leyenda, ni más ni menos.
+	// CA-HUD-60 (R-HUD-10, R-HUD-6, R-RUN-7; S-048, ronda de maquetación del 18/11/2026, ajusta CA-HUD-20): bajo el encabezado "Jugadores", una fila
+	// por jugador, una debajo de otra, con su asiento, su papel, sus marcas públicas y "N runas" (sin "Runas: "). La del humano es como la de los
+	// demás, con "(tú)": sus tipos, sus poderes y su insolencia van en su hoja. Lo que se oculta de los demás es lo mismo que antes (con su Brazal
+	// revelado, sus tipos). Y una entrada por Dominio con su dueño u "Olvidado", como hoy.
 	using namespace Soulbound::Presentation;
 	FMatchState State;
 	if (!GbMakeState(*this, State))
@@ -216,8 +248,10 @@ bool FGrimoireTableTabTest::RunTest(const FString& Parameters)
 	}
 	const FLegendRow& Players = Rows[0];
 	const FLegendRow& Domains = Rows[1];
-	TestTrue(TEXT("La de jugadores se titula como en la leyenda"), Players.Title.StartsWith(TEXT("Jugadores")));
-	TestEqual(TEXT("La de Dominios, también"), Domains.Title, FString(TEXT("Los seis Dominios y su Elegido")));
+	TestEqual(TEXT("La de jugadores dice solo Jugadores"), Players.Title, FString(TEXT("Jugadores")));
+	TestTrue(TEXT("Los jugadores, uno debajo de otro"), Players.bOnePerLine);
+	TestEqual(TEXT("La de Dominios, como hoy"), Domains.Title, FString(TEXT("Los seis Dominios y su Elegido")));
+	TestFalse(TEXT("Los Dominios, como hoy"), Domains.bOnePerLine);
 	if (!TestEqual(TEXT("Una entrada por asiento"), Players.Chips.Num(), 4) || !TestEqual(TEXT("Una entrada por Dominio"), Domains.Chips.Num(), 6))
 	{
 		return false;
@@ -227,23 +261,32 @@ bool FGrimoireTableTabTest::RunTest(const FString& Parameters)
 		const FLegendChip& Chip = Players.Chips[Seat];
 		TestEqual(FString::Printf(TEXT("Asiento %d: su color"), Seat), Chip.Color, GbSeatColors[Seat]);
 		TestTrue(FString::Printf(TEXT("Asiento %d: el texto ya va puesto"), Seat), !Chip.TextGetter);
-		TestTrue(FString::Printf(TEXT("Asiento %d: empieza por la línea de la leyenda"), Seat), Chip.Text.StartsWith(SeatLegendText(State, Seat, GbHuman)));
-		TestTrue(FString::Printf(TEXT("Asiento %d: lleva su Brazal como la leyenda"), Seat), Chip.Text.Contains(TEXT("Runas: ") + BracerSummary(State, Seat, GbHuman)));
+		TestFalse(FString::Printf(TEXT("Asiento %d: en una línea"), Seat), Chip.Text.Contains(TEXT("\n")));
+		TestFalse(FString::Printf(TEXT("Asiento %d: sin Runas y dos puntos"), Seat), Chip.Text.Contains(TEXT("Runas: ")));
+		TestTrue(FString::Printf(TEXT("Asiento %d: empieza por su asiento"), Seat), Chip.Text.StartsWith(FString::FromInt(Seat)));
 		TestEqual(FString::Printf(TEXT("Asiento %d: aspirante solo si lo es"), Seat), Chip.Text.Contains(TEXT("ASPIRANTE")), Seat == GbAspirant);
-		TestEqual(FString::Printf(TEXT("Asiento %d: insolencia solo la del humano"), Seat), Chip.Text.Contains(TEXT("insolencia")), Seat == GbHuman);
+		TestFalse(FString::Printf(TEXT("Asiento %d: ninguna insolencia"), Seat), Chip.Text.Contains(TEXT("insolencia")));
+		if (Seat != GbHuman)
+		{
+			// De los demás, lo mismo que antes: su línea de la leyenda y su Brazal con sus filtros.
+			TestTrue(FString::Printf(TEXT("Asiento %d: su línea de la leyenda"), Seat), Chip.Text.StartsWith(SeatLegendText(State, Seat, GbHuman)));
+			TestTrue(FString::Printf(TEXT("Asiento %d: su Brazal, como antes"), Seat), Chip.Text.EndsWith(TEXT(" | ") + BracerSummary(State, Seat, GbHuman)));
+		}
 	}
 	const FString& Mine = Players.Chips[GbHuman].Text;
-	TestTrue(TEXT("El humano: su rol"), Mine.Contains(TEXT("Elegido, Fenrir")));
-	TestTrue(TEXT("El humano: su insolencia"), Mine.Contains(TEXT("insolencia 3 de 5")));
-	TestTrue(TEXT("El humano: la Prueba del Warden pendiente"), Mine.Contains(TEXT("PRUEBA DEL WARDEN")));
-	TestTrue(TEXT("El humano: sus runas por Dominio"), Mine.Contains(TEXT("D1×1")));
-	TestTrue(TEXT("El humano: sus poderes activos"), Mine.Contains(TEXT("Celeridad")));
+	TestTrue(TEXT("El humano: su asiento, con (tú)"), Mine.StartsWith(TEXT("0 (tú): ")));
+	TestTrue(TEXT("El humano: su papel"), Mine.Contains(TEXT("Elegido, Fenrir")));
+	TestTrue(TEXT("El humano: la Prueba del Warden pendiente, que es pública"), Mine.Contains(TEXT("PRUEBA DEL WARDEN")));
+	TestTrue(TEXT("El humano: N runas"), Mine.EndsWith(TEXT(" | 1 runa")));
+	TestFalse(TEXT("El humano: sin sus tipos"), Mine.Contains(TEXT("D1×1")));
+	TestFalse(TEXT("El humano: sin sus poderes"), Mine.Contains(TEXT("Celeridad")));
 	const FString& Theirs = Players.Chips[GbOther].Text;
-	TestTrue(TEXT("Otro asiento: sus runas, como total"), Theirs.Contains(TEXT("Runas: 2 runas")));
+	TestTrue(TEXT("Otro asiento: N runas"), Theirs.EndsWith(TEXT(" | 2 runas")));
 	TestFalse(TEXT("Otro asiento: sin sus tipos"), Theirs.Contains(TEXT("D0×2")));
 	TestFalse(TEXT("Nadie más lleva la Prueba del Warden"), Theirs.Contains(TEXT("PRUEBA DEL WARDEN")));
+	TestTrue(TEXT("Un Eco sin runas: 0 runas"), Players.Chips[1].Text.EndsWith(TEXT(" | 0 runas")));
 
-	// Con el Brazal del otro revelado, sus tipos.
+	// Con el Brazal del otro revelado, sus tipos, como antes.
 	FMatchState Revealed = State;
 	Revealed.Round = 3;
 	Revealed.Seats[GbOther].RevealedUntilRound = 5;
@@ -261,73 +304,14 @@ bool FGrimoireTableTabTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireOtherTabsTest, "Soulbound.Game.Presentation.Grimorio.TableroComoSeJuegaYCronica", GrimoireBookTestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireOtherTabsTest, "Soulbound.Game.Presentation.Grimorio.ComoSeJuegaYCronica", GrimoireBookTestFlags)
 
 bool FGrimoireOtherTabsTest::RunTest(const FString& Parameters)
 {
-	// CA-HUD-21 (R-HUD-10): El tablero lleva las filas de casillas, Nichos, marcas y destellos, y ninguna de jugadores ni de runas. Cómo se juega
-	// lleva el texto del archivo y, si el archivo falta, el mensaje del cargador en vez de quedarse vacía; al final, las teclas. Crónica lleva las
-	// mismas líneas y en el mismo orden que la crónica de hoy (una sola función para las dos: ChronicleLines).
+	// CA-HUD-21 (R-HUD-10): Cómo se juega lleva el texto del archivo y, si el archivo falta, el mensaje del cargador en vez de quedarse vacía; al
+	// final, las teclas. Crónica lleva las mismas líneas y en el mismo orden que la crónica de hoy (una sola función para las dos: ChronicleLines).
+	// Desde la ronda de maquetación de S-048 (18/11/2026) no hay pestaña "El tablero": su parte se fue con ella.
 	using namespace Soulbound::Presentation;
-
-	// El tablero.
-	FBoardLegendLook Look;
-	Look.bKit = true;
-	Look.bForgottenFloor = true;
-	Look.Altar = FLinearColor(0.11f, 0.f, 0.f);
-	Look.NicheFree = FLinearColor(0.12f, 0.f, 0.f);
-	Look.Source = FLinearColor(0.13f, 0.f, 0.f);
-	Look.Node = FLinearColor(0.14f, 0.f, 0.f);
-	Look.NicheClaimed = FLinearColor(0.15f, 0.f, 0.f);
-	Look.NicheClosed = FLinearColor(0.16f, 0.f, 0.f);
-	Look.Reachable = FLinearColor(0.17f, 0.f, 0.f);
-	Look.SealMark = FLinearColor(0.18f, 0.f, 0.f);
-	Look.ForgottenRing = FLinearColor(0.19f, 0.f, 0.f);
-	const TArray<FLegendRow> Board = BoardLegendRows(Look);
-	if (TestEqual(TEXT("El tablero: cuatro filas"), Board.Num(), 4))
-	{
-		TestEqual(TEXT("Casillas"), Board[0].Title, FString(TEXT("Casillas")));
-		TestEqual(TEXT("Nichos"), Board[1].Title, FString(TEXT("Nichos")));
-		TestEqual(TEXT("Tablero (las marcas)"), Board[2].Title, FString(TEXT("Tablero")));
-		TestEqual(TEXT("Los destellos"), Board[3].Title, FString(FlashLegendText));
-		const TArray<FLinearColor> TileColors{Look.Altar, Look.NicheFree, Look.Source, Look.Node};
-		if (TestEqual(TEXT("Cuatro tipos de casilla"), Board[0].Chips.Num(), 4))
-		{
-			for (int32 Index = 0; Index < 4; ++Index)
-			{
-				TestEqual(FString::Printf(TEXT("Casilla %d: el color de la vista"), Index), Board[0].Chips[Index].Color, TileColors[Index]);
-			}
-			TestTrue(TEXT("Con kit, el Altar es la plataforma"), Board[0].Chips[0].Text.Contains(TEXT("plataforma")));
-		}
-		const TArray<FLinearColor> NicheColors{Look.NicheFree, Look.NicheClaimed, Look.NicheClosed};
-		if (TestEqual(TEXT("Tres estados de Nicho"), Board[1].Chips.Num(), 3))
-		{
-			for (int32 Index = 0; Index < 3; ++Index)
-			{
-				TestEqual(FString::Printf(TEXT("Nicho %d: su color"), Index), Board[1].Chips[Index].Color, NicheColors[Index]);
-			}
-		}
-		const TArray<FLinearColor> MarkColors{Look.Reachable, Look.SealMark, Look.ForgottenRing};
-		if (TestEqual(TEXT("Tres marcas"), Board[2].Chips.Num(), 3))
-		{
-			for (int32 Index = 0; Index < 3; ++Index)
-			{
-				TestEqual(FString::Printf(TEXT("Marca %d: su color"), Index), Board[2].Chips[Index].Color, MarkColors[Index]);
-			}
-			TestTrue(TEXT("Con el suelo cargado, el agrietado"), Board[2].Chips[2].Text.Contains(TEXT("agrietado")));
-		}
-		for (const FLegendRow& Row : Board)
-		{
-			TestFalse(FString::Printf(TEXT("%s: no es de jugadores"), *Row.Title), Row.Title.Contains(TEXT("Jugadores")));
-			TestFalse(FString::Printf(TEXT("%s: no es de runas"), *Row.Title), Row.Title.Contains(TEXT("Runas")));
-		}
-	}
-	FBoardLegendLook Plain = Look;
-	Plain.bKit = false;
-	Plain.bForgottenFloor = false;
-	const TArray<FLegendRow> PlainBoard = BoardLegendRows(Plain);
-	TestTrue(TEXT("Sin kit, el Altar es la forma básica"), PlainBoard.Num() == 4 && PlainBoard[0].Chips.Num() == 4 && PlainBoard[0].Chips[0].Text.Contains(TEXT("casilla grande")));
-	TestTrue(TEXT("Sin suelo, casillas apagadas"), PlainBoard.Num() == 4 && PlainBoard[2].Chips.Num() == 3 && !PlainBoard[2].Chips[2].Text.Contains(TEXT("agrietado")));
 
 	// Cómo se juega. Desde S-048 (R-HUD-18) es un libro: las páginas del archivo y, al final, la de teclas (sus líneas, en
 	// Grimorio.LibroTeclasYRecuerdo); si el archivo falta, ninguna página y el mensaje del cargador, para que la pestaña nunca quede vacía.
@@ -643,7 +627,7 @@ bool FGrimoireBookKeysTest::RunTest(const FString& Parameters)
 	Tab.NextPage(Count, Two);
 	TestEqual(TEXT("En la segunda vista: la tercera y la cuarta"), Tab.Page, 2);
 	Tab.Open();
-	TestEqual(TEXT("Al abrir, la pestaña es Tú"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::You));
+	TestEqual(TEXT("Al abrir, la pestaña es La mesa"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::Table));
 	Tab.Next();
 	Tab.Select(EGrimoireTab::HowToPlay);
 	TestEqual(TEXT("Al volver a Cómo se juega, la vista que se dejó"), Tab.Page, 2);
@@ -720,7 +704,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireColumnTextWidthTest, "Soulbound.Game.P
 
 bool FGrimoireColumnTextWidthTest::RunTest(const FString& Parameters)
 {
-	// CA-HUD-39 (R-HUD-20, corrección 1 del autor del 17/11/2026 tras PIE): en "Tú" los poderes de la página derecha se cortaban por el borde, porque
+	// CA-HUD-39 (R-HUD-20, corrección 1 del autor del 17/11/2026 tras PIE): en "Tú" (hoy, la hoja del jugador de "La mesa") los poderes de la página derecha se cortaban por el borde, porque
 	// se partían a un ancho mayor que el de su columna. Para cada columna del libro (y la única sin él) y cada sangría, el ancho de partir más la
 	// sangría y la reserva de la barra de desplazamiento no pasa del ancho de la columna; y cada página usa el suyo, no el de la otra.
 	using namespace Soulbound::Presentation;
@@ -1020,6 +1004,36 @@ bool FGrimoireWatermarkTest::RunTest(const FString& Parameters)
 	TestFalse(TEXT("Sin textura, ninguna marca"), GrimoireWatermarks(Book, FVector2f::ZeroVector, 0.7f).bShown);
 	const FGrimoireBookLayout Flat = GrimoireBookLayout(FVector2f(1200.f, 800.f), FVector2f::ZeroVector, Border, 12.f, 0.06f);
 	TestFalse(TEXT("Sin el libro, ninguna marca"), GrimoireWatermarks(Flat, FVector2f(512.f, 512.f), 0.7f).bShown);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHowToPlayFullSheetImageTest, "Soulbound.Game.Presentation.Grimorio.ImagenAHojaEntera", GrimoireBookTestFlags)
+
+bool FHowToPlayFullSheetImageTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-61 (R-HUD-18; S-048, ronda de maquetación del 18/11/2026): la función que da el sitio de una imagen a hoja entera devuelve un rectángulo
+	// dentro de la hoja, centrado en horizontal y en vertical, con las proporciones de la imagen, para una imagen apaisada y para una vertical. Y es
+	// el mayor que cabe: llega a dos bordes opuestos de la hoja.
+	using namespace Soulbound::Presentation;
+	const TArray<FVector2f> Sheets{FVector2f(420.f, 560.f), FVector2f(800.f, 500.f), FVector2f(300.f, 300.f)};
+	const TArray<FVector2f> Images{FVector2f(1536.f, 1024.f), FVector2f(1024.f, 1536.f), FVector2f(200.f, 120.f)};
+	for (const FVector2f& Sheet : Sheets)
+	{
+		for (const FVector2f& Image : Images)
+		{
+			const FString Case = FString::Printf(TEXT("Hoja %.0fx%.0f, imagen %.0fx%.0f (%s)"), Sheet.X, Sheet.Y, Image.X, Image.Y, Image.X >= Image.Y ? TEXT("apaisada") : TEXT("vertical"));
+			const FBox2f Box = HowToPlayFullSheetImage(Sheet, Image);
+			const FVector2f Size = Box.GetSize();
+			TestTrue(Case + TEXT(": con tamaño"), Size.X > 1.f && Size.Y > 1.f);
+			TestTrue(Case + TEXT(": dentro de la hoja"), Box.Min.X >= -0.01f && Box.Min.Y >= -0.01f && Box.Max.X <= Sheet.X + 0.01f && Box.Max.Y <= Sheet.Y + 0.01f);
+			TestTrue(Case + TEXT(": centrada en horizontal"), FMath::IsNearlyEqual(Box.Min.X, Sheet.X - Box.Max.X, 0.01f));
+			TestTrue(Case + TEXT(": centrada en vertical"), FMath::IsNearlyEqual(Box.Min.Y, Sheet.Y - Box.Max.Y, 0.01f));
+			TestTrue(Case + TEXT(": con sus proporciones"), FMath::IsNearlyEqual(Size.X * Image.Y, Size.Y * Image.X, 1.f));
+			TestTrue(Case + TEXT(": la mayor que cabe"), FMath::IsNearlyEqual(Size.X, Sheet.X, 0.01f) || FMath::IsNearlyEqual(Size.Y, Sheet.Y, 0.01f));
+		}
+	}
+	TestTrue(TEXT("Sin hoja, nada"), HowToPlayFullSheetImage(FVector2f::ZeroVector, FVector2f(100.f, 100.f)).GetSize().IsNearlyZero());
+	TestTrue(TEXT("Sin imagen, nada"), HowToPlayFullSheetImage(FVector2f(400.f, 500.f), FVector2f::ZeroVector).GetSize().IsNearlyZero());
 	return true;
 }
 

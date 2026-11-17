@@ -99,6 +99,12 @@ namespace Soulbound::Presentation
 		return View;
 	}
 
+	FGrimoirePlayerSheet GrimoirePlayerSheet(const FMatchState& State, int32 HumanSeat, const FGrimoireTexts& Texts, const TArray<FLinearColor>& SeatColors)
+	{
+		// TODO(R-HUD-10): stub de los tests en rojo de la ronda de maquetación.
+		return FGrimoirePlayerSheet();
+	}
+
 	TArray<FLegendRow> GrimoireTableRows(const FMatchState& State, int32 HumanSeat, const TArray<bool>& ForgottenShown, const TArray<FLinearColor>& SeatColors,
 		const TArray<FLinearColor>& DomainColors)
 	{
@@ -200,6 +206,12 @@ namespace Soulbound::Presentation
 		// La mayor escala que cabe en los dos límites, también si agranda: sin deformar la imagen (plan aprobado por el autor).
 		const float Scale = FMath::Min(SheetWidth / ImageSize.X, MaxHeight / ImageSize.Y);
 		return ImageSize * Scale;
+	}
+
+	FBox2f HowToPlayFullSheetImage(const FVector2f& SheetSize, const FVector2f& ImageSize)
+	{
+		// TODO(R-HUD-18): stub de los tests en rojo de la ronda de maquetación.
+		return FBox2f(FVector2f::ZeroVector, FVector2f::ZeroVector);
 	}
 
 	FGrimoireWatermarks GrimoireWatermarks(const FGrimoireBookLayout& Book, const FVector2f& TextureSize, float SizeFraction)
