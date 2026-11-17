@@ -382,4 +382,56 @@ bool FBoardViewForgottenOpeningTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-#endif
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FBoardViewEchoNightDimTest, "Soulbound.Game.Presentation.Tablero3D.PenumbraDeLaNoche", ViewStateTestFlags)
+
+bool FBoardViewEchoNightDimTest::RunTest(const FString& Parameters)
+{
+	// CA-VIS-32 (R-VIS-31, S-043): la opacidad de la penumbra vale 0 sin Noche, sube hasta la configurada al cumplirse la transición desde que
+	// empieza y baja hasta 0 al cumplirse desde que termina. La combinación con el pulso del corte (S-041) da el mayor de los dos, no la suma, con
+	// el color del que gana. Con la partida terminada no hay penumbra (decisión del autor del 17/11/2026: se va con su transición). Con una
+	// transición de 0,5 s (números exactos en binario; el valor inicial es 0,8 s) y una opacidad de 0,25 (el valor inicial es 0,3).
+	using Soulbound::Presentation::EchoNightDimOpacity;
+	constexpr float Max = 0.25f;
+	constexpr double Fade = 0.5;
+
+	TestEqual(TEXT("Sin Noche y sin cambio, 0"), EchoNightDimOpacity(false, 0.f, 100.0, Max, Fade), 0.f, 1e-6f);
+	TestEqual(TEXT("Al empezar, aún 0"), EchoNightDimOpacity(true, 0.f, 0.0, Max, Fade), 0.f, 1e-6f);
+	TestEqual(TEXT("A mitad de la transición, la mitad"), EchoNightDimOpacity(true, 0.f, 0.25, Max, Fade), 0.125f, 1e-6f);
+	TestEqual(TEXT("Al cumplirse, la configurada"), EchoNightDimOpacity(true, 0.f, 0.5, Max, Fade), Max, 1e-6f);
+	TestEqual(TEXT("Y se queda"), EchoNightDimOpacity(true, 0.f, 30.0, Max, Fade), Max, 1e-6f);
+	TestEqual(TEXT("Al terminar, aún la configurada"), EchoNightDimOpacity(false, Max, 0.0, Max, Fade), Max, 1e-6f);
+	TestEqual(TEXT("A mitad, la mitad"), EchoNightDimOpacity(false, Max, 0.25, Max, Fade), 0.125f, 1e-6f);
+	TestEqual(TEXT("Al cumplirse, 0"), EchoNightDimOpacity(false, Max, 0.5, Max, Fade), 0.f, 1e-6f);
+	// Si la Noche termina mientras aún sube, baja desde donde iba, sin saltar.
+	TestEqual(TEXT("Termina a medio subir: baja desde ahí"), EchoNightDimOpacity(false, 0.125f, 0.0, Max, Fade), 0.125f, 1e-6f);
+	TestEqual(TEXT("Y llega a 0 en lo que le queda"), EchoNightDimOpacity(false, 0.125f, 0.25, Max, Fade), 0.f, 1e-6f);
+	TestEqual(TEXT("Sin transición, de golpe"), EchoNightDimOpacity(true, 0.f, 0.0, Max, 0.0), Max, 1e-6f);
+
+	// El mayor de los dos, con el color del que gana: el negro del pulso o el azul de la Noche.
+	using Soulbound::Presentation::BoardDimColor;
+	const FLinearColor Night(0.02f, 0.04f, 0.15f, 1.f);
+	const FLinearColor Pulse = BoardDimColor(Night, 0.3f, 0.85f);
+	TestEqual(TEXT("Durante el pulso, la del pulso, no la suma"), Pulse.A, 0.85f, 1e-6f);
+	TestTrue(TEXT("Y negro"), Pulse.R == 0.f && Pulse.G == 0.f && Pulse.B == 0.f);
+	const FLinearColor Dusk = BoardDimColor(Night, 0.3f, 0.1f);
+	TestEqual(TEXT("Al final del pulso, la de la penumbra"), Dusk.A, 0.3f, 1e-6f);
+	TestTrue(TEXT("Y azul noche"), Dusk.R == Night.R && Dusk.G == Night.G && Dusk.B == Night.B);
+	TestEqual(TEXT("Sin nada, transparente"), BoardDimColor(Night, 0.f, 0.f).A, 0.f, 1e-6f);
+
+	// Cuándo hay penumbra: con la Noche activa y la partida sin terminar.
+	using Soulbound::Presentation::EchoNightDimShown;
+	FMatchState State;
+	if (!MakeState(*this, State))
+	{
+		return false;
+	}
+	State.Round = 3;
+	TestFalse(TEXT("Sin Noche, no"), EchoNightDimShown(State));
+	State.EchoNightUntilRound = 5;
+	TestTrue(TEXT("Con la Noche activa, sí"), EchoNightDimShown(State));
+	State.MatchPhase = EMatchPhase::MatchOver;
+	TestFalse(TEXT("Con la partida terminada, no"), EchoNightDimShown(State));
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

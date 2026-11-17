@@ -259,7 +259,8 @@ namespace Soulbound::Rules
 	 * Empieza una ronda (decisión del autor del 10/10/2026, S-014): Round sube uno y caducan, en este orden, las marcas
 	 * (MarkExpired), los Brazales revelados (BracerHidden) y la Noche que llega a su tope: todos los Ecos fuera del Vacío a
 	 * su hogar, como con la Ley de Sombras, y EchoNightEnded con RoundLimit, sin evento de Ley de Sombras (decisión del autor
-	 * del 12/10/2026). Lo llama la máquina de turnos cuando el orden pasa por su primer asiento.
+	 * del 12/10/2026). Desde S-043 (R-VOZ-9), tras EchoNightEnded, la frase programado:fin-noche-ecos (si hay tabla de frases). Lo llama la
+	 * máquina de turnos cuando el orden pasa por su primer asiento.
 	 */
 	SOULBOUNDCORE_API void StartRound(FMatchState& State, double NowSeconds);
 

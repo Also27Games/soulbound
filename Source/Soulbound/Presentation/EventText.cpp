@@ -49,7 +49,8 @@ namespace Soulbound::Presentation
 		{
 			return TEXT("Warden:");
 		}
-		return Seat == HumanSeat ? FString(TEXT("Warden, a ti:")) : FString::Printf(TEXT("Warden, al asiento %d:"), Seat);
+		// R-VOZ-11 (S-043): como en un guion, a quién habla entre paréntesis y sin coma.
+		return Seat == HumanSeat ? FString(TEXT("Warden (a ti):")) : FString::Printf(TEXT("Warden (al asiento %d):"), Seat);
 	}
 
 	namespace
@@ -165,6 +166,12 @@ namespace Soulbound::Presentation
 					return FString();
 				}
 			}
+		}
+		// Corrección del autor del 17/11/2026 (S-043): la crónica no dice la ronda tope de la Noche, que no le interesa al jugador; el acta, que usa
+		// DescribeEvent, la sigue diciendo para leer partidas.
+		if (Event.Type == EMatchEventType::EchoNightBegan)
+		{
+			return TEXT("NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio");
 		}
 		return DescribeEvent(Event, State.Board, &State.WardenEvents, &State.WardenLines, RingSeat);
 	}

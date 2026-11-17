@@ -98,8 +98,8 @@ bool FActaSpokenLineTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Y el texto de la variante sin corchetes"), Known.EndsWith(TEXT("Prisa, prisa.")));
 	TestFalse(TEXT("Sin acotaciones de audio"), Known.Contains(TEXT("[risa]")));
 	TestTrue(TEXT("Una entrada inexistente dice frase desconocida"), Soulbound::Presentation::MatchRecordLine(State, 1, 0, INDEX_NONE).Contains(TEXT("frase desconocida")));
-	TestTrue(TEXT("A otro asiento, el prefijo lo nombra"), Soulbound::Presentation::MatchRecordLine(State, 2, 0, INDEX_NONE).Contains(TEXT("Warden, al asiento 2:")));
-	TestTrue(TEXT("Al asiento humano, a ti"), Soulbound::Presentation::MatchRecordLine(State, 2, 2, INDEX_NONE).Contains(TEXT("Warden, a ti:")));
+	TestTrue(TEXT("A otro asiento, el prefijo lo nombra"), Soulbound::Presentation::MatchRecordLine(State, 2, 0, INDEX_NONE).Contains(TEXT("Warden (al asiento 2):")));
+	TestTrue(TEXT("Al asiento humano, a ti"), Soulbound::Presentation::MatchRecordLine(State, 2, 2, INDEX_NONE).Contains(TEXT("Warden (a ti):")));
 	return true;
 }
 
@@ -319,4 +319,16 @@ bool FActaHostLineTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-#endif
+// Corrección del autor del 17/11/2026 (S-043): la crónica y el panel de estado dejan de decir la ronda tope de la Noche de los Ecos, pero el acta
+// la sigue diciendo, porque sirve para leer partidas.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FActaEchoNightRoundTest, "Soulbound.Game.Presentation.Acta.NocheConRonda", ActaTestFlags)
+bool FActaEchoNightRoundTest::RunTest(const FString& Parameters)
+{
+	FMatchState State = ActaState();
+	State.EventLog.Add(MakeActaEvent(EMatchEventType::EchoNightBegan, 300.0, INDEX_NONE, INDEX_NONE, 9));
+	const FString Line = Soulbound::Presentation::MatchRecordLine(State, 0, 0, INDEX_NONE);
+	TestTrue(TEXT("El acta dice la ronda tope"), Line.EndsWith(TEXT("| NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio (como mucho hasta la ronda 9)")));
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

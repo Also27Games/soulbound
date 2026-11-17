@@ -46,7 +46,8 @@ namespace Soulbound::Presentation
 
 	/**
 	 * El prefijo de la línea del Warden (S-021, R-VOZ-3b): a quién habla, porque el Warden no pronuncia nombres. "Warden:" a la mesa (Seat
-	 * INDEX_NONE), "Warden, a ti:" al asiento humano de esta máquina y "Warden, al asiento 2:" a cualquier otro. HumanSeat: el asiento humano.
+	 * INDEX_NONE), "Warden (a ti):" al asiento humano de esta máquina y "Warden (al asiento 2):" a cualquier otro; desde S-043 (R-VOZ-11), entre
+	 * paréntesis y sin coma, como en un guion (antes, "Warden, a ti:"). HumanSeat: el asiento humano.
 	 */
 	FString WardenLinePrefix(int32 Seat, int32 HumanSeat);
 
@@ -54,8 +55,9 @@ namespace Soulbound::Presentation
 	 * La línea de la crónica del juego para el evento Index del registro de State, con su contexto (S-021): la sentencia del Oráculo es una
 	 * sola línea, "sentencia del Oráculo: <frase>", en vez de tres. Desde S-022 (R-HUD-4), un golpe, una escena, un castigo de insolencia, la
 	 * Furia, un comentario o el aviso del final seguidos de su frase también son una sola línea, en la del evento: `golpe "Impuesto": <frase>`,
-	 * y la de la frase queda vacía. Con la tabla de frases vacía conserva las líneas de siempre. El resto es DescribeEvent, con RingSeat
-	 * (S-026). Vacía si el evento no tiene línea.
+	 * y la de la frase queda vacía. Con la tabla de frases vacía conserva las líneas de siempre. Desde S-043 (corrección del autor del 17/11/2026),
+	 * el principio de la Noche de los Ecos sin la ronda tope, que sí dice el acta. El resto es DescribeEvent, con RingSeat (S-026). Vacía si el
+	 * evento no tiene línea.
 	 */
 	FString DescribeChronicleEvent(const FMatchState& State, int32 Index, int32 RingSeat = INDEX_NONE);
 

@@ -268,4 +268,20 @@ bool FChronicleWardenTrialLevelTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FChronicleEchoNightNoRoundTest, "Soulbound.Game.Presentation.Cronica.NocheSinRonda", ChronicleTestFlags)
+
+bool FChronicleEchoNightNoRoundTest::RunTest(const FString& Parameters)
+{
+	// Corrección del autor del 17/11/2026 (S-043): la línea de la crónica con que empieza la Noche de los Ecos no dice la ronda tope, con o sin
+	// frases en la partida. El acta la sigue diciendo (Acta.NocheConRonda).
+	const FString Expected = TEXT("NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio");
+	FMatchState Silent;
+	Silent.EventLog.Add(MakeEvent(EMatchEventType::EchoNightBegan, INDEX_NONE, 9));
+	TestEqual(TEXT("Sin frases, sin la ronda"), Soulbound::Presentation::DescribeChronicleEvent(Silent, 0), Expected);
+	FMatchState Voiced = ChronicleStateWithLines();
+	Voiced.EventLog.Add(MakeEvent(EMatchEventType::EchoNightBegan, INDEX_NONE, 9));
+	TestEqual(TEXT("Con frases, sin la ronda"), Soulbound::Presentation::DescribeChronicleEvent(Voiced, Voiced.EventLog.Num() - 1), Expected);
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

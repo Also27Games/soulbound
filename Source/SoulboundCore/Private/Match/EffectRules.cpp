@@ -8,7 +8,9 @@
 #include "Match/TurnRules.h"
 #include "Match/VoidRules.h"
 #include "Math/RandomStream.h"
+#include "Warden/WardenLines.h"
 #include "Warden/WardenRemarks.h"
+#include "Warden/WardenVoice.h"
 
 using Soulbound::Rules::LogEvent;
 
@@ -169,7 +171,8 @@ namespace
 
 	/**
 	 * Todos los Ecos fuera del Vacío y fuera de su hogar vuelven a él (SentHome), en orden de asiento: la Ley de Sombras y el
-	 * tope de la Noche (R-EFE-9, R-EFE-18). Termina la Noche si estaba activa, con el motivo Reason.
+	 * tope de la Noche (R-EFE-9, R-EFE-18). Termina la Noche si estaba activa, con el motivo Reason; si es por el tope de rondas, el
+	 * Warden lo dice justo después (R-VOZ-9, S-043).
 	 */
 	void SendEchoesHomeAndEndNight(FMatchState& State, EEchoNightEnd Reason, double NowSeconds)
 	{
@@ -184,6 +187,12 @@ namespace
 		{
 			State.EchoNightUntilRound = 0;
 			LogEvent(State, EMatchEventType::EchoNightEnded, NowSeconds, INDEX_NONE, INDEX_NONE, INDEX_NONE, static_cast<int32>(Reason));
+			// R-VOZ-9 (S-043): el final normal de la Noche lo anuncia el Warden, a la mesa. Por la Ley de Sombras no: su evento ya trae su frase.
+			// Sin tabla de frases, SpeakWardenLine no deja nada.
+			if (Reason == EEchoNightEnd::RoundLimit)
+			{
+				Soulbound::Rules::SpeakWardenLine(State, Soulbound::Warden::LineEchoNightEnd, NowSeconds);
+			}
 		}
 	}
 

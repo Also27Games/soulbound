@@ -582,4 +582,24 @@ bool FDebugPendingTrialLevelTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-#endif
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FStatusEchoNightNoRoundTest, "Soulbound.Game.Presentation.Estado.NocheSinRonda", StatusTestFlags)
+
+bool FStatusEchoNightNoRoundTest::RunTest(const FString& Parameters)
+{
+	// Corrección del autor del 17/11/2026 (S-043): la ronda tope de la Noche de los Ecos no le interesa al jugador. La línea de la Noche del panel
+	// de estado dice "NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio", sin "(como mucho hasta la ronda N)".
+	FMatchState State = StMakeState();
+	State.MatchPhase = EMatchPhase::RuneHunt;
+	State.Round = 3;
+	State.EchoNightUntilRound = 9;
+	const TArray<FPanelLine> Lines = Soulbound::Presentation::StatusLines(State, StMakeContext());
+	const FPanelLine* Night = Lines.FindByPredicate([](const FPanelLine& Line) { return Line.Text.StartsWith(TEXT("NOCHE DE LOS ECOS")); });
+	if (TestNotNull(TEXT("Con la Noche activa, su línea"), Night))
+	{
+		TestEqual(TEXT("Sin la ronda"), Night->Text, FString(TEXT("NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio")));
+	}
+	TestFalse(TEXT("Ninguna línea dice la ronda tope"), StAnyContains(Lines, TEXT("hasta la ronda")));
+	return true;
+}
+
+#endif // WITH_DEV_AUTOMATION_TESTS

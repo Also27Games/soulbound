@@ -134,4 +134,34 @@ namespace Soulbound::Presentation
 	 * @return "o pulsa Intro", "o pulsa F5"…, o vacía sin tecla.
 	 */
 	SOULBOUND_API FString KeyHintText(const FString& KeyDisplayName);
+
+	/**
+	 * Si el tablero está en penumbra (S-043, R-VIS-31, nombre propuesto): mientras la Noche de los Ecos está activa y la partida no ha terminado.
+	 * @param State Estado de la partida, en solo lectura.
+	 * @return true con la Noche activa y la partida en juego.
+	 */
+	SOULBOUND_API bool EchoNightDimShown(const FMatchState& State);
+
+	/**
+	 * La opacidad de la penumbra en el tiempo (S-043, R-VIS-31, nombre propuesto): desde la opacidad que tenía al cambiar, a velocidad constante,
+	 * hacia la configurada si hay Noche o hacia cero si no; de cero a la configurada (o al revés) tarda FadeSeconds. Así, si la Noche termina
+	 * mientras aún sube, baja desde donde iba y tarda solo lo que le queda.
+	 * @param bEchoNight Si ahora hay penumbra (EchoNightDimShown).
+	 * @param FromOpacity La opacidad en el instante del último cambio.
+	 * @param SecondsSinceChange Segundos reales desde el último cambio.
+	 * @param MaxOpacity La opacidad con la Noche (ABoardViewActor::EchoNightDimOpacity, 0,3).
+	 * @param FadeSeconds Lo que dura la transición (ABoardViewActor::EchoNightDimFadeSeconds, 0,8 s); cero o menos, de golpe.
+	 * @return La opacidad, entre cero y MaxOpacity.
+	 */
+	SOULBOUND_API float EchoNightDimOpacity(bool bEchoNight, float FromOpacity, double SecondsSinceChange, float MaxOpacity, double FadeSeconds);
+
+	/**
+	 * El color de la capa oscura del tablero (S-043, R-VIS-31, nombre propuesto): la penumbra y el pulso del corte (S-041) comparten una capa y se
+	 * ve el más oscuro de los dos, no la suma: la opacidad es la mayor, y el color, el del que la da (negro el pulso, NightColor la penumbra).
+	 * @param NightColor El color de la penumbra (ABoardViewActor::EchoNightDimColor), sin su alfa.
+	 * @param NightOpacity La opacidad de la penumbra ahora (EchoNightDimOpacity).
+	 * @param CutOpacity La opacidad del pulso del corte ahora (CutDimOpacity).
+	 * @return El color con la opacidad en su alfa.
+	 */
+	SOULBOUND_API FLinearColor BoardDimColor(const FLinearColor& NightColor, float NightOpacity, float CutOpacity);
 }

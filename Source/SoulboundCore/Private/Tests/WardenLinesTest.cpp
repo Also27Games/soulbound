@@ -57,7 +57,8 @@ bool FVoiceLinesLoaderTest::RunTest(const FString& Parameters)
 	// La lista se construye de las tablas y los enums: un evento de algún saco, un tipo de comentario (once: la presentación de los Elegidos
 	// no es un comentario), un momento de instrucción, tres gravedades y la Furia, quince programadas (inicio, corrupción, cuatro
 	// posiciones del orden, comienzo, fin de carrera con Ecos y con todos vinculados, aspirante, dos avisos, fin de tiempo, victoria y nadie
-	// vinculado) y una presentación por Elegido. S-023 (R-PRO-1): programado:comienzo es la decimoquinta.
+	// vinculado) y una presentación por Elegido. S-023 (R-PRO-1): programado:comienzo es la decimoquinta. S-043 (R-VOZ-9): programado:fin-noche-ecos,
+	// la decimosexta.
 	// Los eventos que no están en ningún saco pueden tener frase, pero no se exige (decisión del autor del 28/10/2026).
 	const int32 RemarkCount = static_cast<int32>(EWardenRemarkKind::NotThisTime) + 1;
 	const int32 InstructionCount = static_cast<int32>(EInstructionMoment::Ring) + 1;
@@ -65,7 +66,7 @@ bool FVoiceLinesLoaderTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Once tipos de comentario"), RemarkCount, 11);
 	TestTrue(TEXT("Hay eventos fuera de los sacos (los de S-014) y dentro"), InBag > 0 && InBag < Events.Events.Num());
 	TestEqual(TEXT("Una clave por evento de saco, tipo de comentario, momento, gravedad con la Furia, programada y Elegido"), Required.Num(),
-		InBag + RemarkCount + InstructionCount + 4 + 15 + Elects.Elects.Num());
+		InBag + RemarkCount + InstructionCount + 4 + 16 + Elects.Elects.Num());
 	TestFalse(TEXT("La presentación no es un comentario"), Required.Contains(TEXT("comentario:presentacion")));
 	TestEqual(TEXT("Sin claves repetidas"), TSet<FString>(Required).Num(), Required.Num());
 	for (const FWardenEventDef& Event : Events.Events)
@@ -283,6 +284,53 @@ bool FVoiceDrawTest::RunTest(const FString& Parameters)
 		FMatchState Silent;
 		TestFalse(TEXT("La tabla vacía no habla"), Soulbound::Rules::DrawWardenLine(Silent, Key).IsValid());
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceEchoNightEndKeyTest, "Soulbound.Core.Voice.ClaveDelFinDeLaNoche",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FVoiceEchoNightEndKeyTest::RunTest(const FString& Parameters)
+{
+	// CA-VOZ-12 (R-VOZ-9, datos; S-043): frases.json trae programado:fin-noche-ecos con las tres variantes del autor (16/11/2026), y el cargador
+	// la exige: sin ella, la carga falla con un mensaje que la nombra. Que detiene la mesa lo comprueba la presentación, donde vive
+	// LineHoldsTheTable (Soulbound.Game.Presentation.Voz.LineaDeLaNoche).
+	const FString Key = TEXT("programado:fin-noche-ecos");
+	TestEqual(TEXT("La clave"), Soulbound::Warden::LineEchoNightEnd, Key);
+
+	TArray<FString> Required;
+	if (!Soulbound::Tests::RequiredTestLineKeys(*this, Required))
+	{
+		return false;
+	}
+	TestTrue(TEXT("Se exige"), Required.Contains(Key));
+
+	const FWardenLinesLoadResult Loaded = Soulbound::Rules::LoadWardenLinesFromFile(Soulbound::Tests::WardenLinesPath(), Required);
+	if (!TestTrue(FString::Printf(TEXT("frases.json del repositorio carga (%s)"), *Loaded.Message), Loaded.IsSuccess()))
+	{
+		return false;
+	}
+	const FWardenLineEntry* Entry = Loaded.Table.Entries.FindByPredicate([&Key](const FWardenLineEntry& Candidate) { return Candidate.Id == Key; });
+	if (!TestNotNull(TEXT("Está en el archivo"), Entry))
+	{
+		return false;
+	}
+	const TArray<FString> Expected = {
+		TEXT("Se acabó la noche. Ecos, a vuestras ruinas… el paseo ha terminado."),
+		TEXT("Amanece. Qué lástima… Volved a vuestros agujeros, Ecos."),
+		TEXT("La oscuridad se retira. Ecos: a casa. No me hagáis repetirlo."),
+	};
+	TestEqual(TEXT("Tres variantes"), Entry->Lines.Num(), Expected.Num());
+	for (int32 Index = 0; Index < FMath::Min(Expected.Num(), Entry->Lines.Num()); ++Index)
+	{
+		TestEqual(FString::Printf(TEXT("La variante %d, letra por letra"), Index + 1), Entry->Lines[Index], Expected[Index]);
+	}
+
+	FWardenLineTable Without = Loaded.Table;
+	Without.Entries.RemoveAll([&Key](const FWardenLineEntry& Candidate) { return Candidate.Id == Key; });
+	const FWardenLinesLoadResult Result = Soulbound::Rules::ValidateWardenLines(Without, Required);
+	TestEqual(TEXT("Sin ella, falta una clave"), static_cast<int32>(Result.Error), static_cast<int32>(EWardenLinesError::MissingKey));
+	TestTrue(TEXT("Y el motivo la nombra"), Result.Message.Contains(Key));
 	return true;
 }
 

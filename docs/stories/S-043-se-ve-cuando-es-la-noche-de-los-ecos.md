@@ -40,9 +40,18 @@ Decidido por el autor el 16/11/2026 (ninguna regla de la Noche cambia: ni cuánd
   - Convive con los pulsos del oscurecido del corte (S-041): durante un pulso se ve el más oscuro de los dos, no la suma.
   - Sin posproceso (restricción de rendimiento de la skill). Con la partida terminada no hay penumbra.
   - Los halos que laten, las fichas y los números tienen que seguir leyéndose con la penumbra: se comprueba en la prueba manual y la opacidad se ajusta ahí.
-- **La línea fija de la Noche no es de esta story.** La que hoy lleva el panel de estado ("NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio (como mucho hasta la ronda N)") se queda como está; su sitio nuevo, bajo el reloj, lo pone S-045.
+- **La línea fija de la Noche no es de esta story.** La que hoy lleva el panel de estado ("NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio (como mucho hasta la ronda N)") se queda como está; su sitio nuevo, bajo el reloj, lo pone S-045. **Corrección del autor del 17/11/2026, tras PIE**: quitar "(como mucho hasta la ronda N)" de lo que ve el jugador, porque no le interesa. La línea de la Noche del panel de estado y la de la crónica pasan a "NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio"; el acta la conserva con la ronda, porque sirve para leer partidas. Tests: `Estado.NocheSinRonda` y `Cronica.NocheSinRonda` (vistos en rojo) y `Acta.NocheConRonda` (de regresión, pasa desde el principio).
 - **R-VOZ-11 (nueva, añadida por el autor el 16/11/2026; no es de la Noche, pero toca las mismas líneas). El prefijo de la frase, como en un guion.** A quién habla el Warden va entre paréntesis y sin coma: "Warden (a ti): …", "Warden (al asiento 2): …" y, cuando habla a toda la mesa, "Warden: …". Sustituye a "Warden, a ti: …" y "Warden, al asiento 2: …", que se leían rígidos. Vale para todas las frases que llevan prefijo (`WardenLinePrefix`): la línea del Warden, la crónica y el acta. El orden con la palabra de corte no cambia: "Warden (a ti): ¡Quietos! …".
 - **Lo que no cambia.** Cuándo lanza el Warden la Noche, cuánto dura, qué permite a los Ecos, que no obtengan runa en las Fuentes de los Dominios con Elegido y que vuelvan a su hogar al terminar.
+
+### Decisiones del autor sobre el plan (17/11/2026)
+
+- **Corte y Noche en la misma frase**: dos líneas pequeñas, primero la del corte como hoy y debajo la de la Noche.
+- **Noche sin frase** (un evento que no la tiene, como `noche` de S-014, o una partida sin voz): la línea pequeña sale sola, sin prefijo, sin detener la mesa y sin protección frente a las burlas.
+- **`FWardenLineItem::CutNote`** conserva el nombre y lleva también la línea de la Noche.
+- **Con la partida terminada y la Noche activa**, la penumbra se va con su transición.
+- Una sola capa para la penumbra y los pulsos del corte; la línea pequeña cuelga del principio y del final reales de la Noche, sea cual sea el evento que la abra o la cierre.
+- Nombres: la clave es `programado:fin-noche-ecos` (`Soulbound::Warden::LineEchoNightEnd`); la Config de la penumbra, `EchoNightDimColor`, `EchoNightDimMaxOpacity` y `EchoNightDimFadeSeconds`.
 
 ## Criterios de aceptación
 
@@ -67,6 +76,8 @@ Manuales, por el autor, en PIE, en la vista sentada y en la cenital, a 1920x1080
 - **Termina por la Ley de Sombras** (`SbEvent la-ley-de-sombras` con la Noche activa): la frase de ese evento con la misma línea pequeña debajo; vuelve la luz.
 - **Un golpe durante la Noche** (`SbStrike tropiezo`): los pulsos del corte se ven sobre la penumbra.
 - **El prefijo**: las frases dirigidas a ti dicen "Warden (a ti): …", las de otro jugador "Warden (al asiento N): …" y las de la mesa "Warden: …", en la línea del Warden y en la crónica.
+
+**Resultado de la prueba manual del autor (17/11/2026).** Superadas todas: empieza la Noche (la frase con "Empieza la Noche de los Ecos…" debajo y el tablero en penumbra, con halos, fichas, números y suelo agrietado legibles); como Eco se entra en el Dominio de un Elegido; un golpe durante la Noche (los pulsos sobre la penumbra y vuelta a la penumbra); termina por la Ley de Sombras (su frase con "Termina la Noche de los Ecos…" debajo y vuelve la luz); termina por el tope de rondas con la frase nueva; y el prefijo "Warden (a ti):" y "Warden (al asiento N):" en la línea del Warden y en la crónica. La opacidad de 0,3 se queda. Dio una corrección: la ronda tope fuera del panel de estado y de la crónica (anotada arriba, en "La línea fija de la Noche").
 
 ## Notas para quien lo implemente
 

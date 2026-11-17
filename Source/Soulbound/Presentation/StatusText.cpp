@@ -767,11 +767,10 @@ namespace Soulbound::Presentation
 			Lines.Add({Event, StatusOrange});
 		}
 
-		// Noche de los Ecos (línea 12, S-014).
+		// Noche de los Ecos (línea 12, S-014). Sin la ronda tope: no le interesa al jugador (corrección del autor del 17/11/2026, S-043).
 		if (State.IsEchoNight() && !bOver)
 		{
-			Lines.Add({FString::Printf(TEXT("NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio (como mucho hasta la ronda %d)"), State.EchoNightUntilRound),
-				StatusLineColor(FColor(150, 120, 255))});
+			Lines.Add({FString(TEXT("NOCHE DE LOS ECOS: los Ecos caminan por cualquier Dominio")), StatusLineColor(FColor(150, 120, 255))});
 		}
 
 		// Oráculo (línea 13, S-017). R-DEC-18: con la consulta del humano en el panel de decisión, ya está allí; aquí no se repite.
