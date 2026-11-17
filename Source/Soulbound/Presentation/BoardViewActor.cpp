@@ -169,13 +169,6 @@ namespace
 		return FLinearColor(Color.R * Factor, Color.G * Factor, Color.B * Factor);
 	}
 
-	/** Marca de tiempo de la crónica: minutos y segundos del reloj de partida. */
-	FString Stamp(double Seconds)
-	{
-		const int32 Total = FMath::Max(0, FMath::FloorToInt(Seconds));
-		return FString::Printf(TEXT("%d:%02d"), Total / 60, Total % 60);
-	}
-
 	/** Efecto de un Nodo de Poder para su etiqueta (S-009); vacío si no es un Nodo. */
 	const TCHAR* NodeEffectName(EPowerNodeEffect Effect)
 	{
@@ -1025,21 +1018,13 @@ void ABoardViewActor::BuildOverlay()
 		Domains.Chips.Add(Chip);
 	}
 	Rows.Add(Domains);
-	// Textos de la leyenda revisados por el autor (13/11/2026). Un solo bloque de casillas: la segunda mitad de cada línea es la misma con o sin
-	// kit; la primera es la losa del kit (S-019) o la forma básica donde falta la pieza.
-	const bool bKit = TileHasKitSlab.Contains(true);
-	Rows.Add({TEXT("Casillas"),
-		{{AltarColor, bKit ? TEXT("Altar: la plataforma del centro. Aquí se empieza y aquí se gana") : TEXT("Altar: casilla grande y alta. Aquí se empieza y aquí se gana")},
-			{NicheFreeColor, bKit ? TEXT("N Nicho: losa con trono. El primero que llega se vincula a su Elegido") : TEXT("N Nicho: casilla cuadrada con cubo. El primero que llega se vincula a su Elegido")},
-			{SourceColor, bKit ? TEXT("F Fuente: pilón, con la runa flotando mientras le quedan. Aquí se coge la runa de su Dominio") : TEXT("F Fuente: casilla redonda con cruz. Aquí se coge la runa de su Dominio")},
-			{NodeColor, bKit ? TEXT("X Nodo: losa con puntas. Tras la carrera lleva espadas (duelo), orbe (Oráculo) o arco (salto)") : TEXT("X Nodo: rombo con esfera. Tras la carrera lleva espadas (duelo), orbe (Oráculo) o arco (salto)")}}});
-	Rows.Add({TEXT("Nichos"),
-		{{NicheFreeColor, TEXT("Libre")}, {SeatColor(0), TEXT("Reclamado: aro y número de su dueño")}, {NicheClosedColor, TEXT("Cerrado")}}});
-	// S-040 (R-VIS-27): con el material de los Olvidados cargado, su suelo agrietado.
-	Rows.Add({TEXT("Tablero"),
-		{{ReachableColor, TEXT("Halo blanco que late: puedes ir ahí")},
-			{SealMarkColor, bKit ? TEXT("Aro rojo y cadenas: sellada, no se pasa") : TEXT("Aro rojo y SELLO: sellada, no se pasa")},
-			{ForgottenRingColor, ForgottenFloor ? TEXT("Suelo agrietado y casillas apagadas: Dominio Olvidado") : TEXT("Casillas apagadas: Dominio Olvidado")}}});
+	// S-044: las filas del tablero (casillas, Nichos, marcas y destellos) salen de BoardLegendRows, que también pinta "El tablero" del Grimorio. La
+	// columna conserva su orden: los destellos van detrás de los jugadores.
+	const TArray<FLegendRow> BoardRows = Soulbound::Presentation::BoardLegendRows(BoardLegendLookNow());
+	for (int32 Index = 0; Index + 1 < BoardRows.Num(); ++Index)
+	{
+		Rows.Add(BoardRows[Index]);
+	}
 	// Una fila por asiento, con su rol al día: Eco o Elegido, y el Dominio que lleva.
 	FLegendRow Seats;
 	Seats.Title = TEXT("Jugadores. Disco gris: Eco. Disco de color: Elegido de ese Dominio. A quien le toca le late un aro");
@@ -1059,8 +1044,11 @@ void ABoardViewActor::BuildOverlay()
 		Seats.Chips.Add(Chip);
 	}
 	Rows.Add(Seats);
-	// S-029: lo que se ve al ganar o perder una runa.
-	Rows.Add({TEXT("Destello: hacia dentro y del color de la runa, la gana. Hacia fuera y en morado, la pierde"), {}});
+	// S-029: lo que se ve al ganar o perder una runa (la última fila de BoardLegendRows).
+	if (!BoardRows.IsEmpty())
+	{
+		Rows.Add(BoardRows.Last());
+	}
 	// Brazal de cada asiento (S-008): runas por tipo y poderes activos, al día.
 	FLegendRow Bracers;
 	Bracers.Title = TEXT("Runas de cada jugador");
@@ -1235,6 +1223,15 @@ void ABoardViewActor::BuildOverlay()
 	{
 		RuneChipColors.Add(DomainColor(Id));
 	}
+	// S-044 (R-HUD-10): "Cómo se juega" con el mismo archivo y el mismo cargador que el menú; si falta, la pestaña enseña el mensaje del cargador.
+	HowToPlayLoaded = Soulbound::Presentation::LoadHowToPlayText(FPaths::Combine(FPaths::ProjectContentDir(), Soulbound::Presentation::HowToPlayRelativePath));
+	if (!HowToPlayLoaded.IsSuccess())
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Grimorio: %s"), *HowToPlayLoaded.Message);
+	}
+	GrimoireTab.Open();
+	GrimoireChronicleCount = -1;
+	// S-044: la capa ya no deja pasar los clics por encima del panel (las pestañas y la rueda son del Grimorio); fuera del panel, sí.
 	GrimoireOverlay = SNew(SBox)
 		.HAlign(HAlign_Center)
 		.VAlign(VAlign_Center)
@@ -1242,17 +1239,31 @@ void ABoardViewActor::BuildOverlay()
 		.Visibility_Lambda([this]()
 		{
 			const UMatchHostSubsystem* HostPtr = Host.Get();
-			return bGrimoireOpen && !(HostPtr && HostPtr->IsCurtainDown()) ? EVisibility::HitTestInvisible : EVisibility::Collapsed;
+			return bGrimoireOpen && !(HostPtr && HostPtr->IsCurtainDown()) ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed;
 		})
 		[
 			SAssignNew(GrimoirePanel, SGrimoirePanel)
 			.FontSize(PanelFont)
 			.DomainColors(RuneChipColors)
-			.CloseKeys(FString::Printf(TEXT("%s o %s"), *GrimoireKey.GetDisplayName().ToString(), *PanelsToggleKey.GetDisplayName().ToString()))
+			// Corrección del autor del 17/11/2026 tras PIE: los nombres de las teclas, en español donde lo haya (GrimoireKeysHint).
+			.KeysHint(Soulbound::Presentation::GrimoireKeysHint(GrimoireKey.GetDisplayName().ToString(), PanelsToggleKey.GetDisplayName().ToString(),
+				GrimoirePreviousTabKey.GetDisplayName().ToString(), GrimoireNextTabKey.GetDisplayName().ToString()))
 			// S-029 (R-VIS-21): ancho fijo, el de la capa; no depende de lo pintado antes.
 			.PanelWidth_Lambda([this]() { return Soulbound::Presentation::GrimoirePanelWidth(LayerSlateWidth()); })
+			// S-044: alto fijo, una fracción del de la pantalla menos el margen de la capa; no cambia al cambiar de pestaña.
+			.PanelHeight_Lambda([this]()
+			{
+				const float Height = static_cast<float>(LastViewportSize.Y) / FMath::Max(PanelDpiScale, 0.01f);
+				return FMath::Max(Height * GrimoireHeightFraction - 32.f, 200.f);
+			})
+			.ActiveTab_Lambda([this]() { return GrimoireTab.Active; })
+			.OnTabClicked_Lambda([this](Soulbound::Presentation::EGrimoireTab Tab) { GrimoireTab.Select(Tab); })
 		];
 	Viewport->AddViewportWidgetContent(GrimoireOverlay.ToSharedRef(), 14);
+	GrimoirePanel->SetBoard(Soulbound::Presentation::BoardLegendRows(BoardLegendLookNow()));
+	GrimoirePanel->SetHowToPlay(Soulbound::Presentation::GrimoireHowToPlayText(HowToPlayLoaded, {GrimoireKey.GetDisplayName().ToString(),
+		GrimoirePreviousTabKey.GetDisplayName().ToString(), GrimoireNextTabKey.GetDisplayName().ToString(), ColumnTabKey.GetDisplayName().ToString(),
+		PanelsToggleKey.GetDisplayName().ToString(), SeatedViewKey.GetDisplayName().ToString(), RingStartKey.GetDisplayName().ToString()}));
 
 	// S-029 (R-VIS-13): la carta del Elegido. Como la capa de la frase (R-DEC-13) y la del anillo (R-VIS-20), la capa ocupa el hueco libre (HAlign_Fill,
 	// con sus márgenes) y la carta se centra dentro; AlignChild no centra dentro del hueco con márgenes desiguales. Abajo se deja libre una fracción
@@ -1346,6 +1357,30 @@ void ABoardViewActor::BuildOverlay()
 			.LargeScale(StatusLargeFontScale)
 			.WrapWidth_Lambda([this]() { return FMath::Max(BoardFreeWidthNow(DecisionPanelMaxWidth) - 16.f, 1.f); })
 			.Visibility_Lambda([this]() { return IsGoalPanelVisibleNow() ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+		]
+		// S-044 (R-HUD-12; corrección del autor del 17/11/2026): el botón del Grimorio, abajo a la derecha del hueco del tablero, en la misma franja y con la
+		// misma regla que la caja de objetivo, en espejo: no se ve en el prólogo, con la partida terminada ni mientras hay frase del Warden (la frase no
+		// se estrecha por él), y ninguna tecla de ocultar lo oculta. Abre y cierra como la tecla. El botón se queda su clic: no llega a las casillas. Sin
+		// foco, para que no se lleve las teclas de la partida.
+		+ SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Bottom)
+		[
+			SAssignNew(GrimoireButton, SBox)
+			.Visibility_Lambda([this]() { return IsGrimoireButtonVisibleNow() ? EVisibility::Visible : EVisibility::Collapsed; })
+			[
+				SNew(SButton)
+				.IsFocusable(false)
+				.ContentPadding(FMargin(12.f, 6.f))
+				.OnClicked_Lambda([this]()
+				{
+					ToggleGrimoire();
+					return FReply::Handled();
+				})
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(Soulbound::Presentation::GrimoireButtonLabel(GrimoireKey.GetDisplayName().ToString())))
+					.Font_Lambda([this]() { return FCoreStyle::GetDefaultFontStyle("Bold", FMath::Max(FMath::RoundToInt(PanelSlateFontSize * StatusLargeFontScale), 8)); })
+				]
+			]
 		]
 		// Capa de arriba: la frase, anclada abajo con el mismo margen que el hueco. Crece hacia arriba, por encima del panel si hace falta (corrección
 		// del autor del 11/11/2026: en una caja de alto fijo se recortaba lo que sobraba). No recibe clics: el hueco vacío deja pasar los del tablero.
@@ -1650,66 +1685,8 @@ void ABoardViewActor::RefreshChronicle(const FMatchState& State)
 		return;
 	}
 	ChronicleLineCount = State.EventLog.Num();
-	// S-026: los resultados del humano dicen "con el anillo" si lo juega (interruptor encendido); los de los dummies, al azar.
-	const UMatchHostSubsystem* HostPtr = Host.Get();
-	const int32 RingSeat = HostPtr && HostPtr->HumanPlaysSkillTrials() ? HostPtr->GetHumanSeat() : INDEX_NONE;
-
-	// La más reciente primero; se conservan solo las últimas ChronicleMaxLines.
-	TArray<FChronicleLine> Lines;
-	const int32 First = FMath::Max(0, State.EventLog.Num() - FMath::Max(ChronicleMaxLines, 1));
-	for (int32 Index = State.EventLog.Num() - 1; Index >= First; --Index)
-	{
-		// S-021 (A3): las instrucciones enseñadas justo después de este evento van encima de él (la crónica es de la más reciente a la más vieja).
-		for (int32 Note = InstructionNotes.Num() - 1; Note >= 0; --Note)
-		{
-			if (InstructionNotes[Note].After == Index)
-			{
-				Lines.Add({FString::Printf(TEXT("[%s] %s"), *Stamp(InstructionNotes[Note].ClockSeconds), *InstructionNotes[Note].Text), WardenLineColor});
-			}
-		}
-		const FMatchEvent& Event = State.EventLog[Index];
-		FLinearColor Color = SeatColor(Event.Seat);
-		switch (Soulbound::Presentation::EventSource(Event.Type))
-		{
-		case Soulbound::Presentation::EEventSource::Warden: Color = WardenLineColor; break;
-		case Soulbound::Presentation::EEventSource::Race: Color = RaceLineColor; break;
-		case Soulbound::Presentation::EEventSource::Debug: Color = DebugLineColor; break;
-		case Soulbound::Presentation::EEventSource::Seat: break;
-		}
-		// S-016: las evaluaciones del Warden que no hacen nada no tienen línea (una cada 15 s taparía la crónica). S-017: la decisión
-		// con efecto sí, con sus disparadores entre paréntesis (los WardenTriggered que la siguen, que no tienen línea propia).
-		FString Text;
-		if (Event.Type == EMatchEventType::WardenDecided)
-		{
-			TArray<FMatchEvent> Triggers;
-			bool bViaOracle = false;
-			for (int32 Next = Index + 1; Next < State.EventLog.Num(); ++Next)
-			{
-				const FMatchEvent& After = State.EventLog[Next];
-				if (After.Type == EMatchEventType::WardenTriggered)
-				{
-					Triggers.Add(After);
-					continue;
-				}
-				// Lo que aplica la decisión, en el mismo instante: el corte, el fin del turno y, si va por el Oráculo, su consulta.
-				if (After.ClockSeconds != Event.ClockSeconds || After.Type == EMatchEventType::WardenEventStarted || After.Type == EMatchEventType::WardenEvaluated)
-				{
-					break;
-				}
-				bViaOracle |= After.Type == EMatchEventType::OracleOpened && After.Value == static_cast<int32>(EOracleOrigin::Strike);
-			}
-			Text = Soulbound::Presentation::DescribeWardenDecision(Event, Triggers, bViaOracle, &State.WardenEvents);
-		}
-		else
-		{
-			Text = Soulbound::Presentation::DescribeChronicleEvent(State, Index, RingSeat);
-		}
-		if (!Text.IsEmpty())
-		{
-			Lines.Add({FString::Printf(TEXT("[%s] %s"), *Stamp(Event.ClockSeconds), *Text), Color});
-		}
-	}
-	ChroniclePanel->SetLines(Lines);
+	// S-044: las líneas salen de ChronicleLines, la misma función que la pestaña "Crónica" del Grimorio (R-HUD-10).
+	ChroniclePanel->SetLines(Soulbound::Presentation::ChronicleLines(State, InstructionNotes, ChronicleLookNow()));
 }
 
 void ABoardViewActor::Refresh()
@@ -1932,8 +1909,9 @@ void ABoardViewActor::TeachInstructions(const FMatchState& State, const TArray<S
 		Item.GameClock = Clock;
 		WardenLineQueue.Push(Item, FPlatformTime::Seconds());
 		InstructionNotes.Add({State.EventLog.Num() - 1, Clock, Line});
-		// La crónica se reconstruye solo si crece el registro: la nota no lo hace crecer.
+		// La crónica se reconstruye solo si crece el registro: la nota no lo hace crecer. Desde S-044, también la del Grimorio.
 		ChronicleLineCount = -1;
+		GrimoireChronicleCount = -1;
 	}
 }
 
@@ -1946,6 +1924,48 @@ bool ABoardViewActor::IsGoalPanelVisibleNow()
 		return false;
 	}
 	return Soulbound::Presentation::IsGoalPanelShown(bGoalPanelPrologue, GoalPanelGoal, !WardenLineNow().IsEmpty());
+}
+
+bool ABoardViewActor::IsGrimoireButtonVisibleNow()
+{
+	// S-044 (R-HUD-12): la regla, en IsGrimoireButtonShown, con el prólogo de la caja de objetivo (el mismo contexto de TickHud); el telón lo tapa todo.
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (!HostPtr || !HostPtr->HasMatch() || HostPtr->IsCurtainDown())
+	{
+		return false;
+	}
+	return Soulbound::Presentation::IsGrimoireButtonShown(bGoalPanelPrologue, IsMatchOverShown(), !WardenLineNow().IsEmpty());
+}
+
+Soulbound::Presentation::FBoardLegendLook ABoardViewActor::BoardLegendLookNow() const
+{
+	Soulbound::Presentation::FBoardLegendLook Look;
+	Look.bKit = TileHasKitSlab.Contains(true);
+	Look.bForgottenFloor = ForgottenFloor != nullptr;
+	Look.Altar = AltarColor;
+	Look.NicheFree = NicheFreeColor;
+	Look.Source = SourceColor;
+	Look.Node = NodeColor;
+	Look.NicheClaimed = SeatColor(0);
+	Look.NicheClosed = NicheClosedColor;
+	Look.Reachable = ReachableColor;
+	Look.SealMark = SealMarkColor;
+	Look.ForgottenRing = ForgottenRingColor;
+	return Look;
+}
+
+Soulbound::Presentation::FChronicleLook ABoardViewActor::ChronicleLookNow() const
+{
+	Soulbound::Presentation::FChronicleLook Look;
+	// S-026: los resultados del humano dicen "con el anillo" si lo juega (interruptor encendido); los de los dummies, al azar.
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	Look.RingSeat = HostPtr && HostPtr->HumanPlaysSkillTrials() ? HostPtr->GetHumanSeat() : INDEX_NONE;
+	Look.MaxEvents = ChronicleMaxLines;
+	Look.SeatColors = SeatColors;
+	Look.WardenColor = WardenLineColor;
+	Look.RaceColor = RaceLineColor;
+	Look.DebugColor = DebugLineColor;
+	return Look;
 }
 
 Soulbound::Presentation::FWardenLineItem ABoardViewActor::WardenLineNow()
@@ -2244,8 +2264,7 @@ void ABoardViewActor::TogglePanels()
 	// La visibilidad de los paneles la calcula su capa (bPanelsHidden y el telón, S-024); aquí solo se recoloca el tablero. S-027 (R-HUD-4): H
 	// también cierra el Grimorio, para que uno invisible no siga bloqueando los clics (decisión aceptada por el autor el 9/11/2026).
 	bPanelsHidden = !bPanelsHidden;
-	bGrimoireOpen = false;
-	ElectCard.SetGrimoireOpen(false);
+	CloseGrimoire();
 	UpdateCamera();
 }
 
@@ -2372,6 +2391,9 @@ void ABoardViewActor::ApplyViewTarget()
 				InputComponent->BindKey(DebugTextToggleKey, IE_Pressed, this, &ABoardViewActor::ToggleDebugText);
 				// S-027: el Grimorio (G) y el panel de depuración (D).
 				InputComponent->BindKey(GrimoireKey, IE_Pressed, this, &ABoardViewActor::ToggleGrimoire);
+				// S-044 (R-HUD-10): las pestañas del Grimorio; cerrado no hacen nada, y no se consumen.
+				InputComponent->BindKey(GrimoirePreviousTabKey, IE_Pressed, this, &ABoardViewActor::PreviousGrimoireTab).bConsumeInput = false;
+				InputComponent->BindKey(GrimoireNextTabKey, IE_Pressed, this, &ABoardViewActor::NextGrimoireTab).bConsumeInput = false;
 				InputComponent->BindKey(DebugPanelKey, IE_Pressed, this, &ABoardViewActor::ToggleDebugPanel);
 				// S-035: la pestaña de la columna (P).
 				InputComponent->BindKey(ColumnTabKey, IE_Pressed, this, &ABoardViewActor::ToggleColumnTab);
@@ -2416,10 +2438,46 @@ void ABoardViewActor::ToggleDebugPanel()
 
 void ABoardViewActor::ToggleGrimoire()
 {
-	bGrimoireOpen = !bGrimoireOpen;
+	if (bGrimoireOpen)
+	{
+		CloseGrimoire();
+		return;
+	}
+	// S-044 (R-HUD-11, decisión del autor del 17/11/2026): durante un anillo del humano ni la tecla ni el botón lo abren.
+	const UMatchHostSubsystem* HostPtr = Host.Get();
+	if (!Soulbound::Presentation::CanOpenGrimoire(HostPtr && HostPtr->GetRingRun() != nullptr))
+	{
+		return;
+	}
+	bGrimoireOpen = true;
+	// S-044 (R-HUD-10): siempre en "Tú"; la crónica, al día.
+	GrimoireTab.Open();
+	GrimoireChronicleCount = -1;
 	// S-029 (R-VIS-13): abrir el Grimorio cierra la carta del Elegido.
-	ElectCard.SetGrimoireOpen(bGrimoireOpen);
+	ElectCard.SetGrimoireOpen(true);
 	TickHud();
+}
+
+void ABoardViewActor::CloseGrimoire()
+{
+	bGrimoireOpen = false;
+	ElectCard.SetGrimoireOpen(false);
+}
+
+void ABoardViewActor::PreviousGrimoireTab()
+{
+	if (bGrimoireOpen)
+	{
+		GrimoireTab.Previous();
+	}
+}
+
+void ABoardViewActor::NextGrimoireTab()
+{
+	if (bGrimoireOpen)
+	{
+		GrimoireTab.Next();
+	}
 }
 
 void ABoardViewActor::RefreshElectCard(const FMatchState& State)
@@ -2758,6 +2816,12 @@ void ABoardViewActor::TickHud()
 	}
 	DecisionDeadlineSeconds = Panel.IsSet() ? Panel->DeadlineSeconds : 0.0;
 	const bool bRingOpen = HostPtr->GetRingRun() != nullptr;
+	// S-044 (R-HUD-11): una decisión propia nueva (también bloqueada porque habla el Warden) o un anillo del humano cierran el Grimorio. Se mira siempre,
+	// abierto o no: lo que ya estaba a la vista al abrirlo no lo cierra.
+	if (GrimoireCloseWatch.Observe(Panel, bRingOpen) && bGrimoireOpen)
+	{
+		CloseGrimoire();
+	}
 	bDecisionShown = Soulbound::Presentation::IsDecisionPanelShown(Panel, bRingOpen);
 	if (DecisionPanel.IsValid())
 	{
@@ -2783,10 +2847,29 @@ void ABoardViewActor::TickHud()
 	}
 	if (GrimoirePanel.IsValid() && bGrimoireOpen)
 	{
-		GrimoirePanel->SetContent(Soulbound::Presentation::GrimoireRows(State, Context.HumanSeat, GrimoireTexts, SeatColors),
-			Soulbound::Presentation::GrimoirePowerLines(GrimoireTexts));
+		RefreshGrimoire(State, Context);
 	}
 	RefreshElectCard(State);
+}
+
+void ABoardViewActor::RefreshGrimoire(const FMatchState& State, const Soulbound::Presentation::FStatusContext& Context)
+{
+	// S-044 (R-HUD-10): cada pestaña con la función que ya lo calcula; los paneles solo se rehacen si su contenido cambia (R-VIS-21). "El tablero" y
+	// "Cómo se juega" no cambian en la partida: se rellenan al construir.
+	GrimoirePanel->SetYou(Soulbound::Presentation::GrimoireYouView(State, Context.HumanSeat, GrimoireTexts, SeatColors));
+	TArray<bool> Forgotten;
+	TArray<FLinearColor> Domains;
+	for (int32 Id = 0; Id < State.Board.Domains.Num(); ++Id)
+	{
+		Forgotten.Add(IsDomainShownForgotten(Id));
+		Domains.Add(DomainColor(Id));
+	}
+	GrimoirePanel->SetTable(Soulbound::Presentation::GrimoireTableRows(State, Context.HumanSeat, Forgotten, SeatColors, Domains));
+	if (State.EventLog.Num() != GrimoireChronicleCount)
+	{
+		GrimoireChronicleCount = State.EventLog.Num();
+		GrimoirePanel->SetChronicle(Soulbound::Presentation::ChronicleLines(State, InstructionNotes, ChronicleLookNow()));
+	}
 }
 
 void ABoardViewActor::HandleRingOpened()
@@ -2796,6 +2879,8 @@ void ABoardViewActor::HandleRingOpened()
 	{
 		return;
 	}
+	// S-044 (R-HUD-11): el anillo del humano cierra el Grimorio en el acto (TickHud también lo ve, en su siguiente pasada).
+	CloseGrimoire();
 	// El título se fija al abrir: al cerrarse, el anfitrión ya no tiene la prueba. Desde S-042 (R-VIS-30) dice qué te juegas, también en el resultado.
 	LastRingTitle = Soulbound::Presentation::RingStakeTitle(HostPtr->GetRingTrial(), HostPtr->IsRingDuel());
 	LastRingShownUntil = 0.0;
@@ -2929,6 +3014,8 @@ FMargin ABoardViewActor::NoticeMarginNow(int32 FontSize) const
 	AddZone(StatusPanel, !bDebugTextHidden);
 	// S-040 (R-HUD-7): también la caja de la línea de objetivo, abajo a la izquierda. Ninguna tecla la oculta, así que cuenta aunque los paneles no se vean.
 	AddWidgetZone(GoalPanel);
+	// S-044 (R-HUD-12): y el botón del Grimorio, abajo a la derecha, por la misma razón.
+	AddWidgetZone(GrimoireButton);
 	// S-040, corrección tras PIE del 16/11/2026 de un defecto de S-039: el panel de decisión, mientras está a la vista. Sin él, un clic cerca del panel
 	// ponía el aviso encima de "Tu turno" y "Has sacado". Su visibilidad la lleva la caja que lo envuelve; IsDecisionPanelVisible dice lo mismo.
 	if (IsDecisionPanelVisible())

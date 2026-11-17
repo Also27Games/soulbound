@@ -89,7 +89,7 @@
     "¿Esperabas salir? [risa] Qué conmovedor… Me hiciste perder el tiempo. Ahora pagarás las consecuencias."
   ]},
   {"id": "instruccion:tirar", "lines": ["Te toca. Tira el dado; luego ya veremos si te sirve de algo."]},
-  {"id": "instruccion:elegir-casilla", "lines": ["Las casillas que brillan son tuyas por un momento. Elige una. Solo una."]},
+  {"id": "instruccion:elegir-casilla", "lines": ["Las casillas que laten son tuyas por un momento. Elige una. Solo una."]},
   {"id": "instruccion:nicho", "lines": ["Un trono vacío. Un Elegido que espera. Llega antes que los demás y te prestará sus poderes. Corre."]},
   {"id": "instruccion:fuente", "lines": ["Una Fuente. Coge la runa: seis distintas y eres libre. Cada una despierta un poder de tu Elegido… si tienes uno. Me encanta veros fallar."]},
   {"id": "instruccion:dilema", "lines": ["Poco tiempo. Elige… o lo hago yo por ti. Te va a encantar. [risa]"]},
@@ -102,6 +102,7 @@
   {"id": "instruccion:robar", "lines": ["Alguien con runas, en tu casilla. Elige robar y jugamos a mi trilero: yo mezclo, tú señalas. Sigue la que te falta… y no tardes."]},
   {"id": "instruccion:vacio", "lines": ["El Vacío. Aquí nadie te roba, nadie te reta… nadie te echa de menos. En tu turno, el anillo decide si sales."]},
   {"id": "instruccion:anillo", "lines": ["Un aro, una runa y una franja verde. Clic cuando el aro toque la runa. Hasta tú puedes entenderlo… La barra dirá cuánto vales."]},
+  {"id": "instruccion:grimorio", "lines": ["Tienes poderes y no sabes cuáles. Pulsa G y lee tu Grimorio… si es que sabes leer."]},
   {"id": "insolencia:leve", "lines": [
     "Me has hecho esperar… Considéralo un pequeño recordatorio de quién manda aquí.",
     "Tu tardanza me irrita… Procura no convertir mi paciencia en un recuerdo.",

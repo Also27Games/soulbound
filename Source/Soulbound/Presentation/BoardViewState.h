@@ -136,6 +136,15 @@ namespace Soulbound::Presentation
 	SOULBOUND_API FString KeyHintText(const FString& KeyDisplayName);
 
 	/**
+	 * El nombre de una tecla en el texto del juego, en español donde lo haya (S-044, corrección del autor del 17/11/2026; nombre propuesto): Unreal da
+	 * los nombres en inglés ("Enter", "Left"), y el juego dice "Intro", "flecha izquierda"… Las letras, números y teclas de función, tal cual. Es la única
+	 * traducción: la usan KeyHintText y los textos del Grimorio.
+	 * @param KeyDisplayName El nombre que da Unreal a la tecla (FKey::GetDisplayName).
+	 * @return El nombre en español, o el mismo si no hay traducción.
+	 */
+	SOULBOUND_API FString SpanishKeyName(const FString& KeyDisplayName);
+
+	/**
 	 * Si el tablero está en penumbra (S-043, R-VIS-31, nombre propuesto): mientras la Noche de los Ecos está activa y la partida no ha terminado.
 	 * @param State Estado de la partida, en solo lectura.
 	 * @return true con la Noche activa y la partida en juego.

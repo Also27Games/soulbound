@@ -26,13 +26,13 @@ namespace
 	/** Nombre en la clave de cada momento de instrucción, en el orden de EInstructionMoment. */
 	const TCHAR* const InstructionNames[] = {
 		TEXT("tirar"), TEXT("elegir-casilla"), TEXT("nicho"), TEXT("fuente"), TEXT("dilema"), TEXT("duelo"), TEXT("orbe"), TEXT("voto"),
-		TEXT("seis-runas"), TEXT("insolencia"), TEXT("eco"), TEXT("robar"), TEXT("vacio"), TEXT("anillo"),
+		TEXT("seis-runas"), TEXT("insolencia"), TEXT("eco"), TEXT("robar"), TEXT("vacio"), TEXT("anillo"), TEXT("grimorio"),
 	};
 
 	constexpr int32 RemarkCount = UE_ARRAY_COUNT(RemarkNames);
 	constexpr int32 InstructionCount = UE_ARRAY_COUNT(InstructionNames);
 	static_assert(RemarkCount == static_cast<int32>(EWardenRemarkKind::NotThisTime) + 1, "Un nombre por tipo de comentario");
-	static_assert(InstructionCount == static_cast<int32>(EInstructionMoment::Ring) + 1, "Un nombre por momento de instrucción");
+	static_assert(InstructionCount == static_cast<int32>(EInstructionMoment::Grimoire) + 1, "Un nombre por momento de instrucción");
 }
 
 namespace Soulbound::Rules

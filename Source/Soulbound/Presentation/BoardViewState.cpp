@@ -91,8 +91,32 @@ FString Soulbound::Presentation::KeyHintText(const FString& KeyDisplayName)
 	{
 		return FString();
 	}
-	// Unreal llama "Enter" a la tecla Intro; el texto del juego va en español.
-	return TEXT("o pulsa ") + (KeyDisplayName == TEXT("Enter") ? FString(TEXT("Intro")) : KeyDisplayName);
+	// Unreal llama "Enter" a la tecla Intro; el texto del juego va en español (SpanishKeyName, desde S-044).
+	return TEXT("o pulsa ") + SpanishKeyName(KeyDisplayName);
+}
+
+FString Soulbound::Presentation::SpanishKeyName(const FString& KeyDisplayName)
+{
+	// S-044 (corrección del autor del 17/11/2026): los nombres de Unreal de las teclas que no son letras, números ni de función, en español.
+	static const TMap<FString, FString> Names{
+		{TEXT("Enter"), TEXT("Intro")},
+		{TEXT("Left"), TEXT("flecha izquierda")},
+		{TEXT("Right"), TEXT("flecha derecha")},
+		{TEXT("Up"), TEXT("flecha arriba")},
+		{TEXT("Down"), TEXT("flecha abajo")},
+		{TEXT("Space Bar"), TEXT("Espacio")},
+		{TEXT("Tab"), TEXT("Tabulador")},
+		{TEXT("Backspace"), TEXT("Retroceso")},
+		{TEXT("Delete"), TEXT("Supr")},
+		{TEXT("Insert"), TEXT("Insert")},
+		{TEXT("Home"), TEXT("Inicio")},
+		{TEXT("End"), TEXT("Fin")},
+		{TEXT("Page Up"), TEXT("Re Pág")},
+		{TEXT("Page Down"), TEXT("Av Pág")},
+		{TEXT("Escape"), TEXT("Esc")},
+	};
+	const FString* Spanish = Names.Find(KeyDisplayName);
+	return Spanish ? *Spanish : KeyDisplayName;
 }
 
 TArray<bool> Soulbound::Presentation::ForgottenDomainsShown(const FMatchState& State, bool bInPrologue, int32 OpeningLinesShown)

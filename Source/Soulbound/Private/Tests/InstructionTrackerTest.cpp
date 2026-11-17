@@ -283,7 +283,8 @@ bool FInstructionEchoTest::RunTest(const FString& Parameters)
 		FInstructionTracker Tracker;
 		State.Seats[InsHuman].Role = ESeatRole::Elect;
 		InsAdd(State, EMatchEventType::BondRaceEnded, INDEX_NONE, 1);
-		TestEqual(TEXT("El humano vinculado: nada"), Tracker.Observe(State, InsHumans()).Num(), 0);
+		// Desde S-044 (R-HUD-13) un humano vinculado recibe la del Grimorio; lo que se comprueba aquí es que no recibe eco.
+		TestFalse(TEXT("El humano vinculado: no es eco"), InsMoments(Tracker.Observe(State, InsHumans())).Contains(EInstructionMoment::Echo));
 	}
 	{
 		FMatchState State = InsMakeState();
@@ -373,6 +374,69 @@ bool FInstructionRingTest::RunTest(const FString& Parameters)
 	FMatchState Next = InsMakeState();
 	Fresh.Observe(Next, InsHumans());
 	TestEqual(TEXT("En la partida nueva vuelve a darse"), InsMoments(Fresh.RingOpened(InsHumans())), TArray<EInstructionMoment>{EInstructionMoment::Ring});
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FInstructionGrimoireTest, "Soulbound.Game.Presentation.Instrucciones.MomentoDelGrimorio", InstructionTestFlags)
+
+bool FInstructionGrimoireTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-24 (R-HUD-13, corrección del autor del 17/11/2026): el momento del Grimorio se da la primera vez que el humano tiene de verdad algo que
+	// consultar, mirando el estado: al vincularse (una afinidad) y, si es un Eco, al tener la runa de su hogar (Celeridad); no por una runa de otro
+	// Dominio; una sola vez; no por lo que les pase a otros asientos. No cuenta para el texto de petición, como las Ayudas de S-027.
+	{
+		FMatchState State = InsMakeState();
+		FInstructionTracker Tracker;
+		TestEqual(TEXT("Un Eco en la carrera, sin nada: nada"), Tracker.Observe(State, InsHumans()).Num(), 0);
+		State.Seats[InsDummy].Role = ESeatRole::Elect;
+		State.Seats[InsDummy].DomainId = 1;
+		TestEqual(TEXT("Se vincula un dummy: nada"), Tracker.Observe(State, InsHumans()).Num(), 0);
+		State.Seats[InsHuman].Role = ESeatRole::Elect;
+		State.Seats[InsHuman].DomainId = 0;
+		const TArray<FInstructionCue> Cues = Tracker.Observe(State, InsHumans());
+		TestEqual(TEXT("Se vincula el humano: el Grimorio"), InsMoments(Cues), TArray<EInstructionMoment>{EInstructionMoment::Grimoire});
+		if (Cues.Num() == 1)
+		{
+			TestEqual(TEXT("Para su asiento"), Cues[0].Seat, InsHuman);
+		}
+		State.Seats[InsHuman].Runes[0] = 1;
+		TestEqual(TEXT("Una sola vez, aunque luego tenga poderes"), Tracker.Observe(State, InsHumans()).Num(), 0);
+	}
+	{
+		// Un Eco tras la carrera, con hogar en el Dominio 1.
+		FMatchState State = InsMakeState();
+		State.MatchPhase = EMatchPhase::RuneHunt;
+		State.Seats[InsHuman].DomainId = 1;
+		FInstructionTracker Tracker;
+		TestEqual(TEXT("Eco con hogar, sin runas: nada"), Tracker.Observe(State, InsHumans()).Num(), 0);
+		State.Seats[InsHuman].Runes[0] = 1;
+		TestEqual(TEXT("Eco con una runa de otro Dominio: nada (no le da poderes)"), Tracker.Observe(State, InsHumans()).Num(), 0);
+		State.Seats[InsDummy].DomainId = 0;
+		State.Seats[InsDummy].Runes[0] = 1;
+		TestEqual(TEXT("Un dummy Eco con la runa de su hogar: nada"), Tracker.Observe(State, InsHumans()).Num(), 0);
+		State.Seats[InsHuman].Runes[1] = 1;
+		const TArray<FInstructionCue> Cues = Tracker.Observe(State, InsHumans());
+		TestEqual(TEXT("Eco con la runa de su hogar (Celeridad): el Grimorio"), InsMoments(Cues), TArray<EInstructionMoment>{EInstructionMoment::Grimoire});
+		if (Cues.Num() == 1)
+		{
+			TestEqual(TEXT("Para su asiento"), Cues[0].Seat, InsHuman);
+		}
+	}
+	{
+		// En la carrera, un Eco no tiene hogar ni poderes, tenga las runas que tenga.
+		FMatchState State = InsMakeState();
+		FInstructionTracker Tracker;
+		State.Seats[InsHuman].Runes[0] = 1;
+		State.Seats[InsHuman].Runes[1] = 1;
+		TestEqual(TEXT("Eco en la carrera con runas: nada"), Tracker.Observe(State, InsHumans()).Num(), 0);
+	}
+	{
+		// No cuenta para el texto de petición: nueve de las diez de S-021 y la del Grimorio siguen siendo nueve.
+		TArray<FString> Seen = InsAllKeys();
+		Seen.RemoveAt(0);
+		Seen.Add(Soulbound::Rules::InstructionKey(EInstructionMoment::Grimoire));
+		TestTrue(TEXT("Automático con nueve y la del Grimorio: visible"), Soulbound::Presentation::ShowsRequestHints(EHintsMode::Automatic, Seen));
+	}
 	return true;
 }
 

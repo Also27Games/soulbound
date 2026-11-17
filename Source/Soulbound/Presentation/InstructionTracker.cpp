@@ -1,6 +1,7 @@
 #include "InstructionTracker.h"
 
 #include "Match/MatchState.h"
+#include "Match/RuneRules.h"
 #include "Match/VictoryRules.h"
 
 namespace
@@ -13,7 +14,7 @@ namespace
 		EInstructionMoment::Roll, EInstructionMoment::ChooseTile, EInstructionMoment::Niche, EInstructionMoment::Source, EInstructionMoment::Dilemma,
 		EInstructionMoment::Duel, EInstructionMoment::Orb, EInstructionMoment::Vote, EInstructionMoment::SixRunes, EInstructionMoment::Insolence,
 	};
-	static_assert(static_cast<int32>(EInstructionMoment::Ring) < 32, "Un bit por momento en FInstructionTracker::Given");
+	static_assert(static_cast<int32>(EInstructionMoment::Grimoire) < 32, "Un bit por momento en FInstructionTracker::Given");
 
 	uint32 Bit(EInstructionMoment Moment)
 	{
@@ -150,6 +151,18 @@ namespace Soulbound::Presentation
 			if (Soulbound::Rules::RuneTypeCount(Seat) == Soulbound::Board::DomainCount)
 			{
 				Give(EInstructionMoment::SixRunes, FirstHuman);
+				break;
+			}
+		}
+		// S-044 (R-HUD-13, corrección del autor del 17/11/2026): la primera vez que un humano tiene de verdad algo que consultar en el Grimorio, una
+		// afinidad (es Elegido) o un poder activo (un Eco con la runa de su hogar, Celeridad). Del estado, no de un evento: así "Tienes poderes…" es
+		// siempre cierto.
+		for (const int32 Human : HumanSeats)
+		{
+			if (State.Seats.IsValidIndex(Human)
+				&& (State.Seats[Human].Role == ESeatRole::Elect || !Soulbound::Rules::GetActivePowers(State, Human).IsEmpty()))
+			{
+				Give(EInstructionMoment::Grimoire, Human);
 				break;
 			}
 		}

@@ -61,7 +61,7 @@ bool FVoiceLinesLoaderTest::RunTest(const FString& Parameters)
 	// la decimosexta.
 	// Los eventos que no están en ningún saco pueden tener frase, pero no se exige (decisión del autor del 28/10/2026).
 	const int32 RemarkCount = static_cast<int32>(EWardenRemarkKind::NotThisTime) + 1;
-	const int32 InstructionCount = static_cast<int32>(EInstructionMoment::Ring) + 1;
+	const int32 InstructionCount = static_cast<int32>(EInstructionMoment::Grimoire) + 1;
 	const int32 InBag = Events.Events.FilterByPredicate([](const FWardenEventDef& Event) { return Event.bInBag; }).Num();
 	TestEqual(TEXT("Once tipos de comentario"), RemarkCount, 11);
 	TestTrue(TEXT("Hay eventos fuera de los sacos (los de S-014) y dentro"), InBag > 0 && InBag < Events.Events.Num());
@@ -200,6 +200,47 @@ bool FVoiceNewHintsTest::RunTest(const FString& Parameters)
 		TestEqual(FString::Printf(TEXT("Sin %s: falta una clave"), *Key), static_cast<int32>(Result.Error), static_cast<int32>(EWardenLinesError::MissingKey));
 		TestTrue(FString::Printf(TEXT("Sin %s: el motivo la nombra"), *Key), Result.Message.Contains(Key));
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceGrimoireHintTest, "Soulbound.Core.Voice.InstruccionDelGrimorio",
+	EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::EngineFilter)
+
+bool FVoiceGrimoireHintTest::RunTest(const FString& Parameters)
+{
+	// S-044 (R-HUD-13, y los datos de la story): `instruccion:grimorio` es la clave del momento nuevo y el cargador la exige como las demás
+	// instrucciones (corrección del autor del 17/11/2026: la story decía que era opcional y no lo es ninguna). El frases.json del repositorio la trae
+	// con el texto aprobado por el autor el 17/11/2026, y `instruccion:elegir-casilla` dice ya que las casillas laten (S-039), no que brillan.
+	FWardenEventTable Events;
+	FElectsTable Elects;
+	if (!Soulbound::Tests::LoadTestWardenEvents(*this, Events) || !Soulbound::Tests::LoadTestElects(*this, Elects))
+	{
+		return false;
+	}
+	const FString Key = TEXT("instruccion:grimorio");
+	TestEqual(TEXT("La clave del momento Grimoire"), Soulbound::Rules::InstructionKey(EInstructionMoment::Grimoire), Key);
+	const TArray<FString> Required = Soulbound::Rules::RequiredWardenLineKeys(Events, Elects);
+	TestTrue(TEXT("Se exige instruccion:grimorio"), Required.Contains(Key));
+
+	const FWardenLinesLoadResult Loaded = Soulbound::Rules::LoadWardenLinesFromFile(Soulbound::Tests::WardenLinesPath(), Required);
+	if (!TestTrue(FString::Printf(TEXT("frases.json del repositorio carga con la del Grimorio (%s)"), *Loaded.Message), Loaded.IsSuccess()))
+	{
+		return false;
+	}
+	const auto FirstLine = [&Loaded](const FString& Id) -> FString
+	{
+		const FWardenLineEntry* Entry = Loaded.Table.Entries.FindByPredicate([&Id](const FWardenLineEntry& Candidate) { return Candidate.Id == Id; });
+		return Entry && !Entry->Lines.IsEmpty() ? Entry->Lines[0] : FString();
+	};
+	TestEqual(TEXT("El texto del Grimorio, el aprobado"), FirstLine(Key), FString(TEXT("Tienes poderes y no sabes cuáles. Pulsa G y lee tu Grimorio… si es que sabes leer.")));
+	TestEqual(TEXT("Elegir casilla: las casillas laten"), FirstLine(TEXT("instruccion:elegir-casilla")),
+		FString(TEXT("Las casillas que laten son tuyas por un momento. Elige una. Solo una.")));
+
+	FWardenLineTable Without = Loaded.Table;
+	Without.Entries.RemoveAll([&Key](const FWardenLineEntry& Candidate) { return Candidate.Id == Key; });
+	const FWardenLinesLoadResult Result = Soulbound::Rules::ValidateWardenLines(Without, Required);
+	TestEqual(TEXT("Sin ella: falta una clave"), static_cast<int32>(Result.Error), static_cast<int32>(EWardenLinesError::MissingKey));
+	TestTrue(TEXT("Y el motivo la nombra"), Result.Message.Contains(Key));
 	return true;
 }
 
