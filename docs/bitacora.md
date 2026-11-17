@@ -23,18 +23,26 @@ La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar
   - 3 actualizados: `ComoSeJuega.ArchivoDelRepositorio`, `Grimorio.TableroComoSeJuegaYCronica` y `Grimorio.TeclasEnEspanol`.
   - 3 borrados (`ArchivoQueNoExiste`, que pasa a `Errores`; `TitulosEnOrden` y `TextoParaUGT`), que comprobaban la lista de títulos y el texto sin almohadillas, ya inexistentes.
   - Vistos en rojo con implementaciones vacías (11 fallidos, todos los nuevos o actualizados) y en verde después: 580.
-- **Pruebas manuales**: pendientes del autor en PIE, a 1920x1080 y a 1024x768: las del final de la story, con y sin la imagen del libro.
+- **Pruebas manuales**: el autor las pasó en PIE el 17/11 con `T_GrimorioFondo` importado.
+  - Superado: sin imagen se ve como antes; el libro por páginas con sus botones, las flechas, "N de M", la página de teclas y el recuerdo; con la imagen, el libro abierto en las cinco pestañas, sin nada que cruce el lomo ni pise el borde. Los márgenes iniciales valen.
+  - Pendientes: las páginas con imagen y con comentario del Warden, hasta tener el texto y las capturas.
+- **Correcciones del autor tras PIE (17/11)**, pasadas a la story con sus criterios:
+  - (1) Los poderes de "Tú" se cortaban por el borde derecho: se partían al ancho de la página más estrecha sin restar su sangría ni la barra de desplazamiento. Ahora cada texto se parte al ancho de su propia columna con `GrimoireColumnTextWidth`, y las barras tienen grosor y margen fijos (CA-HUD-39).
+  - (2) El título ocupaba tres líneas: dice solo "Grimorio", y las teclas van al pie, una mitad por página (`GrimoireFootHints`, CA-HUD-40). "La partida sigue" desaparece del título.
+  - (3) Sobre el libro, sin la caja negra de la crónica ni el fondo de la tarjeta.
+  - (4) Fuente propia opcional en Config (`GrimoireFont`, con los nombres de sus tipos), con aviso si falta (`GrimoireFontInfo`, CA-HUD-41).
+  - 3 tests nuevos, vistos en rojo (3 fallidos) y en verde: 583.
 - **Pendiente**:
-  - Las pruebas manuales.
-  - Los valores de `GrimoireBackgroundMargin` (0,08), `GrimoirePageInset` y `GrimoireSpineGap` se pusieron sin ver la imagen; se ajustan en PIE.
-  - Los assets del autor: `T_GrimorioFondo`, `T_GrimorioPortada` y las capturas `T_Ayuda_*`.
+  - Las pruebas manuales de las páginas con imagen y comentario, y de las cuatro correcciones.
+  - Los assets del autor: `T_GrimorioPortada`, las capturas `T_Ayuda_*` y `F_Grimorio`.
+  - Los tamaños de letra del libro, que se ajustan con el texto final.
   - El widget del menú que lee las páginas, y después quitar `HowToPlayText` (`TODO(R-HUD-19)`).
   - `como-se-juega.md` sigue con su párrafo de teclas, que nombra H y P y ahora repite la página "Teclas".
 - **Proceso**:
-  - Tiempo: agente Opus 5.5 en una conversación nueva; unos 30 minutos desde el plan aprobado hasta el PR.
+  - Tiempo: agente Opus 5.5 en una conversación nueva; unos 30 minutos desde el plan aprobado hasta el PR, y unos 35 más para las cuatro correcciones del autor tras PIE.
   - Preguntas que pararon al agente: una parada, el plan con siete dudas.
-  - Correcciones tras fusionar: (las rellena el autor).
-  - Build y tests: en rojo y en verde compiló y pasó a la primera.
+  - Correcciones tras fusionar: (las rellena el autor). Antes de fusionar, cuatro, tras PIE; la primera fue un fallo del agente: el ancho de partir no restaba sangrías ni la barra de desplazamiento.
+  - Build y tests: en rojo y en verde compiló y pasó a la primera, también en las correcciones.
 
 ## S-045. La pantalla queda limpia: arriba, la partida; abajo, tú; lo demás, en el Grimorio (17/11/2026, rama `story/S-045-la-pantalla-queda-limpia`, base `main`)
 
