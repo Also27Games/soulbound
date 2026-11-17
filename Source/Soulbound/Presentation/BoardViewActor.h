@@ -5,10 +5,13 @@
 #include "InputCoreTypes.h"
 #include "BoardKit.h"
 #include "BoardLayout.h"
+#include "ChronicleLines.h"
 #include "ColumnTab.h"
 #include "DecisionText.h"
 #include "ElectCard.h"
 #include "FlashCues.h"
+#include "GrimoireBook.h"
+#include "HowToPlay.h"
 #include "InstructionTracker.h"
 #include "UnreachableNotice.h"
 #include "Match/RingRules.h"
@@ -440,6 +443,13 @@ public:
 	int32 ChronicleMaxLines = 300;
 
 	/**
+	 * Alto del Grimorio, en fracción del alto de la pantalla (S-044, R-HUD-10): fijo, para que no cambie de tamaño al cambiar de pestaña; lo que no cabe
+	 * se desplaza con la rueda dentro de la pestaña. Valor inicial 0,8: a 1024x768 cabe con su margen.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0.3", ClampMax = "0.95"))
+	float GrimoireHeightFraction = 0.8f;
+
+	/**
 	 * Segundos que se enseña cada frase de la línea del Warden, grande en la parte baja de la pantalla, o hasta la siguiente línea (S-021,
 	 * R-VOZ-1 sin audio). Valor inicial 6; en DefaultGame.ini. Desde S-041 (R-VOZ-6) es el mínimo: una frase larga dura más (WardenLineSecondsPerChar).
 	 */
@@ -655,9 +665,19 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey DebugTextToggleKey = EKeys::T;
 
-	/** Tecla que abre y cierra el Grimorio (S-027, R-HUD-4). Valor inicial G. */
+	/** Tecla que abre y cierra el Grimorio (S-027, R-HUD-4). Valor inicial G. Desde S-044 hace lo mismo su botón (R-HUD-12); no abre durante un anillo del humano (R-HUD-11). */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey GrimoireKey = EKeys::G;
+
+	/**
+	 * Teclas que pasan a la pestaña anterior y a la siguiente del Grimorio, de forma cíclica, solo con el Grimorio abierto (S-044, R-HUD-10, aceptado
+	 * por el autor el 17/11/2026). Valores iniciales flecha izquierda y flecha derecha: ni el panel de decisión ni la vista las usan.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	FKey GrimoirePreviousTabKey = EKeys::Left;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	FKey GrimoireNextTabKey = EKeys::Right;
 
 	/**
 	 * Tecla que muestra y oculta el panel de depuración (S-027, R-HUD-2). Valor inicial D (decisión del autor del 9/11/2026: F1 es una tecla de
@@ -931,8 +951,24 @@ private:
 	void ToggleDebugText();
 	/** Muestra u oculta el panel de depuración (S-027, R-HUD-2). Al empezar, oculto. */
 	void ToggleDebugPanel();
-	/** Abre o cierra el Grimorio (S-027, R-HUD-4); abierto, se rellena en el acto. */
+	/**
+	 * Abre o cierra el Grimorio (S-027, R-HUD-4); abierto, se rellena en el acto. Desde S-044 se abre siempre en "Tú" (R-HUD-10) y no se abre durante un
+	 * anillo del humano (R-HUD-11); la tecla y el botón llaman aquí.
+	 */
 	void ToggleGrimoire();
+	/** Cierra el Grimorio si está abierto (S-044, R-HUD-11: al aparecer una decisión propia nueva o un anillo; H también lo cierra). */
+	void CloseGrimoire();
+	/** La pestaña anterior y la siguiente del Grimorio, con sus teclas (S-044, R-HUD-10); cerrado, no hacen nada. */
+	void PreviousGrimoireTab();
+	void NextGrimoireTab();
+	/** Rellena el Grimorio abierto con el estado de ahora: cada pestaña solo se rehace si su contenido cambia (S-044, R-VIS-21). */
+	void RefreshGrimoire(const FMatchState& State, const Soulbound::Presentation::FStatusContext& Context);
+	/** Lo que pintan la leyenda de la columna y "El tablero" del Grimorio (S-044, BoardLegendRows): kit, suelo de los Olvidados y colores de la vista. */
+	Soulbound::Presentation::FBoardLegendLook BoardLegendLookNow() const;
+	/** Colores, asiento del anillo y límite de la crónica (S-044, ChronicleLines). */
+	Soulbound::Presentation::FChronicleLook ChronicleLookNow() const;
+	/** Si el botón del Grimorio se ve ahora (S-044, R-HUD-12): IsGrimoireButtonShown con la frase del Warden de este frame, y nunca con el telón. */
+	bool IsGrimoireButtonVisibleNow();
 	/** Cambia la pestaña de la columna de la derecha (S-035, R-HUD-4): la tecla ColumnTabKey. */
 	void ToggleColumnTab();
 	/** Pone la pestaña activa de la columna (S-035): el clic en su nombre de la cabecera. */
@@ -1188,6 +1224,16 @@ private:
 	TSharedPtr<SWidget> GrimoireOverlay;
 	/** Los textos de grimorio.json, leídos al construir los paneles. */
 	Soulbound::Presentation::FGrimoireTexts GrimoireTexts;
+	/** La pestaña activa del Grimorio (S-044, R-HUD-10): vuelve a "Tú" cada vez que se abre. */
+	Soulbound::Presentation::FGrimoireTabState GrimoireTab;
+	/** Cuándo se cierra solo el Grimorio (S-044, R-HUD-11): mira en cada TickHud si aparece una decisión propia nueva o un anillo. */
+	Soulbound::Presentation::FGrimoireCloseWatch GrimoireCloseWatch;
+	/** El texto de "Cómo se juega" (S-044), leído una vez al construir los paneles con el cargador del menú. */
+	FHowToPlayLoadResult HowToPlayLoaded;
+	/** Cuántos eventos tenía el registro la última vez que se rellenó la crónica del Grimorio; -1, nunca (se rehace al crecer, como la de la columna). */
+	int32 GrimoireChronicleCount = -1;
+	/** El botón del Grimorio (S-044, R-HUD-12): en la capa de la frase del Warden, abajo a la derecha, en espejo de la caja de la línea de objetivo. */
+	TSharedPtr<SWidget> GrimoireButton;
 
 	/**
 	 * La escala de los paneles (S-027, R-HUD-3), calculada por UpdatePanelScale: letra y ancho de la columna de la derecha en unidades de Slate
@@ -1318,16 +1364,10 @@ private:
 	Soulbound::Presentation::FInstructionTracker InstructionTracker;
 
 	/**
-	 * Una instrucción enseñada (S-021, A3): no es un evento del motor, así que la vista la guarda aparte y la mezcla en la crónica. After es el
-	 * índice del último evento del registro cuando se enseñó; la nota va justo después de él.
+	 * Las instrucciones enseñadas (S-021, A3): no son eventos del motor, así que la vista las guarda aparte y ChronicleLines las mezcla en la crónica.
+	 * Desde S-044 el tipo vive en ChronicleLines.h.
 	 */
-	struct FInstructionNote
-	{
-		int32 After = INDEX_NONE;
-		double ClockSeconds = 0.0;
-		FString Text;
-	};
-	TArray<FInstructionNote> InstructionNotes;
+	TArray<Soulbound::Presentation::FInstructionNote> InstructionNotes;
 
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> BaseMaterial;

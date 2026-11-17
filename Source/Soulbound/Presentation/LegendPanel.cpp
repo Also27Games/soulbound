@@ -12,8 +12,25 @@ namespace Soulbound::Presentation
 {
 	TArray<FLegendRow> BoardLegendRows(const FBoardLegendLook& Look)
 	{
-		// S-044: stub para ver el test en rojo.
-		return {};
+		// Textos de la leyenda revisados por el autor (13/11/2026). Un solo bloque de casillas: la segunda mitad de cada línea es la misma con o sin
+		// kit; la primera es la losa del kit (S-019) o la forma básica donde falta la pieza.
+		const bool bKit = Look.bKit;
+		TArray<FLegendRow> Rows;
+		Rows.Add({TEXT("Casillas"),
+			{{Look.Altar, bKit ? TEXT("Altar: la plataforma del centro. Aquí se empieza y aquí se gana") : TEXT("Altar: casilla grande y alta. Aquí se empieza y aquí se gana")},
+				{Look.NicheFree, bKit ? TEXT("N Nicho: losa con trono. El primero que llega se vincula a su Elegido") : TEXT("N Nicho: casilla cuadrada con cubo. El primero que llega se vincula a su Elegido")},
+				{Look.Source, bKit ? TEXT("F Fuente: pilón, con la runa flotando mientras le quedan. Aquí se coge la runa de su Dominio") : TEXT("F Fuente: casilla redonda con cruz. Aquí se coge la runa de su Dominio")},
+				{Look.Node, bKit ? TEXT("X Nodo: losa con puntas. Tras la carrera lleva espadas (duelo), orbe (Oráculo) o arco (salto)") : TEXT("X Nodo: rombo con esfera. Tras la carrera lleva espadas (duelo), orbe (Oráculo) o arco (salto)")}}});
+		Rows.Add({TEXT("Nichos"),
+			{{Look.NicheFree, TEXT("Libre")}, {Look.NicheClaimed, TEXT("Reclamado: aro y número de su dueño")}, {Look.NicheClosed, TEXT("Cerrado")}}});
+		// S-040 (R-VIS-27): con el material de los Olvidados cargado, su suelo agrietado.
+		Rows.Add({TEXT("Tablero"),
+			{{Look.Reachable, TEXT("Halo blanco que late: puedes ir ahí")},
+				{Look.SealMark, bKit ? TEXT("Aro rojo y cadenas: sellada, no se pasa") : TEXT("Aro rojo y SELLO: sellada, no se pasa")},
+				{Look.ForgottenRing, Look.bForgottenFloor ? TEXT("Suelo agrietado y casillas apagadas: Dominio Olvidado") : TEXT("Casillas apagadas: Dominio Olvidado")}}});
+		// S-029: lo que se ve al ganar o perder una runa.
+		Rows.Add({FlashLegendText, {}});
+		return Rows;
 	}
 }
 

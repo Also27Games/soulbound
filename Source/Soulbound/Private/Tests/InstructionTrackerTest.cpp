@@ -283,7 +283,8 @@ bool FInstructionEchoTest::RunTest(const FString& Parameters)
 		FInstructionTracker Tracker;
 		State.Seats[InsHuman].Role = ESeatRole::Elect;
 		InsAdd(State, EMatchEventType::BondRaceEnded, INDEX_NONE, 1);
-		TestEqual(TEXT("El humano vinculado: nada"), Tracker.Observe(State, InsHumans()).Num(), 0);
+		// Desde S-044 (R-HUD-13) un humano vinculado recibe la del Grimorio; lo que se comprueba aquí es que no recibe eco.
+		TestFalse(TEXT("El humano vinculado: no es eco"), InsMoments(Tracker.Observe(State, InsHumans())).Contains(EInstructionMoment::Echo));
 	}
 	{
 		FMatchState State = InsMakeState();
