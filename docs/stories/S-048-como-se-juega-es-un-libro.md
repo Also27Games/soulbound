@@ -217,6 +217,30 @@ Criterios:
 
 Notas para la prueba (manual, en PIE): en la primera vista no se ve "Anterior" y en la última no se ve "Siguiente", con el libro y sin él, y "N de M" no se mueve; cuatro clics rápidos en "Siguiente" pasan cuatro vistas, y en "Anterior" vuelven cuatro; clics rápidos en las pestañas pasan una por clic; un doble clic sobre el Grimorio no hace nada en el tablero.
 
+## Retoques de "La mesa" (18/11/2026)
+
+Probada "La mesa" en PIE a 1024x768. Con las seis runas la hoja del jugador no cabe: sale la barra y se corta la última línea. En la hoja derecha, la línea de un Brazal revelado se parte en tres y no se sabe qué runa da qué poder. Cuatro retoques. Plan aprobado el mismo día, con estas decisiones del autor: en un Eco con el Brazal revelado, la runa de su hogar dice su poder, Celeridad (R-ECO-7); la línea del asiento sigue el orden de hoy; el cuadrito de las runas de la hoja izquierda no cambia; los números del aire, los que propone el agente.
+
+- **R-HUD-10, precisión: la cabecera de la hoja del jugador, en una línea.** Sin la palabra "ELEGIDO:": un Elegido, "Asiento 0 (tú) · Tifón · D4 La Ruina Tormentosa"; un Eco sin hogar, "Asiento 0 (tú) · Eco"; un Eco con hogar, "Asiento 0 (tú) · Eco · hogar en D3 El Descenso" (`GrimoireCardHeader`, nombre propuesto). Solo en la hoja del jugador: la tarjeta del Elegido de S-029 conserva su cabecera.
+- **R-HUD-10, precisión: la hoja del jugador no lleva la línea "Poderes activos".** Ya lo dice "(ACTIVO)" en cada runa. La tarjeta del Elegido de S-029 la conserva.
+- **R-HUD-10 y R-RUN-7, precisión: un Brazal revelado en "Jugadores".** La línea del asiento acaba en "BRAZAL REVELADO hasta la ronda N", con las marcas que ya llevaba detrás en el mismo orden (" | ASPIRANTE" y " | poderes: Paso Libre (afinidad)", cuando corresponden), y va en negrita. Sin runas, " | 0 runas" tras la línea y nada debajo. Con runas, debajo, con sangría, una muestra por cada tipo que tiene: el cuadrito del color de su Dominio y "D2 ×1: Celeridad", con el formato de las runas de la hoja del jugador, sin "(ACTIVO)" y sin la descripción del poder (`GrimoireRuneLabel`, nombre propuesto); una runa que no le da poder, "D3 ×1". Las muestras se reparten por la línea mientras quepan, empezando bajo el texto del asiento. Los asientos con el Brazal oculto y el humano no cambian.
+- **R-HUD-10, precisión: el aire de la hoja derecha.** El cuadrito de cada muestra se alinea con la primera línea de su texto, no con el centro (`LegendChipTopPadding`, nombre propuesto). Entre el bloque "Jugadores" y "Los seis Dominios y su Elegido", 12 (antes, 2); entre una entrada y la siguiente, 4 (antes, 2); entre las muestras de runa, 12 en horizontal y 2 en vertical. Son constantes con nombre. La letra no cambia de tamaño. Límite: a 1024x768, con un Brazal revelado de seis tipos, la hoja derecha no saca barra; si no cabe, lo primero que se baja es el hueco entre bloques.
+
+Criterios:
+
+- **CA-HUD-66** (R-HUD-10). La cabecera de la hoja del jugador es "Asiento 0 (tú) · Tifón · D4 La Ruina Tormentosa" para un Elegido, "Asiento 0 (tú) · Eco" para un Eco sin hogar y "Asiento 0 (tú) · Eco · hogar en D3 El Descenso" para un Eco con hogar; la de la tarjeta del Elegido, la de hoy, con "ELEGIDO:".
+- **CA-HUD-67** (R-HUD-10). La hoja del jugador construida no tiene ningún texto "Poderes activos" y sí su cabecera nueva; la tarjeta del Elegido construida tiene los dos como hoy.
+- **CA-HUD-68** (R-HUD-10, R-RUN-7, R-ECO-7). En "Jugadores", un asiento con el Brazal revelado lleva su línea de la leyenda, en negrita, sin sus tipos dentro, y una muestra por tipo de runa que tiene, con el color de su Dominio y su texto ("D0 ×2: …", sin "(ACTIVO)"; sin poder, sin dos puntos); un Eco revelado, Celeridad en la runa de su hogar; sin runas, " | 0 runas" y ninguna muestra; "Paso Libre (afinidad)" sigue en la línea. Los asientos con el Brazal oculto y el humano, sin negrita ni muestras, como antes. Las runas de la hoja del jugador llevan el mismo texto, con "(ACTIVO)" en las activas.
+- **CA-HUD-69** (R-HUD-10). El desplazamiento del cuadrito, dada la altura de la línea y el tamaño del cuadrito, lo centra en la primera línea; si el cuadrito es más alto que la línea, cero. La función es pura: la altura de la línea se mide con la fuente solo al pintar.
+- Las separaciones y el límite de 1024x768 no llevan test: son aspecto y dependen de cómo mide la letra Slate en pantalla. Se comprueban en PIE.
+
+Notas para la prueba (manual, en PIE, a 1024x768):
+
+1. La hoja del jugador con las seis runas, como Elegido y como Eco: la cabecera en una línea, sin "ELEGIDO:", sin "Poderes activos" al final y sin barra.
+2. Un Brazal revelado de otro asiento, con seis tipos: su línea en negrita, acabada en "BRAZAL REVELADO hasta la ronda N", y las muestras debajo, repartidas por la línea, bajo el texto del asiento; la hoja derecha, sin barra.
+3. Los cuadritos de las líneas que se parten, a la altura de la primera línea; más aire entre los dos bloques y entre las entradas.
+4. La tarjeta del Elegido de S-029, como antes.
+
 ## Fuera de esta story
 
 - Escribir o corregir el texto del libro y hacer sus capturas (lo hace el autor).
