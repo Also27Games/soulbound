@@ -49,18 +49,21 @@ La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar
   - Marca de agua en cada hoja (`GrimoireWatermarks`, `HowToPlayWatermarkTexture`, opacidad 0,25, tamaño 0,7), detrás de todo, sin recibir clics.
   - El menú monta la página bloque a bloque: `HowToPlayBlockRichText` y `HowToPlayImage`, que sustituye a `HowToPlayPageImage`.
   - Tests: 5 nuevos (CA-HUD-53 a CA-HUD-57) y 5 ajustados (CA-HUD-31 a 35). En rojo, 8 fallidos; en verde, 594. El primer intento de los tests en rojo no compiló por un fallo del agente en un test (una tabla con `TPair`).
+- **Ronda de maquetación (18/11)**: superados en PIE la doble página con el texto real, las siete láminas y la marca de agua. Cinco cambios en el resto del Grimorio, con plan aprobado: cabecera con el título a la izquierda y las pestañas a la derecha; la línea del humano en "Jugadores", como la de los demás; muestras una debajo de otra; la descripción del poder, bajo su runa.
+  - Tres pestañas: "La mesa" (la primera y la que abre G), "Cómo se juega" y "Crónica". Fuera "El tablero", con `BoardLegendRows`, `FBoardLegendLook`, `FlashLegendText` y `BoardLegendLookNow`.
+  - "La mesa": a la izquierda la hoja del jugador (`GrimoirePlayerSheet`, que sustituye a `GrimoireYouView`): tarjeta con insolencia y, bajo cada runa con poder, qué hace (`FGrimoireRune::PowerText`); un Eco con hogar, Celeridad en la runa de su hogar. Fuera el bloque "PODERES" y `GrimoirePowerLines`. A la derecha la mesa: "Jugadores", uno por línea (`FLegendRow::bOnePerLine`), con " | N runas"; el humano, con "(tú)" y sin su insolencia ni sus tipos.
+  - Una lámina sola en su página va fuera del desplazamiento, centrada en el hueco real de la hoja (`HowToPlayFullSheetImage`): ya no saca barra.
+  - Tests: 2 nuevos (CA-HUD-59 y 61) y 4 ajustados (CA-HUD-58 sobre el 18, CA-HUD-60 sobre el 20, el 21 sin el tablero y el 34). En rojo, 5 fallidos; en verde, 595. Al pasar la suite salieron dos tests del archivo real que aún pedían título y texto en cada página (CA-CSJ-1 y el del menú de CA-HUD-46): fallaron con el texto repartido por el autor y se ajustan a la regla de la doble página, en su commit. Debieron ajustarse en la ronda anterior.
 - **Pendiente**:
-  - Las pruebas manuales de las páginas con imagen y de las dos ampliaciones: bloques, cursiva, negrita, listas, doble página, subtítulos, imágenes en su sitio, la marca de agua y el texto enriquecido en el menú (el escapado de `& < > "` se comprueba allí).
+  - Las pruebas manuales de las dos ampliaciones y de la ronda de maquetación: "La mesa" con y sin el libro, la cabecera, las descripciones de poderes, las láminas a hoja entera y el texto enriquecido en el menú (el escapado de `& < > "` se comprueba allí).
   - Los assets del autor: `T_GrimorioPortada`, las capturas `T_Ayuda_*` y los tipos `Italic` y `BoldItalic` de `F_Grimorio`; `T_Ayuda_Sello`, ya importado, en su commit.
-  - `como-se-juega.md`, que el autor reparte para la doble página y del que quita las líneas `![](T_Ayuda_Sello)`.
   - Los tamaños de letra del libro, que se ajustan con el texto final.
   - El widget del menú que lee las páginas, y después quitar `HowToPlayText` (`TODO(R-HUD-19)`).
-  - `como-se-juega.md` sigue con su párrafo de teclas, que nombra H y P y ahora repite la página "Teclas".
 - **Proceso**:
-  - Tiempo: agente Opus 5.5 en una conversación nueva; unos 30 minutos desde el plan aprobado hasta el PR, unos 35 más para las cuatro correcciones del autor tras PIE, unos 25 para las tres de la segunda prueba, unos 50 para la ampliación del formato y unos 70 para la doble página.
-  - Preguntas que pararon al agente: tres paradas, cada una un plan con siete dudas (el de la story y el de cada ampliación).
+  - Tiempo: agente Opus 5.5 en una conversación nueva; unos 30 minutos desde el plan aprobado hasta el PR, unos 35 más para las cuatro correcciones del autor tras PIE, unos 25 para las tres de la segunda prueba, unos 50 para la ampliación del formato, unos 70 para la doble página y unos 60 para la ronda de maquetación.
+  - Preguntas que pararon al agente: cuatro paradas, cada una un plan (con siete dudas el de la story y el de cada ampliación; con cuatro y la cabecera, el de la ronda de maquetación).
   - Correcciones tras fusionar: (las rellena el autor). Antes de fusionar, siete, en dos pruebas en PIE; la primera fue un fallo del agente (el ancho de partir no restaba sangrías ni la barra de desplazamiento); la sexta corrige un texto sin tildes anterior a S-048.
-  - Build y tests: en rojo y en verde compiló y pasó a la primera, también en las correcciones, salvo los tests en rojo de la doble página, que necesitaron un segundo intento para compilar.
+  - Build y tests: en rojo y en verde compiló y pasó a la primera, también en las correcciones, salvo los tests en rojo de la doble página, que necesitaron un segundo intento para compilar, y la ronda de maquetación: la implementación no compiló a la primera (faltaba un `#include`) y la suite completa sacó los dos tests del archivo real.
 
 ## S-045. La pantalla queda limpia: arriba, la partida; abajo, tú; lo demás, en el Grimorio (17/11/2026, rama `story/S-045-la-pantalla-queda-limpia`, base `main`)
 
