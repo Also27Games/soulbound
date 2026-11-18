@@ -183,6 +183,26 @@ Criterios, automáticos y sin mundo:
 - **CA-HUD-60** (R-HUD-10, R-HUD-6, R-RUN-7). Las filas de la mesa son una por jugador, con "N runas", bajo el encabezado "Jugadores"; lo que se oculta de los demás es lo mismo que antes. Ajusta CA-HUD-20; CA-HUD-21 pierde la parte del tablero.
 - **CA-HUD-61** (R-HUD-18). La función que da el sitio de una imagen a hoja entera devuelve un rectángulo dentro de la hoja, centrado en horizontal y en vertical, con las proporciones de la imagen, para una imagen apaisada y para una vertical.
 
+## Correcciones tras probar la maquetación (18/11/2026)
+
+Superado en PIE: las tres pestañas, "La mesa" con sus dos hojas, la cabecera y la lámina a hoja entera centrada y sin barra. El autor sube antes el capítulo 9 en una sola hoja (`9fcf79a`; el libro queda en 29 páginas suyas más la de teclas). Quedan tres defectos. Plan aprobado el mismo día, con estas decisiones del autor: el marco de un píxel también en las pestañas; el hueco bajo la cabecera, 16.
+
+- **R-HUD-18 y R-HUD-20, precisión: las proporciones de una imagen del libro son siempre las de su textura**, también en PIE con el editor recién abierto. En el editor, mientras una textura se compila, `GetSizeX` y `GetSizeY` devuelven el tamaño de la textura de relleno, cuadrada (comprobado en el código de la 5.8, `UTexture2D::GetSizeX` e `IsDefaultTexture`); el pincel se quedaba con ese tamaño y las láminas salían cuadradas y con barra. El tamaño se lee de la fuente de la textura (`GetImportedSize`, también en una build empaquetada) y, si no tiene, del de siempre (`GrimoireTextureSize`, nombre propuesto). Vale para las láminas, la imagen del libro y la marca de agua. La runa del anillo y el dado no usan ese tamaño para pintarse y no cambian.
+- **R-HUD-20, precisión: hueco bajo la cabecera.** Entre la fila del título y las pestañas y el contenido de las hojas, 16 (`GrimoireHeaderGap`, nombre propuesto; antes, 8), el mismo en las tres pestañas, con el libro y sin él. Sin el libro, el hueco entre el título y las pestañas no cambia.
+- **R-HUD-18 y R-HUD-10, precisión: los marcos se ven enteros.** El marco de los botones "Anterior" y "Siguiente" y el de las pestañas mide al menos un píxel de pantalla, con cualquier escala (`GrimoireFrameWidth`, nombre propuesto): con una escala menor que 1, un marco de una unidad medía menos de un píxel y un lado podía no pintarse. Hipótesis del agente, sin verificar en el editor; se comprueba en PIE.
+
+Criterios:
+
+- **CA-HUD-62** (R-HUD-18, R-HUD-20). El tamaño de una textura del libro es el de su fuente aunque sus datos derivados digan otro (una fuente de 1642 x 717 con datos de 64 x 64 da 1642 x 717); sin fuente, el de sus datos. No cubre el momento real de la compilación asíncrona del editor, que no se puede provocar en un test: comprobación manual en "Notas para la prueba".
+- **CA-HUD-63** (R-HUD-18, R-HUD-10). El grosor del marco, en unidades, es 1 con escala 1 o mayor, 1,5 con escala 0,667 y 1 con una escala no válida (0 o negativa).
+- El hueco de la cabecera no lleva test: es aspecto. Se comprueba en PIE.
+
+Notas para la prueba (manual, en PIE):
+
+1. Cerrar el editor y abrirlo sin abrir ninguna textura; PIE, G, "Cómo se juega": Carrera y Moverse, apaisadas y sin barra; el Anillo, vertical a hoja entera; la imagen del libro y la marca de agua, sin deformar. Reiniciar PIE y repetir.
+2. El hueco bajo la cabecera, en las tres pestañas, con el libro y sin él.
+3. Los cuatro bordes de "Anterior", "Siguiente" y las pestañas, con el libro y sin él, en ventana pequeña y a pantalla completa.
+
 ## Fuera de esta story
 
 - Escribir o corregir el texto del libro y hacer sus capturas (lo hace el autor).
