@@ -242,14 +242,24 @@ namespace Soulbound::Presentation
 
 	FVector2f GrimoireTextureSize(const UTexture2D* Texture)
 	{
-		// TODO(R-HUD-18): stub de los tests en rojo; se implementa en el commit siguiente.
-		return Texture ? FVector2f(Texture->GetSizeX(), Texture->GetSizeY()) : FVector2f::ZeroVector;
+		if (!Texture)
+		{
+			return FVector2f::ZeroVector;
+		}
+		// La fuente no espera a la compilación de la textura: en el editor es Source.GetLogicalSize(); en una build empaquetada, el tamaño guardado al
+		// cocinar. GetSizeX y GetSizeY, en cambio, dan el de la textura de relleno mientras se compila (UTexture2D::IsDefaultTexture).
+		const FIntPoint Imported = Texture->GetImportedSize();
+		if (Imported.X > 0 && Imported.Y > 0)
+		{
+			return FVector2f(Imported.X, Imported.Y);
+		}
+		return FVector2f(Texture->GetSizeX(), Texture->GetSizeY());
 	}
 
 	float GrimoireFrameWidth(float Scale)
 	{
-		// TODO(R-HUD-18): stub de los tests en rojo; se implementa en el commit siguiente.
-		return 1.f;
+		// Una unidad, salvo que una unidad sea menos de un píxel: entonces, un píxel.
+		return Scale > KINDA_SMALL_NUMBER && Scale < 1.f ? 1.f / Scale : 1.f;
 	}
 
 	FGrimoireWatermarks GrimoireWatermarks(const FGrimoireBookLayout& Book, const FVector2f& TextureSize, float SizeFraction)

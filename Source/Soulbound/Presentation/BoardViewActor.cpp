@@ -1054,7 +1054,8 @@ void ABoardViewActor::BuildOverlay()
 		{
 			FSlateBrush Brush;
 			Brush.SetResourceObject(GrimoireBackground);
-			Brush.ImageSize = FVector2f(GrimoireBackground->GetSizeX(), GrimoireBackground->GetSizeY());
+			// Correcciones tras probar la maquetación (18/11/2026): el tamaño de su fuente, no el de una textura que aún se compila.
+			Brush.ImageSize = Soulbound::Presentation::GrimoireTextureSize(GrimoireBackground);
 			Brush.DrawAs = ESlateBrushDrawType::Box;
 			Brush.Margin = GrimoireBackgroundMargin;
 			BookBrush = Brush;
@@ -1079,7 +1080,7 @@ void ABoardViewActor::BuildOverlay()
 		{
 			FSlateBrush Brush;
 			Brush.SetResourceObject(HowToPlayWatermark);
-			Brush.ImageSize = FVector2f(HowToPlayWatermark->GetSizeX(), HowToPlayWatermark->GetSizeY());
+			Brush.ImageSize = Soulbound::Presentation::GrimoireTextureSize(HowToPlayWatermark);
 			Brush.DrawAs = ESlateBrushDrawType::Image;
 			WatermarkBrush = Brush;
 		}
@@ -2415,7 +2416,9 @@ void ABoardViewActor::LoadHowToPlayImages()
 			HowToPlayTextures.Add(Texture);
 			FSlateBrush Brush;
 			Brush.SetResourceObject(Texture);
-			Brush.ImageSize = FVector2f(Texture->GetSizeX(), Texture->GetSizeY());
+			// Correcciones tras probar la maquetación (18/11/2026): en el editor, una lámina recién cargada puede estar compilándose y dar el tamaño
+			// cuadrado de la textura de relleno; sus proporciones salen de su fuente (GrimoireTextureSize).
+			Brush.ImageSize = Soulbound::Presentation::GrimoireTextureSize(Texture);
 			Brush.DrawAs = ESlateBrushDrawType::Image;
 			HowToPlayBrushes.Add(Block.ImageName, Brush);
 		}

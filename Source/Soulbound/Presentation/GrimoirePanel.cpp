@@ -55,6 +55,28 @@ namespace
 			+ SScrollBox::Slot().Padding(0.f, 0.f, GrimoireScrollGap, 0.f)[Content];
 	}
 
+	/**
+	 * El marco de un botón de página o de una pestaña (S-048, correcciones tras probar la maquetación del 18/11/2026, R-HUD-18 y R-HUD-10): una caja
+	 * del color del marco con el contenido dentro, a GrimoireFrameWidth de su propia escala pintada; así cada lado mide al menos un píxel y se ve.
+	 */
+	TSharedRef<SBorder> GrimoireFrame(const TAttribute<FSlateColor>& Color, const TSharedRef<SWidget>& Content)
+	{
+		const TSharedRef<TWeakPtr<SWidget>> Self = MakeShared<TWeakPtr<SWidget>>();
+		const TSharedRef<SBorder> Frame = SNew(SBorder)
+			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+			.BorderBackgroundColor(Color)
+			.Padding_Lambda([Self]()
+			{
+				const TSharedPtr<SWidget> Widget = Self->Pin();
+				return FMargin(Soulbound::Presentation::GrimoireFrameWidth(Widget.IsValid() ? Widget->GetCachedGeometry().Scale : 1.f));
+			})
+			[
+				Content
+			];
+		*Self = Frame;
+		return Frame;
+	}
+
 	/** La sangría de la tarjeta del jugador, izquierda y derecha sumadas (S-048, corrección 1). */
 	constexpr float GrimoireCardIndent = 16.f;
 
@@ -269,7 +291,8 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 					[
 						GrimoireText(TextFont, Size, TitleWidth, Soulbound::Presentation::GrimoireTitleText, FLinearColor::White, true, 1.3f)
 					]
-					+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
+					// Correcciones tras probar la maquetación (18/11/2026): entre las pestañas y el contenido, GrimoireHeaderGap.
+					+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, Soulbound::Presentation::GrimoireHeaderGap)
 					[
 						MakeTabHeader(Soulbound::Presentation::GrimoireTabs())
 					]
@@ -358,7 +381,8 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 				+ SOverlay::Slot()
 				[
 				SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
+				// Correcciones tras probar la maquetación (18/11/2026): entre la fila del título y las pestañas y las hojas, GrimoireHeaderGap.
+				+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, Soulbound::Presentation::GrimoireHeaderGap)
 				[
 					Columns(
 						GrimoireText(TextFont, Size, TitleWidth, Soulbound::Presentation::GrimoireTitleText, FLinearColor::White, true, 1.3f),
@@ -487,14 +511,9 @@ TSharedRef<SWidget> SGrimoirePanel::MakeTabHeader(const TArray<Soulbound::Presen
 		*Inner = Box;
 		Header->AddSlot().FillWidth(1.f).Padding(Index == 0 ? 0.f : 2.f, 0.f, Index + 1 == Tabs.Num() ? 0.f : 2.f, 0.f)
 		[
-			// El borde de una caja inactiva: un marco de un píxel del gris claro (en la activa, del mismo color que el fondo).
-			SNew(SBorder)
-			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-			.BorderBackgroundColor(TabLight)
-			.Padding(FMargin(1.f))
-			[
-				Box
-			]
+			// El borde de una caja inactiva: un marco del gris claro (en la activa, del mismo color que el fondo), de al menos un píxel de pantalla
+			// (correcciones tras probar la maquetación, GrimoireFrame).
+			GrimoireFrame(FSlateColor(TabLight), Box)
 		];
 	}
 	return Header;
@@ -605,11 +624,8 @@ TSharedRef<SWidget> SGrimoirePanel::MakePageButton(const FString& Label, bool bE
 {
 	const TAttribute<int32> Size = FontSize;
 	// Como una pestaña inactiva; apagado (en la primera o en la última página), gris y sin efecto (R-HUD-18: no es cíclico).
-	return SNew(SBorder)
-		.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-		.BorderBackgroundColor(bEnabled ? TabLight : GrimoireDimColor)
-		.Padding(FMargin(1.f))
-		[
+	// Correcciones tras probar la maquetación (18/11/2026): el marco, de al menos un píxel de pantalla, para que se vean sus cuatro bordes (GrimoireFrame).
+	return GrimoireFrame(FSlateColor(bEnabled ? TabLight : GrimoireDimColor),
 			SNew(SBorder)
 			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
 			.BorderBackgroundColor(TabDark)
@@ -628,8 +644,7 @@ TSharedRef<SWidget> SGrimoirePanel::MakePageButton(const FString& Label, bool bE
 				.Text(FText::FromString(Label))
 				.Font_Lambda([this, Size]() { return Soulbound::Presentation::GrimoireFontInfo(TextFont, true, Size.Get()); })
 				.ColorAndOpacity(bEnabled ? FLinearColor(0.9f, 0.9f, 0.9f) : GrimoireDimColor)
-			]
-		];
+			]);
 }
 
 void SGrimoirePanel::RebuildHowToPlay()

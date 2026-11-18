@@ -330,6 +330,13 @@ namespace Soulbound::Presentation
 	 */
 	inline constexpr float GrimoireFootGap = 12.f;
 
+	/**
+	 * El hueco entre la cabecera del Grimorio (con el libro, la fila del título y las pestañas; sin él, las pestañas) y el contenido de las hojas
+	 * (S-048, correcciones tras probar la maquetación del 18/11/2026, R-HUD-20, nombre propuesto; valor del autor), en unidades de Slate: el mismo en
+	 * las tres pestañas, con el libro y sin él. Antes, 8.
+	 */
+	inline constexpr float GrimoireHeaderGap = 16.f;
+
 	/** El título del Grimorio (S-048, corrección 2 del autor del 17/11/2026): solo "Grimorio"; las teclas van al pie (GrimoireFootHints). */
 	inline const TCHAR* const GrimoireTitleText = TEXT("Grimorio");
 
