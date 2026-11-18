@@ -291,14 +291,25 @@ namespace Soulbound::Presentation
 
 	FHowToPlayView HowToPlayView(int32 Page, int32 PageCount, bool bBook)
 	{
-		// TODO(R-HUD-21): por implementar (test en rojo).
-		return FHowToPlayView();
+		// S-049 (R-HUD-21): lo que hacía SGrimoirePanel::RebuildHowToPlay al armar la vista, con las mismas funciones.
+		FHowToPlayView View;
+		if (PageCount <= 0)
+		{
+			return View;
+		}
+		const int32 PerView = HowToPlayPagesPerView(bBook);
+		const int32 First = HowToPlayViewStart(FMath::Clamp(Page, 0, PageCount - 1), PerView);
+		View.LeftPage = First;
+		View.RightPage = bBook && First + 1 < PageCount ? First + 1 : INDEX_NONE;
+		View.Footer = HowToPlayPageFooter(First, PageCount, PerView);
+		View.Buttons = HowToPlayPageButtons(First, PageCount, PerView);
+		return View;
 	}
 
 	FString HowToPlayMenuFootHint(const FGrimoireKeyNames& Keys)
 	{
-		// TODO(R-HUD-22): por implementar (test en rojo).
-		return FString();
+		// S-049 (R-HUD-22): la parte de páginas del pie del Grimorio en "Cómo se juega"; la de cerrar y pestañas, no.
+		return GrimoireFootHints(Keys, EGrimoireTab::HowToPlay).Right;
 	}
 
 	int32 HowToPlayViewStart(int32 Page, int32 PagesPerView)

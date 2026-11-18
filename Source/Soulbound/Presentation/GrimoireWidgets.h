@@ -1,13 +1,18 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GrimoireBook.h"
 #include "GrimoireFont.h"
+#include "Layout/Margin.h"
 #include "Misc/Attribute.h"
+#include "Styling/SlateBrush.h"
 #include "Styling/SlateColor.h"
+#include "Types/SlateEnums.h"
 
 class SBorder;
 class STextBlock;
 class SWidget;
+class UTexture2D;
 
 /**
  * Las piezas de Slate que comparten el Grimorio (SGrimoirePanel) y el libro de "Cómo se juega" (S-049, R-HUD-21): el texto con la letra del Grimorio,
@@ -45,6 +50,40 @@ namespace Soulbound::Presentation
 	 * @param OnPress La acción; vacía, nada (solo se queda los clics).
 	 */
 	void GrimoireOnPress(const TSharedRef<SWidget>& Widget, TFunction<void()> OnPress);
+
+	/**
+	 * Las dos columnas de una fila del libro (S-048, R-HUD-20; S-049, sacadas de SGrimoirePanel para compartirlas con el libro de "Cómo se juega"): la
+	 * izquierda mide la página izquierda; el hueco, el lomo; la derecha, lo que queda. Así nada cruza el lomo.
+	 * @param Left, Right El contenido de cada página.
+	 * @param LeftWidth, SpineWidth El ancho de la página izquierda y el del lomo; se leen cada vez que se pinta.
+	 * @param RightAlign Cómo se alinea en vertical la página derecha.
+	 */
+	TSharedRef<SWidget> GrimoireColumns(const TSharedRef<SWidget>& Left, const TSharedRef<SWidget>& Right, const TAttribute<float>& LeftWidth,
+		const TAttribute<float>& SpineWidth, EVerticalAlignment RightAlign);
+
+	/**
+	 * La marca de agua de una hoja de "Cómo se juega" (S-048, segunda ampliación, R-HUD-20; S-049, sacada de SGrimoirePanel para compartirla con el
+	 * libro del menú): en el sitio de GrimoireWatermarks, en coordenadas de la zona de contenido (su origen, Content.Min), detrás del texto y sin recibir
+	 * clics. Sin pincel, nada.
+	 * @param Brush El pincel de la marca; lo mantiene vivo quien lo da. Nulo, ninguna.
+	 * @param Opacity Su opacidad (HowToPlayWatermarkOpacity).
+	 * @param SizeFraction Su tamaño en fracción de la hoja (HowToPlayWatermarkSize).
+	 * @param bRight La de la hoja derecha o la de la izquierda.
+	 * @param Layout La zona de contenido de ahora (GrimoireBookLayout); se lee cada vez que se pinta.
+	 * @param Shown Si se ve ahora (en el Grimorio, solo en "Cómo se juega"); se lee cada vez que se pinta.
+	 */
+	TSharedRef<SWidget> GrimoireWatermark(const FSlateBrush* Brush, float Opacity, float SizeFraction, bool bRight, TFunction<FGrimoireBookLayout()> Layout,
+		TFunction<bool()> Shown);
+
+	/**
+	 * El pincel de una textura del libro (S-049, R-HUD-22, nombre aprobado; antes, repetido en la vista): con su tamaño de GrimoireTextureSize, nunca
+	 * GetSizeX ni GetSizeY, que en el editor dan el de la textura de relleno mientras se compila. Lo usan la imagen del libro, la marca de agua y las
+	 * láminas, en la vista y en el libro del menú.
+	 * @param Texture La textura; la mantiene viva quien la carga. No nula.
+	 * @param DrawAs Cómo se pinta: Box para la imagen del libro, Image para la marca de agua y las láminas.
+	 * @param Margin Los márgenes del borde (solo para Box).
+	 */
+	FSlateBrush GrimoireTextureBrush(UTexture2D* Texture, ESlateBrushDrawType::Type DrawAs, const FMargin& Margin = FMargin());
 
 	/** Cuánto más pequeña va la línea de teclas del pie del Grimorio (S-048, corrección 2 del autor del 17/11/2026). */
 	inline constexpr float GrimoireFootScale = 0.85f;
