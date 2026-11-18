@@ -1090,6 +1090,32 @@ bool FGrimoireTextureSizeTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHowToPlayPageButtonsTest, "Soulbound.Game.Presentation.Grimorio.BotonesDePagina", GrimoireBookTestFlags)
+
+bool FHowToPlayPageButtonsTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-64 (R-HUD-18; S-048, retoques del 18/11/2026): con 30 páginas (las 29 del autor y la de teclas) y el libro, la primera vista no tiene
+	// "Anterior" y sí "Siguiente", la última tiene "Anterior" y no "Siguiente" y una del medio tiene los dos; lo mismo sin el libro, de una en una; con
+	// una sola vista, ninguno; sin páginas, ninguno.
+	using namespace Soulbound::Presentation;
+	constexpr int32 Count = 30;
+	for (const bool bBook : {true, false})
+	{
+		const int32 PerView = HowToPlayPagesPerView(bBook);
+		const FString Mode = bBook ? TEXT("Con el libro") : TEXT("Sin el libro");
+		const int32 Last = HowToPlayViewStart(Count - 1, PerView);
+		const int32 Middle = HowToPlayViewStart(Count / 2, PerView);
+		TestTrue(Mode + TEXT(": la primera vista, solo \"Siguiente\""), HowToPlayPageButtons(0, Count, PerView) == FHowToPlayPageButtons{false, true});
+		TestTrue(Mode + TEXT(": la última vista, solo \"Anterior\""), HowToPlayPageButtons(Last, Count, PerView) == FHowToPlayPageButtons{true, false});
+		TestTrue(Mode + TEXT(": una del medio, los dos"), HowToPlayPageButtons(Middle, Count, PerView) == FHowToPlayPageButtons{true, true});
+	}
+	TestTrue(TEXT("Con el libro, dos páginas: una vista, ninguno"), HowToPlayPageButtons(0, 2, 2) == FHowToPlayPageButtons{false, false});
+	TestTrue(TEXT("Sin el libro, una página: ninguno"), HowToPlayPageButtons(0, 1, 1) == FHowToPlayPageButtons{false, false});
+	TestTrue(TEXT("Con el libro, tres páginas: la última vista (la 3, sola), solo \"Anterior\""), HowToPlayPageButtons(2, 3, 2) == FHowToPlayPageButtons{true, false});
+	TestTrue(TEXT("Sin páginas, ninguno"), HowToPlayPageButtons(0, 0, 2) == FHowToPlayPageButtons{false, false});
+	return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireFrameWidthTest, "Soulbound.Game.Presentation.Grimorio.MarcoDeUnPixel", GrimoireBookTestFlags)
 
 bool FGrimoireFrameWidthTest::RunTest(const FString& Parameters)

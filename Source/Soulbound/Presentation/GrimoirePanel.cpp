@@ -128,6 +128,19 @@ namespace
 	const FLinearColor TabHover = FLinearColor(TabLight.R * 0.35f, TabLight.G * 0.35f, TabLight.B * 0.35f, 1.f);
 }
 
+void Soulbound::Presentation::GrimoireOnPress(const TSharedRef<SWidget>& Widget, TFunction<void()> OnPress)
+{
+	// TODO(R-HUD-18): stub de los tests en rojo (solo la pulsación, como hasta ahora); se implementa en el commit siguiente.
+	Widget->SetOnMouseButtonDown(FPointerEventHandler::CreateLambda([OnPress](const FGeometry&, const FPointerEvent&)
+	{
+		if (OnPress)
+		{
+			OnPress();
+		}
+		return FReply::Handled();
+	}));
+}
+
 TSharedRef<SWidget> Soulbound::Presentation::MakeGrimoireCard(const FGrimoireRow& Row, const TAttribute<int32>& FontSize, const TArray<FLinearColor>& DomainColors, const TAttribute<float>& TextWidth,
 	const FGrimoireFont& Font, bool bBackground, const FString& InsolenceLine, bool bPowerTexts)
 {

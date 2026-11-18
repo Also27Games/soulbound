@@ -210,6 +210,12 @@ namespace Soulbound::Presentation
 		return bBook ? 2 : 1;
 	}
 
+	FHowToPlayPageButtons HowToPlayPageButtons(int32 ViewStart, int32 PageCount, int32 PagesPerView)
+	{
+		// TODO(R-HUD-18): stub de los tests en rojo; se implementa en el commit siguiente.
+		return FHowToPlayPageButtons{true, true};
+	}
+
 	int32 HowToPlayViewStart(int32 Page, int32 PagesPerView)
 	{
 		const int32 PerView = FMath::Max(PagesPerView, 1);

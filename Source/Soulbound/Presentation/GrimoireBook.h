@@ -204,6 +204,27 @@ namespace Soulbound::Presentation
 	 */
 	int32 HowToPlayPagesPerView(bool bBook);
 
+	/** Qué botones de página se ven en una vista de "Cómo se juega" (S-048, retoques del 18/11/2026, R-HUD-18, nombre propuesto). */
+	struct FHowToPlayPageButtons
+	{
+		/** "Anterior": hay una vista antes. */
+		bool bPrevious = false;
+		/** "Siguiente": hay una vista después. */
+		bool bNext = false;
+
+		bool operator==(const FHowToPlayPageButtons& Other) const { return bPrevious == Other.bPrevious && bNext == Other.bNext; }
+	};
+
+	/**
+	 * Los botones de página de una vista (S-048, retoques del autor del 18/11/2026, R-HUD-18): "Anterior" solo si hay una vista antes y "Siguiente"
+	 * solo si hay una después. El que no se ve no se pinta, pero conserva su hueco. Las teclas siguen su propia regla (FGrimoireTabState).
+	 * @param ViewStart La primera página de la vista (HowToPlayViewStart), desde 0.
+	 * @param PageCount Cuántas páginas hay.
+	 * @param PagesPerView Cuántas se ven a la vez (HowToPlayPagesPerView).
+	 * @return Cuáles se ven; sin páginas, ninguno.
+	 */
+	FHowToPlayPageButtons HowToPlayPageButtons(int32 ViewStart, int32 PageCount, int32 PagesPerView);
+
 	/**
 	 * El tamaño de una imagen de "Cómo se juega" dentro de una hoja (S-048, segunda ampliación del autor del 17/11/2026, R-HUD-18, nombre propuesto):
 	 * el mayor que cabe en el ancho de la hoja y en el alto máximo sin deformarla, agrandándola si es pequeña.
