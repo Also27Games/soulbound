@@ -92,7 +92,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHowToPlayRepositoryFileTest, "Soulbound.Game.P
 bool FHowToPlayRepositoryFileTest::RunTest(const FString& Parameters)
 {
 	// CA-CSJ-1 (S-022; desde S-048, R-HUD-17): el cargador acepta el archivo del repositorio y lo lee como un libro: al menos una página, y todas
-	// con título y texto. Desaparece la lista de títulos exigidos: el autor decide cuántas páginas hay y cómo se llaman.
+	// con algún bloque. Desaparece la lista de títulos exigidos: el autor decide cuántas páginas hay y cómo se llaman. Desde la segunda ampliación
+	// (CA-HUD-55), una página puede no llevar título ("##" sola) o ser solo una imagen (una lámina): ya no se exige título ni texto (ajustado en la
+	// ronda de maquetación del 18/11/2026, cuando el texto repartido para la doble página lo sacó a la luz).
 	const FHowToPlayLoadResult Result = Soulbound::Presentation::LoadHowToPlayText(HowToPlayRepositoryFile());
 	if (!TestTrue(FString::Printf(TEXT("El archivo del repositorio se carga (%s)"), *Result.Message), Result.IsSuccess()))
 	{
@@ -101,8 +103,7 @@ bool FHowToPlayRepositoryFileTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Al menos una página"), Result.Pages.Num() >= 1);
 	for (int32 Index = 0; Index < Result.Pages.Num(); ++Index)
 	{
-		TestFalse(FString::Printf(TEXT("La página %d tiene título"), Index), Result.Pages[Index].Title.TrimStartAndEnd().IsEmpty());
-		TestFalse(FString::Printf(TEXT("La página %d tiene texto"), Index), Result.Pages[Index].Body.TrimStartAndEnd().IsEmpty());
+		TestTrue(FString::Printf(TEXT("La página %d tiene algún bloque"), Index), Result.Pages[Index].Blocks.Num() > 0);
 	}
 	return true;
 }
@@ -439,7 +440,9 @@ bool FHowToPlayRichTextTest::RunTest(const FString& Parameters)
 	{
 		const FString Rich = UHowToPlayLibrary::HowToPlayPageRichText(Index).ToString();
 		TestEqual(FString::Printf(TEXT("La página %d, el mismo texto enriquecido"), Index), Rich, HowToPlayRichText(Grimoire.Pages[Index]));
-		TestFalse(FString::Printf(TEXT("La página %d, con texto"), Index), Rich.IsEmpty());
+		// Una lámina (una página con solo imágenes) no tiene texto enriquecido: sus imágenes van como bloques (segunda ampliación, CA-HUD-55).
+		const bool bText = Grimoire.Pages[Index].Blocks.ContainsByPredicate([](const FHowToPlayBlock& Block) { return Block.Kind != EHowToPlayBlockKind::Image; });
+		TestEqual(FString::Printf(TEXT("La página %d, con texto si tiene bloques de texto"), Index), !Rich.IsEmpty(), bText);
 		TestEqual(FString::Printf(TEXT("La página %d, su texto sin marcas donde ya estaba"), Index), UHowToPlayLibrary::HowToPlayPage(Index).Body,
 			HowToPlayBodyText(Grimoire.Pages[Index].Blocks));
 	}
