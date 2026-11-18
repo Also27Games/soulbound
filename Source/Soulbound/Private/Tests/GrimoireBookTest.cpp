@@ -10,6 +10,7 @@
 #include "../../Presentation/GrimoireBook.h"
 #include "../../Presentation/GrimoireFont.h"
 #include "Engine/Font.h"
+#include "Engine/Texture2D.h"
 #include "Styling/CoreStyle.h"
 #include "UObject/Package.h"
 #include "Elects/ElectsLoader.h"
@@ -1034,6 +1035,74 @@ bool FHowToPlayFullSheetImageTest::RunTest(const FString& Parameters)
 	}
 	TestTrue(TEXT("Sin hoja, nada"), HowToPlayFullSheetImage(FVector2f::ZeroVector, FVector2f(100.f, 100.f)).GetSize().IsNearlyZero());
 	TestTrue(TEXT("Sin imagen, nada"), HowToPlayFullSheetImage(FVector2f(400.f, 500.f), FVector2f::ZeroVector).GetSize().IsNearlyZero());
+	return true;
+}
+
+namespace
+{
+	/** Una textura en memoria con la fuente y los datos derivados que se le digan (0 x 0, sin fuente); sin recurso de render. */
+	UTexture2D* GbTexture(const FIntPoint& SourceSize, const FIntPoint& DerivedSize)
+	{
+		UTexture2D* Texture = NewObject<UTexture2D>(GetTransientPackage(), NAME_None, RF_Transient);
+#if WITH_EDITORONLY_DATA
+		if (SourceSize.X > 0 && SourceSize.Y > 0)
+		{
+			Texture->Source.Init(SourceSize.X, SourceSize.Y, 1, 1, TSF_BGRA8);
+		}
+#endif
+		FTexturePlatformData* Derived = new FTexturePlatformData();
+		Derived->SizeX = DerivedSize.X;
+		Derived->SizeY = DerivedSize.Y;
+		Texture->SetPlatformData(Derived);
+		return Texture;
+	}
+
+	/** Suelta lo que GbTexture le dio: sus datos derivados y el objeto. */
+	void GbReleaseTexture(UTexture2D* Texture)
+	{
+		Texture->SetPlatformData(nullptr);
+		Texture->MarkAsGarbage();
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireTextureSizeTest, "Soulbound.Game.Presentation.Grimorio.TamanoDeLaTextura", GrimoireBookTestFlags)
+
+bool FGrimoireTextureSizeTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-62 (R-HUD-18, R-HUD-20; S-048, correcciones tras probar la maquetación del 18/11/2026): el tamaño de una textura del libro es el de su
+	// fuente aunque sus datos derivados digan otro; sin fuente, el de sus datos. Los 64 x 64 imitan la textura de relleno, cuadrada, que dan
+	// GetSizeX y GetSizeY en el editor mientras la textura se compila. El momento real de esa compilación no se puede provocar aquí: comprobación
+	// manual en la story ("Notas para la prueba").
+	using namespace Soulbound::Presentation;
+	TestTrue(TEXT("Sin textura, cero"), GrimoireTextureSize(nullptr).IsNearlyZero());
+#if WITH_EDITORONLY_DATA
+	UTexture2D* Wide = GbTexture(FIntPoint(1642, 717), FIntPoint(64, 64));
+	TestTrue(TEXT("Los datos derivados dicen cuadrada"), Wide->GetSizeX() == 64 && Wide->GetSizeY() == 64);
+	TestTrue(TEXT("La apaisada (Carrera, 1642 x 717): el de su fuente"), GrimoireTextureSize(Wide).Equals(FVector2f(1642.f, 717.f), 0.01f));
+	GbReleaseTexture(Wide);
+	UTexture2D* Tall = GbTexture(FIntPoint(920, 1092), FIntPoint(64, 64));
+	TestTrue(TEXT("La vertical (Anillo, 920 x 1092): el de su fuente"), GrimoireTextureSize(Tall).Equals(FVector2f(920.f, 1092.f), 0.01f));
+	GbReleaseTexture(Tall);
+#endif
+	UTexture2D* NoSource = GbTexture(FIntPoint::ZeroValue, FIntPoint(32, 16));
+	TestTrue(TEXT("Sin fuente: el de sus datos"), GrimoireTextureSize(NoSource).Equals(FVector2f(32.f, 16.f), 0.01f));
+	GbReleaseTexture(NoSource);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireFrameWidthTest, "Soulbound.Game.Presentation.Grimorio.MarcoDeUnPixel", GrimoireBookTestFlags)
+
+bool FGrimoireFrameWidthTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-63 (R-HUD-18, R-HUD-10; S-048, correcciones tras probar la maquetación del 18/11/2026): el marco de los botones de página y de las
+	// pestañas mide al menos un píxel de pantalla: 1 unidad con escala 1 o mayor, 1,5 con escala 0,667, y 1 con una escala no válida.
+	using Soulbound::Presentation::GrimoireFrameWidth;
+	TestEqual(TEXT("Escala 1: una unidad"), GrimoireFrameWidth(1.f), 1.f, 0.001f);
+	TestEqual(TEXT("Escala 2: una unidad (dos píxeles)"), GrimoireFrameWidth(2.f), 1.f, 0.001f);
+	TestEqual(TEXT("Escala 0,667: un píxel, 1,5 unidades"), GrimoireFrameWidth(0.667f), 1.f / 0.667f, 0.001f);
+	TestEqual(TEXT("Escala 0,5: dos unidades"), GrimoireFrameWidth(0.5f), 2.f, 0.001f);
+	TestEqual(TEXT("Escala 0: una unidad"), GrimoireFrameWidth(0.f), 1.f, 0.001f);
+	TestEqual(TEXT("Escala negativa: una unidad"), GrimoireFrameWidth(-1.f), 1.f, 0.001f);
 	return true;
 }
 

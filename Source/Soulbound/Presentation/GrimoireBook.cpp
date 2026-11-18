@@ -2,6 +2,8 @@
 
 #include "BoardViewState.h"
 
+#include "Engine/Texture2D.h"
+
 #include "Match/MatchState.h"
 #include "Match/RuneRules.h"
 #include "Match/VictoryRules.h"
@@ -236,6 +238,18 @@ namespace Soulbound::Presentation
 		}
 		const FVector2f Min = (SheetSize - Size) * 0.5f;
 		return FBox2f(Min, Min + Size);
+	}
+
+	FVector2f GrimoireTextureSize(const UTexture2D* Texture)
+	{
+		// TODO(R-HUD-18): stub de los tests en rojo; se implementa en el commit siguiente.
+		return Texture ? FVector2f(Texture->GetSizeX(), Texture->GetSizeY()) : FVector2f::ZeroVector;
+	}
+
+	float GrimoireFrameWidth(float Scale)
+	{
+		// TODO(R-HUD-18): stub de los tests en rojo; se implementa en el commit siguiente.
+		return 1.f;
 	}
 
 	FGrimoireWatermarks GrimoireWatermarks(const FGrimoireBookLayout& Book, const FVector2f& TextureSize, float SizeFraction)

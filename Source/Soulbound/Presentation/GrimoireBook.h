@@ -8,6 +8,7 @@
 #include "StatusText.h"
 
 struct FMatchState;
+class UTexture2D;
 
 /**
  * El Grimorio como libro del juego (S-044, R-HUD-10 a R-HUD-12): sus pestañas (tres desde la ronda de maquetación de S-048), lo que lleva cada una,
@@ -221,6 +222,25 @@ namespace Soulbound::Presentation
 	 * @return El rectángulo, en coordenadas de la hoja (el origen, arriba a la izquierda); vacío en el origen si la hoja o la imagen no tienen tamaño.
 	 */
 	FBox2f HowToPlayFullSheetImage(const FVector2f& SheetSize, const FVector2f& ImageSize);
+
+	/**
+	 * El tamaño en píxeles de una textura del libro, el que da sus proporciones (S-048, correcciones tras probar la maquetación del 18/11/2026,
+	 * R-HUD-18 y R-HUD-20, nombre propuesto): el de su fuente (UTexture2D::GetImportedSize, también en una build empaquetada) y, si no tiene, el de sus
+	 * datos derivados. En el editor, mientras una textura se compila, GetSizeX y GetSizeY dan el de la textura de relleno, cuadrada: un pincel que se
+	 * quedaba con ese tamaño pintaba las láminas cuadradas. Lo usan las láminas, la imagen del libro y la marca de agua.
+	 * @param Texture La textura; puede ser nula.
+	 * @return El ancho y el alto; cero si no hay textura o no tiene tamaño.
+	 */
+	FVector2f GrimoireTextureSize(const UTexture2D* Texture);
+
+	/**
+	 * El grosor del marco de un botón o de una pestaña del Grimorio, en unidades de Slate (S-048, correcciones tras probar la maquetación del
+	 * 18/11/2026, R-HUD-18 y R-HUD-10, nombre propuesto): una unidad, pero nunca menos de un píxel de pantalla. Con una escala menor que 1, un marco de
+	 * una unidad mide menos de un píxel y, al ajustarse a píxeles enteros, un lado puede no pintarse.
+	 * @param Scale La escala de lo pintado (la de la geometría: píxeles por unidad).
+	 * @return El grosor: 1, o 1 / Scale si la escala es menor que 1; 1 si la escala no es válida.
+	 */
+	float GrimoireFrameWidth(float Scale);
 
 	/**
 	 * El libro aplanado para el bloque de texto del menú de hoy (S-048, precisión del autor de R-HUD-19): el título y el texto de cada página,
