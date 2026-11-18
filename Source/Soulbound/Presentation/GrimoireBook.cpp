@@ -289,6 +289,18 @@ namespace Soulbound::Presentation
 		return Buttons;
 	}
 
+	FHowToPlayView HowToPlayView(int32 Page, int32 PageCount, bool bBook)
+	{
+		// TODO(R-HUD-21): por implementar (test en rojo).
+		return FHowToPlayView();
+	}
+
+	FString HowToPlayMenuFootHint(const FGrimoireKeyNames& Keys)
+	{
+		// TODO(R-HUD-22): por implementar (test en rojo).
+		return FString();
+	}
+
 	int32 HowToPlayViewStart(int32 Page, int32 PagesPerView)
 	{
 		const int32 PerView = FMath::Max(PagesPerView, 1);

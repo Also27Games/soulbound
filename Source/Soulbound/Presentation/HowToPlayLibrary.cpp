@@ -35,6 +35,12 @@ Soulbound::Presentation::FGrimoireKeyNames UHowToPlayLibrary::ConfiguredKeyNames
 	return View ? View->GrimoireKeyNames() : Soulbound::Presentation::FGrimoireKeyNames();
 }
 
+Soulbound::Presentation::FHowToPlayBookSettings UHowToPlayLibrary::ConfiguredBookSettings()
+{
+	// TODO(R-HUD-22): por implementar (test en rojo).
+	return Soulbound::Presentation::FHowToPlayBookSettings();
+}
+
 FText UHowToPlayLibrary::HowToPlayText()
 {
 	// Precisión del autor del 17/11/2026 (R-HUD-19): el widget de hoy del menú lee un solo bloque de texto; le llega el libro aplanado.

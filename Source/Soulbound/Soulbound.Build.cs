@@ -19,6 +19,10 @@ public class Soulbound : ModuleRules
 		// EngineSettings: UGameMapsSettings, para volver al mapa del menú (GameDefaultMap) al acabar la partida (S-022).
 		PrivateDependencyModuleNames.AddRange(new string[] { "EngineSettings" });
 
+		// UMG (módulo del motor): el libro de "Cómo se juega" del menú es un widget de UMG escrito en C++ (UHowToPlayBookWidget, S-049, R-HUD-22), el
+		// primero del proyecto, para que el autor lo coloque en su pantalla del menú.
+		PrivateDependencyModuleNames.AddRange(new string[] { "UMG" });
+
 		// Json: los textos del Grimorio (Content/Data/Textos/grimorio.json), que son de la presentación y no del motor (S-027).
 		PrivateDependencyModuleNames.AddRange(new string[] { "Json" });
 

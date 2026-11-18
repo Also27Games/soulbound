@@ -250,6 +250,45 @@ namespace Soulbound::Presentation
 	FHowToPlayPageButtons HowToPlayPageButtons(int32 ViewStart, int32 PageCount, int32 PagesPerView);
 
 	/**
+	 * Lo que enseña el libro de "Cómo se juega" en una vista (S-049, R-HUD-21, nombre aprobado): qué hojas, "N de M" y qué botones de página se ven.
+	 * Lo leen la pestaña del Grimorio y el libro del menú, que son la misma pieza (SHowToPlayBookPanel).
+	 */
+	struct FHowToPlayView
+	{
+		/** La hoja izquierda (con el libro) o la única (sin él), desde 0; INDEX_NONE sin páginas. */
+		int32 LeftPage = INDEX_NONE;
+		/** La hoja derecha, solo con el libro; INDEX_NONE sin él o en la última vista de un total impar. */
+		int32 RightPage = INDEX_NONE;
+		/** "N de M" (HowToPlayPageFooter); vacío sin páginas. */
+		FString Footer;
+		/** Qué botones se ven (HowToPlayPageButtons): el que no, no se pinta, pero guarda su sitio. */
+		FHowToPlayPageButtons Buttons;
+
+		bool operator==(const FHowToPlayView& Other) const
+		{
+			return LeftPage == Other.LeftPage && RightPage == Other.RightPage && Footer == Other.Footer && Buttons == Other.Buttons;
+		}
+	};
+
+	/**
+	 * La vista en que está una página de "Cómo se juega" (S-049, R-HUD-21, nombre aprobado), con HowToPlayViewStart, HowToPlayPageFooter y
+	 * HowToPlayPageButtons: dos hojas por vista con la imagen del libro y una sin ella (HowToPlayPagesPerView).
+	 * @param Page La página, desde 0; fuera del libro, la más cercana.
+	 * @param PageCount Cuántas páginas tiene el libro, la de teclas incluida.
+	 * @param bBook Si hay imagen del libro (dos hojas por vista).
+	 * @return Sus hojas, su pie y sus botones; sin páginas, ninguna hoja, pie vacío y ningún botón.
+	 */
+	FHowToPlayView HowToPlayView(int32 Page, int32 PageCount, bool bBook);
+
+	/**
+	 * La línea de teclas del pie del libro de "Cómo se juega" en el menú (S-049, R-HUD-22, nombre aprobado): solo las de página, la parte derecha
+	 * del pie del Grimorio en esa pestaña ("flechas arriba y abajo, páginas"). Ni la tecla de cerrar ni las de pestañas, que en el menú no existen.
+	 * @param Keys Los nombres de las teclas configuradas.
+	 * @return La línea; las teclas, en español donde lo haya.
+	 */
+	FString HowToPlayMenuFootHint(const FGrimoireKeyNames& Keys);
+
+	/**
 	 * El tamaño de una imagen de "Cómo se juega" dentro de una hoja (S-048, segunda ampliación del autor del 17/11/2026, R-HUD-18, nombre propuesto):
 	 * el mayor que cabe en el ancho de la hoja y en el alto máximo sin deformarla, agrandándola si es pequeña.
 	 * @param SheetWidth El ancho de la hoja.

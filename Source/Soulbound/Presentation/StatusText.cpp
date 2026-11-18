@@ -972,6 +972,12 @@ namespace Soulbound::Presentation
 		return FMath::Max(MinFontSize, FMath::RoundToInt(Scaled));
 	}
 
+	int32 ScaledPanelSlateFontSize(float ViewportHeight, float DpiScale, int32 FontSizeAt1080, int32 MinFontSize)
+	{
+		// TODO(R-HUD-22): por implementar (test en rojo).
+		return 0;
+	}
+
 	FGrimoireTextsLoadResult ParseGrimoireTexts(const FString& Json)
 	{
 		FGrimoireTextsLoadResult Result;
