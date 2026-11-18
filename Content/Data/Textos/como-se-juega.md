@@ -331,8 +331,6 @@ Si conseguís **las seis runas distintas** y llegáis a **mi Altar**, os concede
 
 > «¡Y vosotros, miserables! Tenéis hasta su próximo turno para arrebatarle una runa o echarlo de mi Altar… ¡No me decepcionéis ahora!»
 
-##
-
 ### Mi desafío final. ¡Atreveos!
 
 > «¡¿Ninguno de esos perdedores ha conseguido robarte una runa o echarte de mi Altar?! ¡Inútiles! Está bien… ¡Enfréntate a mí en el desafío final!»
