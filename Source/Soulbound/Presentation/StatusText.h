@@ -285,6 +285,15 @@ namespace Soulbound::Presentation
 	FString BracerSummary(const FMatchState& State, int32 Seat, int32 ViewerSeat);
 
 	/**
+	 * Si el asiento tiene Paso Libre solo por la afinidad de su Elegido, sin la runa que lo da (S-048, retoques de "La mesa" del 18/11/2026, nombre
+	 * propuesto; antes, dentro de BracerSummary): es lo que se dice como "Paso Libre (afinidad)", que es público.
+	 * @param State El estado de la partida.
+	 * @param Seat El asiento.
+	 * @return true si tiene Paso Libre (MakeMoverTraits) y el poder Paso Libre no está activo; false con un asiento no válido.
+	 */
+	bool FreePassageByAffinity(const FMatchState& State, int32 Seat);
+
+	/**
 	 * Línea de un Dominio en la leyenda: "D0 El Banquete · Shuten-dōji: del asiento 0" (con dueño), "...: libre" o "...: Olvidado". Un Dominio
 	 * que no existe, solo "D<n>".
 	 * @param bForgotten Si la vista lo pinta como Olvidado (en el prólogo, con la frase de corrupción).
@@ -361,10 +370,16 @@ namespace Soulbound::Presentation
 		FString PowerName;
 		/** Si el poder está activo ahora (IsPowerActive). */
 		bool bActive = false;
+		/**
+		 * S-048 (ronda de maquetación del 18/11/2026, R-HUD-10, nombre propuesto): qué hace el poder, en una frase (PowerText, de grimorio.json);
+		 * vacía si la runa no da poder. La hoja del jugador la pinta debajo de la runa; la carta del Elegido no.
+		 */
+		FString PowerText;
 
 		bool operator==(const FGrimoireRune& Other) const
 		{
-			return RuneType == Other.RuneType && Count == Other.Count && bHasPower == Other.bHasPower && Power == Other.Power && PowerName == Other.PowerName && bActive == Other.bActive;
+			return RuneType == Other.RuneType && Count == Other.Count && bHasPower == Other.bHasPower && Power == Other.Power && PowerName == Other.PowerName && bActive == Other.bActive
+				&& PowerText == Other.PowerText;
 		}
 	};
 
@@ -433,11 +448,4 @@ namespace Soulbound::Presentation
 	 * @return El ancho de texto, al menos 1.
 	 */
 	float GrimoireCardTextWidth(float PanelWidth, int32 Columns);
-
-	/**
-	 * Las líneas del pie del Grimorio: un poder por línea, "Nombre: frase", en el orden de EPower, con la frase de Texts.
-	 * @param Texts Los textos de grimorio.json.
-	 * @return Seis líneas.
-	 */
-	TArray<FString> GrimoirePowerLines(const FGrimoireTexts& Texts);
 }

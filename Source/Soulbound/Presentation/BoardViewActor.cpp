@@ -26,6 +26,7 @@
 #include "PresentationShapes.h"
 #include "RingPanel.h"
 #include "RingPanelModel.h"
+#include "Engine/Font.h"
 #include "Engine/Texture2D.h"
 #include "Warden/WardenBrain.h"
 #include "SeatTokenActor.h"
@@ -1028,13 +1029,89 @@ void ABoardViewActor::BuildOverlay()
 		RuneChipColors.Add(DomainColor(Id));
 	}
 	// S-044 (R-HUD-10): "Cómo se juega" con el mismo archivo y el mismo cargador que el menú; si falta, la pestaña enseña el mensaje del cargador.
-	HowToPlayLoaded = Soulbound::Presentation::LoadHowToPlayText(FPaths::Combine(FPaths::ProjectContentDir(), Soulbound::Presentation::HowToPlayRelativePath));
-	if (!HowToPlayLoaded.IsSuccess())
+	// S-048 (R-HUD-18): es un libro, el mismo que lee el menú (HowToPlayBook), con la página de teclas al final y sus imágenes cargadas aquí, una vez.
+	HowToPlay = Soulbound::Presentation::HowToPlayBook(
+		Soulbound::Presentation::LoadHowToPlayText(FPaths::Combine(FPaths::ProjectContentDir(), Soulbound::Presentation::HowToPlayRelativePath)), GrimoireKeyNames());
+	if (!HowToPlay.IsLoaded())
 	{
-		UE_LOG(LogSoulboundView, Warning, TEXT("Grimorio: %s"), *HowToPlayLoaded.Message);
+		UE_LOG(LogSoulboundView, Warning, TEXT("Grimorio: %s"), *HowToPlay.ErrorMessage);
 	}
-	GrimoireTab.Open();
+	LoadHowToPlayImages();
+	// S-048 (R-HUD-18): una partida nueva empieza en la primera página; dentro de la partida, la página se recuerda.
+	GrimoireTab = Soulbound::Presentation::FGrimoireTabState();
 	GrimoireChronicleCount = -1;
+	// S-048 (R-HUD-20): la imagen del libro abierto, como las demás texturas opcionales de la vista: sin ella, el fondo de siempre, y se dice una vez.
+	GrimoireBackground = nullptr;
+	TOptional<FSlateBrush> BookBrush;
+	if (GrimoireBackgroundTexture.IsNull())
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Grimorio: GrimoireBackgroundTexture está vacío; se pinta con el fondo negro de siempre."));
+	}
+	else
+	{
+		GrimoireBackground = Cast<UTexture2D>(GrimoireBackgroundTexture.TryLoad());
+		if (GrimoireBackground)
+		{
+			FSlateBrush Brush;
+			Brush.SetResourceObject(GrimoireBackground);
+			// Correcciones tras probar la maquetación (18/11/2026): el tamaño de su fuente, no el de una textura que aún se compila.
+			Brush.ImageSize = Soulbound::Presentation::GrimoireTextureSize(GrimoireBackground);
+			Brush.DrawAs = ESlateBrushDrawType::Box;
+			Brush.Margin = GrimoireBackgroundMargin;
+			BookBrush = Brush;
+		}
+		else
+		{
+			UE_LOG(LogSoulboundView, Warning, TEXT("Grimorio: no existe la imagen del libro %s; se pinta con el fondo negro de siempre."), *GrimoireBackgroundTexture.ToString());
+		}
+	}
+	// S-048 (segunda ampliación del autor del 17/11/2026, R-HUD-20): la marca de agua de cada hoja de "Cómo se juega", con el mismo patrón: solo con el
+	// libro; sin ella, no se pinta, y se dice una vez.
+	HowToPlayWatermark = nullptr;
+	TOptional<FSlateBrush> WatermarkBrush;
+	if (HowToPlayWatermarkTexture.IsNull())
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Cómo se juega: HowToPlayWatermarkTexture está vacío; las hojas van sin marca de agua."));
+	}
+	else
+	{
+		HowToPlayWatermark = Cast<UTexture2D>(HowToPlayWatermarkTexture.TryLoad());
+		if (HowToPlayWatermark)
+		{
+			FSlateBrush Brush;
+			Brush.SetResourceObject(HowToPlayWatermark);
+			Brush.ImageSize = Soulbound::Presentation::GrimoireTextureSize(HowToPlayWatermark);
+			Brush.DrawAs = ESlateBrushDrawType::Image;
+			WatermarkBrush = Brush;
+		}
+		else
+		{
+			UE_LOG(LogSoulboundView, Warning, TEXT("Cómo se juega: no existe la marca de agua %s; las hojas van sin ella."), *HowToPlayWatermarkTexture.ToString());
+		}
+	}
+	// S-048 (corrección 4 del autor del 17/11/2026): la fuente del Grimorio, con el mismo patrón: sin ella, la de siempre, y se dice una vez.
+	GrimoireFontAsset = nullptr;
+	Soulbound::Presentation::FGrimoireFont BookFont;
+	BookFont.RegularTypeface = GrimoireFontRegularTypeface;
+	BookFont.BoldTypeface = GrimoireFontBoldTypeface;
+	BookFont.ItalicTypeface = GrimoireFontItalicTypeface;
+	BookFont.BoldItalicTypeface = GrimoireFontBoldItalicTypeface;
+	if (GrimoireFont.IsNull())
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Grimorio: GrimoireFont está vacío; el texto sale con la fuente de siempre."));
+	}
+	else
+	{
+		GrimoireFontAsset = Cast<UFont>(GrimoireFont.TryLoad());
+		if (GrimoireFontAsset)
+		{
+			BookFont.Font = GrimoireFontAsset;
+		}
+		else
+		{
+			UE_LOG(LogSoulboundView, Warning, TEXT("Grimorio: no existe la fuente %s; el texto sale con la fuente de siempre."), *GrimoireFont.ToString());
+		}
+	}
 	// S-044: la capa ya no deja pasar los clics por encima del panel (las pestañas y la rueda son del Grimorio); fuera del panel, sí.
 	GrimoireOverlay = SNew(SBox)
 		.HAlign(HAlign_Center)
@@ -1049,9 +1126,10 @@ void ABoardViewActor::BuildOverlay()
 			SAssignNew(GrimoirePanel, SGrimoirePanel)
 			.FontSize(PanelFont)
 			.DomainColors(RuneChipColors)
-			// Corrección del autor del 17/11/2026 tras PIE: los nombres de las teclas, en español donde lo haya (GrimoireKeysHint).
-			.KeysHint(Soulbound::Presentation::GrimoireKeysHint(GrimoireKey.GetDisplayName().ToString(), GrimoirePreviousTabKey.GetDisplayName().ToString(),
-				GrimoireNextTabKey.GetDisplayName().ToString()))
+			// Corrección del autor del 17/11/2026 tras PIE: los nombres de las teclas, en español donde lo haya. Desde la corrección 2 de S-048, en una
+			// línea pequeña al pie (GrimoireFootHints), con las de página; desde la corrección 5, el panel la arma según la pestaña activa.
+			.KeyNames(GrimoireKeyNames())
+			.Font(BookFont)
 			// S-029 (R-VIS-21): ancho fijo, el de la capa; no depende de lo pintado antes.
 			.PanelWidth_Lambda([this]() { return Soulbound::Presentation::GrimoirePanelWidth(LayerSlateWidth()); })
 			// S-044: alto fijo, una fracción del de la pantalla menos el margen de la capa; no cambia al cambiar de pestaña.
@@ -1062,12 +1140,22 @@ void ABoardViewActor::BuildOverlay()
 			})
 			.ActiveTab_Lambda([this]() { return GrimoireTab.Active; })
 			.OnTabClicked_Lambda([this](Soulbound::Presentation::EGrimoireTab Tab) { GrimoireTab.Select(Tab); })
+			// S-048 (R-HUD-18 y R-HUD-20): el libro, sus imágenes, sus botones de página y la imagen del libro abierto.
+			.BookBrush(BookBrush)
+			.PageInset(GrimoirePageInset)
+			.SpineGap(GrimoireSpineGap)
+			// Segunda ampliación del autor del 17/11/2026: el alto máximo de las imágenes y la marca de agua de cada hoja.
+			.ImageMaxHeight_Lambda([this]() { return HowToPlayImageMaxHeight; })
+			.Watermark(WatermarkBrush)
+			.WatermarkOpacity(HowToPlayWatermarkOpacity)
+			.WatermarkSize(HowToPlayWatermarkSize)
+			.WardenColor(WardenLineColor)
+			.ImageForPage([this](const FString& ImageName) -> const FSlateBrush* { return HowToPlayBrushes.Find(ImageName); })
+			.OnPreviousPage_Lambda([this]() { PreviousHowToPlayPage(); })
+			.OnNextPage_Lambda([this]() { NextHowToPlayPage(); })
 		];
 	Viewport->AddViewportWidgetContent(GrimoireOverlay.ToSharedRef(), 14);
-	GrimoirePanel->SetBoard(Soulbound::Presentation::BoardLegendRows(BoardLegendLookNow()));
-	GrimoirePanel->SetHowToPlay(Soulbound::Presentation::GrimoireHowToPlayText(HowToPlayLoaded, {GrimoireKey.GetDisplayName().ToString(),
-		GrimoirePreviousTabKey.GetDisplayName().ToString(), GrimoireNextTabKey.GetDisplayName().ToString(), SeatedViewKey.GetDisplayName().ToString(),
-		OverlayToggleKey.GetDisplayName().ToString(), RingStartKey.GetDisplayName().ToString(), ReturnToMenuKey.GetDisplayName().ToString()}));
+	GrimoirePanel->SetHowToPlay(HowToPlay, GrimoireTab.Page);
 
 	// S-029 (R-VIS-13): la carta del Elegido. Como la capa de la frase (R-DEC-13) y la del anillo (R-VIS-20), la capa ocupa el hueco libre (HAlign_Fill,
 	// con sus márgenes) y la carta se centra dentro; AlignChild no centra dentro del hueco con márgenes desiguales. Abajo se deja libre una fracción
@@ -1748,23 +1836,6 @@ bool ABoardViewActor::IsMatchPanelVisibleNow()
 	return HudShownNow().bMatchPanel;
 }
 
-Soulbound::Presentation::FBoardLegendLook ABoardViewActor::BoardLegendLookNow() const
-{
-	Soulbound::Presentation::FBoardLegendLook Look;
-	Look.bKit = TileHasKitSlab.Contains(true);
-	Look.bForgottenFloor = ForgottenFloor != nullptr;
-	Look.Altar = AltarColor;
-	Look.NicheFree = NicheFreeColor;
-	Look.Source = SourceColor;
-	Look.Node = NodeColor;
-	Look.NicheClaimed = SeatColor(0);
-	Look.NicheClosed = NicheClosedColor;
-	Look.Reachable = ReachableColor;
-	Look.SealMark = SealMarkColor;
-	Look.ForgottenRing = ForgottenRingColor;
-	return Look;
-}
-
 Soulbound::Presentation::FChronicleLook ABoardViewActor::ChronicleLookNow() const
 {
 	Soulbound::Presentation::FChronicleLook Look;
@@ -2186,6 +2257,9 @@ void ABoardViewActor::ApplyViewTarget()
 				// S-044 (R-HUD-10): las pestañas del Grimorio; cerrado no hacen nada, y no se consumen.
 				InputComponent->BindKey(GrimoirePreviousTabKey, IE_Pressed, this, &ABoardViewActor::PreviousGrimoireTab).bConsumeInput = false;
 				InputComponent->BindKey(GrimoireNextTabKey, IE_Pressed, this, &ABoardViewActor::NextGrimoireTab).bConsumeInput = false;
+				// S-048 (R-HUD-18): las páginas de "Cómo se juega"; fuera de esa pestaña no hacen nada, y no se consumen.
+				InputComponent->BindKey(GrimoirePreviousPageKey, IE_Pressed, this, &ABoardViewActor::PreviousHowToPlayPage).bConsumeInput = false;
+				InputComponent->BindKey(GrimoireNextPageKey, IE_Pressed, this, &ABoardViewActor::NextHowToPlayPage).bConsumeInput = false;
 				InputComponent->BindKey(DebugPanelKey, IE_Pressed, this, &ABoardViewActor::ToggleDebugPanel);
 				// S-022: la tecla de volver al menú, alternativa al botón, no se consume: antes del final sigue llegando a quien la use.
 				InputComponent->BindKey(ReturnToMenuKey, IE_Pressed, this, &ABoardViewActor::ReturnToMenu).bConsumeInput = false;
@@ -2224,6 +2298,21 @@ void ABoardViewActor::ToggleDebugPanel()
 	TickHud();
 }
 
+Soulbound::Presentation::FGrimoireKeyNames ABoardViewActor::GrimoireKeyNames() const
+{
+	Soulbound::Presentation::FGrimoireKeyNames Keys;
+	Keys.Grimoire = GrimoireKey.GetDisplayName().ToString();
+	Keys.PreviousTab = GrimoirePreviousTabKey.GetDisplayName().ToString();
+	Keys.NextTab = GrimoireNextTabKey.GetDisplayName().ToString();
+	Keys.View = SeatedViewKey.GetDisplayName().ToString();
+	Keys.Overlay = OverlayToggleKey.GetDisplayName().ToString();
+	Keys.RingStart = RingStartKey.GetDisplayName().ToString();
+	Keys.ReturnToMenu = ReturnToMenuKey.GetDisplayName().ToString();
+	Keys.PreviousPage = GrimoirePreviousPageKey.GetDisplayName().ToString();
+	Keys.NextPage = GrimoireNextPageKey.GetDisplayName().ToString();
+	return Keys;
+}
+
 void ABoardViewActor::ToggleGrimoire()
 {
 	if (bGrimoireOpen)
@@ -2238,7 +2327,7 @@ void ABoardViewActor::ToggleGrimoire()
 		return;
 	}
 	bGrimoireOpen = true;
-	// S-044 (R-HUD-10): siempre en "Tú"; la crónica, al día.
+	// S-044 (R-HUD-10): siempre en la primera pestaña, "La mesa" desde la ronda de maquetación de S-048; la crónica, al día.
 	GrimoireTab.Open();
 	GrimoireChronicleCount = -1;
 	// S-029 (R-VIS-13): abrir el Grimorio cierra la carta del Elegido.
@@ -2265,6 +2354,74 @@ void ABoardViewActor::NextGrimoireTab()
 	if (bGrimoireOpen)
 	{
 		GrimoireTab.Next();
+	}
+}
+
+bool ABoardViewActor::IsHowToPlayShown() const
+{
+	return bGrimoireOpen && GrimoireTab.Active == Soulbound::Presentation::EGrimoireTab::HowToPlay;
+}
+
+void ABoardViewActor::PreviousHowToPlayPage()
+{
+	// Los botones solo se ven en la pestaña; las teclas, con el Grimorio abierto en ella (R-HUD-18).
+	if (!IsHowToPlayShown())
+	{
+		return;
+	}
+	// Segunda ampliación del autor del 17/11/2026: con el libro, de dos en dos.
+	GrimoireTab.PreviousPage(HowToPlay.Pages.Num(), Soulbound::Presentation::HowToPlayPagesPerView(GrimoireBackground != nullptr));
+	if (GrimoirePanel.IsValid())
+	{
+		GrimoirePanel->SetHowToPlay(HowToPlay, GrimoireTab.Page);
+	}
+}
+
+void ABoardViewActor::NextHowToPlayPage()
+{
+	if (!IsHowToPlayShown())
+	{
+		return;
+	}
+	GrimoireTab.NextPage(HowToPlay.Pages.Num(), Soulbound::Presentation::HowToPlayPagesPerView(GrimoireBackground != nullptr));
+	if (GrimoirePanel.IsValid())
+	{
+		GrimoirePanel->SetHowToPlay(HowToPlay, GrimoireTab.Page);
+	}
+}
+
+void ABoardViewActor::LoadHowToPlayImages()
+{
+	HowToPlayTextures.Reset();
+	HowToPlayBrushes.Reset();
+	// Segunda ampliación del autor del 17/11/2026: las imágenes son bloques, las que haya; cada nombre se carga una vez y, si no existe, se dice una vez.
+	TSet<FString> Seen;
+	for (const FHowToPlayPage& Page : HowToPlay.Pages)
+	{
+		for (const FHowToPlayBlock& Block : Page.Blocks)
+		{
+			if (Block.Kind != EHowToPlayBlockKind::Image || Block.ImageName.IsEmpty() || Seen.Contains(Block.ImageName))
+			{
+				continue;
+			}
+			Seen.Add(Block.ImageName);
+			const FString Path = Soulbound::Presentation::HowToPlayImagePath(HowToPlayImageFolder, Block.ImageName);
+			UTexture2D* Texture = Cast<UTexture2D>(FSoftObjectPath(Path).TryLoad());
+			if (!Texture)
+			{
+				// R-HUD-17: no es un error; el bloque no se pinta.
+				UE_LOG(LogSoulboundView, Warning, TEXT("Cómo se juega: no existe la imagen %s (página \"%s\"); su bloque no se pinta."), *Path, *Page.Title);
+				continue;
+			}
+			HowToPlayTextures.Add(Texture);
+			FSlateBrush Brush;
+			Brush.SetResourceObject(Texture);
+			// Correcciones tras probar la maquetación (18/11/2026): en el editor, una lámina recién cargada puede estar compilándose y dar el tamaño
+			// cuadrado de la textura de relleno; sus proporciones salen de su fuente (GrimoireTextureSize).
+			Brush.ImageSize = Soulbound::Presentation::GrimoireTextureSize(Texture);
+			Brush.DrawAs = ESlateBrushDrawType::Image;
+			HowToPlayBrushes.Add(Block.ImageName, Brush);
+		}
 	}
 }
 
@@ -2647,9 +2804,9 @@ void ABoardViewActor::TickHud()
 
 void ABoardViewActor::RefreshGrimoire(const FMatchState& State, const Soulbound::Presentation::FStatusContext& Context)
 {
-	// S-044 (R-HUD-10): cada pestaña con la función que ya lo calcula; los paneles solo se rehacen si su contenido cambia (R-VIS-21). "El tablero" y
-	// "Cómo se juega" no cambian en la partida: se rellenan al construir.
-	GrimoirePanel->SetYou(Soulbound::Presentation::GrimoireYouView(State, Context.HumanSeat, GrimoireTexts, SeatColors));
+	// S-044 (R-HUD-10): cada pestaña con la función que ya lo calcula; los paneles solo se rehacen si su contenido cambia (R-VIS-21). "Cómo se juega"
+	// no cambia en la partida: se rellena al construir. Desde la ronda de maquetación de S-048, "La mesa" lleva la hoja del jugador y la mesa.
+	GrimoirePanel->SetPlayer(Soulbound::Presentation::GrimoirePlayerSheet(State, Context.HumanSeat, GrimoireTexts, SeatColors));
 	TArray<bool> Forgotten;
 	TArray<FLinearColor> Domains;
 	for (int32 Id = 0; Id < State.Board.Domains.Num(); ++Id)

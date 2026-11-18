@@ -468,7 +468,7 @@ namespace Soulbound::Presentation
 			}
 		}
 		// La afinidad de un Elegido es pública: Paso Libre por afinidad se dice aunque el Brazal esté oculto.
-		if (Soulbound::Rules::MakeMoverTraits(State, Seat).bFreePassage && !Soulbound::Rules::IsPowerActive(State, Seat, EPower::FreePassage))
+		if (FreePassageByAffinity(State, Seat))
 		{
 			Powers.Add(TEXT("Paso Libre (afinidad)"));
 		}
@@ -487,6 +487,12 @@ namespace Soulbound::Presentation
 		return FString::Printf(TEXT("%s%s"),
 			Runes.IsEmpty() ? TEXT("0 runas") : *FString::Join(Runes, TEXT(" ")),
 			Powers.IsEmpty() ? TEXT("") : *(FString(TEXT(" | poderes: ")) + FString::Join(Powers, TEXT(", "))));
+	}
+
+	bool FreePassageByAffinity(const FMatchState& State, int32 Seat)
+	{
+		return State.Seats.IsValidIndex(Seat) && Soulbound::Rules::MakeMoverTraits(State, Seat).bFreePassage
+			&& !Soulbound::Rules::IsPowerActive(State, Seat, EPower::FreePassage);
 	}
 
 	FString DomainLegendText(const FMatchState& State, int32 DomainId, bool bForgotten)
@@ -1103,6 +1109,8 @@ namespace Soulbound::Presentation
 					Rune.bHasPower = true;
 					Rune.Power = Elect->RuneToPower[RuneType];
 					Rune.PowerName = PowerName(Rune.Power);
+					// S-048 (ronda de maquetación del 18/11/2026): qué hace, para la hoja del jugador.
+					Rune.PowerText = PowerText(Texts, Rune.Power);
 					// R-ELE-5: activo mientras tenga una runa del tipo; esta runa lo activa si la tiene.
 					Rune.bActive = !Row.bTypesHidden && Rune.Count > 0 && Soulbound::Rules::IsPowerActive(State, Seat, Rune.Power);
 				}
@@ -1116,16 +1124,6 @@ namespace Soulbound::Presentation
 			}
 		}
 		return Rows;
-	}
-
-	TArray<FString> GrimoirePowerLines(const FGrimoireTexts& Texts)
-	{
-		TArray<FString> Lines;
-		for (const EPower Power : GrimoirePowers)
-		{
-			Lines.Add(FString::Printf(TEXT("%s: %s"), PowerName(Power), *PowerText(Texts, Power)));
-		}
-		return Lines;
 	}
 }
 

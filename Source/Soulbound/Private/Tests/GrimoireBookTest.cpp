@@ -1,11 +1,18 @@
 // Tests del Grimorio como libro del juego (S-044, R-HUD-10 a R-HUD-12): sus pestañas, lo que lleva cada una, cuándo se cierra solo y su botón.
-// Funciones puras sobre un FMatchState armado a mano con los Elegidos de elegidos.json: sin mundo, sin actor y sin Slate.
+// Funciones puras sobre un FMatchState armado a mano con los Elegidos de elegidos.json: sin mundo, sin actor y sin Slate. Desde S-048 (R-HUD-18 y
+// R-HUD-20), también el libro de "Cómo se juega" y la zona de contenido del libro; de la vista solo se lee su objeto por defecto (las teclas).
 // Filtro: "Soulbound.Game.Presentation.Grimorio".
 
+#include "../../Presentation/BoardViewActor.h"
 #include "../../Presentation/BoardViewState.h"
 #include "../../Presentation/ChronicleLines.h"
 #include "../../Presentation/EventText.h"
 #include "../../Presentation/GrimoireBook.h"
+#include "../../Presentation/GrimoireFont.h"
+#include "Engine/Font.h"
+#include "Engine/Texture2D.h"
+#include "Styling/CoreStyle.h"
+#include "UObject/Package.h"
 #include "Elects/ElectsLoader.h"
 #include "Match/MatchState.h"
 #include "Misc/AutomationTest.h"
@@ -83,52 +90,51 @@ namespace
 	}
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireTabsTest, "Soulbound.Game.Presentation.Grimorio.PestanasOrdenYAbreEnTu", GrimoireBookTestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireTabsTest, "Soulbound.Game.Presentation.Grimorio.PestanasOrdenYAbreEnLaMesa", GrimoireBookTestFlags)
 
 bool FGrimoireTabsTest::RunTest(const FString& Parameters)
 {
-	// CA-HUD-18 (R-HUD-10): la lista de pestañas es, en este orden, Tú, La mesa, El tablero, Cómo se juega y Crónica. Al abrir el Grimorio la
-	// activa es Tú, también si antes se cerró en otra. Con las flechas, cíclico (aceptado por el autor el 17/11/2026): la siguiente de Crónica es
-	// Tú y la anterior de Tú es Crónica.
+	// CA-HUD-58 (R-HUD-10; S-048, ronda de maquetación del 18/11/2026, ajusta CA-HUD-18): las pestañas son tres, en este orden, La mesa, Cómo se juega
+	// y Crónica. Al abrir el Grimorio la activa es La mesa, también si antes se cerró en otra. Siguiente y anterior son cíclicas entre las tres.
 	using namespace Soulbound::Presentation;
-	const TArray<EGrimoireTab> Expected{EGrimoireTab::You, EGrimoireTab::Table, EGrimoireTab::Board, EGrimoireTab::HowToPlay, EGrimoireTab::Chronicle};
-	TestTrue(TEXT("Cinco pestañas, en su orden"), GrimoireTabs() == Expected);
-	const TArray<FString> Titles{TEXT("Tú"), TEXT("La mesa"), TEXT("El tablero"), TEXT("Cómo se juega"), TEXT("Crónica")};
+	const TArray<EGrimoireTab> Expected{EGrimoireTab::Table, EGrimoireTab::HowToPlay, EGrimoireTab::Chronicle};
+	TestEqual(TEXT("Tres pestañas"), GrimoireTabs().Num(), 3);
+	TestTrue(TEXT("En su orden"), GrimoireTabs() == Expected);
+	const TArray<FString> Titles{TEXT("La mesa"), TEXT("Cómo se juega"), TEXT("Crónica")};
 	for (int32 Index = 0; Index < Expected.Num(); ++Index)
 	{
 		TestEqual(FString::Printf(TEXT("El nombre de la pestaña %d"), Index), GrimoireTabTitle(Expected[Index]), Titles[Index]);
 	}
 
 	FGrimoireTabState Tab;
-	TestEqual(TEXT("Empieza en Tú"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::You));
-	Tab.Select(EGrimoireTab::HowToPlay);
-	TestEqual(TEXT("Un clic en su nombre la activa"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::HowToPlay));
+	TestEqual(TEXT("Empieza en La mesa"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::Table));
+	Tab.Select(EGrimoireTab::Chronicle);
+	TestEqual(TEXT("Un clic en su nombre la activa"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::Chronicle));
 	Tab.Open();
-	TestEqual(TEXT("Cerrado en Cómo se juega, se abre en Tú"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::You));
+	TestEqual(TEXT("Cerrado en Crónica, se abre en La mesa"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::Table));
 
-	// La siguiente recorre el orden y vuelve a Tú.
+	// La siguiente recorre las tres y vuelve a La mesa.
 	for (int32 Index = 1; Index <= Expected.Num(); ++Index)
 	{
 		Tab.Next();
 		TestEqual(FString::Printf(TEXT("Siguiente %d"), Index), static_cast<int32>(Tab.Active), static_cast<int32>(Expected[Index % Expected.Num()]));
 	}
 	Tab.Previous();
-	TestEqual(TEXT("La anterior de Tú es Crónica"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::Chronicle));
+	TestEqual(TEXT("La anterior de La mesa es Crónica"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::Chronicle));
 	Tab.Previous();
 	TestEqual(TEXT("Y la de Crónica, Cómo se juega"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::HowToPlay));
-	Tab.Select(EGrimoireTab::Chronicle);
-	Tab.Next();
-	TestEqual(TEXT("La siguiente de Crónica es Tú"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::You));
+	Tab.Previous();
+	TestEqual(TEXT("Y la de Cómo se juega, La mesa"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::Table));
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireYouTabTest, "Soulbound.Game.Presentation.Grimorio.PestanaTu", GrimoireBookTestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoirePlayerSheetTest, "Soulbound.Game.Presentation.Grimorio.HojaDelJugador", GrimoireBookTestFlags)
 
-bool FGrimoireYouTabTest::RunTest(const FString& Parameters)
+bool FGrimoirePlayerSheetTest::RunTest(const FString& Parameters)
 {
-	// CA-HUD-19 (R-HUD-10): para un Elegido, la pestaña lleva lo que llevaba el Grimorio (su fila de GrimoireRows y las seis líneas de poderes al
-	// pie) y su insolencia. Para un Eco tras la carrera con hogar en el Dominio 4, la línea de la runa de su hogar con Celeridad, con el número y el
-	// nombre de ese Dominio; durante la carrera, sin hogar, no la lleva.
+	// CA-HUD-59 (R-HUD-10, R-ECO-7; S-048, ronda de maquetación del 18/11/2026, sustituye a CA-HUD-19): las filas del jugador llevan, por cada runa que
+	// le da un poder, el nombre del poder y su descripción; una runa sin poder no lleva descripción; un Eco con la runa de su hogar lleva Celeridad
+	// con su descripción. La insolencia va en la hoja del jugador.
 	using namespace Soulbound::Presentation;
 	FMatchState State;
 	if (!GbMakeState(*this, State))
@@ -136,41 +142,73 @@ bool FGrimoireYouTabTest::RunTest(const FString& Parameters)
 		return false;
 	}
 	FGrimoireTexts Texts;
-	Texts.PowerTexts.Add(EPower::Haste, TEXT("Frase de prueba de Celeridad"));
+	for (const EPower Power : {EPower::Duel, EPower::Haste, EPower::FreePassage, EPower::Expel, EPower::PlanarFlight, EPower::Deflection})
+	{
+		Texts.PowerTexts.Add(Power, FString::Printf(TEXT("Frase de prueba de %s"), PowerName(Power)));
+	}
 	State.Seats[GbHuman].Role = ESeatRole::Elect;
 	State.Seats[GbHuman].DomainId = GbFenrirDomain;
 	State.Seats[GbHuman].Runes[GbFenrirDomain] = 1;
 	State.Seats[GbHuman].Insolence = 2;
 
-	const FGrimoireYouView Elect = GrimoireYouView(State, GbHuman, Texts, GbSeatColors);
-	const TArray<FGrimoireRow> Rows = GrimoireRows(State, GbHuman, Texts, GbSeatColors);
-	TestTrue(TEXT("Elegido: su tarjeta es su fila del Grimorio"), Rows.IsValidIndex(GbHuman) && Elect.Row == Rows[GbHuman]);
+	// Un Elegido: el mapa de su Elegido da un poder por runa, y cada una lleva el nombre del poder y qué hace.
+	const FGrimoirePlayerSheet Elect = GrimoirePlayerSheet(State, GbHuman, Texts, GbSeatColors);
+	TestEqual(TEXT("Elegido: la hoja es la suya"), Elect.Row.Seat, GbHuman);
+	TestTrue(TEXT("Elegido: es un Elegido"), Elect.Row.bElect);
 	TestEqual(TEXT("Elegido: con su insolencia"), Elect.InsolenceLine, FString(TEXT("Insolencia: 2 de 5")));
-	TestTrue(TEXT("Elegido: sin línea de hogar"), Elect.HomeRuneLine.IsEmpty());
-	TestEqual(TEXT("Al pie, las seis líneas de poderes"), Elect.PowerLines, GrimoirePowerLines(Texts));
+	if (TestEqual(TEXT("Elegido: seis runas"), Elect.Row.Runes.Num(), Soulbound::Board::DomainCount))
+	{
+		for (const FGrimoireRune& Rune : Elect.Row.Runes)
+		{
+			const FString Case = FString::Printf(TEXT("Elegido, runa D%d"), Rune.RuneType);
+			TestTrue(Case + TEXT(": le da un poder"), Rune.bHasPower);
+			TestEqual(Case + TEXT(": el nombre del poder"), Rune.PowerName, FString(PowerName(Rune.Power)));
+			TestEqual(Case + TEXT(": qué hace"), Rune.PowerText, PowerText(Texts, Rune.Power));
+		}
+		TestEqual(TEXT("Elegido: la runa de su Dominio, Celeridad"), Elect.Row.Runes[GbFenrirDomain].PowerName, FString(TEXT("Celeridad")));
+	}
 
-	// Un Eco tras la carrera, con hogar en el Dominio 4.
+	// Un Eco tras la carrera, con hogar en el Dominio 4: la runa de su hogar le da Celeridad, con su descripción; las demás, nada.
 	constexpr int32 EchoSeat = 1;
 	constexpr int32 Home = 4;
 	State.MatchPhase = EMatchPhase::RuneHunt;
 	State.Seats[EchoSeat].DomainId = Home;
-	const FGrimoireYouView Echo = GrimoireYouView(State, EchoSeat, Texts, GbSeatColors);
-	TestFalse(TEXT("Eco: su tarjeta es la de un Eco"), Echo.Row.bElect);
-	TestEqual(TEXT("Eco: la tarjeta es la suya"), Echo.Row.Seat, EchoSeat);
-	// Corrección del autor del 17/11/2026: Celeridad deja elegir, así que "puedes tirar dos dados".
-	TestEqual(TEXT("Eco tras la carrera: la runa de su hogar"), Echo.HomeRuneLine, FString(TEXT("La runa de tu hogar (D4, Dominio 4) te da Celeridad: puedes tirar dos dados")));
-	TestEqual(TEXT("Eco: su insolencia, también"), Echo.InsolenceLine, FString(TEXT("Insolencia: 0 de 5")));
+	State.Seats[EchoSeat].Insolence = 1;
+	const FGrimoirePlayerSheet Echo = GrimoirePlayerSheet(State, EchoSeat, Texts, GbSeatColors);
+	TestEqual(TEXT("Eco: la hoja es la suya"), Echo.Row.Seat, EchoSeat);
+	TestFalse(TEXT("Eco: no es un Elegido"), Echo.Row.bElect);
+	TestEqual(TEXT("Eco: su insolencia, también"), Echo.InsolenceLine, FString(TEXT("Insolencia: 1 de 5")));
+	if (TestEqual(TEXT("Eco: seis runas"), Echo.Row.Runes.Num(), Soulbound::Board::DomainCount))
+	{
+		for (const FGrimoireRune& Rune : Echo.Row.Runes)
+		{
+			const FString Case = FString::Printf(TEXT("Eco, runa D%d"), Rune.RuneType);
+			if (Rune.RuneType == Home)
+			{
+				TestTrue(Case + TEXT(" (su hogar): le da un poder"), Rune.bHasPower);
+				TestEqual(Case + TEXT(" (su hogar): Celeridad"), Rune.PowerName, FString(TEXT("Celeridad")));
+				TestEqual(Case + TEXT(" (su hogar): qué hace"), Rune.PowerText, PowerText(Texts, EPower::Haste));
+			}
+			else
+			{
+				TestFalse(Case + TEXT(": sin poder"), Rune.bHasPower);
+				TestTrue(Case + TEXT(": sin descripción"), Rune.PowerText.IsEmpty());
+			}
+		}
+	}
 
-	// Durante la carrera, sin hogar.
+	// Durante la carrera, sin hogar: ninguna runa le da poder ni lleva descripción.
 	State.MatchPhase = EMatchPhase::BondRace;
 	State.Seats[EchoSeat].DomainId = INDEX_NONE;
-	TestTrue(TEXT("Eco durante la carrera: sin la línea"), GrimoireYouView(State, EchoSeat, Texts, GbSeatColors).HomeRuneLine.IsEmpty());
+	const FGrimoirePlayerSheet Racing = GrimoirePlayerSheet(State, EchoSeat, Texts, GbSeatColors);
+	TestEqual(TEXT("Eco en la carrera: seis runas"), Racing.Row.Runes.Num(), Soulbound::Board::DomainCount);
+	TestFalse(TEXT("Eco en la carrera: ninguna con poder"), Racing.Row.Runes.ContainsByPredicate([](const FGrimoireRune& Rune) { return Rune.bHasPower || !Rune.PowerText.IsEmpty(); }));
 
-	// El panel solo se rehace si cambia (R-VIS-21): la misma vista dos veces es igual; con otra insolencia, no.
-	TestTrue(TEXT("Dos veces el mismo estado: iguales"), Elect == GrimoireYouView(State, GbHuman, Texts, GbSeatColors));
+	// El panel solo se rehace si cambia (R-VIS-21): la misma hoja dos veces es igual; con otra insolencia, no.
+	TestTrue(TEXT("Dos veces el mismo estado: iguales"), Elect == GrimoirePlayerSheet(State, GbHuman, Texts, GbSeatColors));
 	FMatchState Angrier = State;
 	Angrier.Seats[GbHuman].Insolence = 3;
-	TestFalse(TEXT("Con otra insolencia: distintas"), Elect == GrimoireYouView(Angrier, GbHuman, Texts, GbSeatColors));
+	TestFalse(TEXT("Con otra insolencia: distintas"), Elect == GrimoirePlayerSheet(Angrier, GbHuman, Texts, GbSeatColors));
 	return true;
 }
 
@@ -178,9 +216,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireTableTabTest, "Soulbound.Game.Presenta
 
 bool FGrimoireTableTabTest::RunTest(const FString& Parameters)
 {
-	// CA-HUD-20 (R-HUD-10, corrección del autor del 17/11/2026): una entrada por asiento, con su rol, sus runas por Dominio y sus poderes activos (los
-	// de otro asiento, como "N runas" salvo con su Brazal revelado), la insolencia solo en la del humano, y las marcas de Prueba del Warden pendiente
-	// y de aspirante cuando tocan; y una entrada por Dominio con su dueño u "Olvidado". De cada asiento, lo mismo que la leyenda, ni más ni menos.
+	// CA-HUD-60 (R-HUD-10, R-HUD-6, R-RUN-7; S-048, ronda de maquetación del 18/11/2026, ajusta CA-HUD-20): bajo el encabezado "Jugadores", una fila
+	// por jugador, una debajo de otra, con su asiento, su papel, sus marcas públicas y "N runas" (sin "Runas: "). La del humano es como la de los
+	// demás, con "(tú)": sus tipos, sus poderes y su insolencia van en su hoja. Lo que se oculta de los demás es lo mismo que antes (con su Brazal
+	// revelado, sus tipos). Y una entrada por Dominio con su dueño u "Olvidado", como hoy.
 	using namespace Soulbound::Presentation;
 	FMatchState State;
 	if (!GbMakeState(*this, State))
@@ -210,8 +249,10 @@ bool FGrimoireTableTabTest::RunTest(const FString& Parameters)
 	}
 	const FLegendRow& Players = Rows[0];
 	const FLegendRow& Domains = Rows[1];
-	TestTrue(TEXT("La de jugadores se titula como en la leyenda"), Players.Title.StartsWith(TEXT("Jugadores")));
-	TestEqual(TEXT("La de Dominios, también"), Domains.Title, FString(TEXT("Los seis Dominios y su Elegido")));
+	TestEqual(TEXT("La de jugadores dice solo Jugadores"), Players.Title, FString(TEXT("Jugadores")));
+	TestTrue(TEXT("Los jugadores, uno debajo de otro"), Players.bOnePerLine);
+	TestEqual(TEXT("La de Dominios, como hoy"), Domains.Title, FString(TEXT("Los seis Dominios y su Elegido")));
+	TestFalse(TEXT("Los Dominios, como hoy"), Domains.bOnePerLine);
 	if (!TestEqual(TEXT("Una entrada por asiento"), Players.Chips.Num(), 4) || !TestEqual(TEXT("Una entrada por Dominio"), Domains.Chips.Num(), 6))
 	{
 		return false;
@@ -221,28 +262,39 @@ bool FGrimoireTableTabTest::RunTest(const FString& Parameters)
 		const FLegendChip& Chip = Players.Chips[Seat];
 		TestEqual(FString::Printf(TEXT("Asiento %d: su color"), Seat), Chip.Color, GbSeatColors[Seat]);
 		TestTrue(FString::Printf(TEXT("Asiento %d: el texto ya va puesto"), Seat), !Chip.TextGetter);
-		TestTrue(FString::Printf(TEXT("Asiento %d: empieza por la línea de la leyenda"), Seat), Chip.Text.StartsWith(SeatLegendText(State, Seat, GbHuman)));
-		TestTrue(FString::Printf(TEXT("Asiento %d: lleva su Brazal como la leyenda"), Seat), Chip.Text.Contains(TEXT("Runas: ") + BracerSummary(State, Seat, GbHuman)));
+		TestFalse(FString::Printf(TEXT("Asiento %d: en una línea"), Seat), Chip.Text.Contains(TEXT("\n")));
+		TestFalse(FString::Printf(TEXT("Asiento %d: sin Runas y dos puntos"), Seat), Chip.Text.Contains(TEXT("Runas: ")));
+		TestTrue(FString::Printf(TEXT("Asiento %d: empieza por su asiento"), Seat), Chip.Text.StartsWith(FString::FromInt(Seat)));
 		TestEqual(FString::Printf(TEXT("Asiento %d: aspirante solo si lo es"), Seat), Chip.Text.Contains(TEXT("ASPIRANTE")), Seat == GbAspirant);
-		TestEqual(FString::Printf(TEXT("Asiento %d: insolencia solo la del humano"), Seat), Chip.Text.Contains(TEXT("insolencia")), Seat == GbHuman);
+		TestFalse(FString::Printf(TEXT("Asiento %d: ninguna insolencia"), Seat), Chip.Text.Contains(TEXT("insolencia")));
+		if (Seat != GbHuman)
+		{
+			// De los demás, lo mismo que antes: su línea de la leyenda y su Brazal con sus filtros.
+			TestTrue(FString::Printf(TEXT("Asiento %d: su línea de la leyenda"), Seat), Chip.Text.StartsWith(SeatLegendText(State, Seat, GbHuman)));
+			TestTrue(FString::Printf(TEXT("Asiento %d: su Brazal, como antes"), Seat), Chip.Text.EndsWith(TEXT(" | ") + BracerSummary(State, Seat, GbHuman)));
+		}
 	}
 	const FString& Mine = Players.Chips[GbHuman].Text;
-	TestTrue(TEXT("El humano: su rol"), Mine.Contains(TEXT("Elegido, Fenrir")));
-	TestTrue(TEXT("El humano: su insolencia"), Mine.Contains(TEXT("insolencia 3 de 5")));
-	TestTrue(TEXT("El humano: la Prueba del Warden pendiente"), Mine.Contains(TEXT("PRUEBA DEL WARDEN")));
-	TestTrue(TEXT("El humano: sus runas por Dominio"), Mine.Contains(TEXT("D1×1")));
-	TestTrue(TEXT("El humano: sus poderes activos"), Mine.Contains(TEXT("Celeridad")));
+	TestTrue(TEXT("El humano: su asiento, con (tú)"), Mine.StartsWith(TEXT("0 (tú): ")));
+	TestTrue(TEXT("El humano: su papel"), Mine.Contains(TEXT("Elegido, Fenrir")));
+	TestTrue(TEXT("El humano: la Prueba del Warden pendiente, que es pública"), Mine.Contains(TEXT("PRUEBA DEL WARDEN")));
+	TestTrue(TEXT("El humano: N runas"), Mine.EndsWith(TEXT(" | 1 runa")));
+	TestFalse(TEXT("El humano: sin sus tipos"), Mine.Contains(TEXT("D1×1")));
+	TestFalse(TEXT("El humano: sin sus poderes"), Mine.Contains(TEXT("Celeridad")));
 	const FString& Theirs = Players.Chips[GbOther].Text;
-	TestTrue(TEXT("Otro asiento: sus runas, como total"), Theirs.Contains(TEXT("Runas: 2 runas")));
+	TestTrue(TEXT("Otro asiento: N runas"), Theirs.EndsWith(TEXT(" | 2 runas")));
 	TestFalse(TEXT("Otro asiento: sin sus tipos"), Theirs.Contains(TEXT("D0×2")));
 	TestFalse(TEXT("Nadie más lleva la Prueba del Warden"), Theirs.Contains(TEXT("PRUEBA DEL WARDEN")));
+	TestTrue(TEXT("Un Eco sin runas: 0 runas"), Players.Chips[1].Text.EndsWith(TEXT(" | 0 runas")));
 
-	// Con el Brazal del otro revelado, sus tipos.
+	// Con el Brazal del otro revelado, sus tipos, como antes.
 	FMatchState Revealed = State;
 	Revealed.Round = 3;
 	Revealed.Seats[GbOther].RevealedUntilRound = 5;
 	const TArray<FLegendRow> Shown = GrimoireTableRows(Revealed, GbHuman, Forgotten, GbSeatColors, GbDomainColors);
-	TestTrue(TEXT("Brazal revelado: sus tipos"), Shown.Num() == 2 && Shown[0].Chips.IsValidIndex(GbOther) && Shown[0].Chips[GbOther].Text.Contains(TEXT("D0×2")));
+	// Retoques de "La mesa" del 18/11/2026 (CA-HUD-68): sus tipos van en las muestras de debajo, no en la línea.
+	TestTrue(TEXT("Brazal revelado: sus tipos"), Shown.Num() == 2 && Shown[0].Chips.IsValidIndex(GbOther)
+		&& Shown[0].Chips[GbOther].SubChips.ContainsByPredicate([](const FLegendSubChip& Sub) { return Sub.Text == TEXT("D0 ×2"); }));
 
 	for (int32 Id = 0; Id < Soulbound::Board::DomainCount; ++Id)
 	{
@@ -255,110 +307,197 @@ bool FGrimoireTableTabTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireOtherTabsTest, "Soulbound.Game.Presentation.Grimorio.TableroComoSeJuegaYCronica", GrimoireBookTestFlags)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireSheetHeaderTest, "Soulbound.Game.Presentation.Grimorio.CabeceraDeLaHoja", GrimoireBookTestFlags)
+
+bool FGrimoireSheetHeaderTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-66 (R-HUD-10; S-048, retoques de "La mesa" del 18/11/2026): la cabecera de la hoja del jugador, en una línea y sin "ELEGIDO:", para un
+	// Elegido, un Eco sin hogar y un Eco con hogar; la de la tarjeta del Elegido (S-029), la de hoy.
+	using namespace Soulbound::Presentation;
+	FGrimoireRow Elect;
+	Elect.Seat = 0;
+	Elect.bHuman = true;
+	Elect.bElect = true;
+	Elect.ElectName = TEXT("Tifón");
+	Elect.DomainId = 4;
+	Elect.DomainName = TEXT("La Ruina Tormentosa");
+	FGrimoireRow Homeless;
+	Homeless.Seat = 0;
+	Homeless.bHuman = true;
+	FGrimoireRow Home = Homeless;
+	Home.DomainId = 3;
+	Home.DomainName = TEXT("El Descenso");
+
+	TestEqual(TEXT("Hoja, Elegido"), GrimoireCardHeader(Elect, true), FString(TEXT("Asiento 0 (tú) · Tifón · D4 La Ruina Tormentosa")));
+	TestEqual(TEXT("Hoja, Eco sin hogar"), GrimoireCardHeader(Homeless, true), FString(TEXT("Asiento 0 (tú) · Eco")));
+	TestEqual(TEXT("Hoja, Eco con hogar"), GrimoireCardHeader(Home, true), FString(TEXT("Asiento 0 (tú) · Eco · hogar en D3 El Descenso")));
+
+	TestEqual(TEXT("Tarjeta del Elegido, Elegido: como hoy"), GrimoireCardHeader(Elect, false), FString(TEXT("Asiento 0 (tú) · ELEGIDO: Tifón · D4 La Ruina Tormentosa")));
+	TestEqual(TEXT("Tarjeta del Elegido, Eco sin hogar: como hoy"), GrimoireCardHeader(Homeless, false), FString(TEXT("Asiento 0 (tú) · ECO, sin Elegido")));
+	TestEqual(TEXT("Tarjeta del Elegido, Eco con hogar: como hoy"), GrimoireCardHeader(Home, false), FString(TEXT("Asiento 0 (tú) · ECO, sin Elegido · hogar en D3 El Descenso")));
+	FGrimoireRow Other = Elect;
+	Other.Seat = 2;
+	Other.bHuman = false;
+	TestEqual(TEXT("Tarjeta del Elegido de otro asiento: sin (tú)"), GrimoireCardHeader(Other, false), FString(TEXT("Asiento 2 · ELEGIDO: Tifón · D4 La Ruina Tormentosa")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireRevealedBracerTest, "Soulbound.Game.Presentation.Grimorio.BrazalRevelado", GrimoireBookTestFlags)
+
+bool FGrimoireRevealedBracerTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-68 (R-HUD-10, R-RUN-7, R-ECO-7; S-048, retoques de "La mesa" del 18/11/2026): en "Jugadores", un asiento con el Brazal revelado lleva su
+	// línea de la leyenda en negrita, sin sus tipos, y debajo una muestra por tipo de runa que tiene, con el color de su Dominio y "D2 ×1: Celeridad"
+	// (sin "(ACTIVO)"; sin poder, sin dos puntos). Un Eco, Celeridad en la runa de su hogar. Sin runas, " | 0 runas" y ninguna muestra. Las marcas de
+	// detrás, en el orden de hoy. El Brazal oculto y el humano, como antes. Las runas de la hoja del jugador llevan el mismo texto, con "(ACTIVO)".
+	using namespace Soulbound::Presentation;
+	FMatchState State;
+	if (!GbMakeState(*this, State))
+	{
+		return false;
+	}
+	State.MatchPhase = EMatchPhase::RuneHunt;
+	State.Round = 3;
+	constexpr int32 EchoSeat = 1;
+	constexpr int32 ApepSeat = 2;
+	constexpr int32 FenrirSeat = 3;
+	// Asiento 1: Eco con hogar en el Dominio 3, con una runa de su hogar y otra del Dominio 5.
+	State.Seats[EchoSeat].DomainId = 3;
+	State.Seats[EchoSeat].Runes[3] = 1;
+	State.Seats[EchoSeat].Runes[5] = 1;
+	// Asiento 2: Elegido de Apep (Dominio 2): D0 da Vuelo Planar, D2 Celeridad y D4 Expulsión.
+	State.Seats[ApepSeat].Role = ESeatRole::Elect;
+	State.Seats[ApepSeat].DomainId = 2;
+	State.Seats[ApepSeat].Runes[0] = 2;
+	State.Seats[ApepSeat].Runes[2] = 1;
+	State.Seats[ApepSeat].Runes[4] = 1;
+	// Asiento 3: Elegido de Fenrir (Dominio 1), sin runas: Paso Libre por su afinidad.
+	State.Seats[FenrirSeat].Role = ESeatRole::Elect;
+	State.Seats[FenrirSeat].DomainId = GbFenrirDomain;
+	for (const int32 Seat : {EchoSeat, ApepSeat, FenrirSeat})
+	{
+		State.Seats[Seat].RevealedUntilRound = 5;
+	}
+	const TArray<bool> Forgotten{false, false, false, false, false, false};
+	const TArray<FLegendRow> Rows = GrimoireTableRows(State, GbHuman, Forgotten, GbSeatColors, GbDomainColors);
+	if (!TestTrue(TEXT("Jugadores, con los cuatro asientos"), Rows.Num() == 2 && Rows[0].Chips.Num() == 4))
+	{
+		return false;
+	}
+	const TArray<FLegendChip>& Chips = Rows[0].Chips;
+
+	const FLegendChip& Apep = Chips[ApepSeat];
+	TestEqual(TEXT("Elegido revelado: su línea de la leyenda y nada más"), Apep.Text, SeatLegendText(State, ApepSeat, GbHuman));
+	TestTrue(TEXT("Elegido revelado: acaba en BRAZAL REVELADO hasta la ronda 5"), Apep.Text.EndsWith(TEXT("BRAZAL REVELADO hasta la ronda 5")));
+	TestTrue(TEXT("Elegido revelado: en negrita"), Apep.bBold);
+	const TArray<FLegendSubChip> ApepRunes{{GbDomainColors[0], TEXT("D0 ×2: Vuelo Planar")}, {GbDomainColors[2], TEXT("D2 ×1: Celeridad")},
+		{GbDomainColors[4], TEXT("D4 ×1: Expulsión")}};
+	TestTrue(TEXT("Elegido revelado: una muestra por tipo, con su color y su poder, sin (ACTIVO)"), Apep.SubChips == ApepRunes);
+
+	const FLegendChip& Echo = Chips[EchoSeat];
+	TestEqual(TEXT("Eco revelado: su línea de la leyenda y nada más"), Echo.Text, SeatLegendText(State, EchoSeat, GbHuman));
+	TestTrue(TEXT("Eco revelado: en negrita"), Echo.bBold);
+	const TArray<FLegendSubChip> EchoRunes{{GbDomainColors[3], TEXT("D3 ×1: Celeridad")}, {GbDomainColors[5], TEXT("D5 ×1")}};
+	TestTrue(TEXT("Eco revelado: Celeridad en la runa de su hogar; la otra, sin poder"), Echo.SubChips == EchoRunes);
+
+	const FLegendChip& Fenrir = Chips[FenrirSeat];
+	TestEqual(TEXT("Sin runas: 0 runas y Paso Libre por afinidad, en la línea"), Fenrir.Text,
+		SeatLegendText(State, FenrirSeat, GbHuman) + TEXT(" | 0 runas | poderes: Paso Libre (afinidad)"));
+	TestTrue(TEXT("Sin runas: en negrita"), Fenrir.bBold);
+	TestEqual(TEXT("Sin runas: ninguna muestra"), Fenrir.SubChips.Num(), 0);
+
+	const FLegendChip& Mine = Chips[GbHuman];
+	TestFalse(TEXT("El humano: sin negrita"), Mine.bBold);
+	TestEqual(TEXT("El humano: sin muestras"), Mine.SubChips.Num(), 0);
+
+	// Un aspirante revelado: la marca, detrás de la línea, como hoy.
+	FMatchState Aspirant = State;
+	Aspirant.Seats[ApepSeat].TileId = GbAltarTile;
+	Aspirant.Seats[ApepSeat].Runes.Init(1, Soulbound::Board::DomainCount);
+	const TArray<FLegendRow> AspirantRows = GrimoireTableRows(Aspirant, GbHuman, Forgotten, GbSeatColors, GbDomainColors);
+	if (TestTrue(TEXT("Aspirante: su fila"), AspirantRows.Num() == 2 && AspirantRows[0].Chips.IsValidIndex(ApepSeat)))
+	{
+		const FLegendChip& Chip = AspirantRows[0].Chips[ApepSeat];
+		TestEqual(TEXT("Aspirante revelado: la marca, detrás"), Chip.Text, SeatLegendText(Aspirant, ApepSeat, GbHuman) + TableAspirantMark);
+		TestEqual(TEXT("Aspirante revelado: seis muestras"), Chip.SubChips.Num(), Soulbound::Board::DomainCount);
+	}
+
+	// Con el Brazal oculto, como antes: su línea, " | " y el resumen, sin negrita ni muestras.
+	FMatchState Hidden = State;
+	Hidden.Seats[ApepSeat].RevealedUntilRound = 0;
+	const TArray<FLegendRow> HiddenRows = GrimoireTableRows(Hidden, GbHuman, Forgotten, GbSeatColors, GbDomainColors);
+	if (TestTrue(TEXT("Oculto: su fila"), HiddenRows.Num() == 2 && HiddenRows[0].Chips.IsValidIndex(ApepSeat)))
+	{
+		const FLegendChip& Chip = HiddenRows[0].Chips[ApepSeat];
+		TestEqual(TEXT("Oculto: como antes"), Chip.Text, SeatLegendText(Hidden, ApepSeat, GbHuman) + TEXT(" | ") + BracerSummary(Hidden, ApepSeat, GbHuman));
+		TestFalse(TEXT("Oculto: sin negrita"), Chip.bBold);
+		TestEqual(TEXT("Oculto: sin muestras"), Chip.SubChips.Num(), 0);
+	}
+
+	// El mismo texto que las runas de la hoja del jugador, que dicen "(ACTIVO)".
+	FGrimoireRune Rune;
+	Rune.RuneType = 2;
+	Rune.Count = 1;
+	Rune.bHasPower = true;
+	Rune.Power = EPower::Haste;
+	Rune.PowerName = TEXT("Celeridad");
+	Rune.bActive = true;
+	TestEqual(TEXT("Hoja: activa"), GrimoireRuneLabel(Rune, false, true), FString(TEXT("D2 ×1: Celeridad (ACTIVO)")));
+	TestEqual(TEXT("Muestra: sin (ACTIVO)"), GrimoireRuneLabel(Rune, false, false), FString(TEXT("D2 ×1: Celeridad")));
+	TestEqual(TEXT("Tipos ocultos: sin cantidad"), GrimoireRuneLabel(Rune, true, false), FString(TEXT("D2: Celeridad")));
+	FGrimoireRune None;
+	None.RuneType = 3;
+	TestEqual(TEXT("Ninguna y sin poder"), GrimoireRuneLabel(None, false, true), FString(TEXT("D3 —")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireChipFirstLineTest, "Soulbound.Game.Presentation.Grimorio.CuadritoEnLaPrimeraLinea", GrimoireBookTestFlags)
+
+bool FGrimoireChipFirstLineTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-69 (R-HUD-10; S-048, retoques de "La mesa" del 18/11/2026): el desplazamiento del cuadrito lo centra en la primera línea de su texto; si
+	// el cuadrito es tan alto como la línea o más, o la altura no es válida, cero. Función pura: no se mide ninguna fuente.
+	using Soulbound::Presentation::LegendChipTopPadding;
+	TestEqual(TEXT("Línea de 20 y cuadrito de 16: 2"), LegendChipTopPadding(20.f, 16.f), 2.f);
+	TestEqual(TEXT("Línea de 23 y cuadrito de 16: 3,5"), LegendChipTopPadding(23.f, 16.f), 3.5f);
+	TestEqual(TEXT("Tan alto como la línea: 0"), LegendChipTopPadding(16.f, 16.f), 0.f);
+	TestEqual(TEXT("Más alto que la línea: 0"), LegendChipTopPadding(14.f, 16.f), 0.f);
+	TestEqual(TEXT("Altura no válida: 0"), LegendChipTopPadding(0.f, 16.f), 0.f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireOtherTabsTest, "Soulbound.Game.Presentation.Grimorio.ComoSeJuegaYCronica", GrimoireBookTestFlags)
 
 bool FGrimoireOtherTabsTest::RunTest(const FString& Parameters)
 {
-	// CA-HUD-21 (R-HUD-10): El tablero lleva las filas de casillas, Nichos, marcas y destellos, y ninguna de jugadores ni de runas. Cómo se juega
-	// lleva el texto del archivo y, si el archivo falta, el mensaje del cargador en vez de quedarse vacía; al final, las teclas. Crónica lleva las
-	// mismas líneas y en el mismo orden que la crónica de hoy (una sola función para las dos: ChronicleLines).
+	// CA-HUD-21 (R-HUD-10): Cómo se juega lleva el texto del archivo y, si el archivo falta, el mensaje del cargador en vez de quedarse vacía; al
+	// final, las teclas. Crónica lleva las mismas líneas y en el mismo orden que la crónica de hoy (una sola función para las dos: ChronicleLines).
+	// Desde la ronda de maquetación de S-048 (18/11/2026) no hay pestaña "El tablero": su parte se fue con ella.
 	using namespace Soulbound::Presentation;
 
-	// El tablero.
-	FBoardLegendLook Look;
-	Look.bKit = true;
-	Look.bForgottenFloor = true;
-	Look.Altar = FLinearColor(0.11f, 0.f, 0.f);
-	Look.NicheFree = FLinearColor(0.12f, 0.f, 0.f);
-	Look.Source = FLinearColor(0.13f, 0.f, 0.f);
-	Look.Node = FLinearColor(0.14f, 0.f, 0.f);
-	Look.NicheClaimed = FLinearColor(0.15f, 0.f, 0.f);
-	Look.NicheClosed = FLinearColor(0.16f, 0.f, 0.f);
-	Look.Reachable = FLinearColor(0.17f, 0.f, 0.f);
-	Look.SealMark = FLinearColor(0.18f, 0.f, 0.f);
-	Look.ForgottenRing = FLinearColor(0.19f, 0.f, 0.f);
-	const TArray<FLegendRow> Board = BoardLegendRows(Look);
-	if (TestEqual(TEXT("El tablero: cuatro filas"), Board.Num(), 4))
-	{
-		TestEqual(TEXT("Casillas"), Board[0].Title, FString(TEXT("Casillas")));
-		TestEqual(TEXT("Nichos"), Board[1].Title, FString(TEXT("Nichos")));
-		TestEqual(TEXT("Tablero (las marcas)"), Board[2].Title, FString(TEXT("Tablero")));
-		TestEqual(TEXT("Los destellos"), Board[3].Title, FString(FlashLegendText));
-		const TArray<FLinearColor> TileColors{Look.Altar, Look.NicheFree, Look.Source, Look.Node};
-		if (TestEqual(TEXT("Cuatro tipos de casilla"), Board[0].Chips.Num(), 4))
-		{
-			for (int32 Index = 0; Index < 4; ++Index)
-			{
-				TestEqual(FString::Printf(TEXT("Casilla %d: el color de la vista"), Index), Board[0].Chips[Index].Color, TileColors[Index]);
-			}
-			TestTrue(TEXT("Con kit, el Altar es la plataforma"), Board[0].Chips[0].Text.Contains(TEXT("plataforma")));
-		}
-		const TArray<FLinearColor> NicheColors{Look.NicheFree, Look.NicheClaimed, Look.NicheClosed};
-		if (TestEqual(TEXT("Tres estados de Nicho"), Board[1].Chips.Num(), 3))
-		{
-			for (int32 Index = 0; Index < 3; ++Index)
-			{
-				TestEqual(FString::Printf(TEXT("Nicho %d: su color"), Index), Board[1].Chips[Index].Color, NicheColors[Index]);
-			}
-		}
-		const TArray<FLinearColor> MarkColors{Look.Reachable, Look.SealMark, Look.ForgottenRing};
-		if (TestEqual(TEXT("Tres marcas"), Board[2].Chips.Num(), 3))
-		{
-			for (int32 Index = 0; Index < 3; ++Index)
-			{
-				TestEqual(FString::Printf(TEXT("Marca %d: su color"), Index), Board[2].Chips[Index].Color, MarkColors[Index]);
-			}
-			TestTrue(TEXT("Con el suelo cargado, el agrietado"), Board[2].Chips[2].Text.Contains(TEXT("agrietado")));
-		}
-		for (const FLegendRow& Row : Board)
-		{
-			TestFalse(FString::Printf(TEXT("%s: no es de jugadores"), *Row.Title), Row.Title.Contains(TEXT("Jugadores")));
-			TestFalse(FString::Printf(TEXT("%s: no es de runas"), *Row.Title), Row.Title.Contains(TEXT("Runas")));
-		}
-	}
-	FBoardLegendLook Plain = Look;
-	Plain.bKit = false;
-	Plain.bForgottenFloor = false;
-	const TArray<FLegendRow> PlainBoard = BoardLegendRows(Plain);
-	TestTrue(TEXT("Sin kit, el Altar es la forma básica"), PlainBoard.Num() == 4 && PlainBoard[0].Chips.Num() == 4 && PlainBoard[0].Chips[0].Text.Contains(TEXT("casilla grande")));
-	TestTrue(TEXT("Sin suelo, casillas apagadas"), PlainBoard.Num() == 4 && PlainBoard[2].Chips.Num() == 3 && !PlainBoard[2].Chips[2].Text.Contains(TEXT("agrietado")));
-
-	// Cómo se juega.
+	// Cómo se juega. Desde S-048 (R-HUD-18) es un libro: las páginas del archivo y, al final, la de teclas (sus líneas, en
+	// Grimorio.LibroTeclasYRecuerdo); si el archivo falta, ninguna página y el mensaje del cargador, para que la pestaña nunca quede vacía.
 	FGrimoireKeyNames Keys;
 	Keys.Grimoire = TEXT("G");
-	Keys.PreviousTab = TEXT("Izquierda");
-	Keys.NextTab = TEXT("Derecha");
+	Keys.PreviousTab = TEXT("Left");
+	Keys.NextTab = TEXT("Right");
 	Keys.View = TEXT("C");
 	Keys.Overlay = TEXT("L");
-	Keys.RingStart = TEXT("Intro");
-	Keys.ReturnToMenu = TEXT("Intro");
+	Keys.RingStart = TEXT("Enter");
+	Keys.ReturnToMenu = TEXT("Enter");
+	Keys.PreviousPage = TEXT("Up");
+	Keys.NextPage = TEXT("Down");
 	const FHowToPlayLoadResult Loaded = ParseHowToPlayText(TEXT("## Qué es esto\nUn texto.\n\n## Cómo se gana\nOtro.\n\n## El Warden\nEl último."));
 	TestTrue(TEXT("El texto de prueba carga"), Loaded.IsSuccess());
-	const FString HowTo = GrimoireHowToPlayText(Loaded, Keys);
-	TestTrue(TEXT("Cómo se juega: empieza por el texto, como en el menú"), HowTo.StartsWith(HowToPlayDisplayText(Loaded.Text)));
-	const int32 KeysAt = HowTo.Find(TEXT("Teclas"));
-	TestTrue(TEXT("Y al final, las teclas"), KeysAt > HowToPlayDisplayText(Loaded.Text).Len() - 1);
-	// S-045 (precisión de R-CAM, decisión del autor del 17/11/2026): C, L y G, las flechas, 1 a 9 y 0, e Intro para empezar una prueba y volver al
-	// menú; sin H, P, T ni D.
-	const FString KeysBlock = HowTo.Mid(FMath::Max(KeysAt, 0));
-	for (const FString& Name : {Keys.Grimoire, Keys.PreviousTab, Keys.NextTab, Keys.View, Keys.Overlay, Keys.RingStart, FString(TEXT("1 a 9 y 0"))})
-	{
-		TestTrue(FString::Printf(TEXT("Las teclas nombran %s"), *Name), KeysBlock.Contains(Name));
-	}
-	TestTrue(TEXT("Intro también vuelve al menú al acabar"), KeysBlock.Contains(TEXT("vuelve al menú")));
-	TArray<FString> KeyLines;
-	KeysBlock.ParseIntoArrayLines(KeyLines);
-	for (const TCHAR* Gone : {TEXT("H"), TEXT("P"), TEXT("T"), TEXT("D")})
-	{
-		TestFalse(FString::Printf(TEXT("Ninguna línea de teclas empieza por %s"), Gone),
-			KeyLines.ContainsByPredicate([Gone](const FString& Line) { return Line.StartsWith(FString(Gone) + TEXT(":")); }));
-	}
-	TestFalse(TEXT("Ni columna ni paneles que ocultar"), KeysBlock.Contains(TEXT("columna")) || KeysBlock.Contains(TEXT("paneles")));
+	const FHowToPlayBook HowTo = HowToPlayBook(Loaded, Keys);
+	TestTrue(TEXT("Cómo se juega: las páginas del archivo, como en el menú"), HowTo.Pages.Num() == Loaded.Pages.Num() + 1
+		&& TArray<FHowToPlayPage>(HowTo.Pages.GetData(), Loaded.Pages.Num()) == Loaded.Pages);
+	TestTrue(TEXT("Y al final, las teclas"), HowTo.Pages.Num() > 0 && HowTo.Pages.Last().Title == HowToPlayKeysTitle);
 	const FHowToPlayLoadResult Missing = LoadHowToPlayText(TEXT("no/existe/como-se-juega.md"));
 	TestFalse(TEXT("Sin archivo, el cargador falla"), Missing.IsSuccess());
-	const FString MissingText = GrimoireHowToPlayText(Missing, Keys);
-	TestTrue(TEXT("Sin archivo: el mensaje del cargador, no vacía"), !Missing.Message.IsEmpty() && MissingText.StartsWith(Missing.Message));
-	TestTrue(TEXT("Y también las teclas"), MissingText.Contains(TEXT("Teclas")));
+	const FHowToPlayBook MissingBook = HowToPlayBook(Missing, Keys);
+	TestTrue(TEXT("Sin archivo: el mensaje del cargador, no vacía"), !Missing.Message.IsEmpty() && MissingBook.ErrorMessage == Missing.Message && !MissingBook.IsLoaded());
+	TestEqual(TEXT("Y sin páginas"), MissingBook.Pages.Num(), 0);
 
 	// Crónica.
 	TestEqual(TEXT("La marca de tiempo"), ChronicleStamp(65.4), FString(TEXT("1:05")));
@@ -483,11 +622,674 @@ bool FGrimoireKeyNamesTest::RunTest(const FString& Parameters)
 	Keys.Overlay = TEXT("L");
 	Keys.RingStart = TEXT("Enter");
 	Keys.ReturnToMenu = TEXT("Enter");
-	const FString HowTo = GrimoireHowToPlayText(ParseHowToPlayText(TEXT("## Qué es esto\nUno.\n\n## Cómo se gana\nDos.\n\n## El Warden\nTres.")), Keys);
+	Keys.PreviousPage = TEXT("Up");
+	Keys.NextPage = TEXT("Down");
+	// Desde S-048 (R-HUD-18), las teclas son la última página del libro.
+	const FString HowTo = HowToPlayKeysPage(Keys).Body;
 	TestTrue(TEXT("Cómo se juega: las flechas, en español"), HowTo.Contains(TEXT("flechas izquierda y derecha")));
 	TestTrue(TEXT("Cómo se juega: Intro"), HowTo.Contains(TEXT("Intro:")));
 	TestFalse(TEXT("Cómo se juega: sin Left"), HowTo.Contains(TEXT("Left")));
 	TestFalse(TEXT("Cómo se juega: sin Enter"), HowTo.Contains(TEXT("Enter")));
+	return true;
+}
+
+namespace
+{
+	/** Un libro de cuatro páginas del autor, con las teclas de siempre. */
+	Soulbound::Presentation::FHowToPlayBook GbFourPageBook(FAutomationTestBase& Test, Soulbound::Presentation::FGrimoireKeyNames& OutKeys)
+	{
+		using namespace Soulbound::Presentation;
+		OutKeys = FGrimoireKeyNames();
+		OutKeys.Grimoire = TEXT("G");
+		OutKeys.PreviousTab = TEXT("Left");
+		OutKeys.NextTab = TEXT("Right");
+		OutKeys.View = TEXT("C");
+		OutKeys.Overlay = TEXT("L");
+		OutKeys.RingStart = TEXT("Enter");
+		OutKeys.ReturnToMenu = TEXT("Enter");
+		OutKeys.PreviousPage = TEXT("Up");
+		OutKeys.NextPage = TEXT("Down");
+		const FHowToPlayLoadResult Loaded = ParseHowToPlayText(TEXT("## Uno\nA.\n\n## Dos\nB.\n\n## Tres\nC.\n\n## Cuatro\nD.\n"), TEXT("prueba.md"));
+		Test.TestTrue(FString::Printf(TEXT("Las cuatro páginas cargan (%s)"), *Loaded.Message), Loaded.IsSuccess());
+		return HowToPlayBook(Loaded, OutKeys);
+	}
+
+	bool GbBoxInside(const FBox2f& Inner, const FBox2f& Outer)
+	{
+		constexpr float Slack = 0.01f;
+		return Inner.Min.X >= Outer.Min.X - Slack && Inner.Min.Y >= Outer.Min.Y - Slack && Inner.Max.X <= Outer.Max.X + Slack && Inner.Max.Y <= Outer.Max.Y + Slack;
+	}
+
+	bool GbBoxValid(const FBox2f& Box)
+	{
+		return Box.Max.X >= Box.Min.X && Box.Max.Y >= Box.Min.Y;
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireBookPagesTest, "Soulbound.Game.Presentation.Grimorio.LibroPasarPagina", GrimoireBookTestFlags)
+
+bool FGrimoireBookPagesTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-33 (R-HUD-18): con cuatro páginas del autor hay cinco en el libro, la última "Teclas". Se empieza en la primera; "Siguiente" avanza una y
+	// se queda en la última; "Anterior" retrocede una y se queda en la primera (no es cíclico); el pie dice "N de M" con la página y el total.
+	// Ajustado por la segunda ampliación del autor del 17/11/2026 (CA-HUD-54): así es sin la imagen del libro, de una en una; con ella, a doble página.
+	using namespace Soulbound::Presentation;
+	FGrimoireKeyNames Keys;
+	const FHowToPlayBook Book = GbFourPageBook(*this, Keys);
+	if (!TestEqual(TEXT("Cinco páginas en el libro"), Book.Pages.Num(), 5))
+	{
+		return false;
+	}
+	const TArray<FString> Titles{TEXT("Uno"), TEXT("Dos"), TEXT("Tres"), TEXT("Cuatro"), FString(HowToPlayKeysTitle)};
+	for (int32 Index = 0; Index < Titles.Num(); ++Index)
+	{
+		TestEqual(FString::Printf(TEXT("La página %d, en su orden"), Index), Book.Pages[Index].Title, Titles[Index]);
+	}
+	TestTrue(TEXT("El libro cargó"), Book.IsLoaded());
+	const int32 Count = Book.Pages.Num();
+
+	const int32 One = HowToPlayPagesPerView(false);
+	TestEqual(TEXT("Sin el libro, una página cada vez"), One, 1);
+	FGrimoireTabState Tab;
+	TestEqual(TEXT("Se empieza en la primera"), Tab.Page, 0);
+	TestEqual(TEXT("El pie de la primera"), HowToPlayPageFooter(Tab.Page, Count, One), FString(TEXT("1 de 5")));
+	Tab.PreviousPage(Count, One);
+	TestEqual(TEXT("Anterior en la primera: se queda"), Tab.Page, 0);
+	Tab.NextPage(Count, One);
+	TestEqual(TEXT("Siguiente: la segunda"), Tab.Page, 1);
+	TestEqual(TEXT("El pie de la segunda"), HowToPlayPageFooter(Tab.Page, Count, One), FString(TEXT("2 de 5")));
+	for (int32 Step = 0; Step < 10; ++Step)
+	{
+		Tab.NextPage(Count, One);
+	}
+	TestEqual(TEXT("Siguiente muchas veces: se queda en la última"), Tab.Page, Count - 1);
+	TestEqual(TEXT("El pie de la última"), HowToPlayPageFooter(Tab.Page, Count, One), FString(TEXT("5 de 5")));
+	Tab.PreviousPage(Count, One);
+	TestEqual(TEXT("Anterior: retrocede una"), Tab.Page, Count - 2);
+	TestEqual(TEXT("El pie de la penúltima"), HowToPlayPageFooter(Tab.Page, Count, One), FString(TEXT("4 de 5")));
+	for (int32 Step = 0; Step < 10; ++Step)
+	{
+		Tab.PreviousPage(Count, One);
+	}
+	TestEqual(TEXT("Anterior muchas veces: se queda en la primera"), Tab.Page, 0);
+	TestTrue(TEXT("Sin páginas, el pie está vacío"), HowToPlayPageFooter(0, 0, One).IsEmpty());
+	Tab.NextPage(0, One);
+	TestEqual(TEXT("Sin páginas, Siguiente no se mueve"), Tab.Page, 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireBookKeysTest, "Soulbound.Game.Presentation.Grimorio.LibroTeclasYRecuerdo", GrimoireBookTestFlags)
+
+bool FGrimoireBookKeysTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-34 (R-HUD-18): la página "Teclas" lleva las teclas de la vista con el nombre de las configuradas, en español donde lo haya: las del
+	// Grimorio, sus pestañas y sus páginas (precisión del autor del 17/11/2026: flechas arriba y abajo), 1 a 9 y 0, Intro, la vista y las etiquetas;
+	// sin H, P, T ni D (S-045). Al cerrar y abrir el Grimorio y volver a la pestaña, la página es la que se dejó. Ajustado por la segunda ampliación
+	// del autor del 17/11/2026 (CA-HUD-54): con el libro, lo que se recuerda es la vista, por su primera página.
+	using namespace Soulbound::Presentation;
+	FGrimoireKeyNames Keys;
+	const FHowToPlayBook Book = GbFourPageBook(*this, Keys);
+	const FHowToPlayPage KeysPage = HowToPlayKeysPage(Keys);
+	TestEqual(TEXT("Su título"), KeysPage.Title, FString(HowToPlayKeysTitle));
+	TestTrue(TEXT("Es la última del libro"), Book.Pages.Num() > 0 && Book.Pages.Last() == KeysPage);
+	TestFalse(TEXT("Sin imagen"), KeysPage.Blocks.ContainsByPredicate([](const FHowToPlayBlock& Block) { return Block.Kind == EHowToPlayBlockKind::Image; }));
+	// Precisión del autor al aprobar el plan de la ampliación (17/11/2026): la página "Teclas" es una lista, una tecla por elemento; su texto sin
+	// marcas, un elemento por línea, cada uno con su marca.
+	TestTrue(TEXT("Una lista de varias teclas"), KeysPage.Blocks.Num() > 1
+		&& !KeysPage.Blocks.ContainsByPredicate([](const FHowToPlayBlock& Block) { return Block.Kind != EHowToPlayBlockKind::ListItem || Block.Text.IsEmpty(); }));
+	TestEqual(TEXT("Su texto sin marcas, el de sus bloques"), KeysPage.Body, HowToPlayBodyText(KeysPage.Blocks));
+	TestTrue(TEXT("La primera, la del Grimorio"), KeysPage.Blocks.Num() > 0 && KeysPage.Blocks[0].Text.StartsWith(TEXT("G: ")));
+	const FString& Body = KeysPage.Body;
+	for (const TCHAR* Expected : {TEXT("G:"), TEXT("flechas izquierda y derecha:"), TEXT("flechas arriba y abajo:"), TEXT("1 a 9 y 0:"), TEXT("Intro:"), TEXT("C:"), TEXT("L:")})
+	{
+		TestTrue(FString::Printf(TEXT("Nombra %s"), Expected), Body.Contains(Expected));
+	}
+	TestTrue(TEXT("Las de página dicen lo que hacen"), Body.Contains(TEXT("página anterior y siguiente")));
+	TestTrue(TEXT("Intro también vuelve al menú al acabar"), Body.Contains(TEXT("vuelve al menú")));
+	for (const TCHAR* Raw : {TEXT("Left"), TEXT("Right"), TEXT("Up"), TEXT("Down"), TEXT("Enter")})
+	{
+		TestFalse(FString::Printf(TEXT("Sin el nombre de Unreal %s"), Raw), Body.Contains(Raw));
+	}
+	TArray<FString> Lines;
+	Body.ParseIntoArrayLines(Lines);
+	for (const TCHAR* Gone : {TEXT("H"), TEXT("P"), TEXT("T"), TEXT("D")})
+	{
+		TestFalse(FString::Printf(TEXT("Ninguna línea empieza por %s"), Gone), Lines.ContainsByPredicate([Gone](const FString& Line)
+		{
+			return Line.StartsWith(FString(Gone) + TEXT(":")) || Line.StartsWith(FString(HowToPlayListMark) + TEXT(" ") + Gone + TEXT(":"));
+		}));
+	}
+	TestFalse(TEXT("Ni columna ni paneles que ocultar"), Body.Contains(TEXT("columna")) || Body.Contains(TEXT("paneles")));
+
+	// Con otras teclas configuradas, sus nombres.
+	FGrimoireKeyNames Other = Keys;
+	Other.PreviousPage = TEXT("Q");
+	Other.NextPage = TEXT("E");
+	Other.Grimoire = TEXT("F1");
+	Other.ReturnToMenu = TEXT("Space Bar");
+	const FString OtherBody = HowToPlayKeysPage(Other).Body;
+	TestTrue(TEXT("Otras teclas de página: Q y E"), OtherBody.Contains(TEXT("Q y E:")));
+	TestTrue(TEXT("Otra tecla del Grimorio: F1"), OtherBody.Contains(TEXT("F1:")));
+	TestTrue(TEXT("Volver al menú con otra tecla: su línea, en español"), OtherBody.Contains(TEXT("Espacio:")));
+
+	// Las de la vista por defecto (Config): flecha arriba y flecha abajo.
+	const ABoardViewActor* View = GetDefault<ABoardViewActor>();
+	if (TestNotNull(TEXT("La vista por defecto"), View))
+	{
+		TestTrue(TEXT("Página anterior: flecha arriba"), View->GrimoirePreviousPageKey == EKeys::Up);
+		TestTrue(TEXT("Página siguiente: flecha abajo"), View->GrimoireNextPageKey == EKeys::Down);
+		TestTrue(TEXT("La página de teclas de la vista nombra las flechas arriba y abajo"), HowToPlayKeysPage(View->GrimoireKeyNames()).Body.Contains(TEXT("flechas arriba y abajo")));
+	}
+
+	// El recuerdo: la página se queda al cerrar, abrir y volver; una partida nueva (un estado nuevo) empieza en la primera.
+	const int32 Count = Book.Pages.Num();
+	const int32 Two = HowToPlayPagesPerView(true);
+	FGrimoireTabState Tab;
+	Tab.Select(EGrimoireTab::HowToPlay);
+	Tab.NextPage(Count, Two);
+	TestEqual(TEXT("En la segunda vista: la tercera y la cuarta"), Tab.Page, 2);
+	Tab.Open();
+	TestEqual(TEXT("Al abrir, la pestaña es La mesa"), static_cast<int32>(Tab.Active), static_cast<int32>(EGrimoireTab::Table));
+	Tab.Next();
+	Tab.Select(EGrimoireTab::HowToPlay);
+	TestEqual(TEXT("Al volver a Cómo se juega, la vista que se dejó"), Tab.Page, 2);
+	TestEqual(TEXT("Y su pie"), HowToPlayPageFooter(Tab.Page, Count, Two), FString(TEXT("3-4 de 5")));
+	TestEqual(TEXT("Una partida nueva, la primera"), FGrimoireTabState().Page, 0);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireBookLayoutTest, "Soulbound.Game.Presentation.Grimorio.ZonaDeContenidoDelLibro", GrimoireBookTestFlags)
+
+bool FGrimoireBookLayoutTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-36 (R-HUD-20): la zona de contenido dentro del libro queda, para un panel dado y unos márgenes de borde, dentro del panel y fuera de los
+	// bordes; ningún texto cruza el lomo (las dos páginas quedan a cada lado del centro, con su hueco); con la textura ausente, la zona es la de hoy.
+	using namespace Soulbound::Presentation;
+	const FMargin Border(0.08f, 0.1f, 0.06f, 0.12f);
+	constexpr float Inset = 12.f;
+	constexpr float Spine = 0.06f;
+
+	// Un caso a mano: la imagen, el doble del panel; escala 0,5 en los dos ejes.
+	const FGrimoireBookLayout Exact = GrimoireBookLayout(FVector2f(1000.f, 700.f), FVector2f(2000.f, 1400.f), FMargin(0.08f), Inset, Spine);
+	TestTrue(TEXT("Con imagen, hay libro"), Exact.bBook);
+	TestTrue(TEXT("La imagen se pinta al tamaño del panel"), Exact.BrushSize.Equals(FVector2f(1000.f, 700.f), 0.01f));
+	TestTrue(TEXT("El contenido, dentro de los bordes y del margen"), Exact.Content.Min.Equals(FVector2f(92.f, 68.f), 0.01f) && Exact.Content.Max.Equals(FVector2f(908.f, 632.f), 0.01f));
+
+	const TArray<FVector2f> Panels{FVector2f(1000.f, 700.f), FVector2f(1100.f, 830.f), FVector2f(992.f, 582.f), FVector2f(600.f, 900.f), FVector2f(300.f, 200.f)};
+	const TArray<FVector2f> Images{FVector2f(2048.f, 1365.f), FVector2f(1024.f, 1024.f), FVector2f(512.f, 300.f)};
+	for (const FVector2f& Panel : Panels)
+	{
+		for (const FVector2f& Image : Images)
+		{
+			const FString Case = FString::Printf(TEXT("Panel %.0fx%.0f, imagen %.0fx%.0f"), Panel.X, Panel.Y, Image.X, Image.Y);
+			const FGrimoireBookLayout Layout = GrimoireBookLayout(Panel, Image, Border, Inset, Spine);
+			const FBox2f Whole(FVector2f::ZeroVector, Panel);
+			TestTrue(Case + TEXT(": hay libro"), Layout.bBook);
+			TestTrue(Case + TEXT(": zonas válidas"), GbBoxValid(Layout.Content) && GbBoxValid(Layout.LeftPage) && GbBoxValid(Layout.RightPage));
+			TestTrue(Case + TEXT(": el contenido, dentro del panel"), GbBoxInside(Layout.Content, Whole));
+			// Escala uniforme: la imagen pintada guarda la proporción de la imagen y no se sale del panel.
+			TestTrue(Case + TEXT(": la imagen, con su proporción"), FMath::IsNearlyEqual(Layout.BrushSize.X * Image.Y, Layout.BrushSize.Y * Image.X, 1.f));
+			TestTrue(Case + TEXT(": la imagen cabe en el panel"), Layout.BrushSize.X <= Panel.X + 0.01f && Layout.BrushSize.Y <= Panel.Y + 0.01f);
+			// Fuera de los bordes: cada borde mide su fracción de la imagen pintada.
+			const float Left = Border.Left * Layout.BrushSize.X;
+			const float Top = Border.Top * Layout.BrushSize.Y;
+			const float Right = Border.Right * Layout.BrushSize.X;
+			const float Bottom = Border.Bottom * Layout.BrushSize.Y;
+			const FBox2f Inside(FVector2f(Left, Top), FVector2f(Panel.X - Right, Panel.Y - Bottom));
+			if (GbBoxValid(Inside))
+			{
+				TestTrue(Case + TEXT(": el contenido no pisa los bordes"), GbBoxInside(Layout.Content, Inside));
+			}
+			// El lomo, en el centro del panel: la página izquierda acaba antes y la derecha empieza después, y las dos están en el contenido.
+			const float Center = Panel.X * 0.5f;
+			TestTrue(Case + TEXT(": la página izquierda, antes del lomo"), Layout.LeftPage.Max.X <= Center + 0.01f);
+			TestTrue(Case + TEXT(": la derecha, después"), Layout.RightPage.Min.X >= Center - 0.01f);
+			TestTrue(Case + TEXT(": las dos, dentro del contenido"), GbBoxInside(Layout.LeftPage, Layout.Content) && GbBoxInside(Layout.RightPage, Layout.Content));
+			if (Layout.Content.Max.X - Layout.Content.Min.X > 1.f && Layout.Content.Min.X < Center && Layout.Content.Max.X > Center)
+			{
+				TestTrue(Case + TEXT(": con hueco en el lomo"), Layout.RightPage.Min.X - Layout.LeftPage.Max.X >= Spine * (Layout.Content.Max.X - Layout.Content.Min.X) - 0.01f);
+			}
+		}
+	}
+
+	// Sin textura: la zona de hoy, de una columna.
+	const FVector2f Panel(1100.f, 830.f);
+	const FGrimoireBookLayout Flat = GrimoireBookLayout(Panel, FVector2f::ZeroVector, Border, Inset, Spine);
+	TestFalse(TEXT("Sin textura, sin libro"), Flat.bBook);
+	TestTrue(TEXT("Sin textura, la zona de hoy"), Flat.Content.Min.Equals(GrimoireFlatPadding, 0.01f) && Flat.Content.Max.Equals(Panel - GrimoireFlatPadding, 0.01f));
+	TestTrue(TEXT("Sin textura, una sola columna"), Flat.LeftPage == Flat.Content && Flat.RightPage == Flat.Content);
+	TestTrue(TEXT("Sin textura, nada que pintar"), Flat.BrushSize.IsNearlyZero());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireColumnTextWidthTest, "Soulbound.Game.Presentation.Grimorio.TextoAlAnchoDeSuColumna", GrimoireBookTestFlags)
+
+bool FGrimoireColumnTextWidthTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-39 (R-HUD-20, corrección 1 del autor del 17/11/2026 tras PIE): en "Tú" (hoy, la hoja del jugador de "La mesa") los poderes de la página derecha se cortaban por el borde, porque
+	// se partían a un ancho mayor que el de su columna. Para cada columna del libro (y la única sin él) y cada sangría, el ancho de partir más la
+	// sangría y la reserva de la barra de desplazamiento no pasa del ancho de la columna; y cada página usa el suyo, no el de la otra.
+	using namespace Soulbound::Presentation;
+	TestTrue(TEXT("La reserva cubre la barra, sus márgenes y el hueco"),
+		GrimoireScrollRoom >= GrimoireScrollBarThickness + 2.f * GrimoireScrollBarPadding + GrimoireScrollGap - 0.01f && GrimoireScrollBarThickness > 0.f);
+
+	// Márgenes distintos a cada lado, para que las dos páginas no midan lo mismo.
+	const FMargin Border(0.12f, 0.08f, 0.05f, 0.08f);
+	const TArray<FVector2f> Panels{FVector2f(1100.f, 830.f), FVector2f(992.f, 582.f), FVector2f(600.f, 900.f)};
+	// Las sangrías de las líneas del panel: ninguna, la de la insolencia (4 y 4), la tarjeta (8 y 8) y la de cada poder (12 y 4).
+	const TArray<float> Indents{0.f, 8.f, 16.f, 16.f, 30.f};
+	for (const FVector2f& Panel : Panels)
+	{
+		for (const bool bBook : {true, false})
+		{
+			const FGrimoireBookLayout Layout = GrimoireBookLayout(Panel, bBook ? FVector2f(2048.f, 1365.f) : FVector2f::ZeroVector, Border, 12.f, 0.06f);
+			const float Left = Layout.LeftPage.Max.X - Layout.LeftPage.Min.X;
+			const float Right = Layout.RightPage.Max.X - Layout.RightPage.Min.X;
+			if (bBook)
+			{
+				TestFalse(FString::Printf(TEXT("Panel %.0f: las dos páginas miden distinto"), Panel.X), FMath::IsNearlyEqual(Left, Right, 0.5f));
+			}
+			for (const float Column : {Left, Right})
+			{
+				for (const float Indent : Indents)
+				{
+					const FString Case = FString::Printf(TEXT("Panel %.0fx%.0f, %s, columna %.0f, sangría %.0f"), Panel.X, Panel.Y, bBook ? TEXT("libro") : TEXT("sin libro"), Column, Indent);
+					const float Width = GrimoireColumnTextWidth(Column, Indent);
+					TestTrue(Case + TEXT(": nunca menos de 1"), Width >= 1.f);
+					TestTrue(Case + TEXT(": cabe en su columna con la sangría y la barra"), Width + Indent + GrimoireScrollRoom <= Column + 0.01f);
+					TestTrue(Case + TEXT(": usa todo el ancho de su columna, no el de la otra"), FMath::IsNearlyEqual(Width, Column - Indent - GrimoireScrollRoom, 0.01f));
+				}
+			}
+		}
+	}
+	TestEqual(TEXT("Una columna sin sitio: 1"), GrimoireColumnTextWidth(10.f, 30.f), 1.f);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireTitleAndFootTest, "Soulbound.Game.Presentation.Grimorio.TituloYTeclasAlPie", GrimoireBookTestFlags)
+
+bool FGrimoireTitleAndFootTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-40 (R-HUD-20, corrección 2 del autor del 17/11/2026 tras PIE): el título ocupaba tres líneas. Dice solo "Grimorio"; las teclas van en una
+	// línea pequeña al pie, una mitad por página: a la izquierda, cerrar y pestañas; a la derecha, páginas. Con los nombres de las teclas configuradas.
+	// Ajustado por la corrección 5 (segunda prueba en PIE): la parte de páginas, solo en "Cómo se juega", la única pestaña con páginas; en las demás, el
+	// pie de la derecha queda vacío, y la línea única sin el libro lleva solo cerrar y pestañas.
+	using namespace Soulbound::Presentation;
+	TestEqual(TEXT("El título"), FString(GrimoireTitleText), FString(TEXT("Grimorio")));
+	FGrimoireKeyNames Keys;
+	Keys.Grimoire = TEXT("G");
+	Keys.PreviousTab = TEXT("Left");
+	Keys.NextTab = TEXT("Right");
+	Keys.PreviousPage = TEXT("Up");
+	Keys.NextPage = TEXT("Down");
+	const FString Left(TEXT("G para cerrar; flechas izquierda y derecha, pestañas"));
+	const FString Pages(TEXT("flechas arriba y abajo, páginas"));
+	for (const EGrimoireTab Tab : GrimoireTabs())
+	{
+		const bool bPages = Tab == EGrimoireTab::HowToPlay;
+		const FString Name = GrimoireTabTitle(Tab);
+		const FGrimoireFootHints Foot = GrimoireFootHints(Keys, Tab);
+		TestEqual(TEXT("Al pie de la izquierda, cerrar y pestañas, en ") + Name, Foot.Left, Left);
+		TestEqual(TEXT("Al pie de la izquierda, lo mismo que GrimoireKeysHint, en ") + Name, Foot.Left, GrimoireKeysHint(Keys.Grimoire, Keys.PreviousTab, Keys.NextTab));
+		TestEqual(TEXT("Al pie de la derecha, páginas solo en Cómo se juega: ") + Name, Foot.Right, bPages ? Pages : FString());
+		TestEqual(TEXT("Sin el libro, la línea única: ") + Name, Foot.OneLine(), bPages ? Left + TEXT("; ") + Pages : Left);
+	}
+
+	FGrimoireKeyNames Other = Keys;
+	Other.Grimoire = TEXT("F1");
+	Other.PreviousTab = TEXT("Q");
+	Other.NextTab = TEXT("E");
+	Other.PreviousPage = TEXT("Z");
+	Other.NextPage = TEXT("Space Bar");
+	const FGrimoireFootHints OtherFoot = GrimoireFootHints(Other, EGrimoireTab::HowToPlay);
+	TestEqual(TEXT("Otras teclas, a la izquierda"), OtherFoot.Left, FString(TEXT("F1 para cerrar; Q y E, pestañas")));
+	TestEqual(TEXT("Otras teclas, a la derecha, en español donde lo haya"), OtherFoot.Right, FString(TEXT("Z y Espacio, páginas")));
+	TestEqual(TEXT("Otras teclas, la línea única"), OtherFoot.OneLine(), FString(TEXT("F1 para cerrar; Q y E, pestañas; Z y Espacio, páginas")));
+	TestEqual(TEXT("Otras teclas, sin páginas en la Crónica"), GrimoireFootHints(Other, EGrimoireTab::Chronicle).OneLine(), FString(TEXT("F1 para cerrar; Q y E, pestañas")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireChronicleHeadingTest, "Soulbound.Game.Presentation.Grimorio.CabeceraDeLaCronica", GrimoireBookTestFlags)
+
+bool FGrimoireChronicleHeadingTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-42 (R-HUD-20, corrección 6 del autor del 17/11/2026): el encabezado de la Crónica, con sus tildes.
+	TestEqual(TEXT("El encabezado de la Crónica"), FString(Soulbound::Presentation::ChronicleHeadingText), FString(TEXT("CRÓNICA (la última arriba; rueda para ir al inicio)")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireFontTest, "Soulbound.Game.Presentation.Grimorio.FuenteDelLibro", GrimoireBookTestFlags)
+
+bool FGrimoireFontTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-41 (R-HUD-20, corrección 4 del autor del 17/11/2026): sin fuente, la letra es la de hoy, con el tipo y el tamaño pedidos; con fuente, esa
+	// fuente, con su tipo normal o negrita y el tamaño pedido.
+	using namespace Soulbound::Presentation;
+	const FGrimoireFont None;
+	for (const bool bBold : {false, true})
+	{
+		const FSlateFontInfo Expected = FCoreStyle::GetDefaultFontStyle(bBold ? "Bold" : "Regular", 17);
+		const FSlateFontInfo Got = GrimoireFontInfo(None, bBold, 17);
+		const FString Kind = bBold ? TEXT("negrita") : TEXT("normal");
+		TestTrue(TEXT("Sin fuente, la de hoy: ") + Kind, Got.FontObject == Expected.FontObject && Got.TypefaceFontName == Expected.TypefaceFontName
+			&& Got.CompositeFont == Expected.CompositeFont);
+		TestTrue(TEXT("Sin fuente, el tamaño pedido: ") + Kind, FMath::IsNearlyEqual(static_cast<float>(Got.Size), static_cast<float>(Expected.Size)));
+	}
+	TestTrue(TEXT("Un tamaño de 0 se queda en 1"), FMath::IsNearlyEqual(static_cast<float>(GrimoireFontInfo(None, false, 0).Size), 1.f));
+
+	FGrimoireFont Own;
+	Own.Font = NewObject<UFont>(GetTransientPackage());
+	Own.RegularTypeface = TEXT("Normal");
+	Own.BoldTypeface = TEXT("Negrita");
+	const FSlateFontInfo Regular = GrimoireFontInfo(Own, false, 14);
+	const FSlateFontInfo Bold = GrimoireFontInfo(Own, true, 20);
+	TestTrue(TEXT("Con fuente, la normal es esa fuente"), Regular.FontObject == Own.Font);
+	TestTrue(TEXT("Con fuente, su tipo normal"), Regular.TypefaceFontName == Own.RegularTypeface);
+	TestTrue(TEXT("Con fuente, el tamaño de la normal"), FMath::IsNearlyEqual(static_cast<float>(Regular.Size), 14.f));
+	TestTrue(TEXT("Con fuente, la negrita es esa fuente"), Bold.FontObject == Own.Font);
+	TestTrue(TEXT("Con fuente, su tipo negrita"), Bold.TypefaceFontName == Own.BoldTypeface);
+	TestTrue(TEXT("Con fuente, el tamaño de la negrita"), FMath::IsNearlyEqual(static_cast<float>(Bold.Size), 20.f));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireItalicFontTest, "Soulbound.Game.Presentation.Grimorio.FuenteCursiva", GrimoireBookTestFlags)
+
+bool FGrimoireItalicFontTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-47 (corrección 4, ampliación del autor del 17/11/2026): la fuente del Grimorio da el tipo cursiva para la frase del Warden y negrita
+	// cursiva para su negrita; sin fuente del libro, los tipos Italic y BoldItalic de la fuente de siempre. Sin cursiva, lo de antes.
+	using namespace Soulbound::Presentation;
+	const FGrimoireFont None;
+	for (const bool bBold : {false, true})
+	{
+		const TCHAR* Typeface = bBold ? TEXT("BoldItalic") : TEXT("Italic");
+		const FSlateFontInfo Expected = FCoreStyle::GetDefaultFontStyle(Typeface, 15);
+		const FSlateFontInfo Got = GrimoireFontInfo(None, bBold, 15, true);
+		TestTrue(FString::Printf(TEXT("Sin fuente, la de siempre en %s"), Typeface), Got.FontObject == Expected.FontObject && Got.TypefaceFontName == Expected.TypefaceFontName
+			&& Got.CompositeFont == Expected.CompositeFont);
+		TestTrue(FString::Printf(TEXT("Sin fuente, %s, el tamaño pedido"), Typeface), FMath::IsNearlyEqual(static_cast<float>(Got.Size), static_cast<float>(Expected.Size)));
+	}
+
+	FGrimoireFont Own;
+	Own.Font = NewObject<UFont>(GetTransientPackage());
+	Own.RegularTypeface = TEXT("Normal");
+	Own.BoldTypeface = TEXT("Negrita");
+	Own.ItalicTypeface = TEXT("Cursiva");
+	Own.BoldItalicTypeface = TEXT("NegritaCursiva");
+	TestTrue(TEXT("Los nombres por defecto: Italic y BoldItalic"), FGrimoireFont().ItalicTypeface == FName(TEXT("Italic")) && FGrimoireFont().BoldItalicTypeface == FName(TEXT("BoldItalic")));
+	const FSlateFontInfo Italic = GrimoireFontInfo(Own, false, 14, true);
+	const FSlateFontInfo BoldItalic = GrimoireFontInfo(Own, true, 18, true);
+	TestTrue(TEXT("La frase del Warden: esa fuente, en cursiva"), Italic.FontObject == Own.Font && Italic.TypefaceFontName == Own.ItalicTypeface);
+	TestTrue(TEXT("Su tamaño"), FMath::IsNearlyEqual(static_cast<float>(Italic.Size), 14.f));
+	TestTrue(TEXT("Su negrita: esa fuente, en negrita cursiva"), BoldItalic.FontObject == Own.Font && BoldItalic.TypefaceFontName == Own.BoldItalicTypeface);
+	TestTrue(TEXT("Su tamaño"), FMath::IsNearlyEqual(static_cast<float>(BoldItalic.Size), 18.f));
+	TestTrue(TEXT("Sin cursiva, lo de antes"), GrimoireFontInfo(Own, false, 14).TypefaceFontName == Own.RegularTypeface && GrimoireFontInfo(Own, true, 14, false).TypefaceFontName == Own.BoldTypeface);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireSpreadTest, "Soulbound.Game.Presentation.Grimorio.LibroADoblePagina", GrimoireBookTestFlags)
+
+bool FGrimoireSpreadTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-54 (R-HUD-18, segunda ampliación del autor del 17/11/2026): con cinco páginas y el libro, las vistas son (1, 2), (3, 4) y (5, nada).
+	// "Siguiente" desde la primera lleva a 3 y 4 y se queda en la última; "Anterior", al revés, se queda en la primera. El pie dice "1-2 de 5",
+	// "3-4 de 5" y "5 de 5". Sin el libro, de una en una (CA-HUD-33). La página "Teclas" es la última, caiga en la hoja que caiga.
+	using namespace Soulbound::Presentation;
+	FGrimoireKeyNames Keys;
+	const FHowToPlayBook Book = GbFourPageBook(*this, Keys);
+	const int32 Count = Book.Pages.Num();
+	if (!TestEqual(TEXT("Cinco páginas, la última Teclas"), Count, 5) || !TestEqual(TEXT("La última, Teclas"), Book.Pages.Last().Title, FString(HowToPlayKeysTitle)))
+	{
+		return false;
+	}
+	const int32 Two = HowToPlayPagesPerView(true);
+	TestEqual(TEXT("Con el libro, dos páginas a la vez"), Two, 2);
+	TestEqual(TEXT("Sin el libro, una"), HowToPlayPagesPerView(false), 1);
+
+	FGrimoireTabState Tab;
+	TestEqual(TEXT("La primera vista: 1 y 2"), Tab.Page, 0);
+	TestEqual(TEXT("Su pie"), HowToPlayPageFooter(Tab.Page, Count, Two), FString(TEXT("1-2 de 5")));
+	Tab.PreviousPage(Count, Two);
+	TestEqual(TEXT("Anterior en la primera: se queda"), Tab.Page, 0);
+	Tab.NextPage(Count, Two);
+	TestEqual(TEXT("Siguiente: 3 y 4"), Tab.Page, 2);
+	TestEqual(TEXT("Su pie"), HowToPlayPageFooter(Tab.Page, Count, Two), FString(TEXT("3-4 de 5")));
+	Tab.NextPage(Count, Two);
+	TestEqual(TEXT("Siguiente: la 5, sola a la izquierda"), Tab.Page, 4);
+	TestEqual(TEXT("Su pie, con una sola página"), HowToPlayPageFooter(Tab.Page, Count, Two), FString(TEXT("5 de 5")));
+	for (int32 Step = 0; Step < 5; ++Step)
+	{
+		Tab.NextPage(Count, Two);
+	}
+	TestEqual(TEXT("Siguiente en la última: se queda"), Tab.Page, 4);
+	Tab.PreviousPage(Count, Two);
+	TestEqual(TEXT("Anterior: 3 y 4"), Tab.Page, 2);
+	Tab.PreviousPage(Count, Two);
+	TestEqual(TEXT("Anterior: 1 y 2"), Tab.Page, 0);
+	Tab.PreviousPage(Count, Two);
+	TestEqual(TEXT("Anterior en la primera: se queda"), Tab.Page, 0);
+
+	// Con un total par, la última vista lleva dos; una página que no empieza vista cuenta la suya.
+	TestEqual(TEXT("Seis páginas, la última vista: 5-6"), HowToPlayPageFooter(4, 6, Two), FString(TEXT("5-6 de 6")));
+	TestEqual(TEXT("Una página en medio de una vista: el pie de la vista"), HowToPlayPageFooter(3, 5, Two), FString(TEXT("3-4 de 5")));
+	FGrimoireTabState Odd;
+	Odd.Page = 3;
+	Odd.NextPage(Count, Two);
+	TestEqual(TEXT("Desde una página en medio de una vista, Siguiente lleva a la vista siguiente"), Odd.Page, 4);
+	Odd.Page = 3;
+	Odd.PreviousPage(Count, Two);
+	TestEqual(TEXT("Y Anterior, a la vista anterior"), Odd.Page, 0);
+	TestEqual(TEXT("Una sola página: su pie"), HowToPlayPageFooter(0, 1, Two), FString(TEXT("1 de 1")));
+	TestTrue(TEXT("Sin páginas, el pie está vacío"), HowToPlayPageFooter(0, 0, Two).IsEmpty());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireImageSizeTest, "Soulbound.Game.Presentation.Grimorio.TamanoDeLaImagen", GrimoireBookTestFlags)
+
+bool FGrimoireImageSizeTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-56 (R-HUD-18, segunda ampliación del autor del 17/11/2026): el tamaño de una imagen dentro de una hoja, para el ancho de la hoja, el alto
+	// máximo y las proporciones de la imagen, cabe en los dos límites y conserva las proporciones. Precisión del plan aprobado: el mayor que cabe,
+	// agrandando la imagen si es pequeña; así toca uno de los dos límites.
+	using namespace Soulbound::Presentation;
+	struct FCase
+	{
+		const TCHAR* Name;
+		float Width;
+		float MaxHeight;
+		FVector2f Image;
+	};
+	const FCase Cases[] = {
+		{TEXT("Ancha"), 400.f, 300.f, FVector2f(800.f, 400.f)},
+		{TEXT("Alta"), 400.f, 300.f, FVector2f(100.f, 400.f)},
+		{TEXT("Pequeña"), 400.f, 300.f, FVector2f(40.f, 20.f)},
+		{TEXT("Cuadrada en hoja estrecha"), 200.f, 500.f, FVector2f(512.f, 512.f)},
+		{TEXT("Justa"), 400.f, 300.f, FVector2f(400.f, 300.f)},
+	};
+	for (const FCase& Case : Cases)
+	{
+		const FVector2f Size = HowToPlayImageSize(Case.Width, Case.MaxHeight, Case.Image);
+		const FString Name = Case.Name;
+		TestTrue(Name + TEXT(": cabe en el ancho de la hoja"), Size.X > 0.f && Size.X <= Case.Width + 0.01f);
+		TestTrue(Name + TEXT(": cabe en el alto máximo"), Size.Y > 0.f && Size.Y <= Case.MaxHeight + 0.01f);
+		TestTrue(Name + TEXT(": conserva las proporciones"), Size.Y > 0.f && FMath::IsNearlyEqual(Size.X / Size.Y, Case.Image.X / Case.Image.Y, 0.001f));
+		TestTrue(Name + TEXT(": el mayor que cabe, toca un límite"), FMath::IsNearlyEqual(Size.X, Case.Width, 0.01f) || FMath::IsNearlyEqual(Size.Y, Case.MaxHeight, 0.01f));
+	}
+	TestTrue(TEXT("La ancha: 400 x 200"), HowToPlayImageSize(400.f, 300.f, FVector2f(800.f, 400.f)).Equals(FVector2f(400.f, 200.f), 0.01f));
+	TestTrue(TEXT("La alta: 75 x 300"), HowToPlayImageSize(400.f, 300.f, FVector2f(100.f, 400.f)).Equals(FVector2f(75.f, 300.f), 0.01f));
+	TestTrue(TEXT("Sin imagen: cero"), HowToPlayImageSize(400.f, 300.f, FVector2f::ZeroVector).IsNearlyZero());
+	TestTrue(TEXT("Sin sitio: cero"), HowToPlayImageSize(0.f, 300.f, FVector2f(100.f, 100.f)).IsNearlyZero() && HowToPlayImageSize(400.f, 0.f, FVector2f(100.f, 100.f)).IsNearlyZero());
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireWatermarkTest, "Soulbound.Game.Presentation.Grimorio.MarcaDeAguaEnLasDosHojas", GrimoireBookTestFlags)
+
+bool FGrimoireWatermarkTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-57 (R-HUD-20, segunda ampliación y corrección del autor del 17/11/2026): la marca de agua va en las dos hojas: un rectángulo por hoja,
+	// cada uno centrado en la suya y dentro de ella, al mayor tamaño que cabe sin deformarse en la fracción dada de la hoja; sin textura o sin el
+	// libro, ninguna marca.
+	using namespace Soulbound::Presentation;
+	const FMargin Border(0.08f);
+	const FGrimoireBookLayout Book = GrimoireBookLayout(FVector2f(1200.f, 800.f), FVector2f(1600.f, 1000.f), Border, 12.f, 0.06f);
+	if (!TestTrue(TEXT("El libro"), Book.bBook))
+	{
+		return false;
+	}
+	for (const FVector2f& Texture : {FVector2f(512.f, 512.f), FVector2f(800.f, 200.f), FVector2f(100.f, 600.f)})
+	{
+		const FGrimoireWatermarks Marks = GrimoireWatermarks(Book, Texture, 0.7f);
+		const FString Case = FString::Printf(TEXT("Textura %.0fx%.0f"), Texture.X, Texture.Y);
+		TestTrue(Case + TEXT(": hay marca"), Marks.bShown);
+		struct FSheet
+		{
+			const TCHAR* Name;
+			FBox2f Mark;
+			FBox2f Page;
+		};
+		const FSheet Sheets[] = {{TEXT("izquierda"), Marks.Left, Book.LeftPage}, {TEXT("derecha"), Marks.Right, Book.RightPage}};
+		for (const FSheet& Sheet : Sheets)
+		{
+			const FBox2f& Mark = Sheet.Mark;
+			const FBox2f& Page = Sheet.Page;
+			const FString Where = Case + TEXT(", hoja ") + Sheet.Name;
+			TestTrue(Where + TEXT(": centrada en su hoja"), Mark.GetCenter().Equals(Page.GetCenter(), 0.01f));
+			TestTrue(Where + TEXT(": dentro de su hoja"), Mark.Min.X >= Page.Min.X - 0.01f && Mark.Min.Y >= Page.Min.Y - 0.01f
+				&& Mark.Max.X <= Page.Max.X + 0.01f && Mark.Max.Y <= Page.Max.Y + 0.01f);
+			const FVector2f Size = Mark.GetSize();
+			const FVector2f PageSize = Page.GetSize();
+			TestTrue(Where + TEXT(": cabe en la fracción de la hoja"), Size.X <= PageSize.X * 0.7f + 0.01f && Size.Y <= PageSize.Y * 0.7f + 0.01f);
+			TestTrue(Where + TEXT(": la mayor que cabe"), FMath::IsNearlyEqual(Size.X, PageSize.X * 0.7f, 0.01f) || FMath::IsNearlyEqual(Size.Y, PageSize.Y * 0.7f, 0.01f));
+			TestTrue(Where + TEXT(": sin deformarse"), Size.Y > 0.f && FMath::IsNearlyEqual(Size.X / Size.Y, Texture.X / Texture.Y, 0.001f));
+		}
+	}
+	TestFalse(TEXT("Sin textura, ninguna marca"), GrimoireWatermarks(Book, FVector2f::ZeroVector, 0.7f).bShown);
+	const FGrimoireBookLayout Flat = GrimoireBookLayout(FVector2f(1200.f, 800.f), FVector2f::ZeroVector, Border, 12.f, 0.06f);
+	TestFalse(TEXT("Sin el libro, ninguna marca"), GrimoireWatermarks(Flat, FVector2f(512.f, 512.f), 0.7f).bShown);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHowToPlayFullSheetImageTest, "Soulbound.Game.Presentation.Grimorio.ImagenAHojaEntera", GrimoireBookTestFlags)
+
+bool FHowToPlayFullSheetImageTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-61 (R-HUD-18; S-048, ronda de maquetación del 18/11/2026): la función que da el sitio de una imagen a hoja entera devuelve un rectángulo
+	// dentro de la hoja, centrado en horizontal y en vertical, con las proporciones de la imagen, para una imagen apaisada y para una vertical. Y es
+	// el mayor que cabe: llega a dos bordes opuestos de la hoja.
+	using namespace Soulbound::Presentation;
+	const TArray<FVector2f> Sheets{FVector2f(420.f, 560.f), FVector2f(800.f, 500.f), FVector2f(300.f, 300.f)};
+	const TArray<FVector2f> Images{FVector2f(1536.f, 1024.f), FVector2f(1024.f, 1536.f), FVector2f(200.f, 120.f)};
+	for (const FVector2f& Sheet : Sheets)
+	{
+		for (const FVector2f& Image : Images)
+		{
+			const FString Case = FString::Printf(TEXT("Hoja %.0fx%.0f, imagen %.0fx%.0f (%s)"), Sheet.X, Sheet.Y, Image.X, Image.Y, Image.X >= Image.Y ? TEXT("apaisada") : TEXT("vertical"));
+			const FBox2f Box = HowToPlayFullSheetImage(Sheet, Image);
+			const FVector2f Size = Box.GetSize();
+			TestTrue(Case + TEXT(": con tamaño"), Size.X > 1.f && Size.Y > 1.f);
+			TestTrue(Case + TEXT(": dentro de la hoja"), Box.Min.X >= -0.01f && Box.Min.Y >= -0.01f && Box.Max.X <= Sheet.X + 0.01f && Box.Max.Y <= Sheet.Y + 0.01f);
+			TestTrue(Case + TEXT(": centrada en horizontal"), FMath::IsNearlyEqual(Box.Min.X, Sheet.X - Box.Max.X, 0.01f));
+			TestTrue(Case + TEXT(": centrada en vertical"), FMath::IsNearlyEqual(Box.Min.Y, Sheet.Y - Box.Max.Y, 0.01f));
+			TestTrue(Case + TEXT(": con sus proporciones"), FMath::IsNearlyEqual(Size.X * Image.Y, Size.Y * Image.X, 1.f));
+			TestTrue(Case + TEXT(": la mayor que cabe"), FMath::IsNearlyEqual(Size.X, Sheet.X, 0.01f) || FMath::IsNearlyEqual(Size.Y, Sheet.Y, 0.01f));
+		}
+	}
+	TestTrue(TEXT("Sin hoja, nada"), HowToPlayFullSheetImage(FVector2f::ZeroVector, FVector2f(100.f, 100.f)).GetSize().IsNearlyZero());
+	TestTrue(TEXT("Sin imagen, nada"), HowToPlayFullSheetImage(FVector2f(400.f, 500.f), FVector2f::ZeroVector).GetSize().IsNearlyZero());
+	return true;
+}
+
+namespace
+{
+	/** Una textura en memoria con la fuente y los datos derivados que se le digan (0 x 0, sin fuente); sin recurso de render. */
+	UTexture2D* GbTexture(const FIntPoint& SourceSize, const FIntPoint& DerivedSize)
+	{
+		UTexture2D* Texture = NewObject<UTexture2D>(GetTransientPackage(), NAME_None, RF_Transient);
+#if WITH_EDITORONLY_DATA
+		if (SourceSize.X > 0 && SourceSize.Y > 0)
+		{
+			Texture->Source.Init(SourceSize.X, SourceSize.Y, 1, 1, TSF_BGRA8);
+		}
+#endif
+		FTexturePlatformData* Derived = new FTexturePlatformData();
+		Derived->SizeX = DerivedSize.X;
+		Derived->SizeY = DerivedSize.Y;
+		Texture->SetPlatformData(Derived);
+		return Texture;
+	}
+
+	/** Suelta lo que GbTexture le dio: sus datos derivados y el objeto. */
+	void GbReleaseTexture(UTexture2D* Texture)
+	{
+		Texture->SetPlatformData(nullptr);
+		Texture->MarkAsGarbage();
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireTextureSizeTest, "Soulbound.Game.Presentation.Grimorio.TamanoDeLaTextura", GrimoireBookTestFlags)
+
+bool FGrimoireTextureSizeTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-62 (R-HUD-18, R-HUD-20; S-048, correcciones tras probar la maquetación del 18/11/2026): el tamaño de una textura del libro es el de su
+	// fuente aunque sus datos derivados digan otro; sin fuente, el de sus datos. Los 64 x 64 imitan la textura de relleno, cuadrada, que dan
+	// GetSizeX y GetSizeY en el editor mientras la textura se compila. El momento real de esa compilación no se puede provocar aquí: comprobación
+	// manual en la story ("Notas para la prueba").
+	using namespace Soulbound::Presentation;
+	TestTrue(TEXT("Sin textura, cero"), GrimoireTextureSize(nullptr).IsNearlyZero());
+#if WITH_EDITORONLY_DATA
+	UTexture2D* Wide = GbTexture(FIntPoint(1642, 717), FIntPoint(64, 64));
+	TestTrue(TEXT("Los datos derivados dicen cuadrada"), Wide->GetSizeX() == 64 && Wide->GetSizeY() == 64);
+	TestTrue(TEXT("La apaisada (Carrera, 1642 x 717): el de su fuente"), GrimoireTextureSize(Wide).Equals(FVector2f(1642.f, 717.f), 0.01f));
+	GbReleaseTexture(Wide);
+	UTexture2D* Tall = GbTexture(FIntPoint(920, 1092), FIntPoint(64, 64));
+	TestTrue(TEXT("La vertical (Anillo, 920 x 1092): el de su fuente"), GrimoireTextureSize(Tall).Equals(FVector2f(920.f, 1092.f), 0.01f));
+	GbReleaseTexture(Tall);
+#endif
+	UTexture2D* NoSource = GbTexture(FIntPoint::ZeroValue, FIntPoint(32, 16));
+	TestTrue(TEXT("Sin fuente: el de sus datos"), GrimoireTextureSize(NoSource).Equals(FVector2f(32.f, 16.f), 0.01f));
+	GbReleaseTexture(NoSource);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHowToPlayPageButtonsTest, "Soulbound.Game.Presentation.Grimorio.BotonesDePagina", GrimoireBookTestFlags)
+
+bool FHowToPlayPageButtonsTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-64 (R-HUD-18; S-048, retoques del 18/11/2026): con 30 páginas (las 29 del autor y la de teclas) y el libro, la primera vista no tiene
+	// "Anterior" y sí "Siguiente", la última tiene "Anterior" y no "Siguiente" y una del medio tiene los dos; lo mismo sin el libro, de una en una; con
+	// una sola vista, ninguno; sin páginas, ninguno.
+	using namespace Soulbound::Presentation;
+	constexpr int32 Count = 30;
+	for (const bool bBook : {true, false})
+	{
+		const int32 PerView = HowToPlayPagesPerView(bBook);
+		const FString Mode = bBook ? TEXT("Con el libro") : TEXT("Sin el libro");
+		const int32 Last = HowToPlayViewStart(Count - 1, PerView);
+		const int32 Middle = HowToPlayViewStart(Count / 2, PerView);
+		TestTrue(Mode + TEXT(": la primera vista, solo \"Siguiente\""), HowToPlayPageButtons(0, Count, PerView) == FHowToPlayPageButtons{false, true});
+		TestTrue(Mode + TEXT(": la última vista, solo \"Anterior\""), HowToPlayPageButtons(Last, Count, PerView) == FHowToPlayPageButtons{true, false});
+		TestTrue(Mode + TEXT(": una del medio, los dos"), HowToPlayPageButtons(Middle, Count, PerView) == FHowToPlayPageButtons{true, true});
+	}
+	TestTrue(TEXT("Con el libro, dos páginas: una vista, ninguno"), HowToPlayPageButtons(0, 2, 2) == FHowToPlayPageButtons{false, false});
+	TestTrue(TEXT("Sin el libro, una página: ninguno"), HowToPlayPageButtons(0, 1, 1) == FHowToPlayPageButtons{false, false});
+	TestTrue(TEXT("Con el libro, tres páginas: la última vista (la 3, sola), solo \"Anterior\""), HowToPlayPageButtons(2, 3, 2) == FHowToPlayPageButtons{true, false});
+	TestTrue(TEXT("Sin páginas, ninguno"), HowToPlayPageButtons(0, 0, 2) == FHowToPlayPageButtons{false, false});
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireFrameWidthTest, "Soulbound.Game.Presentation.Grimorio.MarcoDeUnPixel", GrimoireBookTestFlags)
+
+bool FGrimoireFrameWidthTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-63 (R-HUD-18, R-HUD-10; S-048, correcciones tras probar la maquetación del 18/11/2026): el marco de los botones de página y de las
+	// pestañas mide al menos un píxel de pantalla: 1 unidad con escala 1 o mayor, 1,5 con escala 0,667, y 1 con una escala no válida.
+	using Soulbound::Presentation::GrimoireFrameWidth;
+	TestEqual(TEXT("Escala 1: una unidad"), GrimoireFrameWidth(1.f), 1.f, 0.001f);
+	TestEqual(TEXT("Escala 2: una unidad (dos píxeles)"), GrimoireFrameWidth(2.f), 1.f, 0.001f);
+	TestEqual(TEXT("Escala 0,667: un píxel, 1,5 unidades"), GrimoireFrameWidth(0.667f), 1.f / 0.667f, 0.001f);
+	TestEqual(TEXT("Escala 0,5: dos unidades"), GrimoireFrameWidth(0.5f), 2.f, 0.001f);
+	TestEqual(TEXT("Escala 0: una unidad"), GrimoireFrameWidth(0.f), 1.f, 0.001f);
+	TestEqual(TEXT("Escala negativa: una unidad"), GrimoireFrameWidth(-1.f), 1.f, 0.001f);
 	return true;
 }
 

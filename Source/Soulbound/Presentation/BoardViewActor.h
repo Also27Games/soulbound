@@ -38,6 +38,7 @@ enum class ESkillTrial : uint8;
 enum class ESkillDifficulty : uint8;
 class UInstancedStaticMeshComponent;
 class UTexture2D;
+class UFont;
 class UMaterialInterface;
 class UMatchHostSubsystem;
 class USkyLightComponent;
@@ -97,6 +98,12 @@ public:
 
 	/** Si el Grimorio está abierto (S-027, R-HUD-4): mientras lo está, los clics sobre el tablero no cuentan (el controlador los ignora). */
 	bool IsGrimoireOpen() const { return bGrimoireOpen; }
+
+	/**
+	 * Los nombres de las teclas configuradas que nombra el libro de "Cómo se juega" (S-044; desde S-048, R-HUD-18 y R-HUD-19, también las de página).
+	 * Público para que el menú (UHowToPlayLibrary) los lea del objeto por defecto, con la misma Config que la partida.
+	 */
+	Soulbound::Presentation::FGrimoireKeyNames GrimoireKeyNames() const;
 
 	// ---- Mesa (S-019) ----
 
@@ -667,6 +674,98 @@ public:
 	FKey GrimoireNextTabKey = EKeys::Right;
 
 	/**
+	 * Teclas que pasan a la página anterior y a la siguiente de "Cómo se juega" (S-048, R-HUD-18, nombres aprobados por el autor el 17/11/2026): solo con
+	 * el Grimorio abierto en esa pestaña; no son cíclicas. Valores iniciales flecha arriba y flecha abajo: distintas de las de pestaña y libres.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	FKey GrimoirePreviousPageKey = EKeys::Up;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
+	FKey GrimoireNextPageKey = EKeys::Down;
+
+	/**
+	 * La carpeta de las imágenes de "Cómo se juega" (S-048, R-HUD-17): "![](T_Ayuda_Turno)" es la textura T_Ayuda_Turno de esta carpeta. Valor inicial
+	 * /Game/Art/Ayuda/ (Config/DefaultGame.ini). Una imagen que no existe deja la página sin imagen y se dice una vez en el registro.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FString HowToPlayImageFolder = TEXT("/Game/Art/Ayuda/");
+
+	/**
+	 * El alto máximo de una imagen de "Cómo se juega", en fracción del alto de su hoja (S-048, segunda ampliación del autor del 17/11/2026, R-HUD-18,
+	 * nombre propuesto). Valor inicial 0,6. La imagen va centrada, al mayor tamaño que cabe en el ancho de la hoja y en este alto sin deformarse; una
+	 * página con solo una imagen la pinta a hoja entera. Sustituye a HowToPlayMinTextWidth: la imagen ya no va al lado del texto.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0", ClampMax = "1"))
+	float HowToPlayImageMaxHeight = 0.6f;
+
+	/**
+	 * La marca de agua de "Cómo se juega" (S-048, segunda ampliación y corrección del autor del 17/11/2026, R-HUD-20, nombres propuestos): con la imagen
+	 * del libro, cada hoja lleva la suya detrás del texto, centrada, apagada, siempre. Su textura (valor inicial
+	 * /Game/Art/Ayuda/T_Ayuda_Sello.T_Ayuda_Sello), su opacidad (valor inicial 0,25) y su tamaño en fracción de la hoja (valor inicial 0,7). Vacía o
+	 * inexistente, no se pinta y se dice una vez en el registro.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (AllowedClasses = "/Script/Engine.Texture2D"))
+	FSoftObjectPath HowToPlayWatermarkTexture;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0", ClampMax = "1"))
+	float HowToPlayWatermarkOpacity = 0.25f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0", ClampMax = "1"))
+	float HowToPlayWatermarkSize = 0.7f;
+
+	/**
+	 * La imagen del libro abierto sobre la que se pinta el Grimorio (S-048, R-HUD-20, nombre aprobado): páginas oscuras y vacías. Valor inicial
+	 * /Game/Art/Grimorio/T_GrimorioFondo.T_GrimorioFondo (Config/DefaultGame.ini); el asset lo importa el autor. Vacía o inexistente, el Grimorio
+	 * se pinta con el fondo negro de siempre y se dice una vez en el registro.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (AllowedClasses = "/Script/Engine.Texture2D"))
+	FSoftObjectPath GrimoireBackgroundTexture;
+
+	/**
+	 * Los márgenes del borde de la imagen del libro, en fracción de la imagen (S-048, R-HUD-20): lo que queda fuera se estira sin deformarse (las
+	 * esquinas y el lomo no cambian de proporción) y el contenido nunca lo pisa. Valor inicial 0,08 por lado; depende de la imagen y se ajusta en PIE.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FMargin GrimoireBackgroundMargin = FMargin(0.08f);
+
+	/** Margen añadido dentro de los bordes del libro, en unidades de Slate (S-048, R-HUD-20). Valor inicial 12. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
+	float GrimoirePageInset = 12.f;
+
+	/** El hueco del lomo, en fracción del ancho del contenido, que ninguna página pisa (S-048, R-HUD-20). Valor inicial 0,06. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0", ClampMax = "0.5"))
+	float GrimoireSpineGap = 0.06f;
+
+	/**
+	 * La fuente de todo el texto del Grimorio (S-048, corrección 4 del autor del 17/11/2026, R-HUD-20, nombre propuesto): un asset de fuente con sus
+	 * tipos normal y negrita. Valor inicial /Game/Art/Fuentes/F_Grimorio.F_Grimorio (Config/DefaultGame.ini); el asset lo importa el autor. Vacía o
+	 * inexistente, la fuente de siempre y se dice una vez en el registro. Los tamaños no cambian.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (AllowedClasses = "/Script/Engine.Font"))
+	FSoftObjectPath GrimoireFont;
+
+	/**
+	 * Los nombres de los tipos normal y negrita dentro del asset de GrimoireFont (S-048, corrección 4, nombres propuestos). Valores iniciales Regular
+	 * y Bold; si el asset los llama de otro modo, se cambian aquí sin compilar.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FName GrimoireFontRegularTypeface = TEXT("Regular");
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FName GrimoireFontBoldTypeface = TEXT("Bold");
+
+	/**
+	 * Los nombres de los tipos cursiva y negrita cursiva dentro del asset de GrimoireFont (S-048, ampliación del autor del 17/11/2026, nombres
+	 * propuestos): la frase del Warden de "Cómo se juega" y su negrita. Valores iniciales Italic y BoldItalic; sin la fuente del libro, los de la
+	 * fuente de siempre.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FName GrimoireFontItalicTypeface = TEXT("Italic");
+
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
+	FName GrimoireFontBoldItalicTypeface = TEXT("BoldItalic");
+
+	/**
 	 * Tecla que muestra y oculta el panel de depuración (S-027, R-HUD-2). Valor inicial D (decisión del autor del 9/11/2026: F1 es una tecla de
 	 * depuración del propio Unreal).
 	 */
@@ -927,7 +1026,7 @@ private:
 	/** Muestra u oculta el panel de depuración (S-027, R-HUD-2). Al empezar, oculto. */
 	void ToggleDebugPanel();
 	/**
-	 * Abre o cierra el Grimorio (S-027, R-HUD-4); abierto, se rellena en el acto. Desde S-044 se abre siempre en "Tú" (R-HUD-10) y no se abre durante un
+	 * Abre o cierra el Grimorio (S-027, R-HUD-4); abierto, se rellena en el acto. Desde S-044 se abre siempre en la primera pestaña (R-HUD-10; desde la ronda de maquetación de S-048, "La mesa") y no se abre durante un
 	 * anillo del humano (R-HUD-11); la tecla y el botón llaman aquí.
 	 */
 	void ToggleGrimoire();
@@ -936,10 +1035,18 @@ private:
 	/** La pestaña anterior y la siguiente del Grimorio, con sus teclas (S-044, R-HUD-10); cerrado, no hacen nada. */
 	void PreviousGrimoireTab();
 	void NextGrimoireTab();
+	/**
+	 * La página anterior y la siguiente de "Cómo se juega" (S-048, R-HUD-18), con sus botones y sus teclas; las teclas solo con el Grimorio abierto en
+	 * esa pestaña. No son cíclicas.
+	 */
+	void PreviousHowToPlayPage();
+	void NextHowToPlayPage();
+	/** Con el Grimorio abierto en "Cómo se juega": sus teclas de página hacen algo (S-048, R-HUD-18). */
+	bool IsHowToPlayShown() const;
+	/** Carga las imágenes de las páginas de "Cómo se juega" (S-048, R-HUD-17): una vez por nombre; la que falta, sin imagen y dicho una vez en el registro. */
+	void LoadHowToPlayImages();
 	/** Rellena el Grimorio abierto con el estado de ahora: cada pestaña solo se rehace si su contenido cambia (S-044, R-VIS-21). */
 	void RefreshGrimoire(const FMatchState& State, const Soulbound::Presentation::FStatusContext& Context);
-	/** Lo que pinta "El tablero" del Grimorio (S-044, BoardLegendRows): kit, suelo de los Olvidados y colores de la vista. */
-	Soulbound::Presentation::FBoardLegendLook BoardLegendLookNow() const;
 	/** Colores, asiento del anillo y límite de la crónica (S-044, ChronicleLines). */
 	Soulbound::Presentation::FChronicleLook ChronicleLookNow() const;
 	/** Si el botón del Grimorio se ve ahora (S-044, R-HUD-12): IsGrimoireButtonShown con la frase del Warden de este frame, y nunca con el telón. */
@@ -1197,12 +1304,17 @@ private:
 	TSharedPtr<SWidget> GrimoireOverlay;
 	/** Los textos de grimorio.json, leídos al construir los paneles. */
 	Soulbound::Presentation::FGrimoireTexts GrimoireTexts;
-	/** La pestaña activa del Grimorio (S-044, R-HUD-10): vuelve a "Tú" cada vez que se abre. */
+	/** La pestaña activa del Grimorio (S-044, R-HUD-10): vuelve a "La mesa" cada vez que se abre (ronda de maquetación de S-048). */
 	Soulbound::Presentation::FGrimoireTabState GrimoireTab;
 	/** Cuándo se cierra solo el Grimorio (S-044, R-HUD-11): mira en cada TickHud si aparece una decisión propia nueva o un anillo. */
 	Soulbound::Presentation::FGrimoireCloseWatch GrimoireCloseWatch;
-	/** El texto de "Cómo se juega" (S-044), leído una vez al construir los paneles con el cargador del menú. */
-	FHowToPlayLoadResult HowToPlayLoaded;
+	/**
+	 * El libro de "Cómo se juega" (S-044; desde S-048, R-HUD-18, por páginas y con la de teclas al final), leído una vez al construir los paneles con
+	 * el cargador del menú. La página que se ve está en GrimoireTab.
+	 */
+	Soulbound::Presentation::FHowToPlayBook HowToPlay;
+	/** Los pinceles de las imágenes de "Cómo se juega" por nombre (S-048, R-HUD-17); un nombre sin textura no está. Se llenan una vez, antes del panel. */
+	TMap<FString, FSlateBrush> HowToPlayBrushes;
 	/** Cuántos eventos tenía el registro la última vez que se rellenó la crónica del Grimorio; -1, nunca (se rehace al crecer). */
 	int32 GrimoireChronicleCount = -1;
 	/** El botón del Grimorio (S-044, R-HUD-12): en la capa de la frase del Warden, abajo a la derecha, en espejo de la caja de la línea de objetivo. */
@@ -1286,6 +1398,18 @@ private:
 	 */
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> DiceTexture;
+	/** Las texturas de las páginas de "Cómo se juega" (S-048, R-HUD-17), vivas mientras la vista lo esté; las apuntan HowToPlayBrushes. */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTexture2D>> HowToPlayTextures;
+	/** La imagen del libro abierto del Grimorio (S-048, R-HUD-20); nula si no hay (entonces, el fondo negro de siempre). */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> GrimoireBackground;
+	/** La marca de agua de "Cómo se juega" (S-048, segunda ampliación, R-HUD-20); nula si no hay (entonces, sin marca). */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> HowToPlayWatermark;
+	/** La fuente del Grimorio (S-048, corrección 4), viva mientras la vista lo esté; nula si no hay (entonces, la de siempre). */
+	UPROPERTY(Transient)
+	TObjectPtr<UFont> GrimoireFontAsset;
 	/** El pincel de las caras del dado: apunta a DiceTexture; vacío si no hay textura (entonces el panel dibuja la cara por código). */
 	FSlateBrush DiceBrush;
 
