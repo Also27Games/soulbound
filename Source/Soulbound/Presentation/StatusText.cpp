@@ -974,8 +974,9 @@ namespace Soulbound::Presentation
 
 	int32 ScaledPanelSlateFontSize(float ViewportHeight, float DpiScale, int32 FontSizeAt1080, int32 MinFontSize)
 	{
-		// TODO(R-HUD-22): por implementar (test en rojo).
-		return 0;
+		// S-049 (R-HUD-22): la cuenta de ABoardViewActor::UpdatePanelScale, para que el libro del menú la comparta.
+		const float Dpi = DpiScale > KINDA_SMALL_NUMBER ? DpiScale : 1.f;
+		return FMath::Max(1, FMath::RoundToInt(static_cast<float>(ScaledPanelFontSize(ViewportHeight, FontSizeAt1080, MinFontSize)) / Dpi));
 	}
 
 	FGrimoireTextsLoadResult ParseGrimoireTexts(const FString& Json)

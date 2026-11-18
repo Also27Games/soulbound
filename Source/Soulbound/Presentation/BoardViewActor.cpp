@@ -1052,13 +1052,9 @@ void ABoardViewActor::BuildOverlay()
 		GrimoireBackground = Cast<UTexture2D>(GrimoireBackgroundTexture.TryLoad());
 		if (GrimoireBackground)
 		{
-			FSlateBrush Brush;
-			Brush.SetResourceObject(GrimoireBackground);
-			// Correcciones tras probar la maquetación (18/11/2026): el tamaño de su fuente, no el de una textura que aún se compila.
-			Brush.ImageSize = Soulbound::Presentation::GrimoireTextureSize(GrimoireBackground);
-			Brush.DrawAs = ESlateBrushDrawType::Box;
-			Brush.Margin = GrimoireBackgroundMargin;
-			BookBrush = Brush;
+			// Correcciones tras probar la maquetación (18/11/2026): el tamaño de su fuente, no el de una textura que aún se compila. Desde S-049, el
+			// pincel lo hace GrimoireTextureBrush, la misma del libro del menú.
+			BookBrush = Soulbound::Presentation::GrimoireTextureBrush(GrimoireBackground, ESlateBrushDrawType::Box, GrimoireBackgroundMargin);
 		}
 		else
 		{
@@ -1078,11 +1074,7 @@ void ABoardViewActor::BuildOverlay()
 		HowToPlayWatermark = Cast<UTexture2D>(HowToPlayWatermarkTexture.TryLoad());
 		if (HowToPlayWatermark)
 		{
-			FSlateBrush Brush;
-			Brush.SetResourceObject(HowToPlayWatermark);
-			Brush.ImageSize = Soulbound::Presentation::GrimoireTextureSize(HowToPlayWatermark);
-			Brush.DrawAs = ESlateBrushDrawType::Image;
-			WatermarkBrush = Brush;
+			WatermarkBrush = Soulbound::Presentation::GrimoireTextureBrush(HowToPlayWatermark, ESlateBrushDrawType::Image);
 		}
 		else
 		{
@@ -2280,7 +2272,8 @@ void ABoardViewActor::UpdatePanelScale(const FVector2D& ViewportSize)
 	const float Dpi = Settings ? Settings->GetDPIScaleBasedOnSize(Size) : 1.f;
 	PanelDpiScale = Dpi > KINDA_SMALL_NUMBER ? Dpi : 1.f;
 	const int32 ScreenFont = Soulbound::Presentation::ScaledPanelFontSize(ViewportSize.Y, PanelFontSize, PanelMinFontSize);
-	const int32 SlateFont = FMath::Max(1, FMath::RoundToInt(ScreenFont / PanelDpiScale));
+	// S-049 (R-HUD-22): la misma cuenta que el libro del menú, en una función compartida; da lo mismo que antes.
+	const int32 SlateFont = Soulbound::Presentation::ScaledPanelSlateFontSize(ViewportSize.Y, PanelDpiScale, PanelFontSize, PanelMinFontSize);
 	// S-045 (R-HUD-16): sin columna, no hay ancho de columna que calcular.
 	const bool bChanged = SlateFont != PanelSlateFontSize || !bPanelScaleLogged;
 	PanelSlateFontSize = SlateFont;
@@ -2414,13 +2407,9 @@ void ABoardViewActor::LoadHowToPlayImages()
 				continue;
 			}
 			HowToPlayTextures.Add(Texture);
-			FSlateBrush Brush;
-			Brush.SetResourceObject(Texture);
 			// Correcciones tras probar la maquetación (18/11/2026): en el editor, una lámina recién cargada puede estar compilándose y dar el tamaño
-			// cuadrado de la textura de relleno; sus proporciones salen de su fuente (GrimoireTextureSize).
-			Brush.ImageSize = Soulbound::Presentation::GrimoireTextureSize(Texture);
-			Brush.DrawAs = ESlateBrushDrawType::Image;
-			HowToPlayBrushes.Add(Block.ImageName, Brush);
+			// cuadrado de la textura de relleno; sus proporciones salen de su fuente (GrimoireTextureSize, dentro de GrimoireTextureBrush desde S-049).
+			HowToPlayBrushes.Add(Block.ImageName, Soulbound::Presentation::GrimoireTextureBrush(Texture, ESlateBrushDrawType::Image));
 		}
 	}
 }
