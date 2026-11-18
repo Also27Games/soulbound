@@ -1154,7 +1154,6 @@ void ABoardViewActor::BuildOverlay()
 			.OnNextPage_Lambda([this]() { NextHowToPlayPage(); })
 		];
 	Viewport->AddViewportWidgetContent(GrimoireOverlay.ToSharedRef(), 14);
-	GrimoirePanel->SetBoard(Soulbound::Presentation::BoardLegendRows(BoardLegendLookNow()));
 	GrimoirePanel->SetHowToPlay(HowToPlay, GrimoireTab.Page);
 
 	// S-029 (R-VIS-13): la carta del Elegido. Como la capa de la frase (R-DEC-13) y la del anillo (R-VIS-20), la capa ocupa el hueco libre (HAlign_Fill,
@@ -1836,23 +1835,6 @@ bool ABoardViewActor::IsMatchPanelVisibleNow()
 	return HudShownNow().bMatchPanel;
 }
 
-Soulbound::Presentation::FBoardLegendLook ABoardViewActor::BoardLegendLookNow() const
-{
-	Soulbound::Presentation::FBoardLegendLook Look;
-	Look.bKit = TileHasKitSlab.Contains(true);
-	Look.bForgottenFloor = ForgottenFloor != nullptr;
-	Look.Altar = AltarColor;
-	Look.NicheFree = NicheFreeColor;
-	Look.Source = SourceColor;
-	Look.Node = NodeColor;
-	Look.NicheClaimed = SeatColor(0);
-	Look.NicheClosed = NicheClosedColor;
-	Look.Reachable = ReachableColor;
-	Look.SealMark = SealMarkColor;
-	Look.ForgottenRing = ForgottenRingColor;
-	return Look;
-}
-
 Soulbound::Presentation::FChronicleLook ABoardViewActor::ChronicleLookNow() const
 {
 	Soulbound::Presentation::FChronicleLook Look;
@@ -2344,7 +2326,7 @@ void ABoardViewActor::ToggleGrimoire()
 		return;
 	}
 	bGrimoireOpen = true;
-	// S-044 (R-HUD-10): siempre en "Tú"; la crónica, al día.
+	// S-044 (R-HUD-10): siempre en la primera pestaña, "La mesa" desde la ronda de maquetación de S-048; la crónica, al día.
 	GrimoireTab.Open();
 	GrimoireChronicleCount = -1;
 	// S-029 (R-VIS-13): abrir el Grimorio cierra la carta del Elegido.
@@ -2819,9 +2801,9 @@ void ABoardViewActor::TickHud()
 
 void ABoardViewActor::RefreshGrimoire(const FMatchState& State, const Soulbound::Presentation::FStatusContext& Context)
 {
-	// S-044 (R-HUD-10): cada pestaña con la función que ya lo calcula; los paneles solo se rehacen si su contenido cambia (R-VIS-21). "El tablero" y
-	// "Cómo se juega" no cambian en la partida: se rellenan al construir.
-	GrimoirePanel->SetYou(Soulbound::Presentation::GrimoireYouView(State, Context.HumanSeat, GrimoireTexts, SeatColors));
+	// S-044 (R-HUD-10): cada pestaña con la función que ya lo calcula; los paneles solo se rehacen si su contenido cambia (R-VIS-21). "Cómo se juega"
+	// no cambia en la partida: se rellena al construir. Desde la ronda de maquetación de S-048, "La mesa" lleva la hoja del jugador y la mesa.
+	GrimoirePanel->SetPlayer(Soulbound::Presentation::GrimoirePlayerSheet(State, Context.HumanSeat, GrimoireTexts, SeatColors));
 	TArray<bool> Forgotten;
 	TArray<FLinearColor> Domains;
 	for (int32 Id = 0; Id < State.Board.Domains.Num(); ++Id)

@@ -41,46 +41,12 @@ struct FLegendRow
 	}
 };
 
-namespace Soulbound::Presentation
-{
-	/**
-	 * Lo que necesitan las filas del tablero de la leyenda (S-044, nombre propuesto): si la mesa lleva las losas del kit (S-019) o las formas
-	 * básicas, si está cargado el suelo agrietado de los Olvidados (S-040) y los colores de la vista, para que leyenda y tablero no se contradigan.
-	 */
-	struct FBoardLegendLook
-	{
-		bool bKit = false;
-		bool bForgottenFloor = false;
-		FLinearColor Altar = FLinearColor::White;
-		FLinearColor NicheFree = FLinearColor::White;
-		FLinearColor Source = FLinearColor::White;
-		FLinearColor Node = FLinearColor::White;
-		/** El color de un Nicho reclamado en la muestra: el del asiento 0. */
-		FLinearColor NicheClaimed = FLinearColor::White;
-		FLinearColor NicheClosed = FLinearColor::White;
-		FLinearColor Reachable = FLinearColor::White;
-		FLinearColor SealMark = FLinearColor::White;
-		FLinearColor ForgottenRing = FLinearColor::White;
-	};
-
-	/** El texto de la fila de los destellos (S-029): lo que se ve al ganar o perder una runa. */
-	inline const TCHAR* const FlashLegendText = TEXT("Destello: hacia dentro y del color de la runa, la gana. Hacia fuera y en morado, la pierde");
-
-	/**
-	 * Las filas del tablero de la leyenda (S-044, sacadas de ABoardViewActor::BuildOverlay sin cambiar sus textos, revisados por el autor el
-	 * 13/11/2026): "Casillas", "Nichos", "Tablero" y la de los destellos, en ese orden. Las usa la pestaña "El tablero" del Grimorio (R-HUD-10;
-	 * hasta S-045, también la columna de la leyenda). Ninguna es de jugadores ni de runas.
-	 * @param Look Kit, suelo de los Olvidados y colores de la vista.
-	 * @return Cuatro filas.
-	 */
-	TArray<FLegendRow> BoardLegendRows(const FBoardLegendLook& Look);
-}
-
 /**
  * Leyenda (glosario "Legend", nombre aceptado en S-007): texto fijo en pantalla con el significado de cada color y
  * forma de la vista del tablero. Solo pinta las filas que le dan; los colores los pone quien la crea, así la leyenda
- * y la vista no pueden contradecirse. Slate puro. Desde S-044 también pinta "La mesa" y "El tablero" del Grimorio, con otro encabezado y
- * filas que cambian (SetRows).
+ * y la vista no pueden contradecirse. Slate puro. Desde S-044 también pinta "La mesa" del Grimorio, con otro encabezado y filas que cambian
+ * (SetRows); desde S-045 (R-HUD-16), solo en el Grimorio, y desde la ronda de maquetación de S-048 (18/11/2026), sin las filas del tablero, que se
+ * fueron con la pestaña "El tablero".
  */
 class SLegendPanel : public SCompoundWidget
 {

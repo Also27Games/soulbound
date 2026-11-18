@@ -1026,7 +1026,7 @@ private:
 	/** Muestra u oculta el panel de depuración (S-027, R-HUD-2). Al empezar, oculto. */
 	void ToggleDebugPanel();
 	/**
-	 * Abre o cierra el Grimorio (S-027, R-HUD-4); abierto, se rellena en el acto. Desde S-044 se abre siempre en "Tú" (R-HUD-10) y no se abre durante un
+	 * Abre o cierra el Grimorio (S-027, R-HUD-4); abierto, se rellena en el acto. Desde S-044 se abre siempre en la primera pestaña (R-HUD-10; desde la ronda de maquetación de S-048, "La mesa") y no se abre durante un
 	 * anillo del humano (R-HUD-11); la tecla y el botón llaman aquí.
 	 */
 	void ToggleGrimoire();
@@ -1047,8 +1047,6 @@ private:
 	void LoadHowToPlayImages();
 	/** Rellena el Grimorio abierto con el estado de ahora: cada pestaña solo se rehace si su contenido cambia (S-044, R-VIS-21). */
 	void RefreshGrimoire(const FMatchState& State, const Soulbound::Presentation::FStatusContext& Context);
-	/** Lo que pinta "El tablero" del Grimorio (S-044, BoardLegendRows): kit, suelo de los Olvidados y colores de la vista. */
-	Soulbound::Presentation::FBoardLegendLook BoardLegendLookNow() const;
 	/** Colores, asiento del anillo y límite de la crónica (S-044, ChronicleLines). */
 	Soulbound::Presentation::FChronicleLook ChronicleLookNow() const;
 	/** Si el botón del Grimorio se ve ahora (S-044, R-HUD-12): IsGrimoireButtonShown con la frase del Warden de este frame, y nunca con el telón. */
@@ -1306,7 +1304,7 @@ private:
 	TSharedPtr<SWidget> GrimoireOverlay;
 	/** Los textos de grimorio.json, leídos al construir los paneles. */
 	Soulbound::Presentation::FGrimoireTexts GrimoireTexts;
-	/** La pestaña activa del Grimorio (S-044, R-HUD-10): vuelve a "Tú" cada vez que se abre. */
+	/** La pestaña activa del Grimorio (S-044, R-HUD-10): vuelve a "La mesa" cada vez que se abre (ronda de maquetación de S-048). */
 	Soulbound::Presentation::FGrimoireTabState GrimoireTab;
 	/** Cuándo se cierra solo el Grimorio (S-044, R-HUD-11): mira en cada TickHud si aparece una decisión propia nueva o un anillo. */
 	Soulbound::Presentation::FGrimoireCloseWatch GrimoireCloseWatch;

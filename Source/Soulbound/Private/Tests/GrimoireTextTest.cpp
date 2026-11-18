@@ -125,11 +125,8 @@ bool FGrimoireTextsTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Nombrando una que falta"), Loaded.Message.Contains(TEXT("duelAdvantage")));
 	TestEqual(TEXT("Una afinidad que falta: el nombre del enumerado"), Soulbound::Presentation::AffinityName(Loaded.Texts, EAffinity::DuelAdvantage), FString(TEXT("DuelAdvantage")));
 	TestEqual(TEXT("Un poder que falta: el nombre del enumerado"), Soulbound::Presentation::PowerText(Loaded.Texts, EPower::Haste), FString(TEXT("Haste")));
-	const TArray<FString> PowerLines = Soulbound::Presentation::GrimoirePowerLines(Loaded.Texts);
-	if (TestEqual(TEXT("Seis líneas de poderes"), PowerLines.Num(), 6))
-	{
-		TestEqual(TEXT("La de Vuelo Planar, con su frase"), PowerLines[static_cast<int32>(EPower::PlanarFlight)], FString(TEXT("Vuelo Planar: Frase de prueba del poder")));
-	}
+	// Desde la ronda de maquetación de S-048 (18/11/2026) no hay líneas de poderes al pie (GrimoirePowerLines): la frase de cada poder va en su runa,
+	// en la hoja del jugador (FGrimoireRune::PowerText, Grimorio.HojaDelJugador).
 
 	// Sin el archivo: textos vacíos, el motivo, y las filas con el nombre del enumerado.
 	const Soulbound::Presentation::FGrimoireTextsLoadResult Missing = Soulbound::Presentation::LoadGrimoireTexts(TEXT("no/existe/grimorio.json"));

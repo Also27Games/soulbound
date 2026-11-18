@@ -439,11 +439,4 @@ namespace Soulbound::Presentation
 	 * @return El ancho de texto, al menos 1.
 	 */
 	float GrimoireCardTextWidth(float PanelWidth, int32 Columns);
-
-	/**
-	 * Las líneas del pie del Grimorio: un poder por línea, "Nombre: frase", en el orden de EPower, con la frase de Texts.
-	 * @param Texts Los textos de grimorio.json.
-	 * @return Seis líneas.
-	 */
-	TArray<FString> GrimoirePowerLines(const FGrimoireTexts& Texts);
 }

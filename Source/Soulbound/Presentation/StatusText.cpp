@@ -1103,6 +1103,8 @@ namespace Soulbound::Presentation
 					Rune.bHasPower = true;
 					Rune.Power = Elect->RuneToPower[RuneType];
 					Rune.PowerName = PowerName(Rune.Power);
+					// S-048 (ronda de maquetación del 18/11/2026): qué hace, para la hoja del jugador.
+					Rune.PowerText = PowerText(Texts, Rune.Power);
 					// R-ELE-5: activo mientras tenga una runa del tipo; esta runa lo activa si la tiene.
 					Rune.bActive = !Row.bTypesHidden && Rune.Count > 0 && Soulbound::Rules::IsPowerActive(State, Seat, Rune.Power);
 				}
@@ -1116,16 +1118,6 @@ namespace Soulbound::Presentation
 			}
 		}
 		return Rows;
-	}
-
-	TArray<FString> GrimoirePowerLines(const FGrimoireTexts& Texts)
-	{
-		TArray<FString> Lines;
-		for (const EPower Power : GrimoirePowers)
-		{
-			Lines.Add(FString::Printf(TEXT("%s: %s"), PowerName(Power), *PowerText(Texts, Power)));
-		}
-		return Lines;
 	}
 }
 

@@ -8,32 +8,6 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
-namespace Soulbound::Presentation
-{
-	TArray<FLegendRow> BoardLegendRows(const FBoardLegendLook& Look)
-	{
-		// Textos de la leyenda revisados por el autor (13/11/2026). Un solo bloque de casillas: la segunda mitad de cada línea es la misma con o sin
-		// kit; la primera es la losa del kit (S-019) o la forma básica donde falta la pieza.
-		const bool bKit = Look.bKit;
-		TArray<FLegendRow> Rows;
-		Rows.Add({TEXT("Casillas"),
-			{{Look.Altar, bKit ? TEXT("Altar: la plataforma del centro. Aquí se empieza y aquí se gana") : TEXT("Altar: casilla grande y alta. Aquí se empieza y aquí se gana")},
-				{Look.NicheFree, bKit ? TEXT("N Nicho: losa con trono. El primero que llega se vincula a su Elegido") : TEXT("N Nicho: casilla cuadrada con cubo. El primero que llega se vincula a su Elegido")},
-				{Look.Source, bKit ? TEXT("F Fuente: pilón, con la runa flotando mientras le quedan. Aquí se coge la runa de su Dominio") : TEXT("F Fuente: casilla redonda con cruz. Aquí se coge la runa de su Dominio")},
-				{Look.Node, bKit ? TEXT("X Nodo: losa con puntas. Tras la carrera lleva espadas (duelo), orbe (Oráculo) o arco (salto)") : TEXT("X Nodo: rombo con esfera. Tras la carrera lleva espadas (duelo), orbe (Oráculo) o arco (salto)")}}});
-		Rows.Add({TEXT("Nichos"),
-			{{Look.NicheFree, TEXT("Libre")}, {Look.NicheClaimed, TEXT("Reclamado: aro y número de su dueño")}, {Look.NicheClosed, TEXT("Cerrado")}}});
-		// S-040 (R-VIS-27): con el material de los Olvidados cargado, su suelo agrietado.
-		Rows.Add({TEXT("Tablero"),
-			{{Look.Reachable, TEXT("Halo blanco que late: puedes ir ahí")},
-				{Look.SealMark, bKit ? TEXT("Aro rojo y cadenas: sellada, no se pasa") : TEXT("Aro rojo y SELLO: sellada, no se pasa")},
-				{Look.ForgottenRing, Look.bForgottenFloor ? TEXT("Suelo agrietado y casillas apagadas: Dominio Olvidado") : TEXT("Casillas apagadas: Dominio Olvidado")}}});
-		// S-029: lo que se ve al ganar o perder una runa.
-		Rows.Add({FlashLegendText, {}});
-		return Rows;
-	}
-}
-
 void SLegendPanel::Construct(const FArguments& InArgs)
 {
 	// S-027 (R-HUD-3): la letra se lee del atributo cada vez que se pinta, para que cambie con la resolución sin rehacer el panel.
@@ -106,11 +80,13 @@ void SLegendPanel::SetRows(const TArray<FLegendRow>& Rows)
 
 	for (const FLegendRow& Row : Rows)
 	{
-		TSharedRef<SWrapBox> Chips = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8.f, 1.f));
+		// S-048 (ronda de maquetación del 18/11/2026): una fila bOnePerLine pone sus muestras una debajo de otra, con el cuadrito y el texto empezando a
+		// la misma altura; las demás, repartidas por la línea mientras quepan, como antes.
+		TSharedRef<SWrapBox> Wrapped = SNew(SWrapBox).UseAllottedSize(true).InnerSlotPadding(FVector2D(8.f, 1.f));
+		TSharedRef<SVerticalBox> Stacked = SNew(SVerticalBox);
 		for (const FLegendChip& Chip : Row.Chips)
 		{
-			Chips->AddSlot()
-			[
+			const TSharedRef<SWidget> Sample =
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0.f, 0.f, 3.f, 0.f)
 				[
@@ -128,9 +104,17 @@ void SLegendPanel::SetRows(const TArray<FLegendRow>& Rows)
 					.WrapTextAt_Lambda(TextWidth(Size, true))
 					.Font_Lambda([Font]() { return Font("Regular"); })
 					.ColorAndOpacity(FLinearColor(0.9f, 0.9f, 0.9f))
-				]
-			];
+				];
+			if (Row.bOnePerLine)
+			{
+				Stacked->AddSlot().AutoHeight().Padding(0.f, 1.f)[Sample];
+			}
+			else
+			{
+				Wrapped->AddSlot()[Sample];
+			}
 		}
+		const TSharedRef<SWidget> Chips = Row.bOnePerLine ? StaticCastSharedRef<SWidget>(Stacked) : StaticCastSharedRef<SWidget>(Wrapped);
 		Body->AddSlot().AutoHeight().Padding(0.f, 1.f)
 		[
 			SNew(SVerticalBox)

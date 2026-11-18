@@ -19,22 +19,26 @@ namespace Soulbound::Presentation
 	/**
 	 * La tarjeta de un asiento del Grimorio (S-027, R-HUD-4), la misma que reutiliza la carta del Elegido (S-029, R-VIS-13): papel, Elegido y
 	 * Dominio, afinidad, las seis runas con su poder y los poderes activos. Sus textos se parten con WrapTextAt a TextWidth, que no depende de lo
-	 * pintado antes (S-029, R-VIS-21). Desde S-044 es la tarjeta de la pestaña "Tú".
+	 * pintado antes (S-029, R-VIS-21). Desde S-044 es la tarjeta de la pestaña "Tú"; desde la ronda de maquetación de S-048 (18/11/2026), la hoja del
+	 * jugador de "La mesa", con su insolencia y qué hace cada poder.
 	 * @param Row La fila de GrimoireRows.
 	 * @param FontSize Tamaño de la letra, se lee cada vez que se pinta.
 	 * @param DomainColors Color de cada Dominio, para el cuadrito de cada runa.
 	 * @param TextWidth Ancho al que se parten los textos (GrimoireCardTextWidth), se lee cada vez que se pinta.
 	 * @param Font S-048 (corrección 4 del autor del 17/11/2026): la fuente del Grimorio; sin asset, la de hoy (la carta del Elegido la deja así).
 	 * @param bBackground S-048 (corrección 3): si lleva su fondo; sobre la imagen del libro, no (el margen se queda).
+	 * @param InsolenceLine S-048 (ronda de maquetación del 18/11/2026): la insolencia, tras la afinidad; vacía, ninguna (la carta del Elegido).
+	 * @param bPowerTexts S-048 (ronda de maquetación): si cada runa con poder lleva debajo, sangrado y en gris, qué hace (FGrimoireRune::PowerText).
 	 */
 	TSharedRef<SWidget> MakeGrimoireCard(const FGrimoireRow& Row, const TAttribute<int32>& FontSize, const TArray<FLinearColor>& DomainColors, const TAttribute<float>& TextWidth,
-		const FGrimoireFont& Font = FGrimoireFont(), bool bBackground = true);
+		const FGrimoireFont& Font = FGrimoireFont(), bool bBackground = true, const FString& InsolenceLine = FString(), bool bPowerTexts = false);
 }
 
 /**
  * El Grimorio en PC (glosario "Grimorio", `Grimoire`): un panel centrado, bajo demanda, que no pausa nada (S-027, R-HUD-4). Desde S-044 (R-HUD-10) es
- * el libro del juego, con cinco pestañas: "Tú" (la tarjeta del humano, su insolencia, la runa de su hogar si es un Eco y, al pie, una línea por poder),
- * "La mesa" y "El tablero" (filas de leyenda), "Cómo se juega" y "Crónica". Cada pestaña se desplaza con la rueda; el panel tiene ancho y alto fijos
+ * el libro del juego, con sus pestañas; desde la ronda de maquetación de S-048 (18/11/2026), tres: "La mesa" (a la izquierda la hoja del jugador, su
+ * tarjeta con su insolencia y qué hace cada poder; a la derecha, la mesa, con las filas de GrimoireTableRows; sin el libro, una debajo de otra),
+ * "Cómo se juega" y "Crónica". Cada pestaña se desplaza con la rueda; el panel tiene ancho y alto fijos
  * (los de la capa) para no cambiar de tamaño al cambiar de pestaña. Las pestañas se cambian con un clic en su nombre (OnTabClicked); cuál está activa
  * lo dice el atributo ActiveTab. Slate puro: solo pinta lo que le dan.
  * Desde S-048: "Cómo se juega" es un libro que se lee una página cada vez, con "Anterior", "N de M" y "Siguiente" (R-HUD-18); y, con la imagen del libro
@@ -106,12 +110,10 @@ public:
 	/** S-048 (la negrita): si cambia el tamaño de letra, se rehacen los estilos del texto enriquecido y la página de "Cómo se juega". */
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
-	/** "Tú": se rehace solo si cambia respecto a lo último que pintó (R-VIS-21). */
-	void SetYou(const Soulbound::Presentation::FGrimoireYouView& View);
-	/** "La mesa", con las filas de GrimoireTableRows; solo se rehace si cambian. */
+	/** La hoja del jugador de "La mesa" (S-048, ronda de maquetación): se rehace solo si cambia respecto a lo último que pintó (R-VIS-21). */
+	void SetPlayer(const Soulbound::Presentation::FGrimoirePlayerSheet& Sheet);
+	/** La mesa de "La mesa", con las filas de GrimoireTableRows; solo se rehace si cambian. */
 	void SetTable(const TArray<FLegendRow>& Rows);
-	/** "El tablero", con las filas de BoardLegendRows; solo se rehace si cambian. */
-	void SetBoard(const TArray<FLegendRow>& Rows);
 	/**
 	 * "Cómo se juega" (S-048, R-HUD-18): el libro (HowToPlayBook) y la página que se ve, desde 0. Si el libro no cargó, su mensaje. Se rehace solo si
 	 * cambia el libro o la página. Desde la segunda ampliación del autor del 17/11/2026, con el libro se ve la vista de esa página: ella en la hoja
@@ -133,7 +135,10 @@ private:
 	 * columna y la sangría de la línea; se lee cada vez que se pinta.
 	 */
 	TAttribute<float> TextWidth(bool bRight, float Indent) const;
-	/** Las cajas de las pestañas dadas, todas del mismo ancho (S-044); con el libro, la cabecera se reparte entre las dos páginas (S-048). */
+	/**
+	 * Las cajas de las pestañas dadas, todas del mismo ancho (S-044). Con el libro, el título va en la hoja izquierda y las pestañas en la derecha, a
+	 * la misma altura (ronda de maquetación de S-048, decisión del autor del 18/11/2026).
+	 */
 	TSharedRef<SWidget> MakeTabHeader(const TArray<Soulbound::Presentation::EGrimoireTab>& Tabs);
 	/** S-048 (R-HUD-18): rehace la página de "Cómo se juega" con lo último que se le dio. */
 	void RebuildHowToPlay();
@@ -153,12 +158,11 @@ private:
 	TAttribute<Soulbound::Presentation::EGrimoireTab> ActiveTab;
 	FOnTabClicked OnTabClicked;
 	TArray<FLinearColor> DomainColors;
-	/** Lo último que se pintó en "Tú", para no rehacer lo que no cambia. */
-	Soulbound::Presentation::FGrimoireYouView LastYou;
-	bool bHasYou = false;
-	TSharedPtr<SVerticalBox> YouBody;
+	/** Lo último que se pintó en la hoja del jugador, para no rehacer lo que no cambia. */
+	Soulbound::Presentation::FGrimoirePlayerSheet LastPlayer;
+	bool bHasPlayer = false;
+	TSharedPtr<SVerticalBox> PlayerBody;
 	TSharedPtr<SLegendPanel> TablePanel;
-	TSharedPtr<SLegendPanel> BoardPanel;
 	TSharedPtr<SChroniclePanel> Chronicle;
 
 	/** S-048 (R-HUD-20): la imagen del libro, si la hay; su ImageSize se ajusta al pintar (FGrimoireBookLayout::BrushSize). */
@@ -168,10 +172,6 @@ private:
 	FMargin BookMargin;
 	float PageInset = 12.f;
 	float SpineGap = 0.06f;
-	/** Con el libro, la otra mitad de cada pestaña, en la página derecha (S-048, R-HUD-20). Sin él, no existen y todo va en la columna única. */
-	TSharedPtr<SVerticalBox> YouSide;
-	TSharedPtr<SLegendPanel> TableSide;
-	TSharedPtr<SLegendPanel> BoardSide;
 
 	/** S-048 (R-HUD-18): "Cómo se juega". Sin el libro, todo en HowToPlayLeft. */
 	TSharedPtr<SBox> HowToPlayLeft;

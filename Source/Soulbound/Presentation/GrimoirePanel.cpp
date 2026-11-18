@@ -55,10 +55,15 @@ namespace
 			+ SScrollBox::Slot().Padding(0.f, 0.f, GrimoireScrollGap, 0.f)[Content];
 	}
 
-	/** Las sangrías de las líneas del Grimorio, izquierda y derecha sumadas (S-048, corrección 1): las de la pestaña "Tú" y la de la tarjeta. */
-	constexpr float GrimoireLineIndent = 8.f;
-	constexpr float GrimoirePowerIndent = 16.f;
+	/** La sangría de la tarjeta del jugador, izquierda y derecha sumadas (S-048, corrección 1). */
 	constexpr float GrimoireCardIndent = 16.f;
+
+	/**
+	 * La sangría de la descripción de un poder bajo su runa, además de la del cuadrito (S-048, ronda de maquetación del 18/11/2026; valor inicial
+	 * propuesto por el agente), y su gris, más claro que el de lo apagado para que se lea.
+	 */
+	constexpr float GrimoirePowerTextIndent = 6.f;
+	const FLinearColor GrimoirePowerTextColor(0.68f, 0.68f, 0.68f);
 
 	/**
 	 * Los bloques de una página de "Cómo se juega" (S-048, ampliación del autor del 17/11/2026, valores iniciales propuestos por el agente, que se
@@ -102,7 +107,7 @@ namespace
 }
 
 TSharedRef<SWidget> Soulbound::Presentation::MakeGrimoireCard(const FGrimoireRow& Row, const TAttribute<int32>& FontSize, const TArray<FLinearColor>& DomainColors, const TAttribute<float>& TextWidth,
-	const FGrimoireFont& Font, bool bBackground)
+	const FGrimoireFont& Font, bool bBackground, const FString& InsolenceLine, bool bPowerTexts)
 {
 	const FString Who = Row.bHuman ? FString::Printf(TEXT("Asiento %d (tú)"), Row.Seat) : FString::Printf(TEXT("Asiento %d"), Row.Seat);
 	const FString Domain = Row.DomainId == INDEX_NONE ? FString() : FString::Printf(TEXT("D%d %s"), Row.DomainId, *Row.DomainName).TrimEnd();
@@ -119,6 +124,13 @@ TSharedRef<SWidget> Soulbound::Presentation::MakeGrimoireCard(const FGrimoireRow
 		Row.bElect ? GrimoireText(Font, FontSize, TextWidth, FString::Printf(TEXT("Afinidad: %s. %s"), *Row.AffinityName, *Row.AffinityText), GrimoireTextColor, false)
 			: GrimoireText(Font, FontSize, TextWidth, TEXT("Sin afinidad."), GrimoireDimColor, false)
 	];
+	// S-048 (ronda de maquetación del 18/11/2026): en la hoja del jugador, la insolencia tras la afinidad.
+	if (!InsolenceLine.IsEmpty())
+	{
+		Card->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 3.f)[GrimoireText(Font, FontSize, TextWidth, InsolenceLine, GrimoireTextColor, true)];
+	}
+	// La descripción de un poder va sangrada bajo el texto de su runa: el cuadrito, su hueco y un poco más.
+	const TAttribute<float> PowerTextWidth = TAttribute<float>::CreateLambda([RuneWidth]() { return FMath::Max(RuneWidth.Get() - GrimoirePowerTextIndent, 1.f); });
 	for (const FGrimoireRune& Rune : Row.Runes)
 	{
 		// S-035 (R-RUN-7): con los tipos ocultos no hay cantidad que decir (un guion diría "ninguna"): solo el mapa de runa a poder, que es público.
@@ -144,6 +156,23 @@ TSharedRef<SWidget> Soulbound::Presentation::MakeGrimoireCard(const FGrimoireRow
 					Rune.bActive ? FLinearColor::White : Row.bTypesHidden || Rune.Count > 0 ? GrimoireTextColor : GrimoireDimColor, Rune.bActive)
 			]
 		];
+		// S-048 (ronda de maquetación, decisión del autor del 18/11/2026): debajo de su runa, sangrada, en gris y al tamaño de siempre, qué hace el poder.
+		// Una runa sin poder no lleva nada.
+		if (bPowerTexts && Rune.bHasPower && !Rune.PowerText.IsEmpty())
+		{
+			Card->AddSlot().AutoHeight().Padding(8.f, 0.f, 0.f, 2.f)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth()
+				[
+					SNew(SBox).WidthOverride_Lambda([Size]() { return FOptionalSize(Size.Get() + 2.f + 4.f + GrimoirePowerTextIndent); })
+				]
+				+ SHorizontalBox::Slot().FillWidth(1.f)
+				[
+					GrimoireText(Font, FontSize, PowerTextWidth, Rune.PowerText, GrimoirePowerTextColor, false)
+				]
+			];
+		}
 	}
 	Card->AddSlot().AutoHeight().Padding(0.f, 3.f, 0.f, 0.f)
 	[
@@ -167,7 +196,7 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 	FontSize = InArgs._FontSize;
 	PanelWidth = InArgs._PanelWidth.IsSet() ? InArgs._PanelWidth : TAttribute<float>(Soulbound::Presentation::GrimoireMaxWidth);
 	PanelHeight = InArgs._PanelHeight.IsSet() ? InArgs._PanelHeight : TAttribute<float>(600.f);
-	ActiveTab = InArgs._ActiveTab.IsSet() ? InArgs._ActiveTab : TAttribute<EGrimoireTab>(EGrimoireTab::You);
+	ActiveTab = InArgs._ActiveTab.IsSet() ? InArgs._ActiveTab : TAttribute<EGrimoireTab>(EGrimoireTab::Table);
 	OnTabClicked = InArgs._OnTabClicked;
 	DomainColors = InArgs._DomainColors;
 	BookBrush = InArgs._BookBrush;
@@ -201,7 +230,7 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 	{
 		return TAttribute<FText>::CreateLambda([Keys, Tab, Part]() { return FText::FromString(Part(Soulbound::Presentation::GrimoireFootHints(Keys, Tab.Get()))); });
 	};
-	// Corrección 7: un margen entre el final de la zona de contenido y el pie, el mismo en las cinco pestañas.
+	// Corrección 7: un margen entre el final de la zona de contenido y el pie, el mismo en todas las pestañas.
 	const float FootGap = Soulbound::Presentation::GrimoireFootGap;
 
 	// Una página por pestaña, en el orden de GrimoireTabs. Cada una con su desplazamiento (la crónica ya lleva el suyo).
@@ -248,9 +277,13 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 					[
 						SNew(SWidgetSwitcher)
 						.WidgetIndex_Lambda(WidgetIndex)
-						+ SWidgetSwitcher::Slot()[Page(SAssignNew(YouBody, SVerticalBox))]
-						+ SWidgetSwitcher::Slot()[Page(MakeLegend(TablePanel, false))]
-						+ SWidgetSwitcher::Slot()[Page(MakeLegend(BoardPanel, false))]
+						// Ronda de maquetación de S-048 (18/11/2026): sin el libro, una columna; primero el jugador y debajo la mesa.
+						+ SWidgetSwitcher::Slot()
+						[
+							Page(SNew(SVerticalBox)
+								+ SVerticalBox::Slot().AutoHeight()[SAssignNew(PlayerBody, SVerticalBox)]
+								+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 10.f, 0.f, 0.f)[MakeLegend(TablePanel, false)])
+						]
 						+ SWidgetSwitcher::Slot()[HowToPlayLeft.ToSharedRef()]
 						+ SWidgetSwitcher::Slot()[Chronicle.ToSharedRef()]
 					]
@@ -266,8 +299,8 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 	}
 
 	// S-048 (R-HUD-20): sobre la imagen del libro abierto. El contenido va dentro de sus páginas (GrimoireBookLayout) y se reparte en dos columnas,
-	// una por página, con el hueco del lomo entre las dos: nada lo cruza. La cabecera también se reparte (precisión del autor del 17/11/2026): el
-	// título y "Tú · La mesa · El tablero" a la izquierda, "Cómo se juega · Crónica" a la derecha, a la misma altura.
+	// una por página, con el hueco del lomo entre las dos: nada lo cruza. La cabecera también se reparte (ronda de maquetación, decisión del autor del
+	// 18/11/2026): el título a la izquierda y las tres pestañas a la derecha, a la misma altura.
 	SAssignNew(HowToPlayRight, SBox);
 	const TAttribute<float> LeftWidth = TAttribute<float>::CreateLambda([this]() { return ColumnWidth(false); });
 	const TAttribute<float> RightWidth = TAttribute<float>::CreateLambda([this]() { return ColumnWidth(true); });
@@ -292,8 +325,6 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 	};
 	// Corrección 2 del autor del 17/11/2026: el título, solo "Grimorio"; sin barra de desplazamiento, se parte al ancho de su página.
 	const TAttribute<float> TitleWidth = LeftWidth;
-	const TArray<EGrimoireTab> LeftTabs{EGrimoireTab::You, EGrimoireTab::Table, EGrimoireTab::Board};
-	const TArray<EGrimoireTab> RightTabs{EGrimoireTab::HowToPlay, EGrimoireTab::Chronicle};
 	ChildSlot
 	[
 		SNew(SBox)
@@ -330,31 +361,23 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 				+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
 				[
 					Columns(
-						SNew(SVerticalBox)
-						+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
-						[
-							GrimoireText(TextFont, Size, TitleWidth, Soulbound::Presentation::GrimoireTitleText, FLinearColor::White, true, 1.3f)
-						]
-						+ SVerticalBox::Slot().AutoHeight()[MakeTabHeader(LeftTabs)],
-						MakeTabHeader(RightTabs),
+						GrimoireText(TextFont, Size, TitleWidth, Soulbound::Presentation::GrimoireTitleText, FLinearColor::White, true, 1.3f),
+						MakeTabHeader(Soulbound::Presentation::GrimoireTabs()),
 						VAlign_Bottom)
 				]
 				+ SVerticalBox::Slot().FillHeight(1.f)
 				[
 					Columns(
+						// Ronda de maquetación de S-048 (18/11/2026): "La mesa", con la hoja del jugador a la izquierda y la mesa a la derecha.
 						SNew(SWidgetSwitcher)
 						.WidgetIndex_Lambda(WidgetIndex)
-						+ SWidgetSwitcher::Slot()[Page(SAssignNew(YouBody, SVerticalBox))]
-						+ SWidgetSwitcher::Slot()[Page(MakeLegend(TablePanel, false))]
-						+ SWidgetSwitcher::Slot()[Page(MakeLegend(BoardPanel, false))]
+						+ SWidgetSwitcher::Slot()[Page(SAssignNew(PlayerBody, SVerticalBox))]
 						+ SWidgetSwitcher::Slot()[HowToPlayLeft.ToSharedRef()]
 						// Precisión del autor del 17/11/2026: la crónica, entera en la página izquierda.
 						+ SWidgetSwitcher::Slot()[Chronicle.ToSharedRef()],
 						SNew(SWidgetSwitcher)
 						.WidgetIndex_Lambda(WidgetIndex)
-						+ SWidgetSwitcher::Slot()[Page(SAssignNew(YouSide, SVerticalBox))]
-						+ SWidgetSwitcher::Slot()[Page(MakeLegend(TableSide, true))]
-						+ SWidgetSwitcher::Slot()[Page(MakeLegend(BoardSide, true))]
+						+ SWidgetSwitcher::Slot()[Page(MakeLegend(TablePanel, true))]
 						+ SWidgetSwitcher::Slot()[HowToPlayRight.ToSharedRef()]
 						+ SWidgetSwitcher::Slot()[SNew(SSpacer)],
 						VAlign_Fill)
@@ -537,76 +560,33 @@ void SGrimoirePanel::UpdateHowToPlayStyles()
 	HowToPlayStyleSize = Size;
 }
 
-void SGrimoirePanel::SetYou(const Soulbound::Presentation::FGrimoireYouView& View)
+void SGrimoirePanel::SetPlayer(const Soulbound::Presentation::FGrimoirePlayerSheet& Sheet)
 {
-	if (!YouBody.IsValid() || (bHasYou && View == LastYou))
+	if (!PlayerBody.IsValid() || (bHasPlayer && Sheet == LastPlayer))
 	{
 		return;
 	}
-	bHasYou = true;
-	LastYou = View;
-	// S-048 (R-HUD-20, precisión del autor del 17/11/2026): con el libro, la tarjeta en la página izquierda y lo demás en la derecha.
-	const TSharedRef<SVerticalBox> Side = YouSide.IsValid() ? YouSide.ToSharedRef() : YouBody.ToSharedRef();
-	YouBody->ClearChildren();
-	Side->ClearChildren();
-	const TAttribute<int32> Size = FontSize;
-	// Corrección 1 del autor del 17/11/2026: cada texto se parte al ancho de su columna (la tarjeta, la izquierda; lo demás, la derecha con el libro),
-	// menos su sangría: la tarjeta, sus 8 a cada lado; la insolencia, el hogar y el título de los poderes, 4 y 4; cada poder, 12 y 4.
-	const bool bSideRight = YouSide.IsValid();
-	if (View.Row.Seat != INDEX_NONE)
+	bHasPlayer = true;
+	LastPlayer = Sheet;
+	PlayerBody->ClearChildren();
+	// Ronda de maquetación de S-048 (18/11/2026): la tarjeta del jugador con su insolencia y, bajo cada runa con poder, qué hace; sin el bloque
+	// "PODERES" ni la línea aparte de la runa del hogar. Se parte al ancho de la página izquierda (sin el libro, la columna única) menos su sangría.
+	if (Sheet.Row.Seat != INDEX_NONE)
 	{
-		YouBody->AddSlot().AutoHeight()
+		PlayerBody->AddSlot().AutoHeight()
 		[
-			Soulbound::Presentation::MakeGrimoireCard(View.Row, Size, DomainColors, TextWidth(false, GrimoireCardIndent), TextFont, !BookBrush.IsSet())
+			Soulbound::Presentation::MakeGrimoireCard(Sheet.Row, FontSize, DomainColors, TextWidth(false, GrimoireCardIndent), TextFont, !BookBrush.IsSet(), Sheet.InsolenceLine, true)
 		];
-	}
-	const TAttribute<float> LineWidth = TextWidth(bSideRight, GrimoireLineIndent);
-	if (!View.InsolenceLine.IsEmpty())
-	{
-		Side->AddSlot().AutoHeight().Padding(4.f, 6.f, 4.f, 0.f)[GrimoireText(TextFont, Size, LineWidth, View.InsolenceLine, GrimoireTextColor, true)];
-	}
-	if (!View.HomeRuneLine.IsEmpty())
-	{
-		Side->AddSlot().AutoHeight().Padding(4.f, 4.f, 4.f, 0.f)[GrimoireText(TextFont, Size, LineWidth, View.HomeRuneLine, FLinearColor::White, true)];
-	}
-	Side->AddSlot().AutoHeight().Padding(4.f, 10.f, 4.f, 2.f)[GrimoireText(TextFont, Size, LineWidth, TEXT("PODERES (los da cada runa a un Elegido, según su mapa)"), GrimoireTitleColor, true)];
-	const TAttribute<float> PowerWidth = TextWidth(bSideRight, GrimoirePowerIndent);
-	for (const FString& Line : View.PowerLines)
-	{
-		Side->AddSlot().AutoHeight().Padding(12.f, 0.f, 4.f, 0.f)[GrimoireText(TextFont, Size, PowerWidth, Line, GrimoireTextColor, false)];
-	}
-}
-
-namespace
-{
-	/** Reparte filas entre las dos páginas del libro: las First primeras a la izquierda y el resto a la derecha (S-048, R-HUD-20). */
-	void SetRowsOnPages(const TSharedPtr<SLegendPanel>& Left, const TSharedPtr<SLegendPanel>& Right, const TArray<FLegendRow>& Rows, int32 First)
-	{
-		if (!Left.IsValid())
-		{
-			return;
-		}
-		if (!Right.IsValid())
-		{
-			Left->SetRows(Rows);
-			return;
-		}
-		const int32 Split = FMath::Clamp(First, 0, Rows.Num());
-		Left->SetRows(TArray<FLegendRow>(Rows.GetData(), Split));
-		Right->SetRows(TArray<FLegendRow>(Rows.GetData() + Split, Rows.Num() - Split));
 	}
 }
 
 void SGrimoirePanel::SetTable(const TArray<FLegendRow>& Rows)
 {
-	// Precisión del autor del 17/11/2026: con el libro, Jugadores a la izquierda y Dominios a la derecha.
-	SetRowsOnPages(TablePanel, TableSide, Rows, 1);
-}
-
-void SGrimoirePanel::SetBoard(const TArray<FLegendRow>& Rows)
-{
-	// Precisión del autor del 17/11/2026: con el libro, Casillas y Nichos a la izquierda, Tablero y destellos a la derecha.
-	SetRowsOnPages(BoardPanel, BoardSide, Rows, 2);
+	// Ronda de maquetación de S-048: con el libro, la mesa entera en la página derecha; sin él, bajo la hoja del jugador.
+	if (TablePanel.IsValid())
+	{
+		TablePanel->SetRows(Rows);
+	}
 }
 
 void SGrimoirePanel::SetHowToPlay(const Soulbound::Presentation::FHowToPlayBook& Book, int32 Page)
@@ -743,17 +723,57 @@ TSharedRef<SWidget> SGrimoirePanel::MakeHowToPlaySheet(const FHowToPlayPage* Pag
 			.DecoratorStyleSet(Styles)
 			.WrapTextAt(Wrap);
 	};
-	// El alto de la hoja y el de su zona que se desplaza, de lo pintado: el alto máximo de una imagen es una fracción del de la hoja; una página con
-	// solo una imagen la pinta a hoja entera, el alto de la zona que se desplaza (segunda ampliación del autor del 17/11/2026).
-	const TSharedRef<TWeakPtr<SWidget>> ScrollArea = MakeShared<TWeakPtr<SWidget>>();
-	const TWeakPtr<SWidget> SheetBox = bRight ? StaticCastSharedPtr<SWidget>(HowToPlayRight) : StaticCastSharedPtr<SWidget>(HowToPlayLeft);
-	const bool bOnlyImage = Page->Blocks.Num() == 1 && Page->Blocks[0].Kind == EHowToPlayBlockKind::Image;
-	const TAttribute<float> Fraction = ImageMaxHeight;
-	const TAttribute<float> MaxHeight = TAttribute<float>::CreateLambda([ScrollArea, SheetBox, bOnlyImage, Fraction]()
+	// Segunda ampliación del autor: una página sin título ("##" sola) no lo pinta.
+	const TSharedRef<SVerticalBox> Sheet = SNew(SVerticalBox);
+	if (!Page->Title.IsEmpty())
 	{
-		const TSharedPtr<SWidget> Widget = bOnlyImage ? ScrollArea->Pin() : SheetBox.Pin();
+		Sheet->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 6.f)[GrimoireText(TextFont, Size, SheetWidth, Page->Title, GrimoireTitleColor, true, 1.15f)];
+	}
+
+	// Ronda de maquetación del 18/11/2026: una página cuyo único bloque es una imagen la pinta en el hueco que queda de verdad en la hoja, centrada en
+	// los dos ejes y sin barra de desplazamiento (HowToPlayFullSheetImage, con el tamaño pintado de ese hueco); antes iba dentro del desplazamiento y
+	// una lámina vertical lo sacaba por poco. Si su textura no existe, nada.
+	if (Page->Blocks.Num() == 1 && Page->Blocks[0].Kind == EHowToPlayBlockKind::Image)
+	{
+		const FSlateBrush* Brush = ImageForPage ? ImageForPage(Page->Blocks[0].ImageName) : nullptr;
+		if (!Brush)
+		{
+			Sheet->AddSlot().FillHeight(1.f)[SNew(SSpacer)];
+			return Sheet;
+		}
+		const FVector2f Pixels(Brush->ImageSize.X, Brush->ImageSize.Y);
+		const TSharedRef<TWeakPtr<SWidget>> Area = MakeShared<TWeakPtr<SWidget>>();
+		const auto Place = [Area, Pixels]()
+		{
+			const TSharedPtr<SWidget> Widget = Area->Pin();
+			const FVector2f Room = Widget.IsValid() ? FVector2f(Widget->GetCachedGeometry().GetLocalSize().X, Widget->GetCachedGeometry().GetLocalSize().Y) : FVector2f::ZeroVector;
+			return Soulbound::Presentation::HowToPlayFullSheetImage(Room, Pixels);
+		};
+		const TSharedRef<SBox> Room = SNew(SBox)
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Top)
+			.Padding_Lambda([Place]() { const FBox2f Box = Place(); return FMargin(Box.Min.X, Box.Min.Y, 0.f, 0.f); })
+			[
+				SNew(SBox)
+				.WidthOverride_Lambda([Place]() { return FOptionalSize(Place().GetSize().X); })
+				.HeightOverride_Lambda([Place]() { return FOptionalSize(Place().GetSize().Y); })
+				[
+					SNew(SImage).Image(Brush)
+				]
+			];
+		*Area = Room;
+		Sheet->AddSlot().FillHeight(1.f)[Room];
+		return Sheet;
+	}
+
+	// El alto de la hoja, de lo pintado: el alto máximo de una imagen entre otros bloques es una fracción del de la hoja (segunda ampliación).
+	const TWeakPtr<SWidget> SheetBox = bRight ? StaticCastSharedPtr<SWidget>(HowToPlayRight) : StaticCastSharedPtr<SWidget>(HowToPlayLeft);
+	const TAttribute<float> Fraction = ImageMaxHeight;
+	const TAttribute<float> MaxHeight = TAttribute<float>::CreateLambda([SheetBox, Fraction]()
+	{
+		const TSharedPtr<SWidget> Widget = SheetBox.Pin();
 		const float Height = Widget.IsValid() ? Widget->GetCachedGeometry().GetLocalSize().Y : 0.f;
-		return bOnlyImage ? Height : Height * FMath::Clamp(Fraction.Get(), 0.f, 1.f);
+		return Height * FMath::Clamp(Fraction.Get(), 0.f, 1.f);
 	});
 
 	const TSharedRef<SVerticalBox> Blocks = SNew(SVerticalBox);
@@ -804,16 +824,7 @@ TSharedRef<SWidget> SGrimoirePanel::MakeHowToPlaySheet(const FHowToPlayPage* Pag
 		Blocks->AddSlot().AutoHeight().Padding(0.f, Gap, 0.f, 0.f)[Content];
 		bFirst = false;
 	}
-	const TSharedRef<SWidget> Scroll = GrimoireScroll(Blocks);
-	*ScrollArea = Scroll;
-
-	// Segunda ampliación del autor: una página sin título ("##" sola) no lo pinta.
-	const TSharedRef<SVerticalBox> Sheet = SNew(SVerticalBox);
-	if (!Page->Title.IsEmpty())
-	{
-		Sheet->AddSlot().AutoHeight().Padding(0.f, 0.f, 0.f, 6.f)[GrimoireText(TextFont, Size, SheetWidth, Page->Title, GrimoireTitleColor, true, 1.15f)];
-	}
-	Sheet->AddSlot().FillHeight(1.f)[Scroll];
+	Sheet->AddSlot().FillHeight(1.f)[GrimoireScroll(Blocks)];
 	return Sheet;
 }
 

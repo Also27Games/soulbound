@@ -3,6 +3,7 @@
 #include "BoardViewState.h"
 
 #include "Match/MatchState.h"
+#include "Match/RuneRules.h"
 #include "Match/VictoryRules.h"
 
 namespace Soulbound::Presentation
@@ -31,7 +32,8 @@ namespace Soulbound::Presentation
 	}
 	const TArray<EGrimoireTab>& GrimoireTabs()
 	{
-		static const TArray<EGrimoireTab> Tabs{EGrimoireTab::You, EGrimoireTab::Table, EGrimoireTab::Board, EGrimoireTab::HowToPlay, EGrimoireTab::Chronicle};
+		// Ronda de maquetación de S-048 (18/11/2026): tres, con "La mesa" la primera.
+		static const TArray<EGrimoireTab> Tabs{EGrimoireTab::Table, EGrimoireTab::HowToPlay, EGrimoireTab::Chronicle};
 		return Tabs;
 	}
 
@@ -39,9 +41,7 @@ namespace Soulbound::Presentation
 	{
 		switch (Tab)
 		{
-		case EGrimoireTab::You: return TEXT("Tú");
 		case EGrimoireTab::Table: return TEXT("La mesa");
-		case EGrimoireTab::Board: return TEXT("El tablero");
 		case EGrimoireTab::HowToPlay: return TEXT("Cómo se juega");
 		case EGrimoireTab::Chronicle: return TEXT("Crónica");
 		}
@@ -50,8 +50,8 @@ namespace Soulbound::Presentation
 
 	void FGrimoireTabState::Open()
 	{
-		// Decisión del autor del 16/11/2026: siempre en "Tú", no recuerda la última.
-		Active = EGrimoireTab::You;
+		// Decisión del autor del 16/11/2026: siempre en la primera, no recuerda la última. Desde la ronda de maquetación de S-048, "La mesa".
+		Active = EGrimoireTab::Table;
 	}
 
 	void FGrimoireTabState::Next()
@@ -73,51 +73,69 @@ namespace Soulbound::Presentation
 		Active = Tab;
 	}
 
-	FGrimoireYouView GrimoireYouView(const FMatchState& State, int32 HumanSeat, const FGrimoireTexts& Texts, const TArray<FLinearColor>& SeatColors)
+	FGrimoirePlayerSheet GrimoirePlayerSheet(const FMatchState& State, int32 HumanSeat, const FGrimoireTexts& Texts, const TArray<FLinearColor>& SeatColors)
 	{
-		FGrimoireYouView View;
-		View.PowerLines = GrimoirePowerLines(Texts);
+		FGrimoirePlayerSheet Sheet;
 		if (!State.Seats.IsValidIndex(HumanSeat))
 		{
-			return View;
+			return Sheet;
 		}
-		// La tarjeta es la misma fila que pintaba el Grimorio de S-027 (se reutiliza, no se reescribe).
+		// La hoja es la fila del Grimorio de S-027 (se reutiliza, no se reescribe), que ya lleva qué hace el poder de cada runa (PowerText).
 		const TArray<FGrimoireRow> Rows = GrimoireRows(State, HumanSeat, Texts, SeatColors);
 		if (Rows.IsValidIndex(HumanSeat))
 		{
-			View.Row = Rows[HumanSeat];
+			Sheet.Row = Rows[HumanSeat];
 		}
 		const FSeatState& Seat = State.Seats[HumanSeat];
-		View.InsolenceLine = FString::Printf(TEXT("Insolencia: %d de %d"), Seat.Insolence, Soulbound::Match::MaxInsolence);
-		// R-ECO-7: un Eco tras la carrera tiene hogar, y la runa de su hogar es lo único que le da un poder.
-		if (Seat.Role != ESeatRole::Elect && Seat.DomainId != INDEX_NONE)
+		Sheet.InsolenceLine = FString::Printf(TEXT("Insolencia: %d de %d"), Seat.Insolence, Soulbound::Match::MaxInsolence);
+		// R-ECO-7: un Eco tras la carrera tiene hogar, y la runa de su hogar le da Celeridad (antes, una línea aparte de "Tú"; ahora, en su runa, con
+		// su descripción, como las de un Elegido).
+		if (Seat.Role != ESeatRole::Elect && Sheet.Row.Runes.IsValidIndex(Seat.DomainId))
 		{
-			const FString Name = State.Board.Domains.IsValidIndex(Seat.DomainId) ? State.Board.Domains[Seat.DomainId].Name : FString();
-			const FString Domain = Name.IsEmpty() ? FString::Printf(TEXT("D%d"), Seat.DomainId) : FString::Printf(TEXT("D%d, %s"), Seat.DomainId, *Name);
-			View.HomeRuneLine = FString::Printf(TEXT("La runa de tu hogar (%s) te da Celeridad: puedes tirar dos dados"), *Domain);
+			FGrimoireRune& Home = Sheet.Row.Runes[Seat.DomainId];
+			Home.bHasPower = true;
+			Home.Power = EPower::Haste;
+			Home.PowerName = PowerName(EPower::Haste);
+			Home.PowerText = PowerText(Texts, EPower::Haste);
+			Home.bActive = Home.Count > 0 && Soulbound::Rules::IsPowerActive(State, HumanSeat, EPower::Haste);
 		}
-		return View;
-	}
-
-	FGrimoirePlayerSheet GrimoirePlayerSheet(const FMatchState& State, int32 HumanSeat, const FGrimoireTexts& Texts, const TArray<FLinearColor>& SeatColors)
-	{
-		// TODO(R-HUD-10): stub de los tests en rojo de la ronda de maquetación.
-		return FGrimoirePlayerSheet();
+		return Sheet;
 	}
 
 	TArray<FLegendRow> GrimoireTableRows(const FMatchState& State, int32 HumanSeat, const TArray<bool>& ForgottenShown, const TArray<FLinearColor>& SeatColors,
 		const TArray<FLinearColor>& DomainColors)
 	{
 		// Corrección del autor del 17/11/2026: de cada asiento, lo mismo que la leyenda (SeatLegendText y el Brazal, con sus filtros), y la marca de
-		// aspirante, que es pública (el halo bajo el Altar).
+		// aspirante, que es pública (el halo bajo el Altar). Ronda de maquetación de S-048 (18/11/2026): el encabezado, solo "Jugadores"; cada uno en
+		// una línea, uno debajo de otro, con " | " y no "Runas: "; el humano, como los demás.
 		FLegendRow Players;
-		Players.Title = TEXT("Jugadores. Disco gris: Eco. Disco de color: Elegido de ese Dominio. A quien le toca le late un aro");
+		Players.Title = TablePlayersTitle;
+		Players.bOnePerLine = true;
 		for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
 		{
 			FLegendChip Chip;
 			Chip.Color = SeatColors.IsValidIndex(Seat) ? SeatColors[Seat] : FLinearColor::White;
-			Chip.Text = SeatLegendText(State, Seat, HumanSeat) + (Soulbound::Rules::IsAspirant(State, Seat) ? FString(TableAspirantMark) : FString())
-				+ TEXT("\nRunas: ") + BracerSummary(State, Seat, HumanSeat);
+			FString Line;
+			FString Runes;
+			if (Seat == HumanSeat)
+			{
+				// Su línea como la ve otro (sin su insolencia ni sus castigos, que van en su hoja), con "(tú)" tras el número, y solo el total de runas.
+				const FString Number = FString::FromInt(Seat);
+				const FString AsOther = SeatLegendText(State, Seat, INDEX_NONE);
+				Line = Number + TEXT(" (tú)") + AsOther.RightChop(Number.Len());
+				int32 Total = 0;
+				for (const int32 Count : State.Seats[Seat].Runes)
+				{
+					Total += Count;
+				}
+				Runes = FString::Printf(TEXT("%d runa%s"), Total, Total == 1 ? TEXT("") : TEXT("s"));
+			}
+			else
+			{
+				Line = SeatLegendText(State, Seat, HumanSeat);
+				Runes = BracerSummary(State, Seat, HumanSeat);
+			}
+			Chip.Text = Line + (Soulbound::Rules::IsAspirant(State, Seat) ? FString(TableAspirantMark) : FString()) + TEXT(" | ") + Runes;
 			Players.Chips.Add(Chip);
 		}
 		FLegendRow Domains;
@@ -210,8 +228,14 @@ namespace Soulbound::Presentation
 
 	FBox2f HowToPlayFullSheetImage(const FVector2f& SheetSize, const FVector2f& ImageSize)
 	{
-		// TODO(R-HUD-18): stub de los tests en rojo de la ronda de maquetación.
-		return FBox2f(FVector2f::ZeroVector, FVector2f::ZeroVector);
+		// Ronda de maquetación de S-048 (18/11/2026): la mayor que cabe en el ancho y el alto que hay de verdad en la hoja, centrada en los dos ejes.
+		const FVector2f Size = HowToPlayImageSize(SheetSize.X, SheetSize.Y, ImageSize);
+		if (Size.IsNearlyZero())
+		{
+			return FBox2f(FVector2f::ZeroVector, FVector2f::ZeroVector);
+		}
+		const FVector2f Min = (SheetSize - Size) * 0.5f;
+		return FBox2f(Min, Min + Size);
 	}
 
 	FGrimoireWatermarks GrimoireWatermarks(const FGrimoireBookLayout& Book, const FVector2f& TextureSize, float SizeFraction)

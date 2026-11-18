@@ -10,41 +10,44 @@
 struct FMatchState;
 
 /**
- * El Grimorio como libro del juego (S-044, R-HUD-10 a R-HUD-12): sus cinco pestañas, lo que lleva cada una, cuándo se cierra solo y su botón.
+ * El Grimorio como libro del juego (S-044, R-HUD-10 a R-HUD-12): sus pestañas (tres desde la ronda de maquetación de S-048), lo que lleva cada una,
+ * cuándo se cierra solo y su botón.
  * Lógica pura sobre el estado de la partida y lo que ya calculan las funciones de la leyenda, del Grimorio de S-027 y de "Cómo se juega": sin
  * Slate, sin actor y sin disco, con tests. SGrimoirePanel solo pinta lo que esto devuelve; ABoardViewActor lo alimenta.
  */
 namespace Soulbound::Presentation
 {
-	/** Las pestañas del Grimorio (S-044, R-HUD-10, nombre propuesto), en su orden. */
+	/**
+	 * Las pestañas del Grimorio (S-044, R-HUD-10, nombre propuesto), en su orden. Desde la ronda de maquetación de S-048 (18/11/2026), tres: "Tú" se
+	 * juntó con "La mesa" (la hoja del jugador, a la izquierda) y "El tablero" se fue (su leyenda la explican el libro y su lámina rotulada).
+	 */
 	enum class EGrimoireTab : uint8
 	{
-		You,
 		Table,
-		Board,
 		HowToPlay,
 		Chronicle,
 	};
 
-	/** Las cinco pestañas, en el orden en que se enseñan: Tú, La mesa, El tablero, Cómo se juega y Crónica. */
+	/** Las tres pestañas, en el orden en que se enseñan: La mesa, Cómo se juega y Crónica. */
 	const TArray<EGrimoireTab>& GrimoireTabs();
 
-	/** El nombre de una pestaña tal como se lee en su cabecera ("Tú", "La mesa", "El tablero", "Cómo se juega", "Crónica"). */
+	/** El nombre de una pestaña tal como se lee en su cabecera ("La mesa", "Cómo se juega", "Crónica"). */
 	FString GrimoireTabTitle(EGrimoireTab Tab);
 
 	/**
-	 * La pestaña activa del Grimorio (S-044, R-HUD-10, nombre propuesto). Al abrirse vuelve siempre a "Tú" (decisión del autor del 16/11/2026: no
-	 * recuerda la última). Con las flechas pasa a la siguiente o a la anterior de forma cíclica (aceptado por el autor el 17/11/2026). Desde S-048
-	 * (R-HUD-18) lleva también la página de "Cómo se juega", que sí se recuerda durante la partida: abrir el Grimorio no la toca.
+	 * La pestaña activa del Grimorio (S-044, R-HUD-10, nombre propuesto). Al abrirse vuelve siempre a la primera, "La mesa" (decisión del autor del
+	 * 16/11/2026: no recuerda la última; hasta la ronda de maquetación de S-048, "Tú"). Con las flechas pasa a la siguiente o a la anterior de forma
+	 * cíclica (aceptado por el autor el 17/11/2026). Desde S-048 (R-HUD-18) lleva también la página de "Cómo se juega", que sí se recuerda durante la
+	 * partida: abrir el Grimorio no la toca.
 	 */
 	struct FGrimoireTabState
 	{
-		EGrimoireTab Active = EGrimoireTab::You;
+		EGrimoireTab Active = EGrimoireTab::Table;
 
 		/** S-048 (R-HUD-18): la página de "Cómo se juega" que se ve, desde 0. Una partida nueva empieza en la primera. */
 		int32 Page = 0;
 
-		/** El Grimorio se abre: la pestaña activa es "Tú"; la página de "Cómo se juega" se queda donde estaba (S-048, R-HUD-18). */
+		/** El Grimorio se abre: la pestaña activa es "La mesa"; la página de "Cómo se juega" se queda donde estaba (S-048, R-HUD-18). */
 		void Open();
 		/**
 		 * S-048 (R-HUD-18): la vista siguiente; en la última, se queda (no es cíclico: un libro tiene principio y final). Desde la segunda ampliación
@@ -59,43 +62,13 @@ namespace Soulbound::Presentation
 		 * @param PagesPerView Cuántas se ven a la vez (HowToPlayPagesPerView).
 		 */
 		void PreviousPage(int32 PageCount, int32 PagesPerView);
-		/** La siguiente pestaña; desde "Crónica", "Tú". */
+		/** La siguiente pestaña; desde "Crónica", "La mesa". */
 		void Next();
-		/** La anterior; desde "Tú", "Crónica". */
+		/** La anterior; desde "La mesa", "Crónica". */
 		void Previous();
 		/** Una pestaña concreta (el clic en su nombre). */
 		void Select(EGrimoireTab Tab);
 	};
-
-	/** Lo que lleva la pestaña "Tú" (S-044, R-HUD-10, nombre propuesto). */
-	struct FGrimoireYouView
-	{
-		/** La tarjeta del humano: la fila suya de GrimoireRows (rol, Elegido y afinidad, runas con su poder, poderes activos). */
-		FGrimoireRow Row;
-		/** "Insolencia: N de 5". */
-		FString InsolenceLine;
-		/** Para un Eco tras la carrera (con hogar), lo único que le da una runa (R-ECO-7); vacía en el resto. */
-		FString HomeRuneLine;
-		/** Al pie, una línea por poder con su frase (GrimoirePowerLines). */
-		TArray<FString> PowerLines;
-
-		/** Igualdad de todo lo que se pinta (R-VIS-21): el panel solo se reconstruye si cambia. */
-		bool operator==(const FGrimoireYouView& Other) const
-		{
-			return Row == Other.Row && InsolenceLine == Other.InsolenceLine && HomeRuneLine == Other.HomeRuneLine && PowerLines == Other.PowerLines;
-		}
-	};
-
-	/**
-	 * La pestaña "Tú" (S-044, R-HUD-10): la tarjeta del humano del Grimorio de S-027, su insolencia y, si es un Eco tras la carrera, la línea de
-	 * la runa de su hogar ("La runa de tu hogar (D4, nombre) te da Celeridad: tiras dos dados"); al pie, las seis líneas de poderes.
-	 * @param State El estado de la partida.
-	 * @param HumanSeat El asiento humano de esta máquina.
-	 * @param Texts Los textos de grimorio.json.
-	 * @param SeatColors El color de cada asiento, el de la vista.
-	 * @return Lo que se pinta; con un asiento humano no válido, una fila vacía y sin líneas propias (las de poderes, sí).
-	 */
-	FGrimoireYouView GrimoireYouView(const FMatchState& State, int32 HumanSeat, const FGrimoireTexts& Texts, const TArray<FLinearColor>& SeatColors);
 
 	/**
 	 * La hoja del jugador de "La mesa" (S-048, ronda de maquetación del 18/11/2026, R-HUD-10, nombre propuesto): su fila del Grimorio, con la frase de
@@ -129,11 +102,15 @@ namespace Soulbound::Presentation
 	/** El texto que marca a un aspirante en "La mesa" (S-044, R-HUD-10). */
 	inline const TCHAR* const TableAspirantMark = TEXT(" | ASPIRANTE");
 
+	/** El encabezado de los jugadores de "La mesa" (S-048, ronda de maquetación del 18/11/2026: solo "Jugadores"). */
+	inline const TCHAR* const TablePlayersTitle = TEXT("Jugadores");
+
 	/**
-	 * La pestaña "La mesa" (S-044, R-HUD-10): de cada asiento, lo mismo que hoy enseña la leyenda, ni más ni menos (corrección del autor del
-	 * 17/11/2026), con los filtros de R-HUD-6 y R-RUN-7; la marca de aspirante es lo único nuevo. Dos filas: "Jugadores", con una muestra por asiento
-	 * de su color (SeatLegendText, la marca de aspirante y, en una segunda línea, "Runas: " con BracerSummary), y "Los seis Dominios y su Elegido",
-	 * con una muestra por Dominio de su color (DomainLegendText).
+	 * La mesa de la pestaña "La mesa" (S-044, R-HUD-10; desde la ronda de maquetación de S-048, su hoja derecha): de cada asiento, lo mismo que
+	 * enseñaba la leyenda, con los filtros de R-HUD-6 y R-RUN-7, y la marca de aspirante. Dos filas: "Jugadores", una muestra por asiento de su color,
+	 * una debajo de otra (bOnePerLine), cada una en una línea: SeatLegendText, la marca de aspirante y " | " con BracerSummary (sin "Runas: "); la del
+	 * humano es como la de los demás, con "(tú)" y "N runas" (decisión del autor del 18/11/2026: sus tipos, sus poderes y su insolencia van en su
+	 * hoja, GrimoirePlayerSheet). Y "Los seis Dominios y su Elegido", con una muestra por Dominio de su color (DomainLegendText), como antes.
 	 * @param State El estado de la partida.
 	 * @param HumanSeat El asiento humano de esta máquina (quien mira).
 	 * @param ForgottenShown Si la vista pinta cada Dominio como Olvidado (en el prólogo va con la frase de corrupción); falta, no Olvidado.
@@ -328,7 +305,7 @@ namespace Soulbound::Presentation
 
 	/**
 	 * El margen entre el final de la zona de contenido del Grimorio y la línea de teclas del pie (S-048, corrección 7 del autor del 17/11/2026,
-	 * nombre propuesto), en unidades de Slate: el mismo en las cinco pestañas, con el libro y sin él, para que la última línea no quede pegada al pie.
+	 * nombre propuesto), en unidades de Slate: el mismo en todas las pestañas, con el libro y sin él, para que la última línea no quede pegada al pie.
 	 * Antes, 6.
 	 */
 	inline constexpr float GrimoireFootGap = 12.f;
