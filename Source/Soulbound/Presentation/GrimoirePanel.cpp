@@ -145,13 +145,10 @@ void Soulbound::Presentation::GrimoireOnPress(const TSharedRef<SWidget>& Widget,
 }
 
 TSharedRef<SWidget> Soulbound::Presentation::MakeGrimoireCard(const FGrimoireRow& Row, const TAttribute<int32>& FontSize, const TArray<FLinearColor>& DomainColors, const TAttribute<float>& TextWidth,
-	const FGrimoireFont& Font, bool bBackground, const FString& InsolenceLine, bool bPowerTexts)
+	const FGrimoireFont& Font, bool bBackground, const FString& InsolenceLine, bool bPlayerSheet)
 {
-	const FString Who = Row.bHuman ? FString::Printf(TEXT("Asiento %d (tú)"), Row.Seat) : FString::Printf(TEXT("Asiento %d"), Row.Seat);
-	const FString Domain = Row.DomainId == INDEX_NONE ? FString() : FString::Printf(TEXT("D%d %s"), Row.DomainId, *Row.DomainName).TrimEnd();
-	const FString Header = Row.bElect ? FString::Printf(TEXT("%s · ELEGIDO: %s · %s"), *Who, *Row.ElectName, *Domain)
-		: Domain.IsEmpty() ? FString::Printf(TEXT("%s · ECO, sin Elegido"), *Who)
-		: FString::Printf(TEXT("%s · ECO, sin Elegido · hogar en %s"), *Who, *Domain);
+	// S-048 (retoques de "La mesa" del 18/11/2026): en la hoja del jugador, en una línea y sin "ELEGIDO:"; en la carta del Elegido, como siempre.
+	const FString Header = GrimoireCardHeader(Row, bPlayerSheet);
 	// Las líneas de las runas llevan el cuadrito del Dominio y una sangría delante: su texto se parte un poco antes.
 	const TAttribute<float> RuneWidth = TAttribute<float>::CreateLambda([FontSize, TextWidth]() { return FMath::Max(TextWidth.Get() - FontSize.Get() - 14.f, 1.f); });
 
@@ -171,9 +168,7 @@ TSharedRef<SWidget> Soulbound::Presentation::MakeGrimoireCard(const FGrimoireRow
 	const TAttribute<float> PowerTextWidth = TAttribute<float>::CreateLambda([RuneWidth]() { return FMath::Max(RuneWidth.Get() - GrimoirePowerTextIndent, 1.f); });
 	for (const FGrimoireRune& Rune : Row.Runes)
 	{
-		// S-035 (R-RUN-7): con los tipos ocultos no hay cantidad que decir (un guion diría "ninguna"): solo el mapa de runa a poder, que es público.
-		const FString Count = Row.bTypesHidden ? FString(TEXT("")) : Rune.Count > 0 ? FString::Printf(TEXT("×%d"), Rune.Count) : FString(TEXT("—"));
-		const FString Power = !Rune.bHasPower ? FString() : FString::Printf(TEXT(": %s%s"), *Rune.PowerName, Rune.bActive ? TEXT(" (ACTIVO)") : TEXT(""));
+		// S-048 (retoques de "La mesa" del 18/11/2026): el texto de la runa, el mismo que el de las muestras de un Brazal revelado (GrimoireRuneLabel).
 		const FLinearColor Chip = DomainColors.IsValidIndex(Rune.RuneType) ? DomainColors[Rune.RuneType] : FLinearColor::Gray;
 		const TAttribute<int32> Size = FontSize;
 		Card->AddSlot().AutoHeight().Padding(8.f, 0.f, 0.f, 0.f)
@@ -190,13 +185,13 @@ TSharedRef<SWidget> Soulbound::Presentation::MakeGrimoireCard(const FGrimoireRow
 			]
 			+ SHorizontalBox::Slot().FillWidth(1.f).VAlign(VAlign_Center)
 			[
-				GrimoireText(Font, FontSize, RuneWidth, FString::Printf(TEXT("D%d%s%s"), Rune.RuneType, *(Count.IsEmpty() ? Count : FString(TEXT(" ")) + Count), *Power),
+				GrimoireText(Font, FontSize, RuneWidth, GrimoireRuneLabel(Rune, Row.bTypesHidden, true),
 					Rune.bActive ? FLinearColor::White : Row.bTypesHidden || Rune.Count > 0 ? GrimoireTextColor : GrimoireDimColor, Rune.bActive)
 			]
 		];
 		// S-048 (ronda de maquetación, decisión del autor del 18/11/2026): debajo de su runa, sangrada, en gris y al tamaño de siempre, qué hace el poder.
 		// Una runa sin poder no lleva nada.
-		if (bPowerTexts && Rune.bHasPower && !Rune.PowerText.IsEmpty())
+		if (bPlayerSheet && Rune.bHasPower && !Rune.PowerText.IsEmpty())
 		{
 			Card->AddSlot().AutoHeight().Padding(8.f, 0.f, 0.f, 2.f)
 			[
@@ -212,12 +207,17 @@ TSharedRef<SWidget> Soulbound::Presentation::MakeGrimoireCard(const FGrimoireRow
 			];
 		}
 	}
-	Card->AddSlot().AutoHeight().Padding(0.f, 3.f, 0.f, 0.f)
-	[
-		GrimoireText(Font, FontSize, TextWidth, Row.bTypesHidden ? FString::Printf(TEXT("%d runa%s; sus tipos están ocultos"), Row.TotalRunes, Row.TotalRunes == 1 ? TEXT("") : TEXT("s"))
-			: FString::Printf(TEXT("Poderes activos: %s"), Row.ActivePowers.IsEmpty() ? TEXT("ninguno") : *FString::Join(Row.ActivePowers, TEXT(", "))),
-			GrimoireTitleColor, false)
-	];
+	// S-048 (retoques de "La mesa" del 18/11/2026): la hoja del jugador no lleva la línea final, porque "(ACTIVO)" ya va en cada runa (con las seis runas
+	// no cabía a 1024x768); la carta del Elegido, sí.
+	if (!bPlayerSheet)
+	{
+		Card->AddSlot().AutoHeight().Padding(0.f, 3.f, 0.f, 0.f)
+		[
+			GrimoireText(Font, FontSize, TextWidth, Row.bTypesHidden ? FString::Printf(TEXT("%d runa%s; sus tipos están ocultos"), Row.TotalRunes, Row.TotalRunes == 1 ? TEXT("") : TEXT("s"))
+				: FString::Printf(TEXT("Poderes activos: %s"), Row.ActivePowers.IsEmpty() ? TEXT("ninguno") : *FString::Join(Row.ActivePowers, TEXT(", "))),
+				GrimoireTitleColor, false)
+		];
+	}
 	// S-048 (corrección 3 del autor del 17/11/2026): sobre la imagen del libro, sin fondo; el margen se queda, para que el texto se parta igual.
 	return SNew(SBorder)
 		.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))

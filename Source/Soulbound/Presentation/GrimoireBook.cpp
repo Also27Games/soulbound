@@ -4,6 +4,7 @@
 
 #include "Engine/Texture2D.h"
 
+#include "Match/EffectRules.h"
 #include "Match/MatchState.h"
 #include "Match/RuneRules.h"
 #include "Match/VictoryRules.h"
@@ -20,6 +21,25 @@ namespace Soulbound::Presentation
 				return TEXT("flechas izquierda y derecha");
 			}
 			return FString::Printf(TEXT("%s y %s"), *SpanishKeyName(PreviousTabKey), *SpanishKeyName(NextTabKey));
+		}
+
+		/**
+		 * R-ECO-7: un Eco tras la carrera tiene hogar, y la runa de su hogar le da Celeridad. Lo pone en la runa de su hogar de su fila del Grimorio,
+		 * con su descripción, como las de un Elegido. Lo usan la hoja del jugador y, desde los retoques de "La mesa" del 18/11/2026, las muestras de un
+		 * Brazal revelado. Un Elegido o un Eco sin hogar no cambian.
+		 */
+		void GiveEchoHomeHaste(const FMatchState& State, int32 Seat, const FGrimoireTexts& Texts, FGrimoireRow& Row)
+		{
+			if (!State.Seats.IsValidIndex(Seat) || State.Seats[Seat].Role == ESeatRole::Elect || !Row.Runes.IsValidIndex(State.Seats[Seat].DomainId))
+			{
+				return;
+			}
+			FGrimoireRune& Home = Row.Runes[State.Seats[Seat].DomainId];
+			Home.bHasPower = true;
+			Home.Power = EPower::Haste;
+			Home.PowerName = PowerName(EPower::Haste);
+			Home.PowerText = PowerText(Texts, EPower::Haste);
+			Home.bActive = !Row.bTypesHidden && Home.Count > 0 && Soulbound::Rules::IsPowerActive(State, Seat, EPower::Haste);
 		}
 
 		/** S-048 (R-HUD-18): las dos teclas de página: "flechas arriba y abajo" con las de por defecto; si no, cada una con su nombre en español. */
@@ -90,25 +110,23 @@ namespace Soulbound::Presentation
 		}
 		const FSeatState& Seat = State.Seats[HumanSeat];
 		Sheet.InsolenceLine = FString::Printf(TEXT("Insolencia: %d de %d"), Seat.Insolence, Soulbound::Match::MaxInsolence);
-		// R-ECO-7: un Eco tras la carrera tiene hogar, y la runa de su hogar le da Celeridad (antes, una línea aparte de "Tú"; ahora, en su runa, con
-		// su descripción, como las de un Elegido).
-		if (Seat.Role != ESeatRole::Elect && Sheet.Row.Runes.IsValidIndex(Seat.DomainId))
-		{
-			FGrimoireRune& Home = Sheet.Row.Runes[Seat.DomainId];
-			Home.bHasPower = true;
-			Home.Power = EPower::Haste;
-			Home.PowerName = PowerName(EPower::Haste);
-			Home.PowerText = PowerText(Texts, EPower::Haste);
-			Home.bActive = Home.Count > 0 && Soulbound::Rules::IsPowerActive(State, HumanSeat, EPower::Haste);
-		}
+		// R-ECO-7: la runa del hogar de un Eco le da Celeridad (antes, una línea aparte de "Tú"; ahora, en su runa, con su descripción).
+		GiveEchoHomeHaste(State, HumanSeat, Texts, Sheet.Row);
 		return Sheet;
 	}
 
 	FString GrimoireCardHeader(const FGrimoireRow& Row, bool bPlayerSheet)
 	{
-		// TODO(R-HUD-10): stub de los tests en rojo (la cabecera de hoy en los dos casos); se implementa en el commit siguiente.
 		const FString Who = Row.bHuman ? FString::Printf(TEXT("Asiento %d (tú)"), Row.Seat) : FString::Printf(TEXT("Asiento %d"), Row.Seat);
 		const FString Domain = Row.DomainId == INDEX_NONE ? FString() : FString::Printf(TEXT("D%d %s"), Row.DomainId, *Row.DomainName).TrimEnd();
+		if (bPlayerSheet)
+		{
+			// Retoques de "La mesa" del 18/11/2026: en una línea, sin "ELEGIDO:"; con las seis runas, la hoja no cabía a 1024x768.
+			return Row.bElect ? FString::Printf(TEXT("%s · %s · %s"), *Who, *Row.ElectName, *Domain)
+				: Domain.IsEmpty() ? FString::Printf(TEXT("%s · Eco"), *Who)
+				: FString::Printf(TEXT("%s · Eco · hogar en %s"), *Who, *Domain);
+		}
+		// La tarjeta del Elegido (S-029), como siempre.
 		return Row.bElect ? FString::Printf(TEXT("%s · ELEGIDO: %s · %s"), *Who, *Row.ElectName, *Domain)
 			: Domain.IsEmpty() ? FString::Printf(TEXT("%s · ECO, sin Elegido"), *Who)
 			: FString::Printf(TEXT("%s · ECO, sin Elegido · hogar en %s"), *Who, *Domain);
@@ -116,9 +134,9 @@ namespace Soulbound::Presentation
 
 	FString GrimoireRuneLabel(const FGrimoireRune& Rune, bool bTypesHidden, bool bWithActive)
 	{
-		// TODO(R-HUD-10): stub de los tests en rojo (siempre con "(ACTIVO)", como hoy); se implementa en el commit siguiente.
+		// S-035 (R-RUN-7): con los tipos ocultos no hay cantidad que decir (un guion diría "ninguna"): solo el mapa de runa a poder, que es público.
 		const FString Count = bTypesHidden ? FString() : Rune.Count > 0 ? FString::Printf(TEXT("×%d"), Rune.Count) : FString(TEXT("—"));
-		const FString Power = !Rune.bHasPower ? FString() : FString::Printf(TEXT(": %s%s"), *Rune.PowerName, Rune.bActive ? TEXT(" (ACTIVO)") : TEXT(""));
+		const FString Power = !Rune.bHasPower ? FString() : FString::Printf(TEXT(": %s%s"), *Rune.PowerName, bWithActive && Rune.bActive ? TEXT(" (ACTIVO)") : TEXT(""));
 		return FString::Printf(TEXT("D%d%s%s"), Rune.RuneType, *(Count.IsEmpty() ? Count : FString(TEXT(" ")) + Count), *Power);
 	}
 
@@ -131,6 +149,9 @@ namespace Soulbound::Presentation
 		FLegendRow Players;
 		Players.Title = TablePlayersTitle;
 		Players.bOnePerLine = true;
+		// Retoques de "La mesa" del 18/11/2026: las runas de un Brazal revelado salen de la fila del Grimorio del asiento (su mapa de runa a poder), sin
+		// los textos de los poderes, que aquí no se dicen.
+		const TArray<FGrimoireRow> GrimoireSeatRows = GrimoireRows(State, HumanSeat, FGrimoireTexts(), SeatColors);
 		for (int32 Seat = 0; Seat < State.Seats.Num(); ++Seat)
 		{
 			FLegendChip Chip;
@@ -149,6 +170,33 @@ namespace Soulbound::Presentation
 					Total += Count;
 				}
 				Runes = FString::Printf(TEXT("%d runa%s"), Total, Total == 1 ? TEXT("") : TEXT("s"));
+			}
+			else if (Soulbound::Rules::IsBracerRevealed(State, Seat) && GrimoireSeatRows.IsValidIndex(Seat))
+			{
+				// Retoques de "La mesa" del 18/11/2026 (R-HUD-10, R-RUN-7): la línea acaba en "BRAZAL REVELADO hasta la ronda N" y va en negrita; debajo,
+				// una muestra por tipo de runa que tiene, con el color de su Dominio y su poder (GrimoireRuneLabel, sin "(ACTIVO)"). Detrás de la línea,
+				// lo de hoy en su orden: la marca de aspirante, " | 0 runas" sin runas y Paso Libre por afinidad. Un Eco, Celeridad en su hogar (R-ECO-7).
+				FGrimoireRow Row = GrimoireSeatRows[Seat];
+				GiveEchoHomeHaste(State, Seat, FGrimoireTexts(), Row);
+				for (const FGrimoireRune& Rune : Row.Runes)
+				{
+					if (Rune.Count > 0)
+					{
+						FLegendSubChip Sub;
+						Sub.Color = DomainColors.IsValidIndex(Rune.RuneType) ? DomainColors[Rune.RuneType] : FLinearColor::Gray;
+						Sub.Text = GrimoireRuneLabel(Rune, false, false);
+						Chip.SubChips.Add(Sub);
+					}
+				}
+				Chip.bBold = true;
+				FString Tail = Chip.SubChips.IsEmpty() ? FString(TEXT(" | 0 runas")) : FString();
+				if (FreePassageByAffinity(State, Seat))
+				{
+					Tail += TEXT(" | poderes: Paso Libre (afinidad)");
+				}
+				Chip.Text = SeatLegendText(State, Seat, HumanSeat) + (Soulbound::Rules::IsAspirant(State, Seat) ? FString(TableAspirantMark) : FString()) + Tail;
+				Players.Chips.Add(Chip);
+				continue;
 			}
 			else
 			{

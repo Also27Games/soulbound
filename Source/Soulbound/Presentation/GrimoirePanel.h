@@ -28,10 +28,13 @@ namespace Soulbound::Presentation
 	 * @param Font S-048 (corrección 4 del autor del 17/11/2026): la fuente del Grimorio; sin asset, la de hoy (la carta del Elegido la deja así).
 	 * @param bBackground S-048 (corrección 3): si lleva su fondo; sobre la imagen del libro, no (el margen se queda).
 	 * @param InsolenceLine S-048 (ronda de maquetación del 18/11/2026): la insolencia, tras la afinidad; vacía, ninguna (la carta del Elegido).
-	 * @param bPowerTexts S-048 (ronda de maquetación): si cada runa con poder lleva debajo, sangrado y en gris, qué hace (FGrimoireRune::PowerText).
+	 * @param bPlayerSheet S-048: si es la hoja del jugador de "La mesa". Desde la ronda de maquetación, cada runa con poder lleva debajo, sangrado y en
+	 * gris, qué hace (FGrimoireRune::PowerText); desde los retoques de "La mesa" del 18/11/2026, la cabecera en una línea sin "ELEGIDO:"
+	 * (GrimoireCardHeader) y sin la línea final "Poderes activos", que ya dice "(ACTIVO)" en cada runa. Antes se llamaba bPowerTexts. Si no, la carta
+	 * del Elegido, como siempre.
 	 */
 	TSharedRef<SWidget> MakeGrimoireCard(const FGrimoireRow& Row, const TAttribute<int32>& FontSize, const TArray<FLinearColor>& DomainColors, const TAttribute<float>& TextWidth,
-		const FGrimoireFont& Font = FGrimoireFont(), bool bBackground = true, const FString& InsolenceLine = FString(), bool bPowerTexts = false);
+		const FGrimoireFont& Font = FGrimoireFont(), bool bBackground = true, const FString& InsolenceLine = FString(), bool bPlayerSheet = false);
 
 	/**
 	 * Lo que hace un widget del Grimorio al pulsarlo (S-048, retoques del autor del 18/11/2026, R-HUD-18 y R-HUD-10, nombre propuesto): la misma

@@ -132,7 +132,10 @@ namespace Soulbound::Presentation
 	 * enseñaba la leyenda, con los filtros de R-HUD-6 y R-RUN-7, y la marca de aspirante. Dos filas: "Jugadores", una muestra por asiento de su color,
 	 * una debajo de otra (bOnePerLine), cada una en una línea: SeatLegendText, la marca de aspirante y " | " con BracerSummary (sin "Runas: "); la del
 	 * humano es como la de los demás, con "(tú)" y "N runas" (decisión del autor del 18/11/2026: sus tipos, sus poderes y su insolencia van en su
-	 * hoja, GrimoirePlayerSheet). Y "Los seis Dominios y su Elegido", con una muestra por Dominio de su color (DomainLegendText), como antes.
+	 * hoja, GrimoirePlayerSheet). Desde los retoques de "La mesa" del 18/11/2026, la de un asiento con el Brazal revelado va en negrita, acaba en
+	 * "BRAZAL REVELADO hasta la ronda N" (con la marca de aspirante, " | 0 runas" sin runas y Paso Libre por afinidad detrás, en ese orden) y lleva
+	 * debajo una muestra por tipo de runa que tiene (SubChips, GrimoireRuneLabel sin "(ACTIVO)"); un Eco, Celeridad en la runa de su hogar (R-ECO-7).
+	 * Y "Los seis Dominios y su Elegido", con una muestra por Dominio de su color (DomainLegendText), como antes.
 	 * @param State El estado de la partida.
 	 * @param HumanSeat El asiento humano de esta máquina (quien mira).
 	 * @param ForgottenShown Si la vista pinta cada Dominio como Olvidado (en el prólogo va con la frase de corrupción); falta, no Olvidado.

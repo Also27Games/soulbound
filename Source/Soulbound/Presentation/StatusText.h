@@ -285,6 +285,15 @@ namespace Soulbound::Presentation
 	FString BracerSummary(const FMatchState& State, int32 Seat, int32 ViewerSeat);
 
 	/**
+	 * Si el asiento tiene Paso Libre solo por la afinidad de su Elegido, sin la runa que lo da (S-048, retoques de "La mesa" del 18/11/2026, nombre
+	 * propuesto; antes, dentro de BracerSummary): es lo que se dice como "Paso Libre (afinidad)", que es público.
+	 * @param State El estado de la partida.
+	 * @param Seat El asiento.
+	 * @return true si tiene Paso Libre (MakeMoverTraits) y el poder Paso Libre no está activo; false con un asiento no válido.
+	 */
+	bool FreePassageByAffinity(const FMatchState& State, int32 Seat);
+
+	/**
 	 * Línea de un Dominio en la leyenda: "D0 El Banquete · Shuten-dōji: del asiento 0" (con dueño), "...: libre" o "...: Olvidado". Un Dominio
 	 * que no existe, solo "D<n>".
 	 * @param bForgotten Si la vista lo pinta como Olvidado (en el prólogo, con la frase de corrupción).

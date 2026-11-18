@@ -49,6 +49,17 @@ struct FLegendChip
 namespace Soulbound::Presentation
 {
 	/**
+	 * El aire de la leyenda (S-048, retoques de "La mesa" del 18/11/2026, R-HUD-10, nombres propuestos; valores propuestos por el agente y aceptados
+	 * por el autor, que se ajustan en PIE): el hueco entre dos filas ("Jugadores" y "Los seis Dominios y su Elegido"; antes, 2), el que hay entre una
+	 * muestra y la siguiente (antes, 2) y, entre las muestras pequeñas de debajo (SubChips), el horizontal y el vertical. Si a 1024x768 la hoja derecha
+	 * no cabe, lo primero que se baja es LegendRowGap (decisión del autor).
+	 */
+	inline constexpr float LegendRowGap = 12.f;
+	inline constexpr float LegendChipGap = 4.f;
+	inline constexpr float LegendSubChipGapX = 12.f;
+	inline constexpr float LegendSubChipGapY = 2.f;
+
+	/**
 	 * Cuánto se baja el cuadrito de una muestra para quedar centrado en la primera línea de su texto (S-048, retoques de "La mesa" del 18/11/2026,
 	 * R-HUD-10, nombre propuesto): así no queda en medio cuando el texto se parte. Función pura; la altura de la línea se mide con la fuente al pintar.
 	 * @param LineHeight La altura de una línea del texto, en unidades de Slate.

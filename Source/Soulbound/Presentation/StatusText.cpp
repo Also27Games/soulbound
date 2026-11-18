@@ -468,7 +468,7 @@ namespace Soulbound::Presentation
 			}
 		}
 		// La afinidad de un Elegido es pública: Paso Libre por afinidad se dice aunque el Brazal esté oculto.
-		if (Soulbound::Rules::MakeMoverTraits(State, Seat).bFreePassage && !Soulbound::Rules::IsPowerActive(State, Seat, EPower::FreePassage))
+		if (FreePassageByAffinity(State, Seat))
 		{
 			Powers.Add(TEXT("Paso Libre (afinidad)"));
 		}
@@ -487,6 +487,12 @@ namespace Soulbound::Presentation
 		return FString::Printf(TEXT("%s%s"),
 			Runes.IsEmpty() ? TEXT("0 runas") : *FString::Join(Runes, TEXT(" ")),
 			Powers.IsEmpty() ? TEXT("") : *(FString(TEXT(" | poderes: ")) + FString::Join(Powers, TEXT(", "))));
+	}
+
+	bool FreePassageByAffinity(const FMatchState& State, int32 Seat)
+	{
+		return State.Seats.IsValidIndex(Seat) && Soulbound::Rules::MakeMoverTraits(State, Seat).bFreePassage
+			&& !Soulbound::Rules::IsPowerActive(State, Seat, EPower::FreePassage);
 	}
 
 	FString DomainLegendText(const FMatchState& State, int32 DomainId, bool bForgotten)
