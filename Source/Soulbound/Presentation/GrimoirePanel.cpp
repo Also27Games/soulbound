@@ -20,62 +20,17 @@
 
 namespace
 {
-	/**
-	 * Un texto del Grimorio con la letra del atributo; Scale la agranda (el título). Se parte con WrapTextAt a un ancho que no depende de lo
-	 * pintado antes: con AutoWrapText el ancho sale del tamaño de la pasada anterior de pintado, y un texto recién creado cambiaba de tamaño de un
-	 * fotograma a otro (S-029, R-VIS-21; el mismo motivo que la frase del Warden, R-HUD-3).
-	 */
-	TSharedRef<STextBlock> GrimoireText(const Soulbound::Presentation::FGrimoireFont& Font, const TAttribute<int32>& Size, const TAttribute<float>& Wrap, const FString& Text,
-		const FLinearColor& Color, bool bBold, float Scale = 1.f)
-	{
-		// S-048 (corrección 4 del autor del 17/11/2026): con la fuente del Grimorio si la hay; sin ella, la de hoy.
-		return SNew(STextBlock)
-			.Text(FText::FromString(Text))
-			.Font_Lambda([Font, Size, bBold, Scale]() { return Soulbound::Presentation::GrimoireFontInfo(Font, bBold, FMath::RoundToInt(Size.Get() * Scale)); })
-			.ColorAndOpacity(Color)
-			.WrapTextAt_Lambda([Wrap]() { return Wrap.Get(); });
-	}
-
-	/** La línea de teclas del pie del Grimorio (S-048, corrección 5): como GrimoireText, con un texto que se lee al pintar, porque cambia con la pestaña. */
-	TSharedRef<STextBlock> GrimoireFootText(const Soulbound::Presentation::FGrimoireFont& Font, const TAttribute<int32>& Size, const TAttribute<float>& Wrap,
-		const TAttribute<FText>& Text, const FLinearColor& Color, bool bBold)
-	{
-		const TSharedRef<STextBlock> Block = GrimoireText(Font, Size, Wrap, FString(), Color, bBold);
-		Block->SetText(Text);
-		return Block;
-	}
-
-	/** Un SScrollBox de pestaña con la barra que reserva GrimoireColumnTextWidth (S-048, corrección 1): su grosor, su margen y el hueco hasta el texto. */
-	TSharedRef<SWidget> GrimoireScroll(const TSharedRef<SWidget>& Content)
-	{
-		using namespace Soulbound::Presentation;
-		return SNew(SScrollBox)
-			.ScrollBarThickness(FVector2D(GrimoireScrollBarThickness, GrimoireScrollBarThickness))
-			.ScrollBarPadding(FMargin(GrimoireScrollBarPadding))
-			+ SScrollBox::Slot().Padding(0.f, 0.f, GrimoireScrollGap, 0.f)[Content];
-	}
-
-	/**
-	 * El marco de un botón de página o de una pestaña (S-048, correcciones tras probar la maquetación del 18/11/2026, R-HUD-18 y R-HUD-10): una caja
-	 * del color del marco con el contenido dentro, a GrimoireFrameWidth de su propia escala pintada; así cada lado mide al menos un píxel y se ve.
-	 */
-	TSharedRef<SBorder> GrimoireFrame(const TAttribute<FSlateColor>& Color, const TSharedRef<SWidget>& Content)
-	{
-		const TSharedRef<TWeakPtr<SWidget>> Self = MakeShared<TWeakPtr<SWidget>>();
-		const TSharedRef<SBorder> Frame = SNew(SBorder)
-			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-			.BorderBackgroundColor(Color)
-			.Padding_Lambda([Self]()
-			{
-				const TSharedPtr<SWidget> Widget = Self->Pin();
-				return FMargin(Soulbound::Presentation::GrimoireFrameWidth(Widget.IsValid() ? Widget->GetCachedGeometry().Scale : 1.f));
-			})
-			[
-				Content
-			];
-		*Self = Frame;
-		return Frame;
-	}
+	// S-049: los textos, el desplazamiento, el marco y los colores que comparte con el libro de "Cómo se juega" viven en GrimoireWidgets.h, sin cambios.
+	using Soulbound::Presentation::GrimoireFootColor;
+	using Soulbound::Presentation::GrimoireFootScale;
+	using Soulbound::Presentation::GrimoireFootText;
+	using Soulbound::Presentation::GrimoireFrame;
+	using Soulbound::Presentation::GrimoireScroll;
+	using Soulbound::Presentation::GrimoireText;
+	using Soulbound::Presentation::GrimoireTextColor;
+	using Soulbound::Presentation::GrimoireTitleColor;
+	using Soulbound::Presentation::TabDark;
+	using Soulbound::Presentation::TabLight;
 
 	/** La sangría de la tarjeta del jugador, izquierda y derecha sumadas (S-048, corrección 1). */
 	constexpr float GrimoireCardIndent = 16.f;
@@ -102,14 +57,7 @@ namespace
 	const FName HowToPlayWardenStyle(TEXT("Warden"));
 	const FName HowToPlaySubtitleStyle(TEXT("Subtitle"));
 
-	/** Cuánto más pequeña va la línea de teclas del pie del Grimorio (S-048, corrección 2 del autor del 17/11/2026). */
-	constexpr float GrimoireFootScale = 0.85f;
-
-	const FLinearColor GrimoireTitleColor(1.f, 0.85f, 0.4f);
-	const FLinearColor GrimoireTextColor(0.9f, 0.9f, 0.9f);
 	const FLinearColor GrimoireDimColor(0.55f, 0.55f, 0.55f);
-	/** El color de la línea de teclas del pie (S-048, corrección 2): un gris claro, más discreto que el texto. */
-	const FLinearColor GrimoireFootColor(0.7f, 0.7f, 0.7f);
 
 	/**
 	 * Los márgenes del panel sin la imagen del libro (16 a los lados y 12 arriba y abajo; desde S-048, en GrimoireBook.h, porque son la zona de contenido
@@ -117,31 +65,8 @@ namespace
 	 */
 	const FVector2f GrimoireFlatPadding = Soulbound::Presentation::GrimoireFlatPadding;
 
-	/**
-	 * Los colores de las pestañas: los de la cabecera de la columna (S-035), que repiten el gris del panel de decisión y su fondo negro. Activa: fondo
-	 * claro y texto oscuro en negrita; inactiva: fondo oscuro con borde, que se ilumina al pasar el ratón.
-	 * TODO(R-HUD-4): el mismo gris está ya en DecisionPanel.cpp (la cabecera de la columna, que también lo repetía, se fue en S-045); con este, dos:
-	 * si un tercer panel lo necesita, extraerlo a un sitio común de Presentation y que lo lean de allí.
-	 */
-	const FLinearColor TabLight = FLinearColor(FColor(190, 190, 190));
-	const FLinearColor TabDark = FLinearColor(0.04f, 0.04f, 0.04f, 1.f);
+	/** Al pasar el ratón por una pestaña inactiva, su fondo se ilumina (S-035); los demás colores de las pestañas, en GrimoireWidgets.h. */
 	const FLinearColor TabHover = FLinearColor(TabLight.R * 0.35f, TabLight.G * 0.35f, TabLight.B * 0.35f, 1.f);
-}
-
-void Soulbound::Presentation::GrimoireOnPress(const TSharedRef<SWidget>& Widget, TFunction<void()> OnPress)
-{
-	// Retoques del autor del 18/11/2026: con dos clics rápidos, Slate entrega el segundo solo como doble clic (FSlateApplication::
-	// ProcessMouseButtonDoubleClickEvent no lo repite como pulsación); los dos llevan a la misma acción. Cualquier botón del ratón, como antes.
-	const FPointerEventHandler Press = FPointerEventHandler::CreateLambda([OnPress](const FGeometry&, const FPointerEvent&)
-	{
-		if (OnPress)
-		{
-			OnPress();
-		}
-		return FReply::Handled();
-	});
-	Widget->SetOnMouseButtonDown(Press);
-	Widget->SetOnMouseDoubleClick(Press);
 }
 
 TSharedRef<SWidget> Soulbound::Presentation::MakeGrimoireCard(const FGrimoireRow& Row, const TAttribute<int32>& FontSize, const TArray<FLinearColor>& DomainColors, const TAttribute<float>& TextWidth,

@@ -4,6 +4,8 @@
 #include "ChronicleLines.h"
 #include "GrimoireBook.h"
 #include "GrimoireFont.h"
+// S-049: GrimoireOnPress y las demás piezas que comparte con el libro de "Cómo se juega".
+#include "GrimoireWidgets.h"
 #include "StatusText.h"
 #include "Styling/SlateBrush.h"
 #include "Widgets/SCompoundWidget.h"
@@ -35,15 +37,6 @@ namespace Soulbound::Presentation
 	 */
 	TSharedRef<SWidget> MakeGrimoireCard(const FGrimoireRow& Row, const TAttribute<int32>& FontSize, const TArray<FLinearColor>& DomainColors, const TAttribute<float>& TextWidth,
 		const FGrimoireFont& Font = FGrimoireFont(), bool bBackground = true, const FString& InsolenceLine = FString(), bool bPlayerSheet = false);
-
-	/**
-	 * Lo que hace un widget del Grimorio al pulsarlo (S-048, retoques del autor del 18/11/2026, R-HUD-18 y R-HUD-10, nombre propuesto): la misma
-	 * acción con la pulsación y con el doble clic, y se queda los dos. Slate entrega el segundo de dos clics rápidos solo como doble clic; atendiendo
-	 * solo la pulsación, se perdía uno de cada dos. Lo usan los botones de página, las pestañas y el fondo del panel (con una acción vacía).
-	 * @param Widget El widget; sustituye lo que tuviera en su pulsación y en su doble clic.
-	 * @param OnPress La acción; vacía, nada (solo se queda los clics).
-	 */
-	void GrimoireOnPress(const TSharedRef<SWidget>& Widget, TFunction<void()> OnPress);
 }
 
 /**
