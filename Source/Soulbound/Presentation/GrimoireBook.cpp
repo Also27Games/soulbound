@@ -104,6 +104,24 @@ namespace Soulbound::Presentation
 		return Sheet;
 	}
 
+	FString GrimoireCardHeader(const FGrimoireRow& Row, bool bPlayerSheet)
+	{
+		// TODO(R-HUD-10): stub de los tests en rojo (la cabecera de hoy en los dos casos); se implementa en el commit siguiente.
+		const FString Who = Row.bHuman ? FString::Printf(TEXT("Asiento %d (tú)"), Row.Seat) : FString::Printf(TEXT("Asiento %d"), Row.Seat);
+		const FString Domain = Row.DomainId == INDEX_NONE ? FString() : FString::Printf(TEXT("D%d %s"), Row.DomainId, *Row.DomainName).TrimEnd();
+		return Row.bElect ? FString::Printf(TEXT("%s · ELEGIDO: %s · %s"), *Who, *Row.ElectName, *Domain)
+			: Domain.IsEmpty() ? FString::Printf(TEXT("%s · ECO, sin Elegido"), *Who)
+			: FString::Printf(TEXT("%s · ECO, sin Elegido · hogar en %s"), *Who, *Domain);
+	}
+
+	FString GrimoireRuneLabel(const FGrimoireRune& Rune, bool bTypesHidden, bool bWithActive)
+	{
+		// TODO(R-HUD-10): stub de los tests en rojo (siempre con "(ACTIVO)", como hoy); se implementa en el commit siguiente.
+		const FString Count = bTypesHidden ? FString() : Rune.Count > 0 ? FString::Printf(TEXT("×%d"), Rune.Count) : FString(TEXT("—"));
+		const FString Power = !Rune.bHasPower ? FString() : FString::Printf(TEXT(": %s%s"), *Rune.PowerName, Rune.bActive ? TEXT(" (ACTIVO)") : TEXT(""));
+		return FString::Printf(TEXT("D%d%s%s"), Rune.RuneType, *(Count.IsEmpty() ? Count : FString(TEXT(" ")) + Count), *Power);
+	}
+
 	TArray<FLegendRow> GrimoireTableRows(const FMatchState& State, int32 HumanSeat, const TArray<bool>& ForgottenShown, const TArray<FLinearColor>& SeatColors,
 		const TArray<FLinearColor>& DomainColors)
 	{

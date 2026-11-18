@@ -6,6 +6,21 @@
 
 class SVerticalBox;
 
+/**
+ * Una muestra pequeña debajo de otra muestra (S-048, retoques de "La mesa" del 18/11/2026, R-HUD-10, nombre propuesto): un cuadrito de color y su
+ * texto, como las runas de un Brazal revelado en "Jugadores" ("D2 ×1: Celeridad").
+ */
+struct FLegendSubChip
+{
+	FLinearColor Color = FLinearColor::White;
+	FString Text;
+
+	bool operator==(const FLegendSubChip& Other) const
+	{
+		return Color == Other.Color && Text == Other.Text;
+	}
+};
+
 /** Una muestra de la leyenda: un cuadrito de color y su texto. */
 struct FLegendChip
 {
@@ -13,16 +28,35 @@ struct FLegendChip
 	FString Text;
 	/** Si existe, da el texto cada vez que se pinta (la leyenda de un dato que cambia, como el rol de un asiento). */
 	TFunction<FString()> TextGetter;
+	/** S-048 (retoques de "La mesa" del 18/11/2026, R-HUD-10, nombre propuesto): el texto, en negrita (la línea de un Brazal revelado). */
+	bool bBold = false;
+	/**
+	 * S-048 (retoques de "La mesa", nombre propuesto): muestras pequeñas debajo de esta, con sangría, empezando bajo su texto y repartidas por la
+	 * línea mientras quepan (las runas de un Brazal revelado). Vacía, ninguna.
+	 */
+	TArray<FLegendSubChip> SubChips;
 
 	/**
-	 * Igualdad de lo que se pinta (S-044, R-VIS-21): color y texto. Dos muestras con TextGetter nunca son iguales (no se pueden comparar), así que
-	 * un panel con muestras vivas se rehace siempre que se le den filas; las de "La mesa" del Grimorio llevan el texto puesto.
+	 * Igualdad de lo que se pinta (S-044, R-VIS-21): color, texto, negrita y muestras de debajo. Dos muestras con TextGetter nunca son iguales (no se
+	 * pueden comparar), así que un panel con muestras vivas se rehace siempre que se le den filas; las de "La mesa" del Grimorio llevan el texto puesto.
 	 */
 	bool operator==(const FLegendChip& Other) const
 	{
-		return Color == Other.Color && Text == Other.Text && !TextGetter && !Other.TextGetter;
+		return Color == Other.Color && Text == Other.Text && bBold == Other.bBold && SubChips == Other.SubChips && !TextGetter && !Other.TextGetter;
 	}
 };
+
+namespace Soulbound::Presentation
+{
+	/**
+	 * Cuánto se baja el cuadrito de una muestra para quedar centrado en la primera línea de su texto (S-048, retoques de "La mesa" del 18/11/2026,
+	 * R-HUD-10, nombre propuesto): así no queda en medio cuando el texto se parte. Función pura; la altura de la línea se mide con la fuente al pintar.
+	 * @param LineHeight La altura de una línea del texto, en unidades de Slate.
+	 * @param ChipSize El lado del cuadrito, en unidades de Slate.
+	 * @return La mitad de lo que la línea es más alta que el cuadrito; cero si no lo es o si la altura no es válida.
+	 */
+	float LegendChipTopPadding(float LineHeight, float ChipSize);
+}
 
 /** Una fila de la leyenda: un título y sus muestras. */
 struct FLegendRow

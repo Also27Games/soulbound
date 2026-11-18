@@ -292,7 +292,9 @@ bool FGrimoireTableTabTest::RunTest(const FString& Parameters)
 	Revealed.Round = 3;
 	Revealed.Seats[GbOther].RevealedUntilRound = 5;
 	const TArray<FLegendRow> Shown = GrimoireTableRows(Revealed, GbHuman, Forgotten, GbSeatColors, GbDomainColors);
-	TestTrue(TEXT("Brazal revelado: sus tipos"), Shown.Num() == 2 && Shown[0].Chips.IsValidIndex(GbOther) && Shown[0].Chips[GbOther].Text.Contains(TEXT("D0×2")));
+	// Retoques de "La mesa" del 18/11/2026 (CA-HUD-68): sus tipos van en las muestras de debajo, no en la línea.
+	TestTrue(TEXT("Brazal revelado: sus tipos"), Shown.Num() == 2 && Shown[0].Chips.IsValidIndex(GbOther)
+		&& Shown[0].Chips[GbOther].SubChips.ContainsByPredicate([](const FLegendSubChip& Sub) { return Sub.Text == TEXT("D0 ×2"); }));
 
 	for (int32 Id = 0; Id < Soulbound::Board::DomainCount; ++Id)
 	{
@@ -302,6 +304,165 @@ bool FGrimoireTableTabTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("El Dominio del humano dice su dueño"), Domains.Chips[GbFenrirDomain].Text.Contains(TEXT("del asiento 0")));
 	TestTrue(TEXT("El Olvidado lo dice"), Domains.Chips[2].Text.Contains(TEXT("Olvidado")));
 	TestTrue(TEXT("Un libre lo dice"), Domains.Chips[3].Text.Contains(TEXT("libre")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireSheetHeaderTest, "Soulbound.Game.Presentation.Grimorio.CabeceraDeLaHoja", GrimoireBookTestFlags)
+
+bool FGrimoireSheetHeaderTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-66 (R-HUD-10; S-048, retoques de "La mesa" del 18/11/2026): la cabecera de la hoja del jugador, en una línea y sin "ELEGIDO:", para un
+	// Elegido, un Eco sin hogar y un Eco con hogar; la de la tarjeta del Elegido (S-029), la de hoy.
+	using namespace Soulbound::Presentation;
+	FGrimoireRow Elect;
+	Elect.Seat = 0;
+	Elect.bHuman = true;
+	Elect.bElect = true;
+	Elect.ElectName = TEXT("Tifón");
+	Elect.DomainId = 4;
+	Elect.DomainName = TEXT("La Ruina Tormentosa");
+	FGrimoireRow Homeless;
+	Homeless.Seat = 0;
+	Homeless.bHuman = true;
+	FGrimoireRow Home = Homeless;
+	Home.DomainId = 3;
+	Home.DomainName = TEXT("El Descenso");
+
+	TestEqual(TEXT("Hoja, Elegido"), GrimoireCardHeader(Elect, true), FString(TEXT("Asiento 0 (tú) · Tifón · D4 La Ruina Tormentosa")));
+	TestEqual(TEXT("Hoja, Eco sin hogar"), GrimoireCardHeader(Homeless, true), FString(TEXT("Asiento 0 (tú) · Eco")));
+	TestEqual(TEXT("Hoja, Eco con hogar"), GrimoireCardHeader(Home, true), FString(TEXT("Asiento 0 (tú) · Eco · hogar en D3 El Descenso")));
+
+	TestEqual(TEXT("Tarjeta del Elegido, Elegido: como hoy"), GrimoireCardHeader(Elect, false), FString(TEXT("Asiento 0 (tú) · ELEGIDO: Tifón · D4 La Ruina Tormentosa")));
+	TestEqual(TEXT("Tarjeta del Elegido, Eco sin hogar: como hoy"), GrimoireCardHeader(Homeless, false), FString(TEXT("Asiento 0 (tú) · ECO, sin Elegido")));
+	TestEqual(TEXT("Tarjeta del Elegido, Eco con hogar: como hoy"), GrimoireCardHeader(Home, false), FString(TEXT("Asiento 0 (tú) · ECO, sin Elegido · hogar en D3 El Descenso")));
+	FGrimoireRow Other = Elect;
+	Other.Seat = 2;
+	Other.bHuman = false;
+	TestEqual(TEXT("Tarjeta del Elegido de otro asiento: sin (tú)"), GrimoireCardHeader(Other, false), FString(TEXT("Asiento 2 · ELEGIDO: Tifón · D4 La Ruina Tormentosa")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireRevealedBracerTest, "Soulbound.Game.Presentation.Grimorio.BrazalRevelado", GrimoireBookTestFlags)
+
+bool FGrimoireRevealedBracerTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-68 (R-HUD-10, R-RUN-7, R-ECO-7; S-048, retoques de "La mesa" del 18/11/2026): en "Jugadores", un asiento con el Brazal revelado lleva su
+	// línea de la leyenda en negrita, sin sus tipos, y debajo una muestra por tipo de runa que tiene, con el color de su Dominio y "D2 ×1: Celeridad"
+	// (sin "(ACTIVO)"; sin poder, sin dos puntos). Un Eco, Celeridad en la runa de su hogar. Sin runas, " | 0 runas" y ninguna muestra. Las marcas de
+	// detrás, en el orden de hoy. El Brazal oculto y el humano, como antes. Las runas de la hoja del jugador llevan el mismo texto, con "(ACTIVO)".
+	using namespace Soulbound::Presentation;
+	FMatchState State;
+	if (!GbMakeState(*this, State))
+	{
+		return false;
+	}
+	State.MatchPhase = EMatchPhase::RuneHunt;
+	State.Round = 3;
+	constexpr int32 EchoSeat = 1;
+	constexpr int32 ApepSeat = 2;
+	constexpr int32 FenrirSeat = 3;
+	// Asiento 1: Eco con hogar en el Dominio 3, con una runa de su hogar y otra del Dominio 5.
+	State.Seats[EchoSeat].DomainId = 3;
+	State.Seats[EchoSeat].Runes[3] = 1;
+	State.Seats[EchoSeat].Runes[5] = 1;
+	// Asiento 2: Elegido de Apep (Dominio 2): D0 da Vuelo Planar, D2 Celeridad y D4 Expulsión.
+	State.Seats[ApepSeat].Role = ESeatRole::Elect;
+	State.Seats[ApepSeat].DomainId = 2;
+	State.Seats[ApepSeat].Runes[0] = 2;
+	State.Seats[ApepSeat].Runes[2] = 1;
+	State.Seats[ApepSeat].Runes[4] = 1;
+	// Asiento 3: Elegido de Fenrir (Dominio 1), sin runas: Paso Libre por su afinidad.
+	State.Seats[FenrirSeat].Role = ESeatRole::Elect;
+	State.Seats[FenrirSeat].DomainId = GbFenrirDomain;
+	for (const int32 Seat : {EchoSeat, ApepSeat, FenrirSeat})
+	{
+		State.Seats[Seat].RevealedUntilRound = 5;
+	}
+	const TArray<bool> Forgotten{false, false, false, false, false, false};
+	const TArray<FLegendRow> Rows = GrimoireTableRows(State, GbHuman, Forgotten, GbSeatColors, GbDomainColors);
+	if (!TestTrue(TEXT("Jugadores, con los cuatro asientos"), Rows.Num() == 2 && Rows[0].Chips.Num() == 4))
+	{
+		return false;
+	}
+	const TArray<FLegendChip>& Chips = Rows[0].Chips;
+
+	const FLegendChip& Apep = Chips[ApepSeat];
+	TestEqual(TEXT("Elegido revelado: su línea de la leyenda y nada más"), Apep.Text, SeatLegendText(State, ApepSeat, GbHuman));
+	TestTrue(TEXT("Elegido revelado: acaba en BRAZAL REVELADO hasta la ronda 5"), Apep.Text.EndsWith(TEXT("BRAZAL REVELADO hasta la ronda 5")));
+	TestTrue(TEXT("Elegido revelado: en negrita"), Apep.bBold);
+	const TArray<FLegendSubChip> ApepRunes{{GbDomainColors[0], TEXT("D0 ×2: Vuelo Planar")}, {GbDomainColors[2], TEXT("D2 ×1: Celeridad")},
+		{GbDomainColors[4], TEXT("D4 ×1: Expulsión")}};
+	TestTrue(TEXT("Elegido revelado: una muestra por tipo, con su color y su poder, sin (ACTIVO)"), Apep.SubChips == ApepRunes);
+
+	const FLegendChip& Echo = Chips[EchoSeat];
+	TestEqual(TEXT("Eco revelado: su línea de la leyenda y nada más"), Echo.Text, SeatLegendText(State, EchoSeat, GbHuman));
+	TestTrue(TEXT("Eco revelado: en negrita"), Echo.bBold);
+	const TArray<FLegendSubChip> EchoRunes{{GbDomainColors[3], TEXT("D3 ×1: Celeridad")}, {GbDomainColors[5], TEXT("D5 ×1")}};
+	TestTrue(TEXT("Eco revelado: Celeridad en la runa de su hogar; la otra, sin poder"), Echo.SubChips == EchoRunes);
+
+	const FLegendChip& Fenrir = Chips[FenrirSeat];
+	TestEqual(TEXT("Sin runas: 0 runas y Paso Libre por afinidad, en la línea"), Fenrir.Text,
+		SeatLegendText(State, FenrirSeat, GbHuman) + TEXT(" | 0 runas | poderes: Paso Libre (afinidad)"));
+	TestTrue(TEXT("Sin runas: en negrita"), Fenrir.bBold);
+	TestEqual(TEXT("Sin runas: ninguna muestra"), Fenrir.SubChips.Num(), 0);
+
+	const FLegendChip& Mine = Chips[GbHuman];
+	TestFalse(TEXT("El humano: sin negrita"), Mine.bBold);
+	TestEqual(TEXT("El humano: sin muestras"), Mine.SubChips.Num(), 0);
+
+	// Un aspirante revelado: la marca, detrás de la línea, como hoy.
+	FMatchState Aspirant = State;
+	Aspirant.Seats[ApepSeat].TileId = GbAltarTile;
+	Aspirant.Seats[ApepSeat].Runes.Init(1, Soulbound::Board::DomainCount);
+	const TArray<FLegendRow> AspirantRows = GrimoireTableRows(Aspirant, GbHuman, Forgotten, GbSeatColors, GbDomainColors);
+	if (TestTrue(TEXT("Aspirante: su fila"), AspirantRows.Num() == 2 && AspirantRows[0].Chips.IsValidIndex(ApepSeat)))
+	{
+		const FLegendChip& Chip = AspirantRows[0].Chips[ApepSeat];
+		TestEqual(TEXT("Aspirante revelado: la marca, detrás"), Chip.Text, SeatLegendText(Aspirant, ApepSeat, GbHuman) + TableAspirantMark);
+		TestEqual(TEXT("Aspirante revelado: seis muestras"), Chip.SubChips.Num(), Soulbound::Board::DomainCount);
+	}
+
+	// Con el Brazal oculto, como antes: su línea, " | " y el resumen, sin negrita ni muestras.
+	FMatchState Hidden = State;
+	Hidden.Seats[ApepSeat].RevealedUntilRound = 0;
+	const TArray<FLegendRow> HiddenRows = GrimoireTableRows(Hidden, GbHuman, Forgotten, GbSeatColors, GbDomainColors);
+	if (TestTrue(TEXT("Oculto: su fila"), HiddenRows.Num() == 2 && HiddenRows[0].Chips.IsValidIndex(ApepSeat)))
+	{
+		const FLegendChip& Chip = HiddenRows[0].Chips[ApepSeat];
+		TestEqual(TEXT("Oculto: como antes"), Chip.Text, SeatLegendText(Hidden, ApepSeat, GbHuman) + TEXT(" | ") + BracerSummary(Hidden, ApepSeat, GbHuman));
+		TestFalse(TEXT("Oculto: sin negrita"), Chip.bBold);
+		TestEqual(TEXT("Oculto: sin muestras"), Chip.SubChips.Num(), 0);
+	}
+
+	// El mismo texto que las runas de la hoja del jugador, que dicen "(ACTIVO)".
+	FGrimoireRune Rune;
+	Rune.RuneType = 2;
+	Rune.Count = 1;
+	Rune.bHasPower = true;
+	Rune.Power = EPower::Haste;
+	Rune.PowerName = TEXT("Celeridad");
+	Rune.bActive = true;
+	TestEqual(TEXT("Hoja: activa"), GrimoireRuneLabel(Rune, false, true), FString(TEXT("D2 ×1: Celeridad (ACTIVO)")));
+	TestEqual(TEXT("Muestra: sin (ACTIVO)"), GrimoireRuneLabel(Rune, false, false), FString(TEXT("D2 ×1: Celeridad")));
+	TestEqual(TEXT("Tipos ocultos: sin cantidad"), GrimoireRuneLabel(Rune, true, false), FString(TEXT("D2: Celeridad")));
+	FGrimoireRune None;
+	None.RuneType = 3;
+	TestEqual(TEXT("Ninguna y sin poder"), GrimoireRuneLabel(None, false, true), FString(TEXT("D3 —")));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoireChipFirstLineTest, "Soulbound.Game.Presentation.Grimorio.CuadritoEnLaPrimeraLinea", GrimoireBookTestFlags)
+
+bool FGrimoireChipFirstLineTest::RunTest(const FString& Parameters)
+{
+	// CA-HUD-69 (R-HUD-10; S-048, retoques de "La mesa" del 18/11/2026): el desplazamiento del cuadrito lo centra en la primera línea de su texto; si
+	// el cuadrito es tan alto como la línea o más, o la altura no es válida, cero. Función pura: no se mide ninguna fuente.
+	using Soulbound::Presentation::LegendChipTopPadding;
+	TestEqual(TEXT("Línea de 20 y cuadrito de 16: 2"), LegendChipTopPadding(20.f, 16.f), 2.f);
+	TestEqual(TEXT("Línea de 23 y cuadrito de 16: 3,5"), LegendChipTopPadding(23.f, 16.f), 3.5f);
+	TestEqual(TEXT("Tan alto como la línea: 0"), LegendChipTopPadding(16.f, 16.f), 0.f);
+	TestEqual(TEXT("Más alto que la línea: 0"), LegendChipTopPadding(14.f, 16.f), 0.f);
+	TestEqual(TEXT("Altura no válida: 0"), LegendChipTopPadding(0.f, 16.f), 0.f);
 	return true;
 }
 

@@ -8,6 +8,12 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
+float Soulbound::Presentation::LegendChipTopPadding(float LineHeight, float ChipSize)
+{
+	// TODO(R-HUD-10): stub de los tests en rojo (el cuadrito, arriba del todo); se implementa en el commit siguiente.
+	return 0.f;
+}
+
 void SLegendPanel::Construct(const FArguments& InArgs)
 {
 	// S-027 (R-HUD-3): la letra se lee del atributo cada vez que se pinta, para que cambie con la resolución sin rehacer el panel.

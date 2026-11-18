@@ -100,6 +100,27 @@ namespace Soulbound::Presentation
 	 */
 	FGrimoirePlayerSheet GrimoirePlayerSheet(const FMatchState& State, int32 HumanSeat, const FGrimoireTexts& Texts, const TArray<FLinearColor>& SeatColors);
 
+	/**
+	 * La cabecera de una tarjeta del Grimorio (S-048, retoques de "La mesa" del 18/11/2026, R-HUD-10, nombre propuesto). En la hoja del jugador, en
+	 * una línea y sin "ELEGIDO:": "Asiento 0 (tú) · Tifón · D4 La Ruina Tormentosa", "Asiento 0 (tú) · Eco" o "Asiento 0 (tú) · Eco · hogar en D3 El
+	 * Descenso". En la tarjeta del Elegido (S-029), la de siempre: "Asiento 0 (tú) · ELEGIDO: Tifón · D4 …" o "Asiento 0 (tú) · ECO, sin Elegido …".
+	 * @param Row La fila del asiento (GrimoireRows).
+	 * @param bPlayerSheet Si es la hoja del jugador de "La mesa"; si no, la tarjeta del Elegido.
+	 * @return La cabecera, en una línea.
+	 */
+	FString GrimoireCardHeader(const FGrimoireRow& Row, bool bPlayerSheet);
+
+	/**
+	 * El texto de una runa (S-048, retoques de "La mesa" del 18/11/2026, R-HUD-10, nombre propuesto): "D2 ×1: Celeridad (ACTIVO)". Sin cantidad que
+	 * decir (tipos ocultos), "D2: Celeridad"; sin ninguna, "D2 —"; sin poder, sin dos puntos ("D3 ×1"). Lo comparten las runas de la hoja del jugador y
+	 * las muestras de un Brazal revelado en "Jugadores", que van sin "(ACTIVO)".
+	 * @param Rune La runa (FGrimoireRune).
+	 * @param bTypesHidden Si los tipos del asiento están ocultos a quien mira (FGrimoireRow::bTypesHidden).
+	 * @param bWithActive Si dice "(ACTIVO)" cuando el poder está activo.
+	 * @return El texto, en una línea.
+	 */
+	FString GrimoireRuneLabel(const FGrimoireRune& Rune, bool bTypesHidden, bool bWithActive);
+
 	/** El texto que marca a un aspirante en "La mesa" (S-044, R-HUD-10). */
 	inline const TCHAR* const TableAspirantMark = TEXT(" | ASPIRANTE");
 
