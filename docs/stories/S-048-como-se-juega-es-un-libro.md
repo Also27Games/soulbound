@@ -203,6 +203,20 @@ Notas para la prueba (manual, en PIE):
 2. El hueco bajo la cabecera, en las tres pestañas, con el libro y sin él.
 3. Los cuatro bordes de "Anterior", "Siguiente" y las pestañas, con el libro y sin él, en ventana pequeña y a pantalla completa.
 
+## Retoques tras probar las correcciones (18/11/2026)
+
+Superadas en PIE las tres correcciones: las láminas con su proporción con el editor recién abierto, el hueco bajo la cabecera y los bordes de botones y pestañas. Quedan dos retoques. Plan aprobado el mismo día, con estas decisiones del autor: el fondo del Grimorio se queda también los dobles clics; cualquier botón del ratón sigue pulsando, como hasta ahora.
+
+- **R-HUD-18, precisión: los botones de página que no llevan a ningún sitio no se pintan.** En la primera vista de "Cómo se juega" no se ve "Anterior" y en la última no se ve "Siguiente" (antes salían apagados). Conservan su hueco, para que "N de M" y el otro botón no cambien de sitio (`HowToPlayPageButtons`, nombre propuesto). Las flechas no cambian: en la primera y en la última vista, no hacen nada.
+- **R-HUD-18 y R-HUD-10, precisión: cada clic cuenta.** Cada clic sobre un botón de página pasa una vista y cada clic sobre una pestaña la elige, también los clics rápidos seguidos. Slate entrega el segundo clic rápido como doble clic, solo a `OnMouseButtonDoubleClick`, y nadie lo atendía: se perdía uno de cada dos (comprobado en el código de la 5.8, `FSlateApplication::ProcessMouseButtonDoubleClickEvent`). La pulsación y el doble clic llevan a la misma acción (`GrimoireOnPress`, nombre propuesto). El fondo del Grimorio, que se queda las pulsaciones para que ninguna llegue al tablero (S-044), se queda también los dobles clics (decisión del autor).
+
+Criterios:
+
+- **CA-HUD-64** (R-HUD-18). Con 30 páginas y el libro, la primera vista no tiene "Anterior" y sí "Siguiente", la última tiene "Anterior" y no "Siguiente" y una del medio tiene los dos; lo mismo sin el libro, de una en una; con una sola vista, ninguno.
+- **CA-HUD-65** (R-HUD-18, R-HUD-10). Una caja con `GrimoireOnPress` que recibe pulsación, doble clic, pulsación y doble clic hace su acción cuatro veces, y se queda los cuatro eventos. Que los botones, las pestañas y el fondo la usen se lee en el código y se comprueba a mano.
+
+Notas para la prueba (manual, en PIE): en la primera vista no se ve "Anterior" y en la última no se ve "Siguiente", con el libro y sin él, y "N de M" no se mueve; cuatro clics rápidos en "Siguiente" pasan cuatro vistas, y en "Anterior" vuelven cuatro; clics rápidos en las pestañas pasan una por clic; un doble clic sobre el Grimorio no hace nada en el tablero.
+
 ## Fuera de esta story
 
 - Escribir o corregir el texto del libro y hacer sus capturas (lo hace el autor).
