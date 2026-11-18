@@ -130,15 +130,18 @@ namespace
 
 void Soulbound::Presentation::GrimoireOnPress(const TSharedRef<SWidget>& Widget, TFunction<void()> OnPress)
 {
-	// TODO(R-HUD-18): stub de los tests en rojo (solo la pulsación, como hasta ahora); se implementa en el commit siguiente.
-	Widget->SetOnMouseButtonDown(FPointerEventHandler::CreateLambda([OnPress](const FGeometry&, const FPointerEvent&)
+	// Retoques del autor del 18/11/2026: con dos clics rápidos, Slate entrega el segundo solo como doble clic (FSlateApplication::
+	// ProcessMouseButtonDoubleClickEvent no lo repite como pulsación); los dos llevan a la misma acción. Cualquier botón del ratón, como antes.
+	const FPointerEventHandler Press = FPointerEventHandler::CreateLambda([OnPress](const FGeometry&, const FPointerEvent&)
 	{
 		if (OnPress)
 		{
 			OnPress();
 		}
 		return FReply::Handled();
-	}));
+	});
+	Widget->SetOnMouseButtonDown(Press);
+	Widget->SetOnMouseDoubleClick(Press);
 }
 
 TSharedRef<SWidget> Soulbound::Presentation::MakeGrimoireCard(const FGrimoireRow& Row, const TAttribute<int32>& FontSize, const TArray<FLinearColor>& DomainColors, const TAttribute<float>& TextWidth,
@@ -280,6 +283,9 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 	// S-048 (corrección 3 del autor del 17/11/2026): sobre la imagen del libro, la crónica sin su caja oscura.
 	SAssignNew(Chronicle, SChroniclePanel).FontSize(Size).Background(!bBook).Font(TextFont);
 
+	// El fondo del panel (S-044): se queda los clics que le caen encima, para que ninguno llegue al tablero; desde los retoques del 18/11/2026, también
+	// los dobles clics (decisión del autor), con GrimoireOnPress y una acción vacía.
+	TSharedPtr<SBorder> Background;
 	if (!bBook)
 	{
 		// Sin la imagen del libro, como antes (S-044): una columna, sobre el fondo negro. Desde la corrección 2 del autor del 17/11/2026, el título
@@ -292,12 +298,10 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 			.WidthOverride_Lambda([Width]() { return FOptionalSize(Width.Get()); })
 			.HeightOverride_Lambda([this]() { return FOptionalSize(FMath::Max(PanelHeight.Get(), 1.f)); })
 			[
-				SNew(SBorder)
+				SAssignNew(Background, SBorder)
 				.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
 				.BorderBackgroundColor(FLinearColor(0.f, 0.f, 0.f, 0.88f))
 				.Padding(FMargin(GrimoireFlatPadding.X, GrimoireFlatPadding.Y))
-				// S-044: el panel se queda los clics que le caen encima; ninguno llega al tablero.
-				.OnMouseButtonDown_Lambda([](const FGeometry&, const FPointerEvent&) { return FReply::Handled(); })
 				[
 					SNew(SVerticalBox)
 					+ SVerticalBox::Slot().AutoHeight().Padding(0.f, 0.f, 0.f, 8.f)
@@ -331,6 +335,7 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 				]
 			]
 		];
+		Soulbound::Presentation::GrimoireOnPress(Background.ToSharedRef(), TFunction<void()>());
 		return;
 	}
 
@@ -367,7 +372,7 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 		.WidthOverride_Lambda([Width]() { return FOptionalSize(Width.Get()); })
 		.HeightOverride_Lambda([this]() { return FOptionalSize(FMath::Max(PanelHeight.Get(), 1.f)); })
 		[
-			SNew(SBorder)
+			SAssignNew(Background, SBorder)
 			.BorderImage_Lambda([this]() -> const FSlateBrush*
 			{
 				// La imagen se pinta a su escala uniforme: sus bordes miden lo mismo en los dos ejes y no se deforman.
@@ -380,7 +385,6 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 				const FBox2f Content = Layout().Content;
 				return FMargin(Content.Min.X, Content.Min.Y, FMath::Max(Panel.X - Content.Max.X, 0.f), FMath::Max(Panel.Y - Content.Max.Y, 0.f));
 			})
-			.OnMouseButtonDown_Lambda([](const FGeometry&, const FPointerEvent&) { return FReply::Handled(); })
 			[
 				// Segunda ampliación del autor del 17/11/2026 (R-HUD-20): detrás de todo, la marca de agua de cada hoja, en "Cómo se juega".
 				SNew(SOverlay)
@@ -435,6 +439,7 @@ void SGrimoirePanel::Construct(const FArguments& InArgs)
 			]
 		]
 	];
+	Soulbound::Presentation::GrimoireOnPress(Background.ToSharedRef(), TFunction<void()>());
 }
 
 TSharedRef<SWidget> SGrimoirePanel::MakeWatermark(bool bRight)
@@ -507,11 +512,6 @@ TSharedRef<SWidget> SGrimoirePanel::MakeTabHeader(const TArray<Soulbound::Presen
 			.HAlign(HAlign_Center)
 			.VAlign(VAlign_Center)
 			.Cursor(EMouseCursor::Hand)
-			.OnMouseButtonDown_Lambda([this, Tab](const FGeometry&, const FPointerEvent&)
-			{
-				OnTabClicked.ExecuteIfBound(Tab);
-				return FReply::Handled();
-			})
 			[
 				SNew(STextBlock)
 				.Text(FText::FromString(Soulbound::Presentation::GrimoireTabTitle(Tab)))
@@ -522,6 +522,8 @@ TSharedRef<SWidget> SGrimoirePanel::MakeTabHeader(const TArray<Soulbound::Presen
 				})
 			];
 		*Inner = Box;
+		// Retoques del 18/11/2026: cada clic elige la pestaña, también los rápidos (el segundo llega como doble clic).
+		Soulbound::Presentation::GrimoireOnPress(Box, [this, Tab]() { OnTabClicked.ExecuteIfBound(Tab); });
 		Header->AddSlot().FillWidth(1.f).Padding(Index == 0 ? 0.f : 2.f, 0.f, Index + 1 == Tabs.Num() ? 0.f : 2.f, 0.f)
 		[
 			// El borde de una caja inactiva: un marco del gris claro (en la activa, del mismo color que el fondo), de al menos un píxel de pantalla
@@ -633,31 +635,29 @@ void SGrimoirePanel::SetHowToPlay(const Soulbound::Presentation::FHowToPlayBook&
 	RebuildHowToPlay();
 }
 
-TSharedRef<SWidget> SGrimoirePanel::MakePageButton(const FString& Label, bool bEnabled, const FSimpleDelegate& OnClicked)
+TSharedRef<SWidget> SGrimoirePanel::MakePageButton(const FString& Label, bool bShown, const FSimpleDelegate& OnClicked)
 {
 	const TAttribute<int32> Size = FontSize;
-	// Como una pestaña inactiva; apagado (en la primera o en la última página), gris y sin efecto (R-HUD-18: no es cíclico).
-	// Correcciones tras probar la maquetación (18/11/2026): el marco, de al menos un píxel de pantalla, para que se vean sus cuatro bordes (GrimoireFrame).
-	return GrimoireFrame(FSlateColor(bEnabled ? TabLight : GrimoireDimColor),
-			SNew(SBorder)
-			.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
-			.BorderBackgroundColor(TabDark)
-			.Padding(FMargin(10.f, 4.f))
-			.Cursor(bEnabled ? EMouseCursor::Hand : EMouseCursor::Default)
-			.OnMouseButtonDown_Lambda([bEnabled, OnClicked](const FGeometry&, const FPointerEvent&)
-			{
-				if (bEnabled)
-				{
-					OnClicked.ExecuteIfBound();
-				}
-				return FReply::Handled();
-			})
-			[
-				SNew(STextBlock)
-				.Text(FText::FromString(Label))
-				.Font_Lambda([this, Size]() { return Soulbound::Presentation::GrimoireFontInfo(TextFont, true, Size.Get()); })
-				.ColorAndOpacity(bEnabled ? FLinearColor(0.9f, 0.9f, 0.9f) : GrimoireDimColor)
-			]);
+	// Como una pestaña inactiva. Correcciones tras probar la maquetación (18/11/2026): el marco, de al menos un píxel de pantalla, para que se vean sus
+	// cuatro bordes (GrimoireFrame).
+	const TSharedRef<SBorder> Box = SNew(SBorder)
+		.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+		.BorderBackgroundColor(TabDark)
+		.Padding(FMargin(10.f, 4.f))
+		.Cursor(EMouseCursor::Hand)
+		[
+			SNew(STextBlock)
+			.Text(FText::FromString(Label))
+			.Font_Lambda([this, Size]() { return Soulbound::Presentation::GrimoireFontInfo(TextFont, true, Size.Get()); })
+			.ColorAndOpacity(FLinearColor(0.9f, 0.9f, 0.9f))
+		];
+	// Retoques del 18/11/2026: cada clic pasa una vista, también los rápidos (el segundo llega como doble clic).
+	Soulbound::Presentation::GrimoireOnPress(Box, [OnClicked]() { OnClicked.ExecuteIfBound(); });
+	const TSharedRef<SBorder> Frame = GrimoireFrame(FSlateColor(TabLight), Box);
+	// Retoques del 18/11/2026 (R-HUD-18, HowToPlayPageButtons): el que no lleva a ninguna vista no se pinta ni recibe clics, pero conserva su hueco,
+	// para que "N de M" y el otro botón no cambien de sitio. Antes salía apagado.
+	Frame->SetVisibility(bShown ? EVisibility::Visible : EVisibility::Hidden);
+	return Frame;
 }
 
 void SGrimoirePanel::RebuildHowToPlay()
@@ -691,8 +691,9 @@ void SGrimoirePanel::RebuildHowToPlay()
 	const int32 First = Soulbound::Presentation::HowToPlayViewStart(FMath::Clamp(HowToPlayPage, 0, Count - 1), PerView);
 	const FHowToPlayPage* LeftPage = &HowToPlayBook.Pages[First];
 	const FHowToPlayPage* RightPage = bBook && HowToPlayBook.Pages.IsValidIndex(First + 1) ? &HowToPlayBook.Pages[First + 1] : nullptr;
-	const TSharedRef<SWidget> Previous = MakePageButton(TEXT("Anterior"), First > 0, OnPreviousPage);
-	const TSharedRef<SWidget> Next = MakePageButton(TEXT("Siguiente"), First + PerView < Count, OnNextPage);
+	const Soulbound::Presentation::FHowToPlayPageButtons Buttons = Soulbound::Presentation::HowToPlayPageButtons(First, Count, PerView);
+	const TSharedRef<SWidget> Previous = MakePageButton(TEXT("Anterior"), Buttons.bPrevious, OnPreviousPage);
+	const TSharedRef<SWidget> Next = MakePageButton(TEXT("Siguiente"), Buttons.bNext, OnNextPage);
 	const TSharedRef<SWidget> Footer = SNew(STextBlock)
 		.Text(FText::FromString(Soulbound::Presentation::HowToPlayPageFooter(First, Count, PerView)))
 		.Font_Lambda([this, Size]() { return Soulbound::Presentation::GrimoireFontInfo(TextFont, false, Size.Get()); })

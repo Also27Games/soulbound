@@ -212,8 +212,15 @@ namespace Soulbound::Presentation
 
 	FHowToPlayPageButtons HowToPlayPageButtons(int32 ViewStart, int32 PageCount, int32 PagesPerView)
 	{
-		// TODO(R-HUD-18): stub de los tests en rojo; se implementa en el commit siguiente.
-		return FHowToPlayPageButtons{true, true};
+		// Retoques del autor del 18/11/2026: un botón solo si lleva a alguna vista; el libro no es cíclico.
+		FHowToPlayPageButtons Buttons;
+		if (PageCount <= 0 || PagesPerView <= 0)
+		{
+			return Buttons;
+		}
+		Buttons.bPrevious = ViewStart > 0;
+		Buttons.bNext = ViewStart + PagesPerView < PageCount;
+		return Buttons;
 	}
 
 	int32 HowToPlayViewStart(int32 Page, int32 PagesPerView)

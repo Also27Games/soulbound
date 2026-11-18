@@ -151,8 +151,8 @@ private:
 	TSharedRef<SWidget> MakeTabHeader(const TArray<Soulbound::Presentation::EGrimoireTab>& Tabs);
 	/** S-048 (R-HUD-18): rehace la página de "Cómo se juega" con lo último que se le dio. */
 	void RebuildHowToPlay();
-	/** S-048 (R-HUD-18): un botón de pasar página; apagado, se ve gris y no hace nada. */
-	TSharedRef<SWidget> MakePageButton(const FString& Label, bool bEnabled, const FSimpleDelegate& OnClicked);
+	/** S-048 (R-HUD-18): un botón de pasar página; desde los retoques del 18/11/2026, si no se ve (HowToPlayPageButtons), no se pinta pero conserva su hueco. */
+	TSharedRef<SWidget> MakePageButton(const FString& Label, bool bShown, const FSimpleDelegate& OnClicked);
 	/**
 	 * S-048 (segunda ampliación del autor del 17/11/2026, R-HUD-18): una hoja de "Cómo se juega": el título de la página, si lo tiene, y sus bloques
 	 * en su orden, con su propio desplazamiento. Sin página (la derecha de la última vista impar), vacía.
