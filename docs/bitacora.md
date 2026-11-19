@@ -16,7 +16,14 @@ La línea **Proceso** lleva siempre los mismos cuatro datos, para poder comparar
   - confirmar el ancho de letra (`DomainNameplateCharWidthFraction`, 0,6), el alto de línea (1,2) y el medio ancho del sendero (1,6 cm), que son estimaciones;
   - comprobar que el rótulo no queda bajo el suelo (`DomainNameplateLift`) y que no lo tapan las estructuras (trono, pilón, piezas de los Nodos), que no cuentan como obstáculo;
   - comprobar que una casilla sellada se reconoce sin el texto "SELLO".
-- **Proceso**: agente Opus 5.5 en una conversación nueva; unos 25 minutos desde el plan aprobado hasta el PR. Preguntas que pararon al agente: una parada, la del plan, con cinco dudas. Correcciones tras fusionar: las rellena el autor. Build y tests: en verde a la primera tras cada implementación. Antes de compilar se corrigió un `\n` que un script de edición había convertido en salto de línea real, y la expectativa de un test del reparto de líneas.
+- **Ronda de correcciones (19/11)**: en PIE las etiquetas estaban bien y los rótulos no tapaban nada, pero había cuatro problemas. La letra de 3,27 cm era pequeña. El Banquete quedaba a 96 cm. "Olvidado" no se leía en la vista sentada. Y "El" quedaba suelto. Cuatro cambios, con tests primero y pasados a la story (CA-VIS-37 cambia; CA-VIS-38 y 39, nuevos):
+  - **Calibración**: el ancho por carácter, de 0,6 a 0,5, medido por el autor; el alto de línea, de 1,2 a 1,0. Los tres sitios (estructura, actor y Config) los guarda `Tablero3D.RotuloParametrosEnLosTresSitios`.
+  - **Senderos**: dejan de ser obstáculo, por cambio de regla del autor.
+  - **Zona**: el centro, a no más de 0,2 de la profundidad de la cuña (19 cm) del sitio preferido.
+  - **Forma por nombre**: no se parte si deja una línea de menos de 3 caracteres, y cada rótulo reserva su propio rectángulo.
+
+  **Resultado con `tablero_86`**: forma partida donde se puede y letra de **4,50 cm**. Mandan El Descenso, en una línea, y El Banquete, con 4,59. Sin el límite de zona saldría 5,54 cm. Los seis centros quedan a 53-59 cm del centro de la mesa, a 15-22° del eje de su cuña y a 2-10 cm del sitio preferido. Con `tablero_35`, 4,04 cm (7,54 sin zona). "Olvidado" pasa a 2,7 cm; su escala (0,6) no cambia y queda para la prueba manual.
+- **Proceso**: agente Opus 5.5 en una conversación nueva; unos 25 minutos desde el plan aprobado hasta el PR, y unos 20 la ronda de correcciones. Preguntas que pararon al agente: una parada, la del plan, con cinco dudas; la ronda, ninguna. Correcciones tras fusionar: las rellena el autor. Build y tests: en verde a la primera tras cada implementación, también en la ronda. Antes de compilar se corrigió un `\n` que un script de edición había convertido en salto de línea real, y la expectativa de un test del reparto de líneas.
 
 ## S-049. El libro del menú es el mismo libro: "Cómo se juega" se ve en el menú como en el Grimorio (18/11/2026, rama `story/S-049-el-libro-del-menu-es-el-mismo-libro`, base `main`)
 

@@ -668,7 +668,7 @@ namespace
 	}
 }
 
-// R-VIS-34 (decisiones del autor del 19/11/2026): el nombre partido en dos líneas por el espacio más cercano a la mitad; sin espacio, o si alguna de
+// CA-VIS-38 (R-VIS-34, forma; decisiones del autor del 19/11/2026): el nombre partido en dos líneas por el espacio más cercano a la mitad; sin espacio, o si alguna de
 // las dos líneas quedaría con menos de 3 caracteres ("El" suelto), una línea.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNameplateSplitTest, "Soulbound.Game.Presentation.Tablero3D.RotuloPartidoPorElEspacioDelMedio", LayoutTestFlags)
 bool FNameplateSplitTest::RunTest(const FString& Parameters)
@@ -689,7 +689,7 @@ bool FNameplateSplitTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-// Ronda del 19/11/2026: los parámetros del rótulo son los mismos en los tres sitios (la estructura, el actor y Config/DefaultGame.ini), con la
+// CA-VIS-39 (R-VIS-34, calibración; ronda del 19/11/2026): los parámetros del rótulo son los mismos en los tres sitios (la estructura, el actor y Config/DefaultGame.ini), con la
 // calibración medida por el autor sobre una captura cenital: 0,5 de ancho por carácter y 1,0 de alto de línea; la zona, 0,2; partir, con 3 caracteres.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNameplateParamsTest, "Soulbound.Game.Presentation.Tablero3D.RotuloParametrosEnLosTresSitios", LayoutTestFlags)
 bool FNameplateParamsTest::RunTest(const FString& Parameters)
