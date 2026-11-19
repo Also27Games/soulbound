@@ -975,6 +975,57 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Colores", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float ForgottenFloorDim = 0.6f;
 
+	// ---- Rótulo del Dominio (S-047, R-VIS-34, nombre propuesto `DomainNameplate`): el nombre de cada Dominio, tumbado sobre el suelo de su cuña, con
+	// "Olvidado" debajo cuando se enseña Olvidado. Sitio y tamaño, relativos a la cuña (FDomainNameplateParams); "profundidad de la cuña" es el radio
+	// de mesa menos la apotema del Altar (95,7 cm con la mesa de 120). Los marcados "a confirmar en PIE" son estimaciones del texto del motor. ----
+
+	/** Sitio preferido a lo largo del radio: 0 en el borde del Altar, 1 en el de la mesa. Si ahí no cabe, el sitio libre más cercano. Valor inicial 0,27. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo")
+	float DomainNameplateRadiusFraction = 0.27f;
+
+	/** Sitio preferido de lado: fracción de media cuña desde su eje (negativo, a un lado; positivo, al otro; el mismo en las seis). Valor inicial -0,8. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "-1.0", ClampMax = "1.0"))
+	float DomainNameplateAngleFraction = -0.8f;
+
+	/** Tope de la letra del nombre, en fracción de la profundidad de la cuña; la letra es la mayor que cabe en las seis, hasta aquí. Valor inicial 0,08 (7,7 cm). */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "0.0"))
+	float DomainNameplateMaxLetterSizeFraction = 0.08f;
+
+	/** Ancho medio de un carácter del texto del motor, en fracción de la letra, para estimar el rectángulo. Valor inicial 0,6, a confirmar en PIE. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "0.0"))
+	float DomainNameplateCharWidthFraction = 0.6f;
+
+	/** Alto de una línea del rótulo, en fracción de su letra: separa las líneas y mide el rectángulo. Valor inicial 1,2, a confirmar en PIE. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "0.0"))
+	float DomainNameplateLineHeightFraction = 1.2f;
+
+	/** Letra de "Olvidado", en fracción de la del nombre. Valor inicial 0,6. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "0.0"))
+	float DomainNameplateForgottenScale = 0.6f;
+
+	/** Holgura del rótulo con losas, senderos, el Altar y los bordes de la cuña, en fracción de la profundidad de la cuña. Valor inicial 0,01 (1 cm). */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "0.0"))
+	float DomainNameplateMarginFraction = 0.01f;
+
+	/** Medio ancho de un sendero, en cm, para no taparlo. Valor inicial 1,6 (media losa entre dos), a confirmar en PIE con la pieza `sendero`. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "0.0"))
+	float DomainNameplatePathHalfWidth = 1.6f;
+
+	/** Paso de la búsqueda del sitio libre, en fracción de la profundidad de la cuña. Valor inicial 0,01 (1 cm). */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "0.001"))
+	float DomainNameplateSearchStepFraction = 0.01f;
+
+	/**
+	 * Color del rótulo: el del Dominio aclarado hacia el blanco (WedgeFloorTint con esta fuerza; 1, el color entero), y apagado como su suelo cuando se
+	 * enseña Olvidado (WedgeFloorDim). Valor inicial 0,6, a confirmar en PIE sobre el suelo liso y el agrietado.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float DomainNameplateTintStrength = 0.6f;
+
+	/** Altura del rótulo sobre la cara del suelo del kit (LayoutParams.KitFloorHeight), en cm: por debajo del suelo no se ve. Valor inicial 0,2, a confirmar en PIE. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "0.0"))
+	float DomainNameplateLift = 0.2f;
+
 	/**
 	 * Color de la línea de objetivo del panel de estado (S-040, R-HUD-7): uno solo para las tres metas, distinto del blanco de las alcanzables, del rojo del
 	 * Sello y del morado de perder una runa. Valor inicial (1, 0,82, 0,35), un dorado claro (Config/DefaultGame.ini). Hasta la corrección del 16/11/2026 era
@@ -1008,6 +1059,10 @@ private:
 	void BuildTiles();
 	/** Las piezas del kit que haya: cuñas, Altar, losas, senderos, estructuras, runas flotantes y cadenas (S-019). */
 	void BuildKit();
+	/** S-047 (R-VIS-34): el rótulo de cada Dominio sobre su cuña, con la forma, la letra y el sitio de ComputeDomainNameplates. */
+	void BuildDomainNameplates();
+	/** S-047 (R-VIS-34): "Olvidado" y el color de cada rótulo, con lo que enseña el suelo (DomainsShownForgotten). */
+	void RefreshDomainNameplates(const FMatchState& State);
 
 	/**
 	 * Dimensiona y coloca el halo del Altar con el componente real de su pieza ya colocado (S-033, R-DEC-12): centro, tamaño (HaloDiameter con
@@ -1537,6 +1592,15 @@ private:
 
 	UPROPERTY()
 	TArray<TObjectPtr<UTextRenderComponent>> Labels;
+
+	/** S-047 (R-VIS-34): las líneas del nombre de cada rótulo de Dominio, de todos seguidas; su Dominio, en DomainNameplateLineDomains. */
+	UPROPERTY()
+	TArray<TObjectPtr<UTextRenderComponent>> DomainNameplateLines;
+	TArray<int32> DomainNameplateLineDomains;
+
+	/** S-047 (R-VIS-34): la línea de "Olvidado" de cada rótulo, indexada por Dominio; nula si su rótulo no cabe. */
+	UPROPERTY()
+	TArray<TObjectPtr<UTextRenderComponent>> DomainNameplateForgotten;
 
 	UPROPERTY()
 	TArray<TObjectPtr<ABoardTileActor>> TileActors;

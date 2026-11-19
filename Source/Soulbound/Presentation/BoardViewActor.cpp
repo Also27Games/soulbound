@@ -277,6 +277,7 @@ void ABoardViewActor::Initialize(UMatchHostSubsystem* InHost)
 	BuildEdges();
 	BuildTiles();
 	BuildKit();
+	BuildDomainNameplates();
 	BuildTokens();
 	BuildCamera();
 	BuildLighting();
@@ -418,6 +419,91 @@ void ABoardViewActor::BuildKit()
 	Kit.PlaceFixed(*this, Board, Layout, KitFixed);
 	Kit.PlaceStructures(*this, Board, Layout, LayoutParams, FBoardKitStructureOptions(), KitStructures);
 	FitAltarHalo();
+}
+
+void ABoardViewActor::BuildDomainNameplates()
+{
+	const FBoardState& Board = Host->GetState().Board;
+	Soulbound::Presentation::FDomainNameplateParams Params;
+	Params.RadiusFraction = DomainNameplateRadiusFraction;
+	Params.AngleFraction = DomainNameplateAngleFraction;
+	Params.MaxLetterSizeFraction = DomainNameplateMaxLetterSizeFraction;
+	Params.CharWidthFraction = DomainNameplateCharWidthFraction;
+	Params.LineHeightFraction = DomainNameplateLineHeightFraction;
+	Params.ForgottenScale = DomainNameplateForgottenScale;
+	Params.MarginFraction = DomainNameplateMarginFraction;
+	Params.PathHalfWidth = DomainNameplatePathHalfWidth;
+	Params.SearchStepFraction = DomainNameplateSearchStepFraction;
+	// R-VIS-34: derecho para la vista sentada, el mismo giro en las seis cuñas; la forma y la letra, las mayores que caben en todas.
+	const Soulbound::Presentation::FDomainNameplateLayout Nameplates =
+		Soulbound::Presentation::ComputeDomainNameplates(Board, Layout, LayoutParams, SeatedViewYawDegrees, Params);
+	DomainNameplateForgotten.Init(nullptr, Board.Domains.Num());
+	if (Nameplates.LetterSize <= 0.f)
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Rótulos de los Dominios: no caben en alguna cuña con ninguna letra; el tablero va sin ellos."));
+		return;
+	}
+	UE_LOG(LogSoulboundView, Log, TEXT("Rótulos de los Dominios: %s, letra %.2f cm."), Nameplates.bSplit ? TEXT("partidos en dos líneas") : TEXT("en una línea"),
+		Nameplates.LetterSize);
+	const float Height = LayoutParams.KitFloorHeight + DomainNameplateLift;
+	// Como las etiquetas de casilla: texto del motor con su material de siempre, tumbado (pitch 90), sin colisión ni sombra; no recibe clics.
+	auto AddText = [this, Height, &Nameplates](const FVector2D& Center, float Size)
+	{
+		UTextRenderComponent* Text = NewObject<UTextRenderComponent>(this);
+		Text->SetupAttachment(GetRootComponent());
+		Text->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Text->SetCastShadow(false);
+		Text->RegisterComponent();
+		Text->SetHorizontalAlignment(EHTA_Center);
+		Text->SetVerticalAlignment(EVRTA_TextCenter);
+		Text->SetWorldSize(Size);
+		Text->SetWorldRotation(FRotator(90.f, Nameplates.Spots.IsEmpty() ? SeatedViewYawDegrees : Nameplates.Spots[0].Yaw, 0.f));
+		Text->SetWorldLocation(FVector(Center, Height));
+		return Text;
+	};
+	for (int32 DomainId = 0; DomainId < Nameplates.Spots.Num(); ++DomainId)
+	{
+		const Soulbound::Presentation::FDomainNameplateSpot& Spot = Nameplates.Spots[DomainId];
+		if (!Spot.bFound || !Nameplates.NameLines.IsValidIndex(DomainId))
+		{
+			continue;
+		}
+		for (int32 Line = 0; Line < Spot.NameLineCenters.Num() && Line < Nameplates.NameLines[DomainId].Num(); ++Line)
+		{
+			UTextRenderComponent* Text = AddText(Spot.NameLineCenters[Line], Nameplates.LetterSize);
+			Text->SetText(FText::FromString(Nameplates.NameLines[DomainId][Line]));
+			DomainNameplateLines.Add(Text);
+			DomainNameplateLineDomains.Add(DomainId);
+		}
+		UTextRenderComponent* Forgotten = AddText(Spot.ForgottenLineCenter, Nameplates.LetterSize * DomainNameplateForgottenScale);
+		Forgotten->SetText(FText::GetEmpty());
+		DomainNameplateForgotten[DomainId] = Forgotten;
+	}
+}
+
+void ABoardViewActor::RefreshDomainNameplates(const FMatchState& State)
+{
+	for (int32 DomainId = 0; DomainId < DomainNameplateForgotten.Num(); ++DomainId)
+	{
+		const bool bForgotten = DomainsShownForgotten.IsValidIndex(DomainId) && DomainsShownForgotten[DomainId];
+		const Soulbound::Presentation::FDomainNameplateText Text = Soulbound::Presentation::DomainNameplateText(State, DomainId, bForgotten);
+		// El color del Dominio aclarado, y apagado como su suelo liso cuando se enseña Olvidado (R-VIS-27).
+		const float Dim = Soulbound::Presentation::WedgeFloorDim(bForgotten, ForgottenFloor != nullptr, ForgottenFloorDim, ForgottenDim);
+		const FLinearColor DomainColor = DomainColors.IsValidIndex(DomainId) ? DomainColors[DomainId] : FLinearColor::White;
+		const FColor Color = Soulbound::Presentation::WedgeFloorTint(DomainColor, bForgotten, DomainNameplateTintStrength, Dim).ToFColor(true);
+		if (UTextRenderComponent* Forgotten = DomainNameplateForgotten[DomainId].Get())
+		{
+			Forgotten->SetText(FText::FromString(Text.ForgottenLine));
+			Forgotten->SetTextRenderColor(Color);
+		}
+		for (int32 Index = 0; Index < DomainNameplateLines.Num(); ++Index)
+		{
+			if (DomainNameplateLineDomains[Index] == DomainId && DomainNameplateLines[Index])
+			{
+				DomainNameplateLines[Index]->SetTextRenderColor(Color);
+			}
+		}
+	}
 }
 
 void ABoardViewActor::FitAltarHalo()
@@ -1568,6 +1654,7 @@ void ABoardViewActor::Refresh()
 	// El suelo de cada cuña lleva el color de su Dominio, apagado si está Olvidado (S-019, R-VIS-2, R-VIS-5); desde S-040 (R-VIS-27), el suelo liso de
 	// un Olvidado, con su material propio si está.
 	Kit.TintWedgeFloors(KitFixed, DomainsShownForgotten, *this, ForgottenFloor.Get());
+	RefreshDomainNameplates(State);
 
 	for (const FTileState& Tile : State.Board.Tiles)
 	{
