@@ -1,5 +1,5 @@
 // Tests del libro de "Cómo se juega" como pieza propia y en el menú (S-049, R-HUD-21 y R-HUD-22): lo que enseña una vista, los ajustes que lee el menú
-// de la vista, las páginas del widget del menú, su pie y el archivo roto; desde la ronda de correcciones, las carpetas que se cocinan. Sin
+// de la vista, las páginas del widget del menú, su pie y el archivo roto; desde la ronda de correcciones, las carpetas que se cocinan y las capas. Sin
 // mundo, sin editor y sin FSlateApplication: el widget de UMG se crea en el paquete temporal y su pieza de Slate se recorre sin pintarla. Filtros:
 // "Soulbound.Game.Presentation.Grimorio" y "Soulbound.Game.Presentation.ComoSeJuega".
 
@@ -10,6 +10,7 @@
 #include "../../Presentation/HowToPlayBookWidget.h"
 #include "../../Presentation/HowToPlayLibrary.h"
 #include "../../Presentation/StatusText.h"
+#include "../../Presentation/ViewLayers.h"
 #include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/ConfigCacheIni.h"
@@ -385,6 +386,42 @@ bool FHowToPlayCookedDirectoriesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Menú: la imagen del libro"), HbIsCooked(Settings.BookTexture.GetLongPackageName(), Directories));
 	TestTrue(TEXT("Menú: la marca de agua"), HbIsCooked(Settings.WatermarkTexture.GetLongPackageName(), Directories));
 	TestTrue(TEXT("Menú: la carpeta de las láminas"), HbIsCooked(Settings.ImageFolder, Directories));
+	return true;
+}
+
+// CA-HUD-77 (R-HUD-11, precisión del autor del 19/11/2026): la interfaz de la vista va por debajo de los menús de la plantilla. El orden relativo entre
+// las capas es el de antes (9 a 14, con la carta, el aviso y el anillo en el 13) y todas quedan por debajo del orden con que llega al viewport un
+// widget de UMG añadido sin orden.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FViewLayersTest, "Soulbound.Game.Presentation.Grimorio.CapasDeLaVista", HbTestFlags)
+bool FViewLayersTest::RunTest(const FString& Parameters)
+{
+	using Soulbound::Presentation::EViewLayer;
+	using Soulbound::Presentation::ViewLayerZOrder;
+	struct FBefore
+	{
+		EViewLayer Layer;
+		const TCHAR* Name;
+		int32 ZOrder;
+	};
+	const FBefore Before[] = {
+		{EViewLayer::Dim, TEXT("oscurecido"), 9},
+		{EViewLayer::Status, TEXT("HUD"), 10},
+		{EViewLayer::WardenLine, TEXT("línea del Warden"), 11},
+		{EViewLayer::ReturnToMenu, TEXT("Volver al menú"), 12},
+		{EViewLayer::ElectCard, TEXT("carta del Elegido"), 13},
+		{EViewLayer::Notice, TEXT("aviso"), 13},
+		{EViewLayer::Ring, TEXT("anillo"), 13},
+		{EViewLayer::Grimoire, TEXT("Grimorio"), 14},
+	};
+	const int32 Dim = ViewLayerZOrder(EViewLayer::Dim);
+	TestEqual(TEXT("El oscurecido está en la base"), Dim, Soulbound::Presentation::ViewLayerBase);
+	for (const FBefore& Layer : Before)
+	{
+		const int32 ZOrder = ViewLayerZOrder(Layer.Layer);
+		TestEqual(FString::Printf(TEXT("%s: la misma distancia al oscurecido que antes"), Layer.Name), ZOrder - Dim, Layer.ZOrder - 9);
+		TestTrue(FString::Printf(TEXT("%s (%d) por debajo de un widget de UMG sin orden (%d)"), Layer.Name, ZOrder, Soulbound::Presentation::DefaultViewportWidgetZOrder),
+			ZOrder < Soulbound::Presentation::DefaultViewportWidgetZOrder);
+	}
 	return true;
 }
 
