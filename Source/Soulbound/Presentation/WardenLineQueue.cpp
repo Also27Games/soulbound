@@ -412,4 +412,10 @@ namespace Soulbound::Presentation
 		const double InPulse = Elapsed - FMath::FloorToDouble(Elapsed);
 		return static_cast<float>(MaxOpacity * (1.0 - InPulse));
 	}
+
+	bool CutSoundPlays(const FWardenLineItem& Item, bool bSoundLoaded, float Volume, bool bCurtainDown)
+	{
+		// R-VOZ-12: los mismos casos que el oscurecido (bWardenCut), ni uno más; el asset es opcional y el volumen 0 lo calla.
+		return Item.bWardenCut && bSoundLoaded && Volume > 0.f && !bCurtainDown;
+	}
 }

@@ -40,6 +40,7 @@ enum class ESkillDifficulty : uint8;
 class UInstancedStaticMeshComponent;
 class UTexture2D;
 class UFont;
+class USoundBase;
 class UMaterialInterface;
 class UMatchHostSubsystem;
 class USkyLightComponent;
@@ -497,6 +498,19 @@ public:
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
 	float CutDimPulseSeconds = 0.08f;
+
+	/**
+	 * El golpe de sonido del corte (S-050, R-VOZ-12): suena una vez, a la vez que empieza el primer pulso de la capa oscura, en los mismos casos que ella
+	 * (CutSoundPlays). Es un sonido de interfaz, sin posición en el mundo. Opcional, como RingRuneTexture: vacío, o con un asset que no existe, el corte no
+	 * suena, la señal sale igual y se dice una vez en el registro. Valor inicial vacío (Config/DefaultGame.ini) hasta que el autor importe el sonido en
+	 * /Game/Audio, carpeta que ya está en DirectoriesToAlwaysCook.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (AllowedClasses = "/Script/Engine.SoundBase"))
+	FSoftObjectPath CutSound;
+
+	/** Volumen del golpe del corte (S-050, R-VOZ-12), por el del propio asset. Valor inicial 1,0 (Config/DefaultGame.ini); 0, no suena. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles", meta = (ClampMin = "0"))
+	float CutSoundVolume = 1.f;
 
 	/**
 	 * Color de la penumbra del tablero mientras dura la Noche de los Ecos (S-043, R-VIS-31): la misma capa de Slate que el pulso del corte, por
@@ -1485,6 +1499,9 @@ private:
 	TObjectPtr<UFont> GrimoireFontAsset;
 	/** El pincel de las caras del dado: apunta a DiceTexture; vacío si no hay textura (entonces el panel dibuja la cara por código). */
 	FSlateBrush DiceBrush;
+	/** El golpe del corte (S-050, R-VOZ-12), cargado con las texturas de los paneles y vivo mientras la vista lo esté; nulo si no hay (entonces no suena). */
+	UPROPERTY(Transient)
+	TObjectPtr<USoundBase> CutSoundAsset;
 
 	/** La vida del aviso de casilla inalcanzable (S-039, R-DEC-16): cuándo se ve y cuándo se quita; no es del motor ni una frase del Warden. */
 	Soulbound::Presentation::FUnreachableNotice UnreachableNotice;

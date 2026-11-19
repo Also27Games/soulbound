@@ -29,6 +29,7 @@
 #include "RingPanelModel.h"
 #include "Engine/Font.h"
 #include "Engine/Texture2D.h"
+#include "Sound/SoundBase.h"
 #include "Warden/WardenBrain.h"
 #include "SeatTokenActor.h"
 #include "Camera/CameraActor.h"
@@ -1541,6 +1542,20 @@ void ABoardViewActor::BuildOverlay()
 			UE_LOG(LogSoulboundView, Warning, TEXT("Dado: no existe la textura de las caras %s; la cara del dado se dibuja por código."), *DiceFacesTexture.ToString());
 		}
 	}
+	// S-050 (R-VOZ-12): el golpe del corte se carga aquí, una vez, como la runa y el dado. Sin él, el corte no suena y la señal sale igual.
+	CutSoundAsset = nullptr;
+	if (CutSound.IsNull())
+	{
+		UE_LOG(LogSoulboundView, Warning, TEXT("Corte: CutSound está vacío; el corte del Warden no suena."));
+	}
+	else
+	{
+		CutSoundAsset = Cast<USoundBase>(CutSound.TryLoad());
+		if (!CutSoundAsset)
+		{
+			UE_LOG(LogSoulboundView, Warning, TEXT("Corte: no existe el sonido %s; el corte del Warden no suena."), *CutSound.ToString());
+		}
+	}
 	// S-042 (R-MIN-19): mientras la prueba espera, el botón "Empezar", su tecla y la cuenta atrás van en una fila dentro del panel, en su franja bajo el
 	// aro, entre el círculo y la barra (corrección del autor del 16/11/2026: en el centro tapaban la runa y la franja verde). La fila es el hijo del
 	// panel y la coloca él (SRingPanel::OnArrangeChildren) con RingPanelLayout y su tamaño de verdad, el mismo con que pinta: la vista no hace la
@@ -1786,7 +1801,9 @@ void ABoardViewActor::RefreshWardenLine(const FMatchState& State)
 	const int32 HumanSeat = Host.IsValid() ? Host->GetHumanSeat() : INDEX_NONE;
 	// S-041: las frases nuevas del registro, con su duración (R-VOZ-6) y cada corte emparejado con su frase (R-VOZ-8), las mismas que cuentan la
 	// espera y el prólogo del anfitrión. Un corte del Warden oscurece el tablero desde ahora; uno nuevo reinicia la capa.
+	// S-050 (R-VOZ-12): y suena una vez, con el primer pulso; cada frase se lee del registro una sola vez, así que los pulsos no lo repiten.
 	const double NowReal = FPlatformTime::Seconds();
+	const bool bCurtainDown = Host.IsValid() && Host->IsCurtainDown();
 	for (const Soulbound::Presentation::FWardenLineItem& Item :
 		Soulbound::Presentation::WardenLineItems(State, WardenLineScanned, HumanSeat, WardenLineSeconds, WardenLineSecondsPerChar))
 	{
@@ -1794,6 +1811,10 @@ void ABoardViewActor::RefreshWardenLine(const FMatchState& State)
 		if (Item.bWardenCut)
 		{
 			CutDimStartReal = NowReal;
+		}
+		if (Soulbound::Presentation::CutSoundPlays(Item, CutSoundAsset != nullptr, CutSoundVolume, bCurtainDown))
+		{
+			UGameplayStatics::PlaySound2D(this, CutSoundAsset, CutSoundVolume);
 		}
 	}
 	WardenLineScanned = State.EventLog.Num();

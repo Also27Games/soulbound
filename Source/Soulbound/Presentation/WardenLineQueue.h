@@ -160,4 +160,17 @@ namespace Soulbound::Presentation
 	 * @return La opacidad, de 0 a MaxOpacity.
 	 */
 	float CutDimOpacity(double NowReal, double CutStartReal, float MaxOpacity, int32 PulseCount, double PulseSeconds);
+
+	/**
+	 * Si una frase que entra en la cola hace sonar el golpe del corte (S-050, R-VOZ-12, nombre propuesto): solo un corte del Warden (bWardenCut, la misma
+	 * condición que arranca el oscurecido, R-VOZ-8), con el sonido cargado, el volumen por encima de cero y el telón alzado (con el telón bajado tampoco se
+	 * ve el oscurecido; decisión del autor del 19/11/2026). Quien llama la pregunta una vez por frase nueva del registro: así suena una vez por corte, al
+	 * empezar el primer pulso, y no una vez por pulso.
+	 * @param Item La frase nueva, tal como sale de WardenLineItems.
+	 * @param bSoundLoaded Si el sonido del corte está cargado (ABoardViewActor::CutSound; opcional, vacío de inicio).
+	 * @param Volume El volumen del golpe (ABoardViewActor::CutSoundVolume, 1,0); cero o menos, no suena.
+	 * @param bCurtainDown Si el telón está bajado (UMatchHostSubsystem::IsCurtainDown).
+	 * @return Si hay que pedir el sonido.
+	 */
+	bool CutSoundPlays(const FWardenLineItem& Item, bool bSoundLoaded, float Volume, bool bCurtainDown);
 }

@@ -2,7 +2,8 @@
 // R-VOZ-3b), la crónica con la sentencia del Oráculo en una sola línea y la cola de la línea en pantalla; desde S-022, la duración del
 // prólogo (R-PRO-1); desde S-023, la espera del Warden (qué frases detienen la mesa) y las frases de la cola ya enseñadas. Sin mundo ni
 // actor: las funciones de texto de la vista. Desde S-041, la duración de cada frase, la burla que no tapa y la señal de corte (CA-VOZ-5
-// a CA-VOZ-10). Filtros: "Soulbound.Game.Presentation.Voz" y "…Prologo".
+// a CA-VOZ-10). Desde S-050, cuándo suena el golpe del corte (CA-VOZ-15 a CA-VOZ-17, R-VOZ-12). Filtros: "Soulbound.Game.Presentation.Voz" y
+// "…Prologo".
 
 #include "../../Presentation/EventText.h"
 #include "../../Presentation/WardenLineQueue.h"
@@ -902,6 +903,165 @@ bool FVoiceEchoNightNoteTest::RunTest(const FString& Parameters)
 		TestTrue(TEXT("Sin texto"), SilentItems[0].Text.IsEmpty());
 		TestEqual(TEXT("Termina…"), SilentItems[0].CutNote, EndNote);
 	}
+	return true;
+}
+
+namespace
+{
+	/**
+	 * Lo que hace la vista con las frases nuevas del registro en cada vuelta (ABoardViewActor::RefreshWardenLine, S-050): las lee desde Scanned, pregunta
+	 * CutSoundPlays por cada una y deja Scanned al final del registro. Devuelve cuántas veces pediría el sonido.
+	 */
+	int32 CutSoundRequests(const FMatchState& State, int32& Scanned, int32 HumanSeat, bool bSoundLoaded = true, float Volume = 1.f, bool bCurtainDown = false)
+	{
+		int32 Requests = 0;
+		for (const Soulbound::Presentation::FWardenLineItem& Item : Soulbound::Presentation::WardenLineItems(State, Scanned, HumanSeat, 6.0, 0.0))
+		{
+			if (Soulbound::Presentation::CutSoundPlays(Item, bSoundLoaded, Volume, bCurtainDown))
+			{
+				++Requests;
+			}
+		}
+		Scanned = State.EventLog.Num();
+		return Requests;
+	}
+
+	/** Añade a un registro de CutState(CutKind::Warden, …) otro golpe al turno de Seat en el instante Clock, como lo deja el motor. */
+	void AddStrike(FMatchState& State, int32 Seat, double Clock)
+	{
+		const int32 EventLine = State.WardenLines.IndexOf(TEXT("evento:prueba-golpe"));
+		LogAt(State, EMatchEventType::WardenDecided, Clock, INDEX_NONE, 0);
+		LogAt(State, EMatchEventType::TurnInterrupted, Clock, Seat, static_cast<int32>(ETurnPhase::RollAndChoose));
+		LogAt(State, EMatchEventType::TurnEnded, Clock, Seat);
+		LogAt(State, EMatchEventType::WardenEventStarted, Clock, Seat, 0, 1);
+		LogAt(State, EMatchEventType::WardenSpoke, Clock, INDEX_NONE, EventLine, 0);
+	}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceCutSoundWhenTest, "Soulbound.Game.Presentation.Voz.SonidoDelCorteCuando", VoiceTestFlags)
+
+bool FVoiceCutSoundWhenTest::RunTest(const FString& Parameters)
+{
+	// CA-VOZ-15 (R-VOZ-12, cuándo; S-050): suena un corte del Warden (golpe, o el Oráculo como golpe), del humano o de otro asiento; no suenan el corte por
+	// el fin de la carrera, el del fin de la partida ni ninguna otra frase (el castigo de insolencia dicho al pasar el turno, una frase sin corte, una burla).
+	// Es la misma condición que arranca el oscurecido (bWardenCut, R-VOZ-8): para toda frase, con sonido, volumen y telón alzado, CutSoundPlays coincide con
+	// bWardenCut. Con el telón bajado no suena (decisión del autor del 19/11/2026: tampoco se ve el oscurecido).
+	using Soulbound::Presentation::CutSoundPlays;
+	using Soulbound::Presentation::FWardenLineItem;
+	using Soulbound::Presentation::WardenLineItems;
+	constexpr int32 Human = 0;
+
+	struct FCase
+	{
+		CutKind Kind;
+		int32 Seat;
+		const TCHAR* Name;
+		int32 Expected;
+	};
+	const FCase Cases[] = {
+		{CutKind::Warden, Human, TEXT("Golpe al humano"), 1},
+		{CutKind::Warden, 2, TEXT("Golpe a otro asiento"), 1},
+		{CutKind::Oracle, Human, TEXT("El Oráculo como golpe al humano"), 1},
+		{CutKind::Oracle, 2, TEXT("El Oráculo como golpe a otro asiento"), 1},
+		{CutKind::RaceEnd, Human, TEXT("Fin de la carrera"), 0},
+		{CutKind::RaceEnd, 3, TEXT("Fin de la carrera en otro turno"), 0},
+		{CutKind::MatchEnd, Human, TEXT("Fin de la partida"), 0},
+		{CutKind::None, Human, TEXT("Sin corte"), 0},
+	};
+	for (const FCase& Case : Cases)
+	{
+		const TArray<FWardenLineItem> Items = WardenLineItems(CutState(Case.Kind, Case.Seat), 0, Human, 6.0, 0.0);
+		int32 Sounds = 0;
+		for (const FWardenLineItem& Item : Items)
+		{
+			const bool bPlays = CutSoundPlays(Item, true, 1.f, false);
+			TestEqual(FString::Printf(TEXT("%s: la misma condición que el oscurecido"), Case.Name), bPlays, Item.bWardenCut);
+			Sounds += bPlays ? 1 : 0;
+		}
+		TestEqual(FString::Printf(TEXT("%s: sonidos"), Case.Name), Sounds, Case.Expected);
+	}
+
+	// En el golpe, la señal va con la frase del evento: el castigo de insolencia, dicho antes en el mismo instante, no suena.
+	const TArray<FWardenLineItem> Strike = WardenLineItems(CutState(CutKind::Warden, Human), 0, Human, 6.0, 0.0);
+	if (TestEqual(TEXT("Golpe: el castigo y la frase del evento"), Strike.Num(), 2))
+	{
+		TestFalse(TEXT("El castigo de insolencia no suena"), CutSoundPlays(Strike[0], true, 1.f, false));
+		TestTrue(TEXT("La frase del corte suena"), CutSoundPlays(Strike[1], true, 1.f, false));
+		TestFalse(TEXT("Con el telón bajado, no suena"), CutSoundPlays(Strike[1], true, 1.f, true));
+	}
+	// Una burla y una frase cualquiera de la cola, sin corte.
+	TestFalse(TEXT("Una burla no suena"), CutSoundPlays(RemarkItem(TEXT("Warden: Ja."), 6.0, 10.0), true, 1.f, false));
+	TestFalse(TEXT("Una frase que detiene la mesa, sin corte, no suena"), CutSoundPlays(HoldingItem(TEXT("Warden: Quieto."), 6.0, 10.0), true, 1.f, false));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceCutSoundOnceTest, "Soulbound.Game.Presentation.Voz.SonidoDelCorteUnaVez", VoiceTestFlags)
+
+bool FVoiceCutSoundOnceTest::RunTest(const FString& Parameters)
+{
+	// CA-VOZ-16 (R-VOZ-12, una vez; S-050): un corte con varios pulsos de oscurecido pide el sonido una sola vez; dos cortes seguidos, dos veces. Se repiten
+	// las vueltas de la vista: la primera lectura del registro con el golpe pide el sonido; mientras duran los pulsos (CutDimOpacity por encima de cero, con
+	// los valores iniciales de Config: dos pulsos de 0,08 s), las vueltas siguientes no leen frases nuevas y no piden nada. Un segundo golpe, más tarde,
+	// lo pide otra vez. Leídos de una vez, dos golpes piden dos sonidos (lectura literal de la story, decisión del autor del 19/11/2026).
+	using Soulbound::Presentation::CutDimOpacity;
+	constexpr int32 Human = 0;
+	constexpr float MaxOpacity = 0.85f;
+	constexpr int32 PulseCount = 2;
+	constexpr double PulseSeconds = 0.08;
+
+	FMatchState State = CutState(CutKind::Warden, Human);
+	int32 Scanned = 0;
+	int32 Total = CutSoundRequests(State, Scanned, Human);
+	TestEqual(TEXT("El golpe pide el sonido una vez"), Total, 1);
+
+	constexpr double CutStart = 10.0;
+	int32 PulsesSeen = 0;
+	for (double Now = CutStart; Now < CutStart + PulseCount * PulseSeconds; Now += 0.01)
+	{
+		PulsesSeen += CutDimOpacity(Now, CutStart, MaxOpacity, PulseCount, PulseSeconds) > 0.f ? 1 : 0;
+		Total += CutSoundRequests(State, Scanned, Human);
+	}
+	TestTrue(TEXT("El oscurecido ha pulsado"), PulsesSeen > 0);
+	TestTrue(TEXT("Y ha empezado su segundo pulso"), CutDimOpacity(CutStart + PulseSeconds, CutStart, MaxOpacity, PulseCount, PulseSeconds) > 0.f);
+	TestEqual(TEXT("Con varios pulsos, una sola vez"), Total, 1);
+
+	AddStrike(State, 2, 120.0);
+	Total += CutSoundRequests(State, Scanned, Human);
+	TestEqual(TEXT("Un segundo corte, más tarde: dos veces"), Total, 2);
+	TestEqual(TEXT("Y las vueltas siguientes no repiten"), CutSoundRequests(State, Scanned, Human), 0);
+
+	int32 FromStart = 0;
+	TestEqual(TEXT("Los dos cortes leídos de una vez: dos veces"), CutSoundRequests(State, FromStart, Human), 2);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVoiceCutSoundOptionalTest, "Soulbound.Game.Presentation.Voz.SonidoDelCorteOpcional", VoiceTestFlags)
+
+bool FVoiceCutSoundOptionalTest::RunTest(const FString& Parameters)
+{
+	// CA-VOZ-17 (R-VOZ-12, opcional y volumen; S-050): sin sonido cargado, o con el volumen a 0 (o por debajo), no se pide ningún sonido y nada falla; la
+	// señal de corte sigue igual (bWardenCut, que arranca el oscurecido, no cambia). Con un volumen bajo pero por encima de cero, suena.
+	using Soulbound::Presentation::CutSoundPlays;
+	using Soulbound::Presentation::FWardenLineItem;
+	constexpr int32 Human = 0;
+
+	const FMatchState State = CutState(CutKind::Warden, Human);
+	const TArray<FWardenLineItem> Items = Soulbound::Presentation::WardenLineItems(State, 0, Human, 6.0, 0.0);
+	if (!TestEqual(TEXT("Golpe: dos frases"), Items.Num(), 2))
+	{
+		return false;
+	}
+	const FWardenLineItem& Cut = Items[1];
+	TestTrue(TEXT("La frase es un corte: oscurece igual"), Cut.bWardenCut);
+	TestFalse(TEXT("Sin sonido cargado, no suena"), CutSoundPlays(Cut, false, 1.f, false));
+	TestFalse(TEXT("Con el volumen a 0, no suena"), CutSoundPlays(Cut, true, 0.f, false));
+	TestFalse(TEXT("Con un volumen negativo, tampoco"), CutSoundPlays(Cut, true, -1.f, false));
+	TestTrue(TEXT("Con un volumen bajo, suena"), CutSoundPlays(Cut, true, 0.05f, false));
+
+	int32 Scanned = 0;
+	TestEqual(TEXT("Sin sonido, ninguna petición en la vuelta de la vista"), CutSoundRequests(State, Scanned, Human, false, 1.f), 0);
+	Scanned = 0;
+	TestEqual(TEXT("Con el volumen a 0, ninguna"), CutSoundRequests(State, Scanned, Human, true, 0.f), 0);
 	return true;
 }
 
