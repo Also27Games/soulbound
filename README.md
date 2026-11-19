@@ -77,7 +77,7 @@ Lo que hay en `main` a fecha del test de usabilidad (noviembre de 2026), tras 24
 - **Partida en línea.** Existe la sesión por código de cuatro letras sobre Epic Online Services (crear, unirse, salir; plugin propio `A27Online`, probado en el editor con dos jugadores en septiembre de 2026), pero la partida no se replica: quien se une llega al mapa y no ve la partida del anfitrión. La arquitectura está pensada para ello (un solo escritor del estado, intenciones validadas, bots que ocupan asientos), y el GDD de multijugador está aprobado; implementarlo es la primera story de la Fase 2.
 - **El resto del minijuego de habilidad** (GDD 09): el anillo ya existe en su versión mínima; faltan la variante de desenfunde, las trampas del Warden en el desafío final, el duelo simultáneo de dos humanos, la habilidad de los bots por dificultad, el mando y el sonido.
 - **Interfaz del diseño** (GDD 07): cámara y objetos diegéticos, Umbral, barcas y postpartida. Hoy la interfaz es la vista de depuración, legible pero sin arte.
-- **Voz sintética del Warden**, sonido y música. Hoy no hay audio.
+- **Voz sintética del Warden**, sonido y música. Hoy el único sonido es el golpe con que el Warden corta un turno (S-050); el Warden sigue sin voz y sus frases son subtítulos.
 - **Bot básico** por prioridades y dificultades (GDD 08); hoy, dummies.
 - **Grabación y reproducción de partidas** (la simulación ya es determinista por semilla; falta el registro).
 - **Steam Deck a 60 FPS** y la publicación en Steam.
