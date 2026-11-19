@@ -35,7 +35,7 @@ namespace Soulbound::Presentation
 	 * La base de las capas de la vista: el orden del oscurecido, la más baja (valor inicial -10, aprobado por el autor el 19/11/2026). Con ella, la más
 	 * alta queda en -5, por debajo de cualquier widget de UMG con orden -14 o mayor.
 	 */
-	constexpr int32 ViewLayerBase = 9; // Tests en rojo: los números de antes.
+	constexpr int32 ViewLayerBase = -10;
 
 	/**
 	 * El orden con que llega al viewport un widget de UMG añadido sin orden (AddToViewport suma 10 al orden que recibe, que por defecto es 0). Es

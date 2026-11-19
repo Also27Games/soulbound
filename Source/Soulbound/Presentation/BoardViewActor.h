@@ -1305,7 +1305,7 @@ private:
 	ESeatGoal GoalPanelGoal = ESeatGoal::None;
 	TSharedPtr<SWidget> StatusOverlay;
 
-	/** El Grimorio (S-027): una capa centrada, por encima de las demás. */
+	/** El Grimorio (S-027): una capa centrada, por encima de las demás de la vista; desde S-049, por debajo de los menús de la plantilla (EViewLayer). */
 	TSharedPtr<SGrimoirePanel> GrimoirePanel;
 	TSharedPtr<SWidget> GrimoireOverlay;
 	/** Los textos de grimorio.json, leídos al construir los paneles. */
