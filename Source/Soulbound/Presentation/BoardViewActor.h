@@ -1,7 +1,6 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Containers/Ticker.h"
 #include "GameFramework/Actor.h"
 #include "InputCoreTypes.h"
 #include "BoardKit.h"
@@ -1037,13 +1036,8 @@ private:
 	 * anillo del humano (R-HUD-11); la tecla y el botón llaman aquí.
 	 */
 	void ToggleGrimoire();
-	/** Cierra el Grimorio si está abierto (S-044, R-HUD-11: al aparecer una decisión propia nueva o un anillo; desde S-049, al entrar en pausa). */
+	/** Cierra el Grimorio si está abierto (S-044, R-HUD-11: al aparecer una decisión propia nueva o un anillo). */
 	void CloseGrimoire();
-	/**
-	 * Al entrar el juego en pausa con el Grimorio abierto, lo cierra; al reanudar no lo reabre (S-049, precisión de R-HUD-11 del 19/11/2026). Mira
-	 * UWorld::IsPaused, un estado del motor: no sabe nada del menú de pausa de la plantilla.
-	 */
-	void WatchPause();
 	/** La pestaña anterior y la siguiente del Grimorio, con sus teclas (S-044, R-HUD-10); cerrado, no hacen nada. */
 	void PreviousGrimoireTab();
 	void NextGrimoireTab();
@@ -1320,12 +1314,6 @@ private:
 	Soulbound::Presentation::FGrimoireTabState GrimoireTab;
 	/** Cuándo se cierra solo el Grimorio (S-044, R-HUD-11): mira en cada TickHud si aparece una decisión propia nueva o un anillo. */
 	Soulbound::Presentation::FGrimoireCloseWatch GrimoireCloseWatch;
-	/**
-	 * Cuándo cierra la pausa el Grimorio (S-049, precisión de R-HUD-11 del 19/11/2026). La mira WatchPause en cada fotograma desde un ticker del núcleo,
-	 * que corre también en pausa (el temporizador del HUD es del mundo y se detiene con él).
-	 */
-	Soulbound::Presentation::FGrimoirePauseWatch GrimoirePauseWatch;
-	FTSTicker::FDelegateHandle PauseTicker;
 	/**
 	 * El libro de "Cómo se juega" (S-044; desde S-048, R-HUD-18, por páginas y con la de teclas al final), leído una vez al construir los paneles con
 	 * el cargador del menú. La página que se ve está en GrimoireTab.

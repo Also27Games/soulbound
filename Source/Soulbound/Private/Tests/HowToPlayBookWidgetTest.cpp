@@ -1,5 +1,5 @@
 // Tests del libro de "Cómo se juega" como pieza propia y en el menú (S-049, R-HUD-21 y R-HUD-22): lo que enseña una vista, los ajustes que lee el menú
-// de la vista, las páginas del widget del menú, su pie y el archivo roto; desde la ronda de correcciones, las carpetas que se cocinan y la pausa. Sin
+// de la vista, las páginas del widget del menú, su pie y el archivo roto; desde la ronda de correcciones, las carpetas que se cocinan. Sin
 // mundo, sin editor y sin FSlateApplication: el widget de UMG se crea en el paquete temporal y su pieza de Slate se recorre sin pintarla. Filtros:
 // "Soulbound.Game.Presentation.Grimorio" y "Soulbound.Game.Presentation.ComoSeJuega".
 
@@ -385,23 +385,6 @@ bool FHowToPlayCookedDirectoriesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Menú: la imagen del libro"), HbIsCooked(Settings.BookTexture.GetLongPackageName(), Directories));
 	TestTrue(TEXT("Menú: la marca de agua"), HbIsCooked(Settings.WatermarkTexture.GetLongPackageName(), Directories));
 	TestTrue(TEXT("Menú: la carpeta de las láminas"), HbIsCooked(Settings.ImageFolder, Directories));
-	return true;
-}
-
-// CA-HUD-76 (R-HUD-11, precisión del autor del 19/11/2026): al entrar en pausa con el Grimorio abierto, se cierra; al reanudar no se reabre.
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoirePauseTest, "Soulbound.Game.Presentation.Grimorio.LaPausaLoCierra", HbTestFlags)
-bool FGrimoirePauseTest::RunTest(const FString& Parameters)
-{
-	Soulbound::Presentation::FGrimoirePauseWatch Watch;
-	TestFalse(TEXT("Sin pausa, nada"), Watch.Observe(false));
-	TestFalse(TEXT("Sigue sin pausa, nada"), Watch.Observe(false));
-	TestTrue(TEXT("Al entrar en pausa, se cierra"), Watch.Observe(true));
-	TestFalse(TEXT("Mientras sigue la pausa, no lo vuelve a decir"), Watch.Observe(true));
-	TestFalse(TEXT("Al reanudar, nada (no se reabre)"), Watch.Observe(false));
-	TestTrue(TEXT("En la pausa siguiente, se cierra otra vez"), Watch.Observe(true));
-
-	Soulbound::Presentation::FGrimoirePauseWatch Fresh;
-	TestTrue(TEXT("Si la primera vez que se mira ya está en pausa, también"), Fresh.Observe(true));
 	return true;
 }
 

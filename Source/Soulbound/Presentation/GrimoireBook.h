@@ -469,24 +469,6 @@ namespace Soulbound::Presentation
 		bool bLastRingOpen = false;
 	};
 
-	/**
-	 * Cuándo cierra la pausa el Grimorio (S-049, precisión de R-HUD-11 del autor del 19/11/2026, nombre aprobado). Se mira en cada fotograma, también
-	 * en pausa, esté abierto o no, y dice si el juego acaba de entrar en pausa: entonces el Grimorio se cierra. Seguir en pausa no lo vuelve a decir, y
-	 * reanudar no reabre nada.
-	 */
-	class FGrimoirePauseWatch
-	{
-	public:
-		/**
-		 * @param bPaused Si el juego está en pausa ahora (UWorld::IsPaused).
-		 * @return Verdadero si desde la última vez el juego pasó de no estar en pausa a estarlo.
-		 */
-		bool Observe(bool bPaused);
-
-	private:
-		bool bLastPaused = false;
-	};
-
 	/** Si el Grimorio se puede abrir (S-044, R-HUD-11): no durante un anillo del humano, ni con el botón ni con la tecla (decisión del autor del 17/11/2026). */
 	bool CanOpenGrimoire(bool bRingOpen);
 
