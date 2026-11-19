@@ -65,6 +65,22 @@ Manuales, por el autor, en el editor y en PIE, a 1920x1080 y a 1024x768, con cap
 - Tests primero, en rojo.
 - Mientras el autor prueba en PIE o trabaja en el editor, no se compila ni se lanza nada.
 
+## Ronda de correcciones (19/11/2026, tras la prueba del autor en PIE y en el menú)
+
+El Grimorio se ve y se comporta como antes en sus tres pestañas; el libro funciona en el menú a 1920x1080 y a 1024x768, y las flechas no chocan con la navegación de la plantilla. Cuatro correcciones, en la misma rama y el mismo PR:
+
+- **Las carpetas que la build necesita.** La vista y el libro del menú cargan por ruta, en tiempo de ejecución, la fuente, la imagen del libro, la marca de agua y las láminas; el cocinador no sigue esas rutas, así que sus carpetas van en `DirectoriesToAlwaysCook` de `DefaultGame.ini`, como ya iban `/Game/Art/Tablero` y `/Game/Art/Anillo`: `/Game/Art/Ayuda`, `/Game/Art/Grimorio` y `/Game/Art/Fuentes`. También `/Game/Art/Dados`, la del dado del panel de decisión (`DiceFacesTexture`), que tenía el mismo defecto.
+- **R-HUD-11, precisión del autor del 19/11/2026: la pausa cierra el Grimorio.** Al abrirse la pausa con el Grimorio abierto, el Grimorio se cierra; al reanudar no se reabre. El fallo (el Grimorio se quedaba pintado detrás del menú de pausa y la G no lo cerraba hasta reanudar) viene de S-027, no de esta story. El menú de pausa es de la plantilla: no se toca ni se lee; la vista mira si el mundo está en pausa. Si en PIE no se cierra, queda como fallo conocido en el PR. Impedir que se abra durante la pausa no se decide aquí: lo mira el autor en PIE.
+- **Documentación de cómo se coloca la pieza** (en el PR), con lo que comprobó el autor: el foco se pide al enseñar el libro, no en Event Construct; un clic fuera del libro le quita el foco; en un Canvas, anclas al centro con tamaño fijo (1100x738, la proporción de la imagen del libro).
+- **La frase de la portada** de `Content/Data/Textos/como-se-juega.md` pasa a ser la del autor, en un commit aparte.
+
+Criterios nuevos, automáticos:
+
+- **CA-HUD-75** (R-HUD-22, build). Cada propiedad de Config de la vista que es una ruta de asset con valor (la fuente, la imagen del libro, la marca de agua, la carpeta de las láminas, el dado y las demás) cae dentro de alguna carpeta de `DirectoriesToAlwaysCook`.
+- **CA-HUD-76** (R-HUD-11, pausa). La función que vigila la pausa dice que se cierra el Grimorio al entrar en pausa; no lo vuelve a decir mientras sigue la pausa ni al reanudar; y lo dice otra vez en la pausa siguiente.
+
+Manual, por el autor: en partida, con el Grimorio abierto, abrir la pausa lo cierra; al reanudar sigue cerrado y la G lo abre. Y una build empaquetada con fondo, fuente, sello, láminas y dado.
+
 ## Fuera de esta story
 
 - La portada, el botón "Jugar" y cualquier otra parte de la pantalla del menú (assets del autor).
