@@ -1,5 +1,6 @@
 #include "BoardViewState.h"
 
+#include "EventText.h"
 #include "Match/MatchState.h"
 #include "Misc/PackageName.h"
 #include "Warden/WardenLines.h"
@@ -62,11 +63,98 @@ FString Soulbound::Presentation::MenuMapPackage(const FString& ReturnToMenuMap, 
 	return FPackageName::ObjectPathToPackageName(Map);
 }
 
+namespace
+{
+	/** Efecto de un Nodo de Poder para su etiqueta (S-009); vacío si no es un Nodo. */
+	const TCHAR* NodeEffectName(EPowerNodeEffect Effect)
+	{
+		switch (Effect)
+		{
+		case EPowerNodeEffect::Duel: return TEXT("DUELO");
+		case EPowerNodeEffect::Oracle: return TEXT("ORÁCULO");
+		case EPowerNodeEffect::Planar: return TEXT("PLANAR");
+		case EPowerNodeEffect::None:
+		default: return TEXT("");
+		}
+	}
+}
+
+Soulbound::Presentation::FTileTexts Soulbound::Presentation::TileTexts(const FMatchState& State, int32 TileId, bool bTileLabelsShown)
+{
+	FTileTexts Texts;
+	const FBoardState& Board = State.Board;
+	if (!Board.IsValidTile(TileId))
+	{
+		return Texts;
+	}
+	const FTileState& Tile = Board.Tiles[TileId];
+	// R-TAB-9 (S-009): el tipo del Nodo, solo desde el Despertar. Es dato de juego: se ve con las etiquetas ocultas (R-VIS-33).
+	const FString NodeType = Tile.Type == ETileType::PowerNode && Board.AreNodesRevealed() ? FString(NodeEffectName(Tile.PowerNodeEffect)) : FString();
+	if (bTileLabelsShown)
+	{
+		// La etiqueta de siempre (S-007, S-009), con "SELLO" debajo si está sellada (S-011).
+		const FString Plain = TileShortName(Board, TileId);
+		switch (Tile.Type)
+		{
+		case ETileType::Niche: Texts.Label = TEXT("N ") + Plain; break;
+		case ETileType::PowerSource: Texts.Label = TEXT("F ") + Plain; break;
+		case ETileType::PowerNode: Texts.Label = NodeType.IsEmpty() ? TEXT("X ") + Plain : FString::Printf(TEXT("X %s\n%s"), *Plain, *NodeType); break;
+		case ETileType::Altar:
+		case ETileType::Normal:
+		default: Texts.Label = Plain; break;
+		}
+		if (Tile.bSealed)
+		{
+			Texts.Label += TEXT("\nSELLO");
+		}
+	}
+	else
+	{
+		Texts.Label = NodeType;
+	}
+	// La reserva, en su contador azul sobre la Fuente (S-008): lo que queda sobre lo que tenía, desde el Despertar.
+	if (Tile.Type == ETileType::PowerSource && Board.Phase == EBoardPhase::Awakened)
+	{
+		Texts.Reserve = FString::Printf(TEXT("%d/%d"), Tile.RuneReserve, Board.Params.RuneReservePerSource);
+	}
+	if (Tile.Type == ETileType::Niche && Board.Domains.IsValidIndex(Tile.DomainId))
+	{
+		const FDomainState& Domain = Board.Domains[Tile.DomainId];
+		if (Domain.NicheState == ENicheState::Claimed && Domain.OwnerSeat != INDEX_NONE)
+		{
+			Texts.OwnerNumber = FString::FromInt(Domain.OwnerSeat);
+		}
+		if (bTileLabelsShown && State.Elects.IsValidDomain(Tile.DomainId))
+		{
+			Texts.ElectName = State.Elects.Elects[Tile.DomainId].Name;
+		}
+	}
+	return Texts;
+}
+
+Soulbound::Presentation::FDomainNameplateText Soulbound::Presentation::DomainNameplateText(const FMatchState& State, int32 DomainId, bool bForgottenShown)
+{
+	FDomainNameplateText Text;
+	if (State.Board.Domains.IsValidIndex(DomainId))
+	{
+		Text.Name = State.Board.Domains[DomainId].Name;
+		// R-VIS-27: las mismas condiciones que el suelo (ForgottenDomainsShown), así que en el prólogo llega con su frase de corrupción.
+		Text.ForgottenLine = bForgottenShown ? TEXT("Olvidado") : TEXT("");
+	}
+	return Text;
+}
+
+void Soulbound::Presentation::FTileLabelToggle::Toggle()
+{
+	bShown = !bShown;
+}
+
 FString Soulbound::Presentation::ViewKeysText(bool bSeated, const FString& ViewKey, const FString& OverlayKey, const FString& GrimoireKey, const FString& ReturnToMenuKey,
 	const FString& DebugTextKey, const FString& DebugPanelKey)
 {
 	// S-045 (precisión de R-CAM): C, L, G e Intro; T y D, aparte, de depuración. Ni H ni P, que se fueron con la columna (R-HUD-16).
-	return FString::Printf(TEXT("vista %s (%s: %s) | %s etiquetas | %s Grimorio | %s volver al menú al acabar | depuración: %s panel de estado, %s panel de depuración"),
+	// S-047 (R-VIS-33): L enseña los números de casilla, ocultos al empezar.
+	return FString::Printf(TEXT("vista %s (%s: %s) | %s números de casilla | %s Grimorio | %s volver al menú al acabar | depuración: %s panel de estado, %s panel de depuración"),
 		bSeated ? TEXT("sentada") : TEXT("cenital"), *SpanishKeyName(ViewKey), bSeated ? TEXT("cenital") : TEXT("sentada"), *SpanishKeyName(OverlayKey),
 		*SpanishKeyName(GrimoireKey), *SpanishKeyName(ReturnToMenuKey), *SpanishKeyName(DebugTextKey), *SpanishKeyName(DebugPanelKey));
 }

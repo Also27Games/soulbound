@@ -44,6 +44,64 @@ namespace Soulbound::Presentation
 	SOULBOUND_API FBoardViewState ComputeBoardViewState(const FMatchState& State, bool bNicheThroneConfigured);
 
 	/**
+	 * Los textos de una casilla (S-047, R-VIS-33, nombre propuesto `TileTexts`), uno por texto que la vista pone sobre ella. Vacío, no se ve.
+	 */
+	struct FTileTexts
+	{
+		/** La etiqueta de casilla (TileLabel): el identificador con la letra de tipo, el tipo del Nodo y "SELLO"; con las etiquetas ocultas, solo el tipo del Nodo. */
+		FString Label;
+		/** La reserva de una Fuente desde el Despertar ("4/4"). */
+		FString Reserve;
+		/** El número del dueño de un Nicho reclamado. */
+		FString OwnerNumber;
+		/** El nombre del Elegido sobre su Nicho. */
+		FString ElectName;
+	};
+
+	/**
+	 * Qué texto lleva una casilla (S-047, R-VIS-33, nombre propuesto; sustituye a la TileLabelText del actor). Con las etiquetas a la vista, lo de
+	 * siempre: la etiqueta ("D3·41", "ALTAR", con "N", "F" o "X" delante; el tipo del Nodo debajo desde el Despertar; "SELLO" debajo si está sellada),
+	 * la reserva de la Fuente, el número del dueño del Nicho y el nombre de su Elegido. Con las etiquetas ocultas, solo los datos de juego: la reserva,
+	 * el tipo del Nodo tras el Despertar y el número del dueño; ni identificador, ni "SELLO", ni el nombre del Elegido (decisiones del autor del 19/11/2026).
+	 * @param State Estado de la partida, en solo lectura (el nombre del Elegido sale de State.Elects).
+	 * @param TileId La casilla.
+	 * @param bTileLabelsShown Si las etiquetas están a la vista (FTileLabelToggle).
+	 * @return Los textos; todos vacíos si la casilla no existe.
+	 */
+	SOULBOUND_API FTileTexts TileTexts(const FMatchState& State, int32 TileId, bool bTileLabelsShown);
+
+	/**
+	 * La tecla de las etiquetas de casilla (S-047, R-VIS-33, nombre propuesto; sustituye a bOverlayHidden): ocultas al empezar la partida, y cada
+	 * pulsación de OverlayToggleKey (L) las enseña o las oculta. Las fichas no dependen de ella.
+	 */
+	struct FTileLabelToggle
+	{
+		bool bShown = false;
+
+		/** Una pulsación de la tecla. */
+		SOULBOUND_API void Toggle();
+	};
+
+	/** El texto del rótulo de un Dominio (S-047, R-VIS-34, nombre propuesto). */
+	struct FDomainNameplateText
+	{
+		/** El nombre del Dominio ("El Banquete"), el de la leyenda, sin su Elegido. */
+		FString Name;
+		/** "Olvidado" con el Dominio enseñado como Olvidado; vacío si no. Va en su propia línea, debajo del nombre y con menor letra. */
+		FString ForgottenLine;
+	};
+
+	/**
+	 * Qué dice el rótulo de un Dominio (S-047, R-VIS-34, nombre propuesto): su nombre y, si se enseña como Olvidado (ForgottenDomainsShown, lo mismo que
+	 * su suelo: en el prólogo, desde su frase de corrupción), "Olvidado".
+	 * @param State Estado de la partida, en solo lectura.
+	 * @param DomainId El Dominio.
+	 * @param bForgottenShown Si se enseña como Olvidado (ForgottenDomainsShown).
+	 * @return El texto; vacío si el Dominio no existe.
+	 */
+	SOULBOUND_API FDomainNameplateText DomainNameplateText(const FMatchState& State, int32 DomainId, bool bForgottenShown);
+
+	/**
 	 * Las casillas que llevan la marca del Sello (S-037, R-VIS-24; nombre propuesto `SealMarkedTiles`): exactamente las de `FBoardState::SealedTiles`.
 	 * @param State Estado de la partida, en solo lectura.
 	 * @return Los identificadores de casilla, de la más antigua a la más nueva; vacío sin Sellos.

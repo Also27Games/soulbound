@@ -238,7 +238,8 @@ namespace Soulbound::Presentation
 			Lines.Add(FString::Printf(TEXT("%s: al acabar la partida, vuelve al menú"), *SpanishKeyName(Keys.ReturnToMenu)));
 		}
 		Lines.Add(FString::Printf(TEXT("%s: cambia la vista"), *SpanishKeyName(Keys.View)));
-		Lines.Add(FString::Printf(TEXT("%s: oculta y enseña las etiquetas y los números de las casillas"), *SpanishKeyName(Keys.Overlay)));
+		// S-047 (R-VIS-33): los números de casilla están ocultos al empezar; L los enseña.
+		Lines.Add(FString::Printf(TEXT("%s: enseña y oculta los números de las casillas, ocultos al empezar"), *SpanishKeyName(Keys.Overlay)));
 		// Precisión del autor al aprobar el plan de la ampliación (17/11/2026): una lista, una tecla por elemento.
 		FHowToPlayPage Page;
 		Page.Title = HowToPlayKeysTitle;

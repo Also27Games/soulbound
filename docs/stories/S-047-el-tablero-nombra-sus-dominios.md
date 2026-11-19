@@ -52,6 +52,40 @@ Manuales, por el autor, en PIE, en la vista sentada y en la cenital, a 1920x1080
 - Tests primero, en rojo.
 - Mientras el autor prueba en PIE o trabaja en el editor, no se compila ni se lanza nada.
 
+## Ronda de correcciones (19/11/2026, tras la prueba del autor en PIE)
+
+Las etiquetas, bien. Los rótulos no tapan nada, pero tienen cuatro problemas. La letra de 3,27 cm es pequeña: a 1024x768 en la cenital no se leerá. El de El Banquete queda a 96 cm, lejos de los otros cinco. "Olvidado" no se lee desde la vista sentada. Y "El" queda suelto en "El Banquete" y "El Descenso". Cuatro cambios, en la misma rama y el mismo PR:
+
+- **Calibración del texto.** Medido por el autor sobre una captura cenital: "Encadenado" y "Tormentosa" (10 caracteres con letra de 3,27 cm) ocupan unos 14 cm, es decir, 0,45 de ancho por carácter. `DomainNameplateCharWidthFraction` pasa de 0,6 a 0,5 (0,45 con holgura) y `DomainNameplateLineHeightFraction`, de 1,2 a 1,0. El cambio se hace en los tres sitios: la estructura, el actor y Config.
+- **R-VIS-34, cambio de regla del autor: el rótulo puede cruzar senderos.** Sigue sin tocar losas ni el Altar y sigue dentro de su cuña, pero los senderos dejan de ser obstáculo. Se retira `DomainNameplatePathHalfWidth`.
+- **R-VIS-34, precisión: los seis rótulos en la misma zona.** El centro del rótulo no se aleja del sitio preferido más de una fracción de la profundidad de la cuña (`DomainNameplateMaxOffsetFraction`, Config, valor inicial 0,2, unos 19 cm). La letra es la mayor que cabe en las seis cuñas dentro de esa zona.
+- **R-VIS-34, precisión: cada nombre, su rectángulo y su forma.** Un nombre no se parte si alguna de sus dos líneas quedaría con menos de 3 caracteres (`DomainNameplateMinSplitLineChars`, Config): "El Banquete" y "El Descenso" van en una línea. Cada rótulo reserva el rectángulo de sus propias líneas más la de "Olvidado", no el del nombre más largo. La letra sigue siendo la misma en los seis.
+
+Criterios automáticos que cambian:
+
+- **CA-VIS-37** (R-VIS-34, sitio), en lugar del anterior. La función que coloca el rótulo devuelve, para cada Dominio, un rectángulo que cumple cinco cosas:
+  - es el de sus propias líneas más la de "Olvidado", con la letra común;
+  - queda entero dentro de la cuña de su Dominio;
+  - no toca ninguna losa (de ningún Dominio) ni el Altar, aunque sí puede cruzar senderos;
+  - tiene el centro a no más de `DomainNameplateMaxOffsetFraction` de la profundidad de la cuña del sitio preferido;
+  - lleva un giro que deja el texto derecho para la vista sentada.
+
+  Se comprueba con `tablero_86` y `tablero_35`, y con el sitio preferido encima de una losa.
+- **CA-VIS-38** (R-VIS-34, forma). Un nombre se parte por el espacio más cercano a la mitad, salvo que alguna de las dos líneas quede con menos de 3 caracteres. "El Banquete" y "El Descenso" van en una línea; "El Fiordo Encadenado", en "El Fiordo" y "Encadenado".
+- **CA-VIS-39** (calibración). Los parámetros del rótulo valen lo mismo en la estructura, el actor y Config: 0,5 de ancho por carácter, 1,0 de alto de línea, 0,2 de zona y 3 caracteres para partir.
+
+Manuales, por el autor, en PIE:
+
+- A 1024x768, en la cenital, los seis nombres se leen.
+- Los seis rótulos quedan en la misma zona de su cuña.
+- "Olvidado" se lee desde la vista sentada. Su letra es 0,6 de la del nombre (`DomainNameplateForgottenScale`), y esta ronda no la cambia.
+- Un rótulo que cruza un sendero se sigue leyendo.
+
+Superada por el autor en PIE el 19/11/2026, en las vistas cenital y sentada, a 1920x1080 y a 1024x768, con Dominios Olvidados, fin de carrera y Noche de los Ecos. Hay dos límites conocidos:
+
+- **Aceptado**: "Olvidado" no se lee a 1024x768; a esa resolución el Dominio Olvidado se reconoce por su suelo.
+- **Para después de la entrega**: el panel "Tu turno" puede tapar un rótulo mientras se elige casilla.
+
 ## Fuera de esta story
 
 - El nombre del Elegido sobre el tablero, o cualquier otro rótulo.

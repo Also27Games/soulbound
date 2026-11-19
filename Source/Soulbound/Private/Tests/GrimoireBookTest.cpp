@@ -630,6 +630,9 @@ bool FGrimoireKeyNamesTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("Cómo se juega: Intro"), HowTo.Contains(TEXT("Intro:")));
 	TestFalse(TEXT("Cómo se juega: sin Left"), HowTo.Contains(TEXT("Left")));
 	TestFalse(TEXT("Cómo se juega: sin Enter"), HowTo.Contains(TEXT("Enter")));
+	// S-047 (R-VIS-33): L enseña los números de casilla, que por defecto están ocultos.
+	TestTrue(TEXT("Cómo se juega: L enseña los números de casilla, ocultos al empezar"),
+		HowTo.Contains(TEXT("L: enseña y oculta los números de las casillas, ocultos al empezar")));
 	return true;
 }
 
