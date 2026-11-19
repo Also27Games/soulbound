@@ -497,8 +497,10 @@ namespace Soulbound::Presentation
 
 	bool FGrimoirePauseWatch::Observe(bool bPaused)
 	{
-		// Pendiente (tests en rojo de la ronda de correcciones de S-049).
-		return false;
+		// Solo la entrada en pausa cierra; seguir en pausa o reanudar no hacen nada (al reanudar, el Grimorio sigue cerrado).
+		const bool bEntered = bPaused && !bLastPaused;
+		bLastPaused = bPaused;
+		return bEntered;
 	}
 
 	bool CanOpenGrimoire(bool bRingOpen)

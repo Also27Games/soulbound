@@ -325,6 +325,16 @@ void ABoardViewActor::Initialize(UMatchHostSubsystem* InHost)
 	RingOpenedHandle = InHost->OnRingOpened.AddUObject(this, &ABoardViewActor::HandleRingOpened);
 	RingClosedHandle = InHost->OnRingClosed.AddUObject(this, &ABoardViewActor::HandleRingClosed);
 	GetWorldTimerManager().SetTimer(HudTimer, this, &ABoardViewActor::TickHud, FMath::Max(HudIntervalSeconds, 0.05f), true, 0.f);
+	// S-049 (precisión de R-HUD-11 del 19/11/2026): la pausa cierra el Grimorio. El temporizador del HUD se detiene en pausa; el ticker del núcleo, no.
+	const TWeakObjectPtr<ABoardViewActor> WeakView(this);
+	PauseTicker = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([WeakView](float)
+	{
+		if (ABoardViewActor* View = WeakView.Get())
+		{
+			View->WatchPause();
+		}
+		return true;
+	}));
 }
 
 void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -338,6 +348,11 @@ void ABoardViewActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	// S-026: ninguna entrada del anillo sobrevive a la vista (fin de PIE, viaje al menú), haya o no anillo abierto.
 	UnregisterRingInput();
 	GetWorldTimerManager().ClearTimer(HudTimer);
+	if (PauseTicker.IsValid())
+	{
+		FTSTicker::GetCoreTicker().RemoveTicker(PauseTicker);
+		PauseTicker.Reset();
+	}
 	if (WardenLineOverlay.IsValid())
 	{
 		if (UWorld* World = GetWorld())
@@ -2332,6 +2347,16 @@ void ABoardViewActor::CloseGrimoire()
 {
 	bGrimoireOpen = false;
 	ElectCard.SetGrimoireOpen(false);
+}
+
+void ABoardViewActor::WatchPause()
+{
+	// La entrada en pausa se mira siempre, abierto o no; solo cierra si está abierto. Reanudar no hace nada.
+	const UWorld* World = GetWorld();
+	if (GrimoirePauseWatch.Observe(World && World->IsPaused()) && bGrimoireOpen)
+	{
+		CloseGrimoire();
+	}
 }
 
 void ABoardViewActor::PreviousGrimoireTab()
