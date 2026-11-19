@@ -1,6 +1,6 @@
 # El Grimorio de los condenados
 
-> Aquí está todo escrito… salvo cuánto tardaréis en decepcionarme.
+> ¡Abridlo, miserables! Aquí está todo escrito… salvo cuánto tardaréis en decepcionarme.
 
 ## ANTES DE QUE LO ESTROPEÉIS TODO
 
