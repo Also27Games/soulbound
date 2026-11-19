@@ -81,6 +81,11 @@ Manuales, por el autor, en PIE:
 - "Olvidado" se lee desde la vista sentada. Su letra es 0,6 de la del nombre (`DomainNameplateForgottenScale`), y esta ronda no la cambia.
 - Un rótulo que cruza un sendero se sigue leyendo.
 
+Superada por el autor en PIE el 19/11/2026, en las vistas cenital y sentada, a 1920x1080 y a 1024x768, con Dominios Olvidados, fin de carrera y Noche de los Ecos. Hay dos límites conocidos:
+
+- **Aceptado**: "Olvidado" no se lee a 1024x768; a esa resolución el Dominio Olvidado se reconoce por su suelo.
+- **Para después de la entrega**: el panel "Tu turno" puede tapar un rótulo mientras se elige casilla.
+
 ## Fuera de esta story
 
 - El nombre del Elegido sobre el tablero, o cualquier otro rótulo.
