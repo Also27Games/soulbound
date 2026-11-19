@@ -991,25 +991,35 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "0.0"))
 	float DomainNameplateMaxLetterSizeFraction = 0.08f;
 
-	/** Ancho medio de un carácter del texto del motor, en fracción de la letra, para estimar el rectángulo. Valor inicial 0,6, a confirmar en PIE. */
+	/**
+	 * Ancho medio de un carácter del texto del motor, en fracción de la letra, para estimar el rectángulo. Valor inicial 0,5: el autor midió 0,45 en una
+	 * captura cenital, y se deja holgura (ronda del 19/11/2026; antes, 0,6).
+	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "0.0"))
-	float DomainNameplateCharWidthFraction = 0.6f;
+	float DomainNameplateCharWidthFraction = 0.5f;
 
-	/** Alto de una línea del rótulo, en fracción de su letra: separa las líneas y mide el rectángulo. Valor inicial 1,2, a confirmar en PIE. */
+	/** Alto de una línea del rótulo, en fracción de su letra: separa las líneas y mide el rectángulo. Valor inicial 1,0 (ronda del 19/11/2026; antes, 1,2). */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "0.0"))
-	float DomainNameplateLineHeightFraction = 1.2f;
+	float DomainNameplateLineHeightFraction = 1.f;
 
 	/** Letra de "Olvidado", en fracción de la del nombre. Valor inicial 0,6. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "0.0"))
 	float DomainNameplateForgottenScale = 0.6f;
 
-	/** Holgura del rótulo con losas, senderos, el Altar y los bordes de la cuña, en fracción de la profundidad de la cuña. Valor inicial 0,01 (1 cm). */
+	/** Holgura del rótulo con losas, el Altar y los bordes de la cuña (los senderos se pueden cruzar), en fracción de la profundidad de la cuña. Valor inicial 0,01 (1 cm). */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "0.0"))
 	float DomainNameplateMarginFraction = 0.01f;
 
-	/** Medio ancho de un sendero, en cm, para no taparlo. Valor inicial 1,6 (media losa entre dos), a confirmar en PIE con la pieza `sendero`. */
+	/**
+	 * Cuánto puede alejarse el centro del rótulo del sitio preferido, en fracción de la profundidad de la cuña: los seis quedan en la misma zona de su
+	 * cuña (ronda del 19/11/2026). Valor inicial 0,2 (unos 19 cm).
+	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "0.0"))
-	float DomainNameplatePathHalfWidth = 1.6f;
+	float DomainNameplateMaxOffsetFraction = 0.2f;
+
+	/** Un nombre no se parte en dos líneas si alguna quedaría con menos caracteres: "El" no va suelto (ronda del 19/11/2026). Valor inicial 3. */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "1"))
+	int32 DomainNameplateMinSplitLineChars = 3;
 
 	/** Paso de la búsqueda del sitio libre, en fracción de la profundidad de la cuña. Valor inicial 0,01 (1 cm). */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Rotulo", meta = (ClampMin = "0.001"))

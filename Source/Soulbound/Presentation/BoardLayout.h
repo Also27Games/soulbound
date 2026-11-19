@@ -255,18 +255,26 @@ namespace Soulbound::Presentation
 		float AngleFraction = -0.8f;
 		/** Tope de la letra del nombre, en fracción de la profundidad de la cuña. Valor inicial 0,08 (7,7 cm con la mesa de 120). */
 		float MaxLetterSizeFraction = 0.08f;
-		/** Ancho medio de un carácter, en fracción de la letra (estimación del texto del motor, a confirmar en PIE). Valor inicial 0,6. */
-		float CharWidthFraction = 0.6f;
-		/** Alto de una línea, en fracción de su letra (a confirmar en PIE). Valor inicial 1,2. */
-		float LineHeightFraction = 1.2f;
+		/**
+		 * Ancho medio de un carácter, en fracción de la letra. Valor inicial 0,5: el autor midió 0,45 sobre una captura cenital ("Encadenado", 10
+		 * caracteres con letra de 3,27 cm, unos 14 cm), con holgura (ronda del 19/11/2026; antes, 0,6 a ciegas).
+		 */
+		float CharWidthFraction = 0.5f;
+		/** Alto de una línea, en fracción de su letra. Valor inicial 1,0 (ronda del 19/11/2026; antes, 1,2 a ciegas). */
+		float LineHeightFraction = 1.f;
 		/** Letra de "Olvidado", en fracción de la del nombre. Valor inicial 0,6. */
 		float ForgottenScale = 0.6f;
-		/** Holgura del rectángulo con losas, senderos, el Altar y los bordes de la cuña, en fracción de la profundidad de la cuña. Valor inicial 0,01. */
+		/** Holgura del rectángulo con losas, el Altar y los bordes de la cuña, en fracción de la profundidad de la cuña. Valor inicial 0,01. */
 		float MarginFraction = 0.01f;
-		/** Medio ancho de un sendero, en cm, para no taparlo (a confirmar en PIE). Valor inicial 1,6, la mitad de media losa. */
-		float PathHalfWidth = 1.6f;
 		/** Paso de la búsqueda del sitio libre, en fracción de la profundidad de la cuña. Valor inicial 0,01. */
 		float SearchStepFraction = 0.01f;
+		/**
+		 * Cuánto puede alejarse el centro del rótulo del sitio preferido, en fracción de la profundidad de la cuña (ronda del 19/11/2026: los seis en la
+		 * misma zona). Valor inicial 0,2 (unos 19 cm con la mesa de 120).
+		 */
+		float MaxOffsetFraction = 0.2f;
+		/** Un nombre no se parte si alguna de sus dos líneas quedaría con menos caracteres (ronda del 19/11/2026: "El" no va suelto). Valor inicial 3. */
+		int32 MinSplitLineChars = 3;
 	};
 
 	/**
@@ -292,10 +300,10 @@ namespace Soulbound::Presentation
 		FVector2D ForgottenLineCenter = FVector2D::ZeroVector;
 	};
 
-	/** Los rótulos de los seis Dominios (S-047, R-VIS-34, nombre propuesto): la misma forma y la misma letra en todos. */
+	/** Los rótulos de los seis Dominios (S-047, R-VIS-34, nombre propuesto): la misma letra en todos; cada uno, sus líneas y su rectángulo. */
 	struct FDomainNameplateLayout
 	{
-		/** Si el nombre va partido en dos líneas (SplitNameplateName) en vez de en una. */
+		/** Si sale la forma partida: cada nombre en dos líneas donde se puede (SplitNameplateName). Si no, todos en una línea. */
 		bool bSplit = false;
 		/** Letra del nombre, en cm: la mayor que cabe en las seis cuñas, con el tope de MaxLetterSizeFraction. 0 si en alguna no cabe ninguna. */
 		float LetterSize = 0.f;
@@ -303,18 +311,20 @@ namespace Soulbound::Presentation
 		TArray<TArray<FString>> NameLines;
 		/** El sitio de cada Dominio, indexado por su identificador. */
 		TArray<FDomainNameplateSpot> Spots;
-		/** La letra mayor que cabe en cada cuña, por forma (para el informe): [0] en una línea, [1] partido. */
+		/** La letra mayor que cabe en cada cuña con su nombre, por forma (para el informe): en una línea y partido donde se puede. */
 		TArray<float> MaxLetterOneLine;
 		TArray<float> MaxLetterSplit;
 	};
 
 	/**
 	 * El nombre de un Dominio partido en dos líneas por el espacio más cercano a la mitad (S-047, R-VIS-34, nombre propuesto): el que deja las dos
-	 * líneas más parejas; a igual distancia, el primero. Sin espacio, una línea.
+	 * líneas más parejas; a igual distancia, el primero. Sin espacio, o si alguna de las dos líneas quedaría con menos de MinLineChars caracteres
+	 * (ronda del 19/11/2026: "El Banquete" no deja "El" suelto), una línea.
 	 * @param Name El nombre ("El Fiordo Encadenado").
-	 * @return Las líneas ("El Fiordo", "Encadenado"); una si no hay espacio; vacío si el nombre está vacío.
+	 * @param MinLineChars Los caracteres mínimos de cada línea para partirlo (FDomainNameplateParams::MinSplitLineChars, 3).
+	 * @return Las líneas ("El Fiordo", "Encadenado"); una si no se parte; vacío si el nombre está vacío.
 	 */
-	SOULBOUND_API TArray<FString> SplitNameplateName(const FString& Name);
+	SOULBOUND_API TArray<FString> SplitNameplateName(const FString& Name, int32 MinLineChars);
 
 	/**
 	 * El tamaño estimado del rectángulo de un rótulo (S-047, R-VIS-34): ancho, la línea más larga (del nombre, o "Olvidado" con su letra) por la letra
@@ -329,7 +339,8 @@ namespace Soulbound::Presentation
 	/**
 	 * Dónde cabe un rectángulo de rótulo en la cuña de un Dominio (S-047, R-VIS-34, nombre propuesto): el sitio libre más cercano al preferido en el
 	 * que el rectángulo, con su holgura y con el giro de la vista sentada, queda entero dentro del sector de la cuña (su eje más y menos media cuña,
-	 * hasta el borde de la mesa) y no toca ninguna losa (de ningún Dominio), ningún sendero ni el Altar.
+	 * hasta el borde de la mesa) y no toca ninguna losa (de ningún Dominio) ni el Altar; los senderos se pueden cruzar. El centro no se aleja del
+	 * preferido más de MaxOffsetFraction de la profundidad de la cuña (ronda del 19/11/2026).
 	 * @param Board El tablero.
 	 * @param Layout Su colocación (ComputeBoardLayout).
 	 * @param LayoutParams Los parámetros con que se colocó (radio de mesa, media losa).
@@ -343,9 +354,10 @@ namespace Soulbound::Presentation
 		int32 DomainId, const FVector2D& Size, float ViewYawDegrees, const FDomainNameplateParams& Params);
 
 	/**
-	 * Los rótulos de los seis Dominios (S-047, R-VIS-34, nombre propuesto). Prueba las dos formas, el nombre en una línea y partido en dos
-	 * (SplitNameplateName); en cada una, el rectángulo es el del nombre más largo del tablero, el mismo en las seis cuñas, y la letra, la mayor que
-	 * cabe en las seis, con el tope. Se queda la forma de letra mayor (a igualdad, en una línea) y coloca cada rótulo con DomainNameplateSpot.
+	 * Los rótulos de los seis Dominios (S-047, R-VIS-34, nombre propuesto). Prueba las dos formas, todos los nombres en una línea y cada uno partido
+	 * en dos donde se puede (SplitNameplateName); en cada una, cada rótulo mide el rectángulo de sus propias líneas más la de "Olvidado" (ronda del
+	 * 19/11/2026), y la letra es la mayor que cabe en las seis cuñas, con el tope. Se queda la forma de letra mayor (a igualdad, en una línea) y coloca
+	 * cada rótulo con DomainNameplateSpot.
 	 * @param Board El tablero, con los nombres de sus Dominios.
 	 * @param Layout Su colocación.
 	 * @param LayoutParams Los parámetros con que se colocó.

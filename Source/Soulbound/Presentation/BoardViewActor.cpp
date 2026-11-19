@@ -432,7 +432,8 @@ void ABoardViewActor::BuildDomainNameplates()
 	Params.LineHeightFraction = DomainNameplateLineHeightFraction;
 	Params.ForgottenScale = DomainNameplateForgottenScale;
 	Params.MarginFraction = DomainNameplateMarginFraction;
-	Params.PathHalfWidth = DomainNameplatePathHalfWidth;
+	Params.MaxOffsetFraction = DomainNameplateMaxOffsetFraction;
+	Params.MinSplitLineChars = DomainNameplateMinSplitLineChars;
 	Params.SearchStepFraction = DomainNameplateSearchStepFraction;
 	// R-VIS-34: derecho para la vista sentada, el mismo giro en las seis cuñas; la forma y la letra, las mayores que caben en todas.
 	const Soulbound::Presentation::FDomainNameplateLayout Nameplates =

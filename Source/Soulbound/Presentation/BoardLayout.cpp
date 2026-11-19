@@ -452,40 +452,19 @@ namespace
 		const float Depth = FMath::Max(LayoutParams.TableRadius - Layout.AltarApothem, 0.f);
 		Search.Margin = FMath::Max(Params.MarginFraction, 0.f) * Depth;
 
+		// Los obstáculos son las losas, giradas, de todos los Dominios. Los senderos no: el rótulo puede cruzarlos (cambio de regla del autor, 19/11/2026).
 		for (const FTileState& Tile : Board.Tiles)
 		{
-			if (!Layout.Tiles.IsValidIndex(Tile.TileId))
+			if (!Layout.Tiles.IsValidIndex(Tile.TileId) || Board.IsAltar(Tile.TileId))
 			{
 				continue;
 			}
 			const FTileLayout& Slab = Layout.Tiles[Tile.TileId];
-			if (!Board.IsAltar(Tile.TileId))
-			{
-				FPlaneBox& Box = Search.Obstacles.AddDefaulted_GetRef();
-				Box.Center = FVector2D(Slab.Location);
-				Box.AxisX = UnitAt(Slab.Yaw);
-				Box.AxisY = UnitAt(Slab.Yaw + 90.f);
-				Box.Half = FVector2D(LayoutParams.SlabHalfSize, LayoutParams.SlabHalfSize);
-			}
-			for (const int32 Other : Tile.Neighbours)
-			{
-				if (Other <= Tile.TileId || !Layout.Tiles.IsValidIndex(Other))
-				{
-					continue; // cada conexión una sola vez
-				}
-				const FVector2D A(Slab.Location);
-				const FVector2D B(Layout.Tiles[Other].Location);
-				const FVector2D Along = (B - A).GetSafeNormal();
-				if (Along.IsNearlyZero())
-				{
-					continue;
-				}
-				FPlaneBox& Box = Search.Obstacles.AddDefaulted_GetRef();
-				Box.Center = (A + B) / 2.f;
-				Box.AxisX = Along;
-				Box.AxisY = FVector2D(-Along.Y, Along.X);
-				Box.Half = FVector2D(FVector2D::Distance(A, B) / 2.f, FMath::Max(Params.PathHalfWidth, 0.f));
-			}
+			FPlaneBox& Box = Search.Obstacles.AddDefaulted_GetRef();
+			Box.Center = FVector2D(Slab.Location);
+			Box.AxisX = UnitAt(Slab.Yaw);
+			Box.AxisY = UnitAt(Slab.Yaw + 90.f);
+			Box.Half = FVector2D(LayoutParams.SlabHalfSize, LayoutParams.SlabHalfSize);
 		}
 		Search.ObstacleRadii.Reserve(Search.Obstacles.Num());
 		for (const FPlaneBox& Box : Search.Obstacles)
@@ -493,19 +472,21 @@ namespace
 			Search.ObstacleRadii.Add(Box.Half.Size());
 		}
 
-		// Candidatos: una rejilla con el paso de la búsqueda, alineada con el sitio preferido, solo los centros que caen dentro del sector.
+		// Candidatos: una rejilla con el paso de la búsqueda, alineada con el sitio preferido, solo los centros que caen dentro del sector y a no más de
+		// MaxOffsetFraction del preferido (ronda del 19/11/2026: los seis rótulos, en la misma zona de su cuña).
 		const float Inner = Search.AltarRadius;
 		const FVector2D Preferred = UnitAt(Search.WedgeYaw + Params.AngleFraction * Search.HalfSector)
 			* (Inner + Params.RadiusFraction * (LayoutParams.TableRadius - Inner));
 		const float Step = FMath::Max(Params.SearchStepFraction * Depth, 0.1f);
-		const int32 Reach = FMath::CeilToInt(2.f * LayoutParams.TableRadius / Step);
+		const float MaxOffset = FMath::Max(Params.MaxOffsetFraction, 0.f) * Depth;
+		const int32 Reach = FMath::CeilToInt(FMath::Min(MaxOffset, 2.f * LayoutParams.TableRadius) / Step);
 		for (int32 IndexX = -Reach; IndexX <= Reach; ++IndexX)
 		{
 			for (int32 IndexY = -Reach; IndexY <= Reach; ++IndexY)
 			{
 				const FVector2D Candidate = Preferred + FVector2D(IndexX * Step, IndexY * Step);
 				const float Radius = Candidate.Size();
-				if (Radius <= Inner || Radius >= LayoutParams.TableRadius)
+				if (Radius <= Inner || Radius >= LayoutParams.TableRadius || FVector2D::Distance(Candidate, Preferred) > MaxOffset)
 				{
 					continue;
 				}
@@ -603,7 +584,7 @@ namespace
 	}
 }
 
-TArray<FString> Soulbound::Presentation::SplitNameplateName(const FString& Name)
+TArray<FString> Soulbound::Presentation::SplitNameplateName(const FString& Name, int32 MinLineChars)
 {
 	if (Name.IsEmpty())
 	{
@@ -619,7 +600,9 @@ TArray<FString> Soulbound::Presentation::SplitNameplateName(const FString& Name)
 			Best = Index;
 		}
 	}
-	if (Best == INDEX_NONE)
+	// Ronda del 19/11/2026: sin espacio, o si una de las dos líneas se queda corta ("El" de "El Banquete"), no se parte. El espacio más cercano a la
+	// mitad es el que deja la línea más corta más larga: si con él una se queda corta, con cualquier otro también.
+	if (Best == INDEX_NONE || Best < MinLineChars || Name.Len() - Best - 1 < MinLineChars)
 	{
 		return {Name};
 	}
@@ -662,25 +645,22 @@ Soulbound::Presentation::FDomainNameplateLayout Soulbound::Presentation::Compute
 	}
 	const float MaxLetter = FMath::Max(Params.MaxLetterSizeFraction, 0.f) * FMath::Max(LayoutParams.TableRadius - Layout.AltarApothem, 0.f);
 
-	// Las dos formas. En cada una, el rectángulo es el del nombre más largo (el mismo en las seis cuñas) y la letra, la mayor que cabe en todas.
+	// Las dos formas: todos en una línea, o cada nombre partido donde se puede (SplitNameplateName). Ronda del 19/11/2026: cada rótulo mide su propio
+	// rectángulo (sus líneas y la de "Olvidado"), y la letra común es la mayor que cabe en las seis cuñas.
 	float Common[2] = {0.f, 0.f};
-	FVector2D UnitSizes[2];
 	TArray<TArray<FString>> Lines[2];
+	TArray<FVector2D> UnitSizes[2];
 	for (int32 Form = 0; Form < 2; ++Form)
 	{
 		const bool bSplit = Form == 1;
-		FVector2D UnitSize = FVector2D::ZeroVector;
-		for (const FDomainState& Domain : Board.Domains)
-		{
-			Lines[Form].Add(bSplit ? SplitNameplateName(Domain.Name) : TArray<FString>({Domain.Name}));
-			UnitSize = FVector2D::Max(UnitSize, NameplateSize(Lines[Form].Last(), 1.f, Params));
-		}
-		UnitSizes[Form] = UnitSize;
 		TArray<float>& PerWedge = bSplit ? Result.MaxLetterSplit : Result.MaxLetterOneLine;
 		Common[Form] = MaxLetter;
 		for (int32 DomainId = 0; DomainId < DomainCount; ++DomainId)
 		{
-			PerWedge.Add(MaxNameplateLetter(Searches[DomainId], UnitSize, MaxLetter));
+			const FString& Name = Board.Domains[DomainId].Name;
+			Lines[Form].Add(bSplit ? SplitNameplateName(Name, Params.MinSplitLineChars) : TArray<FString>({Name}));
+			UnitSizes[Form].Add(NameplateSize(Lines[Form].Last(), 1.f, Params));
+			PerWedge.Add(MaxNameplateLetter(Searches[DomainId], UnitSizes[Form].Last(), MaxLetter));
 			Common[Form] = FMath::Min(Common[Form], PerWedge.Last());
 		}
 	}
@@ -692,23 +672,17 @@ Soulbound::Presentation::FDomainNameplateLayout Soulbound::Presentation::Compute
 
 	const float LineHeight = Result.LetterSize * Params.LineHeightFraction;
 	const float ForgottenLineHeight = LineHeight * Params.ForgottenScale;
-	int32 BoxLines = 0;
-	for (const TArray<FString>& NameLines : Result.NameLines)
-	{
-		BoxLines = FMath::Max(BoxLines, NameLines.Num());
-	}
 	for (int32 DomainId = 0; DomainId < DomainCount; ++DomainId)
 	{
-		FDomainNameplateSpot Spot = FindNameplateSpot(Searches[DomainId], UnitSizes[Chosen] * Result.LetterSize);
-		// De arriba abajo: el bloque del nombre (las líneas del más largo, con las de éste centradas en él) y, debajo, la línea de "Olvidado".
+		FDomainNameplateSpot Spot = FindNameplateSpot(Searches[DomainId], UnitSizes[Chosen][DomainId] * Result.LetterSize);
+		// De arriba abajo: las líneas del nombre y, debajo, la de "Olvidado".
 		const FVector2D Top = Spot.Center + Spot.Up * Spot.HalfExtent.Y;
 		const int32 Count = Result.NameLines[DomainId].Num();
-		const float BlockOffset = (BoxLines - Count) * LineHeight / 2.f;
 		for (int32 Line = 0; Line < Count; ++Line)
 		{
-			Spot.NameLineCenters.Add(Top - Spot.Up * (BlockOffset + (Line + 0.5f) * LineHeight));
+			Spot.NameLineCenters.Add(Top - Spot.Up * ((Line + 0.5f) * LineHeight));
 		}
-		Spot.ForgottenLineCenter = Top - Spot.Up * (BoxLines * LineHeight + ForgottenLineHeight / 2.f);
+		Spot.ForgottenLineCenter = Top - Spot.Up * (Count * LineHeight + ForgottenLineHeight / 2.f);
 		Result.Spots.Add(Spot);
 	}
 	return Result;
