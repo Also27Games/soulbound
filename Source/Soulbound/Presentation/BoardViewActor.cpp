@@ -169,41 +169,6 @@ namespace
 	{
 		return FLinearColor(Color.R * Factor, Color.G * Factor, Color.B * Factor);
 	}
-
-	/** Efecto de un Nodo de Poder para su etiqueta (S-009); vacío si no es un Nodo. */
-	const TCHAR* NodeEffectName(EPowerNodeEffect Effect)
-	{
-		switch (Effect)
-		{
-		case EPowerNodeEffect::Duel: return TEXT("DUELO");
-		case EPowerNodeEffect::Oracle: return TEXT("ORÁCULO");
-		case EPowerNodeEffect::Planar: return TEXT("PLANAR");
-		case EPowerNodeEffect::None:
-		default: return TEXT("");
-		}
-	}
-
-	/**
-	 * Etiqueta de una casilla: identificador y Dominio ("D3·41"), con el prefijo del tipo; el Altar, "ALTAR". Un Nodo de
-	 * Poder enseña su efecto debajo desde el Despertar (R-TAB-9, S-009); antes, no.
-	 */
-	FString TileLabelText(const FBoardState& Board, const FTileState& Tile)
-	{
-		const FString Plain = Soulbound::Presentation::TileShortName(Board, Tile.TileId);
-		switch (Tile.Type)
-		{
-		case ETileType::Niche: return TEXT("N ") + Plain;
-		case ETileType::PowerSource:
-			// La reserva no va en la etiqueta: tiene su propio contador azul sobre la Fuente (S-008).
-			return TEXT("F ") + Plain;
-		case ETileType::PowerNode:
-			return Board.AreNodesRevealed() ? FString::Printf(TEXT("X %s\n%s"), *Plain, NodeEffectName(Tile.PowerNodeEffect)) : TEXT("X ") + Plain;
-		case ETileType::Altar:
-		case ETileType::Normal:
-		default: return Plain;
-		}
-	}
-
 }
 
 ABoardViewActor::ABoardViewActor()
@@ -681,7 +646,7 @@ void ABoardViewActor::BuildTiles()
 		// de la pantalla (yaw 180). Con pitch -90 se veía por detrás, como en un espejo.
 		Label->SetWorldRotation(FRotator(90.f, 180.f, 0.f));
 		Label->SetWorldLocation(OnTop + FVector(-Diameter * LabelOffsetFraction, 0.f, InlayHeight + TextClearance));
-		Label->SetText(FText::FromString(TileLabelText(Board, Tile)));
+		Label->SetText(FText::GetEmpty());
 		Labels[Tile.TileId] = Label;
 
 		if (Tile.Type == ETileType::PowerSource)
@@ -721,7 +686,7 @@ void ABoardViewActor::BuildTiles()
 				return Text;
 			};
 			NicheNames[Tile.TileId] = AddText(NicheNameSize, FVector(Diameter * NicheNameOffsetFraction, 0.f, InlayHeight + TextClearance));
-			NicheNames[Tile.TileId]->SetText(FText::FromString(ElectName(Host->GetState(), Tile.DomainId)));
+			NicheNames[Tile.TileId]->SetText(FText::GetEmpty());
 			NicheNumbers[Tile.TileId] = AddText(NicheNumberSize, FVector(0.f, 0.f, InlayHeight + TextClearance));
 			NicheNumbers[Tile.TileId]->SetText(FText::GetEmpty());
 
@@ -1685,32 +1650,27 @@ void ABoardViewActor::Refresh()
 				Soulbound::Presentation::SetComponentColor(*NicheRingSegments[Index], BaseMaterial, RingColor);
 				NicheRingSegments[Index]->SetVisibility(bClaimed);
 			}
-			if (UTextRenderComponent* Number = NicheNumbers[Tile.TileId].Get())
-			{
-				Number->SetText(bClaimed ? FText::AsNumber(Domain->OwnerSeat) : FText::GetEmpty());
-			}
 		}
-		if (UTextRenderComponent* Reserve = SourceReserves.IsValidIndex(Tile.TileId) ? SourceReserves[Tile.TileId].Get() : nullptr)
+		// S-047 (R-VIS-33): qué texto lleva cada casilla lo dice TileTexts; con las etiquetas ocultas, solo los datos de juego (la reserva, el tipo
+		// del Nodo tras el Despertar y el número del dueño). Un texto vacío no se ve, así que ningún componente se oculta.
+		const Soulbound::Presentation::FTileTexts Texts = Soulbound::Presentation::TileTexts(State, Tile.TileId, TileLabels.bShown);
+		auto SetTileText = [&Tile](const TArray<TObjectPtr<UTextRenderComponent>>& Components, const FString& Text)
 		{
-			// Desde el Despertar: lo que queda sobre lo que tenía. Agotada: 0/n, y la cruz y la etiqueta se apagan.
-			Reserve->SetText(State.Board.Phase == EBoardPhase::Awakened
-				? FText::FromString(FString::Printf(TEXT("%d/%d"), Tile.RuneReserve, State.Board.Params.RuneReservePerSource))
-				: FText::GetEmpty());
-		}
+			if (UTextRenderComponent* Component = Components.IsValidIndex(Tile.TileId) ? Components[Tile.TileId].Get() : nullptr)
+			{
+				Component->SetText(FText::FromString(Text));
+			}
+		};
+		SetTileText(NicheNumbers, Texts.OwnerNumber);
+		SetTileText(NicheNames, Texts.ElectName);
+		SetTileText(SourceReserves, Texts.Reserve);
+		SetTileText(Labels, Texts.Label);
 		if (UTextRenderComponent* Label = Labels.IsValidIndex(Tile.TileId) ? Labels[Tile.TileId].Get() : nullptr)
 		{
-			const FString Text = TileLabelText(State.Board, Tile) + (Tile.bSealed ? TEXT("\nSELLO") : TEXT(""));
-			Label->SetText(FText::FromString(Text));
+			// Agotada, la etiqueta se apaga como la cruz. El rojo del Sello va con su "SELLO", que solo sale con las etiquetas a la vista (decisión del
+			// autor del 19/11/2026): sin él, el tipo de un Nodo sellado sigue blanco.
 			const bool bDepletedSource = Tile.Type == ETileType::PowerSource && State.Board.Phase == EBoardPhase::Awakened && Tile.RuneReserve <= 0;
-			Label->SetTextRenderColor(Tile.bSealed ? FColor::Red : bDepletedSource ? FColor(130, 130, 130) : FColor::White);
-		}
-		// S-019 (R-VIS-9): la tecla de las capturas oculta todas las etiquetas de la casilla.
-		for (const TArray<TObjectPtr<UTextRenderComponent>>* Texts : {&Labels, &NicheNames, &NicheNumbers, &SourceReserves})
-		{
-			if (UTextRenderComponent* Text = Texts->IsValidIndex(Tile.TileId) ? (*Texts)[Tile.TileId].Get() : nullptr)
-			{
-				Text->SetVisibility(!bOverlayHidden);
-			}
+			Label->SetTextRenderColor(Tile.bSealed && TileLabels.bShown ? FColor::Red : bDepletedSource ? FColor(130, 130, 130) : FColor::White);
 		}
 	}
 
@@ -2035,7 +1995,6 @@ void ABoardViewActor::RefreshTokens(const FMatchState& State)
 		}
 		// S-013 (R-TAB-24): en el Vacío la ficha sale del tablero; se oculta y reaparece en su hogar al salir.
 		Token->SetActorHiddenInGame(!View.TokensOnBoard.IsValidIndex(Seat) || !View.TokensOnBoard[Seat]);
-		Token->SetLabelVisible(!bOverlayHidden);
 		// S-029 (R-VIS-10): el disco de rol bajo la ficha (la propia ficha, sin carta) toma el gris del Eco o el color del Dominio del Elegido.
 		Token->SetRoleColor(Soulbound::Presentation::TokenColor(State.Seats[Seat].Role, State.Seats[Seat].DomainId, EchoTokenColor, DomainColors));
 		if (!TilePositions.IsValidIndex(TileId))
@@ -2130,7 +2089,8 @@ void ABoardViewActor::ToggleSeatedView()
 
 void ABoardViewActor::ToggleOverlay()
 {
-	bOverlayHidden = !bOverlayHidden;
+	// S-047 (R-VIS-33): solo las etiquetas de casilla; los números de las fichas se ven siempre.
+	TileLabels.Toggle();
 	Refresh();
 }
 

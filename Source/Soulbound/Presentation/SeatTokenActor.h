@@ -101,9 +101,6 @@ public:
 	 */
 	void SetRoleDisc(float Diameter, float DiscLift, float Brightness);
 
-	/** Enseña u oculta el número del asiento (la tecla de las capturas, S-019). */
-	void SetLabelVisible(bool bVisible);
-
 	/**
 	 * Lleva la ficha a Location deslizándola en línea recta desde donde esté, en SlideSeconds. La primera vez, o con
 	 * SlideSeconds a 0, la coloca sin deslizar. Location es la base de la ficha, sobre la losa. Es solo presentación: el

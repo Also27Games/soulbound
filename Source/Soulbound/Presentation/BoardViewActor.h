@@ -5,6 +5,7 @@
 #include "InputCoreTypes.h"
 #include "BoardKit.h"
 #include "BoardLayout.h"
+#include "BoardViewState.h"
 #include "ChronicleLines.h"
 #include "DecisionText.h"
 #include "ElectCard.h"
@@ -650,7 +651,7 @@ public:
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
 	int32 ReturnToMenuHintFontSize = 18;
 
-	/** Tecla que oculta y muestra etiquetas para las capturas. Valor inicial L. */
+	/** Tecla que enseña y oculta las etiquetas de casilla ("D4·58"), ocultas al empezar (S-047, R-VIS-33): para depurar y seguir un acta. Valor inicial L. */
 	UPROPERTY(Config, EditAnywhere, Category = "Vista|Camara")
 	FKey OverlayToggleKey = EKeys::L;
 
@@ -1243,7 +1244,8 @@ private:
 	FBoardKitFixedPieces KitFixed;
 	FBoardKitStructures KitStructures;
 	bool bSeatedView = false;
-	bool bOverlayHidden = false;
+	/** S-047 (R-VIS-33): las etiquetas de casilla, ocultas al empezar; OverlayToggleKey las enseña y las oculta. Las fichas no dependen de ella. */
+	Soulbound::Presentation::FTileLabelToggle TileLabels;
 	/**
 	 * Si se ven el panel de estado (tecla T) y el de depuración (tecla D) (S-045, R-HUD-15): los dos empiezan ocultos. Sustituye a bDebugTextHidden, que
 	 * empezaba visible, y a bDebugPanelShown.

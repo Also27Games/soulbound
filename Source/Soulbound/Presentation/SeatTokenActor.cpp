@@ -293,11 +293,6 @@ void ASeatTokenActor::SetElectShape(bool bInElect)
 	}
 }
 
-void ASeatTokenActor::SetLabelVisible(bool bVisible)
-{
-	Label->SetVisibility(bVisible);
-}
-
 void ASeatTokenActor::SetActive(bool bInActive)
 {
 	bActive = bInActive;

@@ -265,9 +265,9 @@ bool FViewKeysTextTest::RunTest(const FString& Parameters)
 	using Soulbound::Presentation::ViewKeysText;
 	const FString Seated = ViewKeysText(true, TEXT("C"), TEXT("L"), TEXT("G"), TEXT("Enter"), TEXT("T"), TEXT("D"));
 	TestEqual(TEXT("Sentada"), Seated,
-		FString(TEXT("vista sentada (C: cenital) | L etiquetas | G Grimorio | Intro volver al menú al acabar | depuración: T panel de estado, D panel de depuración")));
+		FString(TEXT("vista sentada (C: cenital) | L números de casilla | G Grimorio | Intro volver al menú al acabar | depuración: T panel de estado, D panel de depuración")));
 	TestEqual(TEXT("Cenital"), ViewKeysText(false, TEXT("C"), TEXT("L"), TEXT("G"), TEXT("Enter"), TEXT("T"), TEXT("D")),
-		FString(TEXT("vista cenital (C: sentada) | L etiquetas | G Grimorio | Intro volver al menú al acabar | depuración: T panel de estado, D panel de depuración")));
+		FString(TEXT("vista cenital (C: sentada) | L números de casilla | G Grimorio | Intro volver al menú al acabar | depuración: T panel de estado, D panel de depuración")));
 	// Ninguna palabra suelta es H ni P, y no queda nada de la columna ni de ocultar paneles.
 	TArray<FString> Words;
 	Seated.Replace(TEXT("|"), TEXT(" ")).Replace(TEXT(","), TEXT(" ")).Replace(TEXT(":"), TEXT(" ")).Replace(TEXT("("), TEXT(" ")).Replace(TEXT(")"), TEXT(" "))
@@ -503,6 +503,120 @@ bool FTokenArrivalTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("El motor dos por delante (dice 7, va a la 6): deslizarse"), Name(TokenArrival(7, INDEX_NONE, {6, 7, 8})), Name(ETokenArrival::Slide));
 	TestEqual(TEXT("Quieta en la 5 y el estado dice 3 (hogar, Expulsión): deslizarse"), Name(TokenArrival(3, 5, {})), Name(ETokenArrival::Slide));
 	TestEqual(TEXT("En la 5 camino de la 6 y el estado dice 6: caminar"), Name(TokenArrival(6, 5, {6, 7})), Name(ETokenArrival::Walk));
+	return true;
+}
+
+namespace
+{
+	/**
+	 * Partida de S-047 para los textos de casilla: la de MakeState con el Elegido del Dominio 0 con nombre y una Fuente con reserva. Las casillas de
+	 * tablero_35.json que se miran: 0 Altar, 1 normal (D0), 2 Nicho (D0), 4 Fuente (D0) y 21 Nodo (D3, Planar por MakeState).
+	 */
+	bool MakeLabelState(FAutomationTestBase& Test, FMatchState& OutState)
+	{
+		if (!MakeState(Test, OutState))
+		{
+			return false;
+		}
+		OutState.Elects.Elects.SetNum(OutState.Board.Domains.Num());
+		OutState.Elects.Elects[0].Name = TEXT("Shuten-dōji");
+		return true;
+	}
+
+	/** Despierta el tablero: Nodos revelados y la Fuente 4 con su reserva entera. */
+	void Awaken(FMatchState& State)
+	{
+		State.Board.Phase = EBoardPhase::Awakened;
+		State.Board.Tiles[4].RuneReserve = State.Board.Params.RuneReservePerSource;
+	}
+
+	/** El Nicho 2 (Dominio 0) reclamado por el asiento 2. */
+	void ClaimNiche(FMatchState& State)
+	{
+		State.Board.Domains[0].NicheState = ENicheState::Claimed;
+		State.Board.Domains[0].OwnerSeat = 2;
+	}
+}
+
+// CA-VIS-34 (R-VIS-33): con las etiquetas a la vista, lo mismo que hoy. Las cadenas esperadas son literales, copiadas del comportamiento de
+// TileLabelText y de ABoardViewActor::Refresh antes de moverlos (S-047), no calculadas con la función nueva.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTileTextsShownTest, "Soulbound.Game.Presentation.Vista.EtiquetasALaVistaComoAntes", ViewStateTestFlags)
+bool FTileTextsShownTest::RunTest(const FString& Parameters)
+{
+	using Soulbound::Presentation::TileTexts;
+	FMatchState State;
+	if (!MakeLabelState(*this, State))
+	{
+		return false;
+	}
+	TestEqual(TEXT("Altar"), TileTexts(State, 0, true).Label, FString(TEXT("ALTAR")));
+	TestEqual(TEXT("Normal"), TileTexts(State, 1, true).Label, FString(TEXT("D0·1")));
+	TestEqual(TEXT("Nicho"), TileTexts(State, 2, true).Label, FString(TEXT("N D0·2")));
+	TestEqual(TEXT("Nicho: el nombre de su Elegido"), TileTexts(State, 2, true).ElectName, FString(TEXT("Shuten-dōji")));
+	TestEqual(TEXT("Nicho libre: sin número"), TileTexts(State, 2, true).OwnerNumber, FString());
+	TestEqual(TEXT("Fuente"), TileTexts(State, 4, true).Label, FString(TEXT("F D0·4")));
+	TestEqual(TEXT("Fuente antes del Despertar: sin reserva"), TileTexts(State, 4, true).Reserve, FString());
+	TestEqual(TEXT("Nodo antes del Despertar: sin tipo"), TileTexts(State, 21, true).Label, FString(TEXT("X D3·21")));
+	State.Board.Tiles[1].bSealed = true;
+	TestEqual(TEXT("Normal sellada"), TileTexts(State, 1, true).Label, FString(TEXT("D0·1\nSELLO")));
+
+	Awaken(State);
+	ClaimNiche(State);
+	TestEqual(TEXT("Nodo tras el Despertar: con su tipo"), TileTexts(State, 21, true).Label, FString(TEXT("X D3·21\nPLANAR")));
+	TestEqual(TEXT("Fuente tras el Despertar: su reserva"), TileTexts(State, 4, true).Reserve, FString(TEXT("4/4")));
+	TestEqual(TEXT("Nicho reclamado: el número del dueño"), TileTexts(State, 2, true).OwnerNumber, FString(TEXT("2")));
+	TestEqual(TEXT("Nicho reclamado: su etiqueta"), TileTexts(State, 2, true).Label, FString(TEXT("N D0·2")));
+	TestEqual(TEXT("Casilla que no existe: nada"), TileTexts(State, 999, true).Label, FString());
+	return true;
+}
+
+// CA-VIS-34 (R-VIS-33): con las etiquetas ocultas, nada en una casilla normal ni en el Altar; solo la reserva en una Fuente; solo el tipo en un Nodo
+// tras el Despertar, y nada antes; solo el número del dueño en un Nicho reclamado. "SELLO" y el nombre del Elegido, ocultos (decisión del autor del 19/11/2026).
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTileTextsHiddenTest, "Soulbound.Game.Presentation.Vista.EtiquetasOcultasDejanLosDatosDeJuego", ViewStateTestFlags)
+bool FTileTextsHiddenTest::RunTest(const FString& Parameters)
+{
+	using Soulbound::Presentation::FTileTexts;
+	using Soulbound::Presentation::TileTexts;
+	FMatchState State;
+	if (!MakeLabelState(*this, State))
+	{
+		return false;
+	}
+	auto Expect = [this](const TCHAR* What, const FTileTexts& Texts, const TCHAR* Label, const TCHAR* Reserve, const TCHAR* Owner)
+	{
+		TestEqual(FString::Printf(TEXT("%s: etiqueta"), What), Texts.Label, FString(Label));
+		TestEqual(FString::Printf(TEXT("%s: reserva"), What), Texts.Reserve, FString(Reserve));
+		TestEqual(FString::Printf(TEXT("%s: dueño"), What), Texts.OwnerNumber, FString(Owner));
+		TestEqual(FString::Printf(TEXT("%s: Elegido"), What), Texts.ElectName, FString());
+	};
+	Expect(TEXT("Altar"), TileTexts(State, 0, false), TEXT(""), TEXT(""), TEXT(""));
+	Expect(TEXT("Normal"), TileTexts(State, 1, false), TEXT(""), TEXT(""), TEXT(""));
+	Expect(TEXT("Nicho libre"), TileTexts(State, 2, false), TEXT(""), TEXT(""), TEXT(""));
+	Expect(TEXT("Fuente antes del Despertar"), TileTexts(State, 4, false), TEXT(""), TEXT(""), TEXT(""));
+	Expect(TEXT("Nodo antes del Despertar"), TileTexts(State, 21, false), TEXT(""), TEXT(""), TEXT(""));
+	State.Board.Tiles[1].bSealed = true;
+	Expect(TEXT("Normal sellada"), TileTexts(State, 1, false), TEXT(""), TEXT(""), TEXT(""));
+
+	Awaken(State);
+	ClaimNiche(State);
+	State.Board.Tiles[21].bSealed = true;
+	Expect(TEXT("Fuente tras el Despertar"), TileTexts(State, 4, false), TEXT(""), TEXT("4/4"), TEXT(""));
+	Expect(TEXT("Nodo sellado tras el Despertar"), TileTexts(State, 21, false), TEXT("PLANAR"), TEXT(""), TEXT(""));
+	Expect(TEXT("Nicho reclamado"), TileTexts(State, 2, false), TEXT(""), TEXT(""), TEXT("2"));
+	Expect(TEXT("Altar tras el Despertar"), TileTexts(State, 0, false), TEXT(""), TEXT(""), TEXT(""));
+	return true;
+}
+
+// CA-VIS-35 (R-VIS-33): al empezar la partida las etiquetas están ocultas; la tecla las enseña y otra pulsación las oculta.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTileLabelToggleTest, "Soulbound.Game.Presentation.Vista.EtiquetasEmpiezanOcultas", ViewStateTestFlags)
+bool FTileLabelToggleTest::RunTest(const FString& Parameters)
+{
+	Soulbound::Presentation::FTileLabelToggle Labels;
+	TestFalse(TEXT("Al empezar, ocultas"), Labels.bShown);
+	Labels.Toggle();
+	TestTrue(TEXT("Una pulsación las enseña"), Labels.bShown);
+	Labels.Toggle();
+	TestFalse(TEXT("Otra las oculta"), Labels.bShown);
 	return true;
 }
 
