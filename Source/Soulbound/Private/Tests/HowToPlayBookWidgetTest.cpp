@@ -1,7 +1,7 @@
 // Tests del libro de "Cómo se juega" como pieza propia y en el menú (S-049, R-HUD-21 y R-HUD-22): lo que enseña una vista, los ajustes que lee el menú
-// de la vista, las páginas del widget del menú, su pie y el archivo roto. Sin mundo, sin editor y sin FSlateApplication: el widget de UMG se crea en el
-// paquete temporal y su pieza de Slate se recorre sin pintarla. Filtros: "Soulbound.Game.Presentation.Grimorio" y
-// "Soulbound.Game.Presentation.ComoSeJuega".
+// de la vista, las páginas del widget del menú, su pie y el archivo roto; desde la ronda de correcciones, las carpetas que se cocinan y la pausa. Sin
+// mundo, sin editor y sin FSlateApplication: el widget de UMG se crea en el paquete temporal y su pieza de Slate se recorre sin pintarla. Filtros:
+// "Soulbound.Game.Presentation.Grimorio" y "Soulbound.Game.Presentation.ComoSeJuega".
 
 #include "../../Presentation/BoardViewActor.h"
 #include "../../Presentation/GrimoireBook.h"
@@ -12,6 +12,7 @@
 #include "../../Presentation/StatusText.h"
 #include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "UObject/Package.h"
@@ -299,6 +300,108 @@ bool FHowToPlayMenuFontTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("El mínimo"), ScaledPanelSlateFontSize(400.f, 1.f, 13, 9), 9);
 	TestEqual(TEXT("Una escala no válida cuenta como 1"), ScaledPanelSlateFontSize(1080.f, 0.f, 13, 9), 13);
 	TestEqual(TEXT("Nunca menos de 1"), ScaledPanelSlateFontSize(1080.f, 100.f, 13, 0), 1);
+	return true;
+}
+
+namespace
+{
+	/** Las carpetas de DirectoriesToAlwaysCook de la Config del juego (DefaultGame.ini), sin la barra final. */
+	TArray<FString> HbAlwaysCookedDirectories()
+	{
+		TArray<FString> Entries;
+		GConfig->GetArray(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("DirectoriesToAlwaysCook"), Entries, GGameIni);
+		TArray<FString> Directories;
+		for (const FString& Entry : Entries)
+		{
+			FString Path;
+			if (FParse::Value(*Entry, TEXT("Path="), Path))
+			{
+				Path.RemoveFromEnd(TEXT("/"));
+				Directories.Add(Path);
+			}
+		}
+		return Directories;
+	}
+
+	/** Si una ruta de paquete o de carpeta ("/Game/Art/Ayuda/" o "/Game/Art/Ayuda/T_Ayuda_Sello") cae dentro de alguna de esas carpetas. */
+	bool HbIsCooked(FString Path, const TArray<FString>& Directories)
+	{
+		Path.RemoveFromEnd(TEXT("/"));
+		return Directories.ContainsByPredicate([&Path](const FString& Directory) { return Path == Directory || Path.StartsWith(Directory + TEXT("/")); });
+	}
+}
+
+// CA-HUD-75 (R-HUD-22, ronda de correcciones del 19/11/2026): la vista y el libro del menú cargan por ruta, en tiempo de ejecución, lo que dicen sus
+// propiedades de Config; el cocinador no sigue esas rutas. Cada una con valor cae dentro de una carpeta de DirectoriesToAlwaysCook. Se recorren por
+// reflexión todas las propiedades de Config de la vista que son rutas de asset (FSoftObjectPath, TSoftObjectPtr y las cadenas que empiezan por
+// "/Game/", como la carpeta de las láminas), para que una ruta nueva no se escape.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHowToPlayCookedDirectoriesTest, "Soulbound.Game.Presentation.ComoSeJuega.CarpetasQueSeCocinan", HbTestFlags)
+bool FHowToPlayCookedDirectoriesTest::RunTest(const FString& Parameters)
+{
+	const TArray<FString> Directories = HbAlwaysCookedDirectories();
+	if (!TestTrue(TEXT("Hay carpetas en DirectoriesToAlwaysCook"), Directories.Num() > 0))
+	{
+		return false;
+	}
+	const ABoardViewActor* View = GetDefault<ABoardViewActor>();
+	TSet<FString> Checked;
+	for (TFieldIterator<FProperty> It(ABoardViewActor::StaticClass()); It; ++It)
+	{
+		const FProperty* Property = *It;
+		if (!Property->HasAnyPropertyFlags(CPF_Config))
+		{
+			continue;
+		}
+		FString Path;
+		if (const FStructProperty* Struct = CastField<FStructProperty>(Property); Struct && Struct->Struct == TBaseStructure<FSoftObjectPath>::Get())
+		{
+			Path = Struct->ContainerPtrToValuePtr<FSoftObjectPath>(View)->GetLongPackageName();
+		}
+		else if (const FSoftObjectProperty* Soft = CastField<FSoftObjectProperty>(Property))
+		{
+			Path = Soft->GetPropertyValue_InContainer(View).ToSoftObjectPath().GetLongPackageName();
+		}
+		else if (const FStrProperty* String = CastField<FStrProperty>(Property))
+		{
+			const FString& Value = String->GetPropertyValue_InContainer(View);
+			Path = Value.StartsWith(TEXT("/Game/")) ? Value : FString();
+		}
+		if (Path.IsEmpty())
+		{
+			continue;
+		}
+		Checked.Add(Property->GetName());
+		TestTrue(FString::Printf(TEXT("%s (%s) está en una carpeta de DirectoriesToAlwaysCook"), *Property->GetName(), *Path), HbIsCooked(Path, Directories));
+	}
+	// Que el recorrido no pase en vacío: las rutas de esta ronda están entre las que mira.
+	for (const TCHAR* Name : {TEXT("GrimoireFont"), TEXT("GrimoireBackgroundTexture"), TEXT("HowToPlayWatermarkTexture"), TEXT("HowToPlayImageFolder"), TEXT("DiceFacesTexture")})
+	{
+		TestTrue(FString::Printf(TEXT("Se mira %s"), Name), Checked.Contains(Name));
+	}
+
+	// Y las del libro del menú, que salen de esa misma Config.
+	const Soulbound::Presentation::FHowToPlayBookSettings Settings = UHowToPlayLibrary::ConfiguredBookSettings();
+	TestTrue(TEXT("Menú: la fuente"), HbIsCooked(Settings.Font.GetLongPackageName(), Directories));
+	TestTrue(TEXT("Menú: la imagen del libro"), HbIsCooked(Settings.BookTexture.GetLongPackageName(), Directories));
+	TestTrue(TEXT("Menú: la marca de agua"), HbIsCooked(Settings.WatermarkTexture.GetLongPackageName(), Directories));
+	TestTrue(TEXT("Menú: la carpeta de las láminas"), HbIsCooked(Settings.ImageFolder, Directories));
+	return true;
+}
+
+// CA-HUD-76 (R-HUD-11, precisión del autor del 19/11/2026): al entrar en pausa con el Grimorio abierto, se cierra; al reanudar no se reabre.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FGrimoirePauseTest, "Soulbound.Game.Presentation.Grimorio.LaPausaLoCierra", HbTestFlags)
+bool FGrimoirePauseTest::RunTest(const FString& Parameters)
+{
+	Soulbound::Presentation::FGrimoirePauseWatch Watch;
+	TestFalse(TEXT("Sin pausa, nada"), Watch.Observe(false));
+	TestFalse(TEXT("Sigue sin pausa, nada"), Watch.Observe(false));
+	TestTrue(TEXT("Al entrar en pausa, se cierra"), Watch.Observe(true));
+	TestFalse(TEXT("Mientras sigue la pausa, no lo vuelve a decir"), Watch.Observe(true));
+	TestFalse(TEXT("Al reanudar, nada (no se reabre)"), Watch.Observe(false));
+	TestTrue(TEXT("En la pausa siguiente, se cierra otra vez"), Watch.Observe(true));
+
+	Soulbound::Presentation::FGrimoirePauseWatch Fresh;
+	TestTrue(TEXT("Si la primera vez que se mira ya está en pausa, también"), Fresh.Observe(true));
 	return true;
 }
 

@@ -495,6 +495,12 @@ namespace Soulbound::Presentation
 		return bNewDecision || bNewRing;
 	}
 
+	bool FGrimoirePauseWatch::Observe(bool bPaused)
+	{
+		// Pendiente (tests en rojo de la ronda de correcciones de S-049).
+		return false;
+	}
+
 	bool CanOpenGrimoire(bool bRingOpen)
 	{
 		return !bRingOpen;
