@@ -423,9 +423,11 @@ public:
 
 	/**
 	 * Tamaño de la letra de los paneles (cajas, estado, depuración y Grimorio) a 1080 píxeles de alto; con otra altura, en
-	 * proporción y nunca menos de PanelMinFontSize (S-027, R-HUD-3). Valor inicial 13.
+	 * proporción y nunca menos de PanelMinFontSize (S-027, R-HUD-3). Valor inicial 13. Desde S-049 (R-HUD-22, decisión del autor del 18/11/2026) es
+	 * de Config (Config/DefaultGame.ini), para que el libro del menú tenga la letra del Grimorio leída del mismo sitio: un valor cambiado en la
+	 * instancia del nivel no lo vería el menú.
 	 */
-	UPROPERTY(EditAnywhere, Category = "Vista|Paneles")
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Paneles")
 	int32 PanelFontSize = 13;
 
 	/** Tamaño mínimo de la letra de los paneles, en píxeles de pantalla (S-027, R-HUD-3). Valor inicial 9 (Config/DefaultGame.ini). */
@@ -984,8 +986,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
 	float SourceDepletedDim = 0.15f;
 
-	/** Línea de crónica de las intervenciones del Warden. */
-	UPROPERTY(EditAnywhere, Category = "Vista|Colores")
+	/**
+	 * Línea de crónica de las intervenciones del Warden; desde S-048, también las frases del Warden de "Cómo se juega". Desde S-049 (R-HUD-22,
+	 * decisión del autor del 18/11/2026) es de Config, para que el libro del menú la lea del mismo sitio que la partida: un valor cambiado en la
+	 * instancia del nivel no lo vería el menú. Valor inicial naranja (R 1, G 0,45, B 0,05), en Config/DefaultGame.ini.
+	 */
+	UPROPERTY(Config, EditAnywhere, Category = "Vista|Colores")
 	FLinearColor WardenLineColor = FLinearColor(1.f, 0.45f, 0.05f);
 
 	/** Línea de crónica de la carrera por el vínculo. */
@@ -1299,7 +1305,7 @@ private:
 	ESeatGoal GoalPanelGoal = ESeatGoal::None;
 	TSharedPtr<SWidget> StatusOverlay;
 
-	/** El Grimorio (S-027): una capa centrada, por encima de las demás. */
+	/** El Grimorio (S-027): una capa centrada, por encima de las demás de la vista; desde S-049, por debajo de los menús de la plantilla (EViewLayer). */
 	TSharedPtr<SGrimoirePanel> GrimoirePanel;
 	TSharedPtr<SWidget> GrimoireOverlay;
 	/** Los textos de grimorio.json, leídos al construir los paneles. */

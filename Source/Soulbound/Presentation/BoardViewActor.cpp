@@ -19,6 +19,7 @@
 #include "StatusPanel.h"
 #include "StatusText.h"
 #include "TokenLook.h"
+#include "ViewLayers.h"
 #include "Match/BondRaceRules.h"
 #include "Match/RuneRules.h"
 #include "Match/VictoryRules.h"
@@ -1012,7 +1013,7 @@ void ABoardViewActor::BuildOverlay()
 				.Visibility_Lambda([this]() { return HudToggles.bDebugPanelShown ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
 			]
 		];
-	Viewport->AddViewportWidgetContent(StatusOverlay.ToSharedRef(), 10);
+	Viewport->AddViewportWidgetContent(StatusOverlay.ToSharedRef(), Soulbound::Presentation::ViewLayerZOrder(Soulbound::Presentation::EViewLayer::Status));
 
 	// S-027 (R-HUD-4): el Grimorio, centrado y por encima de todo. No es pausa; los clics del tablero los ignora el controlador mientras está
 	// abierto. Los textos de afinidades y poderes salen de grimorio.json; lo que falte se enseña con el nombre del enumerado y se dice aquí.
@@ -1052,13 +1053,9 @@ void ABoardViewActor::BuildOverlay()
 		GrimoireBackground = Cast<UTexture2D>(GrimoireBackgroundTexture.TryLoad());
 		if (GrimoireBackground)
 		{
-			FSlateBrush Brush;
-			Brush.SetResourceObject(GrimoireBackground);
-			// Correcciones tras probar la maquetación (18/11/2026): el tamaño de su fuente, no el de una textura que aún se compila.
-			Brush.ImageSize = Soulbound::Presentation::GrimoireTextureSize(GrimoireBackground);
-			Brush.DrawAs = ESlateBrushDrawType::Box;
-			Brush.Margin = GrimoireBackgroundMargin;
-			BookBrush = Brush;
+			// Correcciones tras probar la maquetación (18/11/2026): el tamaño de su fuente, no el de una textura que aún se compila. Desde S-049, el
+			// pincel lo hace GrimoireTextureBrush, la misma del libro del menú.
+			BookBrush = Soulbound::Presentation::GrimoireTextureBrush(GrimoireBackground, ESlateBrushDrawType::Box, GrimoireBackgroundMargin);
 		}
 		else
 		{
@@ -1078,11 +1075,7 @@ void ABoardViewActor::BuildOverlay()
 		HowToPlayWatermark = Cast<UTexture2D>(HowToPlayWatermarkTexture.TryLoad());
 		if (HowToPlayWatermark)
 		{
-			FSlateBrush Brush;
-			Brush.SetResourceObject(HowToPlayWatermark);
-			Brush.ImageSize = Soulbound::Presentation::GrimoireTextureSize(HowToPlayWatermark);
-			Brush.DrawAs = ESlateBrushDrawType::Image;
-			WatermarkBrush = Brush;
+			WatermarkBrush = Soulbound::Presentation::GrimoireTextureBrush(HowToPlayWatermark, ESlateBrushDrawType::Image);
 		}
 		else
 		{
@@ -1154,7 +1147,7 @@ void ABoardViewActor::BuildOverlay()
 			.OnPreviousPage_Lambda([this]() { PreviousHowToPlayPage(); })
 			.OnNextPage_Lambda([this]() { NextHowToPlayPage(); })
 		];
-	Viewport->AddViewportWidgetContent(GrimoireOverlay.ToSharedRef(), 14);
+	Viewport->AddViewportWidgetContent(GrimoireOverlay.ToSharedRef(), Soulbound::Presentation::ViewLayerZOrder(Soulbound::Presentation::EViewLayer::Grimoire));
 	GrimoirePanel->SetHowToPlay(HowToPlay, GrimoireTab.Page);
 
 	// S-029 (R-VIS-13): la carta del Elegido. Como la capa de la frase (R-DEC-13) y la del anillo (R-VIS-20), la capa ocupa el hueco libre (HAlign_Fill,
@@ -1183,7 +1176,7 @@ void ABoardViewActor::BuildOverlay()
 				.OnDismissed(FSimpleDelegate::CreateUObject(this, &ABoardViewActor::DismissElectCard))
 			]
 		];
-	Viewport->AddViewportWidgetContent(ElectCardOverlay.ToSharedRef(), 13);
+	Viewport->AddViewportWidgetContent(ElectCardOverlay.ToSharedRef(), Soulbound::Presentation::ViewLayerZOrder(Soulbound::Presentation::EViewLayer::ElectCard));
 
 	// S-028 (R-DEC-4): el ancho máximo del panel de decisión, en unidades de Slate; dentro, sus botones van en fila si caben.
 	static constexpr float DecisionPanelMaxWidth = 900.f;
@@ -1322,9 +1315,9 @@ void ABoardViewActor::BuildOverlay()
 			]
 		]
 	];
-	Viewport->AddViewportWidgetContent(WardenLineOverlay.ToSharedRef(), 11);
+	Viewport->AddViewportWidgetContent(WardenLineOverlay.ToSharedRef(), Soulbound::Presentation::ViewLayerZOrder(Soulbound::Presentation::EViewLayer::WardenLine));
 
-	// S-041 (R-VOZ-8): la capa oscura del corte. Llena el viewport sobre el tablero y por debajo de todas las demás capas (la de los paneles va en el 10):
+	// S-041 (R-VOZ-8): la capa oscura del corte. Llena el viewport sobre el tablero y por debajo de todas las demás capas (EViewLayer::Dim):
 	// negra con la opacidad de CutDimOpacityNow: desde la corrección del autor del 16/11/2026, varios pulsos seguidos que aparecen de golpe y se
 	// desvanecen. Sin posproceso (restricción de rendimiento) y sin clics.
 	// S-043 (R-VIS-31): la misma capa lleva la penumbra de la Noche de los Ecos; BoardDimColorNow da el más oscuro de los dos con su color.
@@ -1332,7 +1325,7 @@ void ABoardViewActor::BuildOverlay()
 		.Image(FCoreStyle::Get().GetBrush("WhiteBrush"))
 		.ColorAndOpacity_Lambda([this]() { return FSlateColor(BoardDimColorNow()); })
 		.Visibility_Lambda([this]() { return BoardDimColorNow().A > 0.f ? EVisibility::HitTestInvisible : EVisibility::Collapsed; });
-	Viewport->AddViewportWidgetContent(CutDimOverlay.ToSharedRef(), 9);
+	Viewport->AddViewportWidgetContent(CutDimOverlay.ToSharedRef(), Soulbound::Presentation::ViewLayerZOrder(Soulbound::Presentation::EViewLayer::Dim));
 
 	// S-039 (R-DEC-16; corrección del autor del 15/11/2026 tras las pruebas en PIE): el aviso de casilla inalcanzable sale junto al punto del clic, no en
 	// el panel de decisión: los ojos están en la casilla pulsada. Una capa que llena el viewport, sin clics (la casilla de debajo sigue respondiendo), con
@@ -1371,7 +1364,7 @@ void ABoardViewActor::BuildOverlay()
 					]
 				]
 			];
-		Viewport->AddViewportWidgetContent(NoticeOverlay.ToSharedRef(), 13);
+		Viewport->AddViewportWidgetContent(NoticeOverlay.ToSharedRef(), Soulbound::Presentation::ViewLayerZOrder(Soulbound::Presentation::EViewLayer::Notice));
 	}
 
 	// S-022 (decisión del autor del 29/10/2026): con la partida terminada, un botón grande para volver al menú, con el ratón (el controlador
@@ -1449,7 +1442,7 @@ void ABoardViewActor::BuildOverlay()
 				]
 			]
 		];
-	Viewport->AddViewportWidgetContent(ReturnToMenuOverlay.ToSharedRef(), 12);
+	Viewport->AddViewportWidgetContent(ReturnToMenuOverlay.ToSharedRef(), Soulbound::Presentation::ViewLayerZOrder(Soulbound::Presentation::EViewLayer::ReturnToMenu));
 
 	// S-026: el panel del anillo, centrado en el hueco del tablero como el botón del final. No recibe clics: la entrada va por RingInput (desde S-042,
 	// salvo el botón "Empezar" mientras la prueba espera).
@@ -1569,7 +1562,7 @@ void ABoardViewActor::BuildOverlay()
 				]
 			]
 		];
-	Viewport->AddViewportWidgetContent(RingOverlay.ToSharedRef(), 13);
+	Viewport->AddViewportWidgetContent(RingOverlay.ToSharedRef(), Soulbound::Presentation::ViewLayerZOrder(Soulbound::Presentation::EViewLayer::Ring));
 }
 
 void ABoardViewActor::Refresh()
@@ -2280,7 +2273,8 @@ void ABoardViewActor::UpdatePanelScale(const FVector2D& ViewportSize)
 	const float Dpi = Settings ? Settings->GetDPIScaleBasedOnSize(Size) : 1.f;
 	PanelDpiScale = Dpi > KINDA_SMALL_NUMBER ? Dpi : 1.f;
 	const int32 ScreenFont = Soulbound::Presentation::ScaledPanelFontSize(ViewportSize.Y, PanelFontSize, PanelMinFontSize);
-	const int32 SlateFont = FMath::Max(1, FMath::RoundToInt(ScreenFont / PanelDpiScale));
+	// S-049 (R-HUD-22): la misma cuenta que el libro del menú, en una función compartida; da lo mismo que antes.
+	const int32 SlateFont = Soulbound::Presentation::ScaledPanelSlateFontSize(ViewportSize.Y, PanelDpiScale, PanelFontSize, PanelMinFontSize);
 	// S-045 (R-HUD-16): sin columna, no hay ancho de columna que calcular.
 	const bool bChanged = SlateFont != PanelSlateFontSize || !bPanelScaleLogged;
 	PanelSlateFontSize = SlateFont;
@@ -2414,13 +2408,9 @@ void ABoardViewActor::LoadHowToPlayImages()
 				continue;
 			}
 			HowToPlayTextures.Add(Texture);
-			FSlateBrush Brush;
-			Brush.SetResourceObject(Texture);
 			// Correcciones tras probar la maquetación (18/11/2026): en el editor, una lámina recién cargada puede estar compilándose y dar el tamaño
-			// cuadrado de la textura de relleno; sus proporciones salen de su fuente (GrimoireTextureSize).
-			Brush.ImageSize = Soulbound::Presentation::GrimoireTextureSize(Texture);
-			Brush.DrawAs = ESlateBrushDrawType::Image;
-			HowToPlayBrushes.Add(Block.ImageName, Brush);
+			// cuadrado de la textura de relleno; sus proporciones salen de su fuente (GrimoireTextureSize, dentro de GrimoireTextureBrush desde S-049).
+			HowToPlayBrushes.Add(Block.ImageName, Soulbound::Presentation::GrimoireTextureBrush(Texture, ESlateBrushDrawType::Image));
 		}
 	}
 }

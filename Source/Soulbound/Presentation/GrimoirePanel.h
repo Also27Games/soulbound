@@ -4,14 +4,15 @@
 #include "ChronicleLines.h"
 #include "GrimoireBook.h"
 #include "GrimoireFont.h"
+// S-049: GrimoireOnPress y las demás piezas que comparte con el libro de "Cómo se juega".
+#include "GrimoireWidgets.h"
 #include "StatusText.h"
 #include "Styling/SlateBrush.h"
 #include "Widgets/SCompoundWidget.h"
 
-class SBox;
 class SChroniclePanel;
+class SHowToPlayBookPanel;
 class SLegendPanel;
-class STextBlock;
 class SVerticalBox;
 
 namespace Soulbound::Presentation
@@ -35,15 +36,6 @@ namespace Soulbound::Presentation
 	 */
 	TSharedRef<SWidget> MakeGrimoireCard(const FGrimoireRow& Row, const TAttribute<int32>& FontSize, const TArray<FLinearColor>& DomainColors, const TAttribute<float>& TextWidth,
 		const FGrimoireFont& Font = FGrimoireFont(), bool bBackground = true, const FString& InsolenceLine = FString(), bool bPlayerSheet = false);
-
-	/**
-	 * Lo que hace un widget del Grimorio al pulsarlo (S-048, retoques del autor del 18/11/2026, R-HUD-18 y R-HUD-10, nombre propuesto): la misma
-	 * acción con la pulsación y con el doble clic, y se queda los dos. Slate entrega el segundo de dos clics rápidos solo como doble clic; atendiendo
-	 * solo la pulsación, se perdía uno de cada dos. Lo usan los botones de página, las pestañas y el fondo del panel (con una acción vacía).
-	 * @param Widget El widget; sustituye lo que tuviera en su pulsación y en su doble clic.
-	 * @param OnPress La acción; vacía, nada (solo se queda los clics).
-	 */
-	void GrimoireOnPress(const TSharedRef<SWidget>& Widget, TFunction<void()> OnPress);
 }
 
 /**
@@ -56,6 +48,8 @@ namespace Soulbound::Presentation
  * Desde S-048: "Cómo se juega" es un libro que se lee una página cada vez, con "Anterior", "N de M" y "Siguiente" (R-HUD-18); y, con la imagen del libro
  * abierto (BookBrush), el Grimorio se pinta sobre ella, con el contenido dentro de sus páginas y repartido en dos columnas, una por página, de modo
  * que nada cruza el lomo (R-HUD-20, GrimoireBookLayout). Sin ella, se ve como antes, de una columna.
+ * Desde S-049 (R-HUD-21): la pestaña "Cómo se juega" la pinta una pieza propia, SHowToPlayBookPanel, la misma que el libro del menú. Las hojas van en un
+ * solo cambiador, una ranura por pestaña, y cada pestaña reparte las suyas en las dos columnas (antes, un cambiador por columna); lo que se ve no cambia.
  */
 class SGrimoirePanel : public SCompoundWidget
 {
@@ -119,9 +113,6 @@ public:
 
 	void Construct(const FArguments& InArgs);
 
-	/** S-048 (la negrita): si cambia el tamaño de letra, se rehacen los estilos del texto enriquecido y la página de "Cómo se juega". */
-	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
-
 	/** La hoja del jugador de "La mesa" (S-048, ronda de maquetación): se rehace solo si cambia respecto a lo último que pintó (R-VIS-21). */
 	void SetPlayer(const Soulbound::Presentation::FGrimoirePlayerSheet& Sheet);
 	/** La mesa de "La mesa", con las filas de GrimoireTableRows; solo se rehace si cambian. */
@@ -129,7 +120,8 @@ public:
 	/**
 	 * "Cómo se juega" (S-048, R-HUD-18): el libro (HowToPlayBook) y la página que se ve, desde 0. Si el libro no cargó, su mensaje. Se rehace solo si
 	 * cambia el libro o la página. Desde la segunda ampliación del autor del 17/11/2026, con el libro se ve la vista de esa página: ella en la hoja
-	 * izquierda y la siguiente en la derecha.
+	 * izquierda y la siguiente en la derecha. Desde S-049 (R-HUD-21), lo pinta la pieza del libro (SHowToPlayBookPanel), que también cambia de estilos
+	 * si cambia el tamaño de letra.
 	 */
 	void SetHowToPlay(const Soulbound::Presentation::FHowToPlayBook& Book, int32 Page);
 	/** "Crónica", con las líneas de ChronicleLines (la más reciente arriba). */
@@ -152,16 +144,7 @@ private:
 	 * la misma altura (ronda de maquetación de S-048, decisión del autor del 18/11/2026).
 	 */
 	TSharedRef<SWidget> MakeTabHeader(const TArray<Soulbound::Presentation::EGrimoireTab>& Tabs);
-	/** S-048 (R-HUD-18): rehace la página de "Cómo se juega" con lo último que se le dio. */
-	void RebuildHowToPlay();
-	/** S-048 (R-HUD-18): un botón de pasar página; desde los retoques del 18/11/2026, si no se ve (HowToPlayPageButtons), no se pinta pero conserva su hueco. */
-	TSharedRef<SWidget> MakePageButton(const FString& Label, bool bShown, const FSimpleDelegate& OnClicked);
-	/**
-	 * S-048 (segunda ampliación del autor del 17/11/2026, R-HUD-18): una hoja de "Cómo se juega": el título de la página, si lo tiene, y sus bloques
-	 * en su orden, con su propio desplazamiento. Sin página (la derecha de la última vista impar), vacía.
-	 */
-	TSharedRef<SWidget> MakeHowToPlaySheet(const FHowToPlayPage* Page, bool bRight);
-	/** S-048 (segunda ampliación, R-HUD-20): la marca de agua de una hoja, detrás de su contenido; solo en "Cómo se juega" y con el libro. */
+	/** S-048 (segunda ampliación, R-HUD-20): la marca de agua de una hoja, detrás de su contenido; solo en "Cómo se juega" y con el libro (GrimoireWatermark). */
 	TSharedRef<SWidget> MakeWatermark(bool bRight);
 
 	TAttribute<int32> FontSize;
@@ -185,30 +168,15 @@ private:
 	float PageInset = 12.f;
 	float SpineGap = 0.06f;
 
-	/** S-048 (R-HUD-18): "Cómo se juega". Sin el libro, todo en HowToPlayLeft. */
-	TSharedPtr<SBox> HowToPlayLeft;
-	TSharedPtr<SBox> HowToPlayRight;
-	TAttribute<float> ImageMaxHeight;
+	/**
+	 * "Cómo se juega" (S-048, R-HUD-18): desde S-049 (R-HUD-21), el libro es una pieza propia, la misma que la del menú; el panel le da su zona de
+	 * contenido (Layout) y le pasa el libro y la página.
+	 */
+	TSharedPtr<SHowToPlayBookPanel> HowToPlay;
+	/** S-048 (segunda ampliación, R-HUD-20): la marca de agua de cada hoja, que pinta el panel detrás de la cabecera y de las hojas. */
 	TOptional<FSlateBrush> WatermarkBrush;
 	float WatermarkOpacity = 0.25f;
 	float WatermarkSize = 0.7f;
 	/** S-048 (corrección 4): la fuente del Grimorio. */
 	Soulbound::Presentation::FGrimoireFont TextFont;
-	FLinearColor WardenColor;
-	FImageForPage ImageForPage;
-	FSimpleDelegate OnPreviousPage;
-	FSimpleDelegate OnNextPage;
-	Soulbound::Presentation::FHowToPlayBook HowToPlayBook;
-	int32 HowToPlayPage = 0;
-	bool bHasHowToPlay = false;
-	/**
-	 * S-048 (ampliación del autor del 17/11/2026, la negrita): los estilos del texto enriquecido de "Cómo se juega", uno por marca (Bold, Warden,
-	 * WardenBold y, desde la segunda ampliación, Subtitle) con la fuente del Grimorio y el tamaño de letra de ahora; si el tamaño cambia, se rehacen
-	 * y se rehace la página.
-	 */
-	TSharedPtr<class FSlateStyleSet> HowToPlayStyles;
-	int32 HowToPlayStyleSize = -1;
-
-	/** Rehace los estilos del texto enriquecido de "Cómo se juega" con el tamaño de letra de ahora. */
-	void UpdateHowToPlayStyles();
 };

@@ -65,6 +65,31 @@ Manuales, por el autor, en el editor y en PIE, a 1920x1080 y a 1024x768, con cap
 - Tests primero, en rojo.
 - Mientras el autor prueba en PIE o trabaja en el editor, no se compila ni se lanza nada.
 
+## Ronda de correcciones (19/11/2026, tras la prueba del autor en PIE y en el menú)
+
+El Grimorio se ve y se comporta como antes en sus tres pestañas; el libro funciona en el menú a 1920x1080 y a 1024x768, y las flechas no chocan con la navegación de la plantilla. Cuatro correcciones, en la misma rama y el mismo PR, y una quinta tras probarlas (la pausa, sustituida por las capas):
+
+- **Las carpetas que la build necesita.** La vista y el libro del menú cargan por ruta, en tiempo de ejecución, la fuente, la imagen del libro, la marca de agua y las láminas; el cocinador no sigue esas rutas, así que sus carpetas van en `DirectoriesToAlwaysCook` de `DefaultGame.ini`, como ya iban `/Game/Art/Tablero` y `/Game/Art/Anillo`: `/Game/Art/Ayuda`, `/Game/Art/Grimorio` y `/Game/Art/Fuentes`. También `/Game/Art/Dados`, la del dado del panel de decisión (`DiceFacesTexture`), que tenía el mismo defecto.
+- ~~**R-HUD-11, precisión del autor del 19/11/2026: la pausa cierra el Grimorio.** Al abrirse la pausa con el Grimorio abierto, el Grimorio se cierra; al reanudar no se reabre. El fallo (el Grimorio se quedaba pintado detrás del menú de pausa y la G no lo cerraba hasta reanudar) viene de S-027, no de esta story. El menú de pausa es de la plantilla: no se toca ni se lee; la vista mira si el mundo está en pausa. Si en PIE no se cierra, queda como fallo conocido en el PR. Impedir que se abra durante la pausa no se decide aquí: lo mira el autor en PIE.~~ **Se intentó y se retira** (prueba del autor en PIE del 19/11/2026): la vista miraba `UWorld::IsPaused` desde un ticker del núcleo, pero la pausa de la plantilla no detiene el mundo, así que la vigilancia no saltaba nunca. Además, el Grimorio quedaba pintado **por encima** del menú de pausa, y el botón "Grimorio (G)" seguía funcionando con la pausa abierta. La vigilancia (`FGrimoirePauseWatch`, `WatchPause`, el ticker y su test) se quita: con esta plantilla no hace nada. La sustituye la precisión siguiente.
+- **R-HUD-11, precisión del autor del 19/11/2026, que sustituye a la de la pausa: la interfaz de la vista va por debajo de los menús de la plantilla.** La interfaz de la vista (HUD, Grimorio, carta del Elegido, avisos, anillo, línea del Warden, oscurecido y "Volver al menú") se pinta por debajo de los menús de la plantilla. La causa de lo visto en PIE: las capas de la vista se añadían al viewport con órdenes del 9 al 14, y un widget de UMG añadido sin orden llega al viewport con 10. Todas las capas bajan conservando el orden entre ellas, con una base con nombre en lugar de números sueltos (valor inicial -10, constante en el código, aprobado por el autor). La plantilla no se toca ni se lee: si el valor no basta, se ajusta tras la prueba en PIE.
+- **Documentación de cómo se coloca la pieza** (en el PR), con lo que comprobó el autor: el foco se pide al enseñar el libro, no en Event Construct; un clic fuera del libro le quita el foco; en un Canvas, anclas al centro con tamaño fijo (1100x738, la proporción de la imagen del libro).
+- **La frase de la portada** de `Content/Data/Textos/como-se-juega.md` pasa a ser la del autor, en un commit aparte.
+
+Criterios nuevos, automáticos:
+
+- **CA-HUD-75** (R-HUD-22, build). Cada propiedad de Config de la vista que es una ruta de asset con valor (la fuente, la imagen del libro, la marca de agua, la carpeta de las láminas, el dado y las demás) cae dentro de alguna carpeta de `DirectoriesToAlwaysCook`.
+- ~~**CA-HUD-76** (R-HUD-11, pausa). La función que vigila la pausa dice que se cierra el Grimorio al entrar en pausa; no lo vuelve a decir mientras sigue la pausa ni al reanudar; y lo dice otra vez en la pausa siguiente.~~ **Retirado** el 19/11/2026 con la vigilancia de la pausa (ver arriba).
+- **CA-HUD-77** (R-HUD-11, capas). El orden relativo entre las capas de la vista es el de antes (oscurecido, HUD, línea del Warden, "Volver al menú", carta del Elegido, aviso y anillo en el mismo orden, Grimorio), y todas quedan por debajo del orden con que llega al viewport un widget de UMG añadido sin orden.
+
+Manuales, por el autor, en PIE:
+
+- ~~En partida, con el Grimorio abierto, abrir la pausa lo cierra; al reanudar sigue cerrado y la G lo abre.~~ (Retirada con la vigilancia de la pausa.)
+- Con el Grimorio, la carta del Elegido, el anillo o una frase del Warden a la vista, el menú de pausa queda por encima.
+- Si la plantilla tiene un HUD de partida, no tapa la vista.
+- Si el botón "Grimorio (G)" sigue respondiendo con la pausa abierta (depende de si el menú de pausa recibe los clics en toda la pantalla; no se decide aquí).
+- En partida, todos los clics siguen llegando: casillas del tablero, botones del panel de decisión, pestañas y botones de página del Grimorio y el botón "Grimorio (G)", por si algo de la plantilla, ahora por encima, los intercepta.
+- Una build empaquetada con fondo, fuente, sello, láminas y dado.
+
 ## Fuera de esta story
 
 - La portada, el botón "Jugar" y cualquier otra parte de la pantalla del menú (assets del autor).

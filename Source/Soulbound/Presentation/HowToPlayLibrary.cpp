@@ -35,6 +35,38 @@ Soulbound::Presentation::FGrimoireKeyNames UHowToPlayLibrary::ConfiguredKeyNames
 	return View ? View->GrimoireKeyNames() : Soulbound::Presentation::FGrimoireKeyNames();
 }
 
+Soulbound::Presentation::FHowToPlayBookSettings UHowToPlayLibrary::ConfiguredBookSettings()
+{
+	// R-HUD-22: todo del objeto por defecto de la vista, que lee la misma sección de DefaultGame.ini que la partida.
+	Soulbound::Presentation::FHowToPlayBookSettings Settings;
+	const ABoardViewActor* View = GetDefault<ABoardViewActor>();
+	if (!View)
+	{
+		return Settings;
+	}
+	Settings.Font = View->GrimoireFont;
+	Settings.RegularTypeface = View->GrimoireFontRegularTypeface;
+	Settings.BoldTypeface = View->GrimoireFontBoldTypeface;
+	Settings.ItalicTypeface = View->GrimoireFontItalicTypeface;
+	Settings.BoldItalicTypeface = View->GrimoireFontBoldItalicTypeface;
+	Settings.BookTexture = View->GrimoireBackgroundTexture;
+	Settings.BookMargin = View->GrimoireBackgroundMargin;
+	Settings.PageInset = View->GrimoirePageInset;
+	Settings.SpineGap = View->GrimoireSpineGap;
+	Settings.WatermarkTexture = View->HowToPlayWatermarkTexture;
+	Settings.WatermarkOpacity = View->HowToPlayWatermarkOpacity;
+	Settings.WatermarkSize = View->HowToPlayWatermarkSize;
+	Settings.ImageMaxHeight = View->HowToPlayImageMaxHeight;
+	Settings.ImageFolder = View->HowToPlayImageFolder;
+	Settings.WardenColor = View->WardenLineColor;
+	Settings.Keys = View->GrimoireKeyNames();
+	Settings.PreviousPageKey = View->GrimoirePreviousPageKey;
+	Settings.NextPageKey = View->GrimoireNextPageKey;
+	Settings.PanelFontSize = View->PanelFontSize;
+	Settings.PanelMinFontSize = View->PanelMinFontSize;
+	return Settings;
+}
+
 FText UHowToPlayLibrary::HowToPlayText()
 {
 	// Precisión del autor del 17/11/2026 (R-HUD-19): el widget de hoy del menú lee un solo bloque de texto; le llega el libro aplanado.

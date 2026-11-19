@@ -3,10 +3,54 @@
 #include "CoreMinimal.h"
 #include "GrimoireBook.h"
 #include "HowToPlay.h"
+#include "InputCoreTypes.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Layout/Margin.h"
+#include "UObject/SoftObjectPath.h"
 #include "HowToPlayLibrary.generated.h"
 
 class UTexture2D;
+
+namespace Soulbound::Presentation
+{
+	/**
+	 * Los ajustes del libro de "Cómo se juega" (S-049, R-HUD-22, nombre aprobado): los mismos que usa la vista para el Grimorio, leídos de su
+	 * Config (el objeto por defecto de ABoardViewActor), para que el libro del menú no tenga ajustes propios. Sin valores iniciales aquí: los da la vista.
+	 */
+	struct FHowToPlayBookSettings
+	{
+		/** La fuente del Grimorio y los nombres de sus cuatro tipos (GrimoireFont y GrimoireFont…Typeface). */
+		FSoftObjectPath Font;
+		FName RegularTypeface;
+		FName BoldTypeface;
+		FName ItalicTypeface;
+		FName BoldItalicTypeface;
+		/** La imagen del libro abierto y los márgenes de su borde (GrimoireBackgroundTexture, GrimoireBackgroundMargin). */
+		FSoftObjectPath BookTexture;
+		FMargin BookMargin;
+		/** El margen dentro del borde y el hueco del lomo (GrimoirePageInset, GrimoireSpineGap). */
+		float PageInset = 0.f;
+		float SpineGap = 0.f;
+		/** La marca de agua de cada hoja, su opacidad y su tamaño (HowToPlayWatermarkTexture, …Opacity, …Size). */
+		FSoftObjectPath WatermarkTexture;
+		float WatermarkOpacity = 0.f;
+		float WatermarkSize = 0.f;
+		/** El alto máximo de una lámina dentro del texto, en fracción del alto de la hoja (HowToPlayImageMaxHeight). */
+		float ImageMaxHeight = 0.f;
+		/** La carpeta de las láminas (HowToPlayImageFolder). */
+		FString ImageFolder;
+		/** El color de las frases del Warden (WardenLineColor). */
+		FLinearColor WardenColor = FLinearColor::Transparent;
+		/** Los nombres de las teclas (GrimoireKeyNames), para la página "Teclas" y el pie. */
+		FGrimoireKeyNames Keys;
+		/** Las teclas de página (GrimoirePreviousPageKey, GrimoireNextPageKey), para pasar de vista con el foco del teclado. */
+		FKey PreviousPageKey;
+		FKey NextPageKey;
+		/** El criterio de la letra del Grimorio (PanelFontSize a 1080 de alto, PanelMinFontSize de mínimo; ScaledPanelSlateFontSize). */
+		int32 PanelFontSize = 0;
+		int32 PanelMinFontSize = 0;
+	};
+}
 
 /**
  * "Cómo se juega" para Blueprint (S-022; nombre aprobado). El texto vive en Content/Data/Textos/como-se-juega.md y lo escribe el autor; la carga
@@ -83,4 +127,10 @@ public:
 
 	/** S-048 (R-HUD-19): las teclas que nombra la página "Teclas", las de la vista (el objeto por defecto de ABoardViewActor, con su Config). */
 	static Soulbound::Presentation::FGrimoireKeyNames ConfiguredKeyNames();
+
+	/**
+	 * S-049 (R-HUD-22): todos los ajustes del libro de la vista (el objeto por defecto de ABoardViewActor, con su Config), con el patrón de
+	 * ConfiguredKeyNames: el libro del menú se pinta con ellos, sin ajustes propios.
+	 */
+	static Soulbound::Presentation::FHowToPlayBookSettings ConfiguredBookSettings();
 };

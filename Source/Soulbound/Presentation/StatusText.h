@@ -215,6 +215,18 @@ namespace Soulbound::Presentation
 	 */
 	int32 ScaledPanelFontSize(float ViewportHeight, int32 FontSizeAt1080, int32 MinFontSize);
 
+	/**
+	 * Tamaño de la letra de los paneles en unidades de Slate (S-049, R-HUD-22, nombre aprobado; antes, la cuenta de ABoardViewActor::UpdatePanelScale):
+	 * ScaledPanelFontSize dividido por la escala de DPI que Unreal ya aplica a la interfaz, para no escalar dos veces. Lo usan la vista, para el
+	 * Grimorio, y el libro del menú, donde no hay vista: los dos tienen la misma letra en la misma pantalla.
+	 * @param ViewportHeight Altura del viewport en píxeles.
+	 * @param DpiScale La escala de DPI de Unreal para ese viewport (UUserInterfaceSettings); si no es positiva, 1.
+	 * @param FontSizeAt1080 El tamaño a 1080 de alto (PanelFontSize).
+	 * @param MinFontSize El mínimo en píxeles de pantalla (PanelMinFontSize).
+	 * @return El tamaño, redondeado al entero más cercano y nunca menos de 1.
+	 */
+	int32 ScaledPanelSlateFontSize(float ViewportHeight, float DpiScale, int32 FontSizeAt1080, int32 MinFontSize);
+
 	// ---- Textos de la elección pendiente, que comparten el panel de estado y el de decisión (S-028; en el .cpp desde S-027) ----
 
 	/**
