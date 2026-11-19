@@ -364,3 +364,352 @@ float Soulbound::Presentation::HaloDiameter(float TileDiameter, float HaloScale,
 	// El margen sobre la mayor medida: un hexágono es más ancho en las esquinas que en las caras, y un halo redondo tiene que cubrir las esquinas.
 	return FMath::Max(TileDiameter * HaloScale, FMath::Max(PieceSizeX, PieceSizeY) * FMath::Max(Margin, 1.f));
 }
+
+namespace
+{
+	/** "Olvidado", la segunda línea del rótulo (S-047, R-VIS-34): su ancho cuenta en el rectángulo, que la reserva siempre. */
+	const FString NameplateForgottenWord = TEXT("Olvidado");
+
+	/** Iteraciones de la búsqueda de la letra mayor que cabe (bisección entre 0 y el tope): con el tope de 7,7 cm, una precisión de 0,01 cm. */
+	constexpr int32 NameplateLetterIterations = 10;
+
+	/** Un rectángulo girado del plano (S-047): centro, sus dos ejes unitarios y su medio tamaño a lo largo de cada uno. */
+	struct FPlaneBox
+	{
+		FVector2D Center = FVector2D::ZeroVector;
+		FVector2D AxisX = FVector2D(1.f, 0.f);
+		FVector2D AxisY = FVector2D(0.f, 1.f);
+		FVector2D Half = FVector2D::ZeroVector;
+	};
+
+	FVector2D UnitAt(float Degrees)
+	{
+		const float Radians = FMath::DegreesToRadians(Degrees);
+		return FVector2D(FMath::Cos(Radians), FMath::Sin(Radians));
+	}
+
+	/** Medio ancho de la sombra de una caja sobre un eje unitario. */
+	float ProjectedRadius(const FPlaneBox& Box, const FVector2D& Axis)
+	{
+		return Box.Half.X * FMath::Abs(FVector2D::DotProduct(Box.AxisX, Axis)) + Box.Half.Y * FMath::Abs(FVector2D::DotProduct(Box.AxisY, Axis));
+	}
+
+	/** Si dos cajas se tocan: no se tocan solo si las separa alguno de sus cuatro ejes (teorema del eje separador). */
+	bool BoxesOverlap(const FPlaneBox& A, const FPlaneBox& B)
+	{
+		const FVector2D Delta = B.Center - A.Center;
+		for (const FVector2D& Axis : {A.AxisX, A.AxisY, B.AxisX, B.AxisY})
+		{
+			if (FMath::Abs(FVector2D::DotProduct(Delta, Axis)) > ProjectedRadius(A, Axis) + ProjectedRadius(B, Axis))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/** Distancia del centro de la mesa (el del Altar) a la caja; 0 si lo contiene. */
+	float DistanceFromOrigin(const FPlaneBox& Box)
+	{
+		const FVector2D Local(FVector2D::DotProduct(-Box.Center, Box.AxisX), FVector2D::DotProduct(-Box.Center, Box.AxisY));
+		return FVector2D(FMath::Max(FMath::Abs(Local.X) - Box.Half.X, 0.f), FMath::Max(FMath::Abs(Local.Y) - Box.Half.Y, 0.f)).Size();
+	}
+
+	/**
+	 * Lo que hace falta para buscar el sitio del rótulo en una cuña (S-047): los obstáculos (cada losa, girada, y cada conexión, como una franja de su
+	 * medio ancho) y los sitios candidatos dentro del sector, del más cercano al preferido al más lejano. Se arma una vez por cuña y sirve para todas las
+	 * letras que prueba la bisección.
+	 */
+	struct FNameplateSearch
+	{
+		TArray<FPlaneBox> Obstacles;
+		TArray<float> ObstacleRadii;
+		TArray<FVector2D> Candidates;
+		FVector2D Right = FVector2D::ZeroVector;
+		FVector2D Up = FVector2D::ZeroVector;
+		float Yaw = 0.f;
+		float WedgeYaw = 0.f;
+		float HalfSector = 0.f;
+		float TableRadius = 0.f;
+		float AltarRadius = 0.f;
+		float Margin = 0.f;
+	};
+
+	FNameplateSearch MakeNameplateSearch(const FBoardState& Board, const FBoardLayout& Layout, const FBoardLayoutParams& LayoutParams, int32 DomainId,
+		float ViewYawDegrees, const Soulbound::Presentation::FDomainNameplateParams& Params)
+	{
+		FNameplateSearch Search;
+		// El texto se lee derecho desde la vista sentada (R-VIS-34): sube en la dirección en que mira la cámara (del asiento hacia el centro) y se lee
+		// hacia su derecha. Con la vista en 180 (en -X), sube hacia +X y se lee hacia +Y, como las etiquetas de casilla.
+		Search.Up = -UnitAt(ViewYawDegrees);
+		Search.Right = FVector2D(-Search.Up.Y, Search.Up.X);
+		Search.Yaw = ViewYawDegrees;
+		Search.WedgeYaw = Layout.Wedges.IsValidIndex(DomainId) ? Layout.Wedges[DomainId].Yaw : DomainId * SectorDegrees;
+		Search.HalfSector = SectorDegrees / 2.f;
+		Search.TableRadius = LayoutParams.TableRadius;
+		// El Altar es un hexágono: su radio circunscrito lo cubre entero.
+		Search.AltarRadius = Layout.AltarApothem * 2.f / FMath::Sqrt(3.f);
+		const float Depth = FMath::Max(LayoutParams.TableRadius - Layout.AltarApothem, 0.f);
+		Search.Margin = FMath::Max(Params.MarginFraction, 0.f) * Depth;
+
+		for (const FTileState& Tile : Board.Tiles)
+		{
+			if (!Layout.Tiles.IsValidIndex(Tile.TileId))
+			{
+				continue;
+			}
+			const FTileLayout& Slab = Layout.Tiles[Tile.TileId];
+			if (!Board.IsAltar(Tile.TileId))
+			{
+				FPlaneBox& Box = Search.Obstacles.AddDefaulted_GetRef();
+				Box.Center = FVector2D(Slab.Location);
+				Box.AxisX = UnitAt(Slab.Yaw);
+				Box.AxisY = UnitAt(Slab.Yaw + 90.f);
+				Box.Half = FVector2D(LayoutParams.SlabHalfSize, LayoutParams.SlabHalfSize);
+			}
+			for (const int32 Other : Tile.Neighbours)
+			{
+				if (Other <= Tile.TileId || !Layout.Tiles.IsValidIndex(Other))
+				{
+					continue; // cada conexión una sola vez
+				}
+				const FVector2D A(Slab.Location);
+				const FVector2D B(Layout.Tiles[Other].Location);
+				const FVector2D Along = (B - A).GetSafeNormal();
+				if (Along.IsNearlyZero())
+				{
+					continue;
+				}
+				FPlaneBox& Box = Search.Obstacles.AddDefaulted_GetRef();
+				Box.Center = (A + B) / 2.f;
+				Box.AxisX = Along;
+				Box.AxisY = FVector2D(-Along.Y, Along.X);
+				Box.Half = FVector2D(FVector2D::Distance(A, B) / 2.f, FMath::Max(Params.PathHalfWidth, 0.f));
+			}
+		}
+		Search.ObstacleRadii.Reserve(Search.Obstacles.Num());
+		for (const FPlaneBox& Box : Search.Obstacles)
+		{
+			Search.ObstacleRadii.Add(Box.Half.Size());
+		}
+
+		// Candidatos: una rejilla con el paso de la búsqueda, alineada con el sitio preferido, solo los centros que caen dentro del sector.
+		const float Inner = Search.AltarRadius;
+		const FVector2D Preferred = UnitAt(Search.WedgeYaw + Params.AngleFraction * Search.HalfSector)
+			* (Inner + Params.RadiusFraction * (LayoutParams.TableRadius - Inner));
+		const float Step = FMath::Max(Params.SearchStepFraction * Depth, 0.1f);
+		const int32 Reach = FMath::CeilToInt(2.f * LayoutParams.TableRadius / Step);
+		for (int32 IndexX = -Reach; IndexX <= Reach; ++IndexX)
+		{
+			for (int32 IndexY = -Reach; IndexY <= Reach; ++IndexY)
+			{
+				const FVector2D Candidate = Preferred + FVector2D(IndexX * Step, IndexY * Step);
+				const float Radius = Candidate.Size();
+				if (Radius <= Inner || Radius >= LayoutParams.TableRadius)
+				{
+					continue;
+				}
+				const float Angle = FMath::RadiansToDegrees(FMath::Atan2(Candidate.Y, Candidate.X));
+				if (FMath::Abs(FMath::UnwindDegrees(Angle - Search.WedgeYaw)) < Search.HalfSector)
+				{
+					Search.Candidates.Add(Candidate);
+				}
+			}
+		}
+		Search.Candidates.Sort([&Preferred](const FVector2D& A, const FVector2D& B)
+		{
+			return FVector2D::DistSquared(A, Preferred) < FVector2D::DistSquared(B, Preferred);
+		});
+		return Search;
+	}
+
+	/** Si el rectángulo de medio tamaño Half, con su holgura, cabe con su centro en Center: dentro del sector y de la mesa, fuera del Altar y sin tocar nada. */
+	bool NameplateFits(const FNameplateSearch& Search, const FVector2D& Center, const FVector2D& Half)
+	{
+		FPlaneBox Box;
+		Box.Center = Center;
+		Box.AxisX = Search.Right;
+		Box.AxisY = Search.Up;
+		Box.Half = Half + FVector2D(Search.Margin, Search.Margin);
+		// El sector es convexo (60°): si las cuatro esquinas están dentro, el rectángulo entero lo está.
+		for (const FVector2D& Corner : {FVector2D(1.f, 1.f), FVector2D(1.f, -1.f), FVector2D(-1.f, 1.f), FVector2D(-1.f, -1.f)})
+		{
+			const FVector2D Point = Center + Box.AxisX * (Corner.X * Box.Half.X) + Box.AxisY * (Corner.Y * Box.Half.Y);
+			if (Point.Size() > Search.TableRadius)
+			{
+				return false;
+			}
+			const float Angle = FMath::RadiansToDegrees(FMath::Atan2(Point.Y, Point.X));
+			if (FMath::Abs(FMath::UnwindDegrees(Angle - Search.WedgeYaw)) > Search.HalfSector)
+			{
+				return false;
+			}
+		}
+		if (DistanceFromOrigin(Box) < Search.AltarRadius)
+		{
+			return false;
+		}
+		const float BoxRadius = Box.Half.Size();
+		for (int32 Index = 0; Index < Search.Obstacles.Num(); ++Index)
+		{
+			const FPlaneBox& Obstacle = Search.Obstacles[Index];
+			if (FVector2D::Distance(Obstacle.Center, Center) <= BoxRadius + Search.ObstacleRadii[Index] && BoxesOverlap(Box, Obstacle))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/** El candidato más cercano al preferido en el que cabe el rectángulo de tamaño Size; el sitio sin bFound si no cabe en ninguno. */
+	Soulbound::Presentation::FDomainNameplateSpot FindNameplateSpot(const FNameplateSearch& Search, const FVector2D& Size)
+	{
+		Soulbound::Presentation::FDomainNameplateSpot Spot;
+		Spot.HalfExtent = Size / 2.f;
+		Spot.Right = Search.Right;
+		Spot.Up = Search.Up;
+		Spot.Yaw = Search.Yaw;
+		for (const FVector2D& Candidate : Search.Candidates)
+		{
+			if (NameplateFits(Search, Candidate, Spot.HalfExtent))
+			{
+				Spot.bFound = true;
+				Spot.Center = Candidate;
+				break;
+			}
+		}
+		return Spot;
+	}
+
+	/** La letra mayor que cabe en la cuña, entre 0 y el tope, para un rectángulo que mide UnitSize por cm de letra. */
+	float MaxNameplateLetter(const FNameplateSearch& Search, const FVector2D& UnitSize, float MaxLetter)
+	{
+		if (MaxLetter <= 0.f)
+		{
+			return 0.f;
+		}
+		if (FindNameplateSpot(Search, UnitSize * MaxLetter).bFound)
+		{
+			return MaxLetter;
+		}
+		float Low = 0.f;
+		float High = MaxLetter;
+		for (int32 Iteration = 0; Iteration < NameplateLetterIterations; ++Iteration)
+		{
+			const float Mid = (Low + High) / 2.f;
+			(FindNameplateSpot(Search, UnitSize * Mid).bFound ? Low : High) = Mid;
+		}
+		return Low;
+	}
+}
+
+TArray<FString> Soulbound::Presentation::SplitNameplateName(const FString& Name)
+{
+	if (Name.IsEmpty())
+	{
+		return {};
+	}
+	// Las dos líneas más parejas: el espacio más cercano a (Len - 1) / 2, donde las dos mitades miden lo mismo; a igual distancia, el primero.
+	const float Middle = (Name.Len() - 1) / 2.f;
+	int32 Best = INDEX_NONE;
+	for (int32 Index = 0; Index < Name.Len(); ++Index)
+	{
+		if (Name[Index] == TEXT(' ') && (Best == INDEX_NONE || FMath::Abs(Index - Middle) < FMath::Abs(Best - Middle)))
+		{
+			Best = Index;
+		}
+	}
+	if (Best == INDEX_NONE)
+	{
+		return {Name};
+	}
+	return {Name.Left(Best), Name.Mid(Best + 1)};
+}
+
+FVector2D Soulbound::Presentation::NameplateSize(const TArray<FString>& NameLines, float LetterSize, const FDomainNameplateParams& Params)
+{
+	int32 LongestLine = 0;
+	for (const FString& Line : NameLines)
+	{
+		LongestLine = FMath::Max(LongestLine, Line.Len());
+	}
+	const float CharWidth = LetterSize * Params.CharWidthFraction;
+	const float Width = FMath::Max(LongestLine * CharWidth, NameplateForgottenWord.Len() * CharWidth * Params.ForgottenScale);
+	// La línea de "Olvidado" se reserva siempre: el nombre no se mueve cuando aparece.
+	const float Height = (NameLines.Num() + Params.ForgottenScale) * LetterSize * Params.LineHeightFraction;
+	return FVector2D(Width, Height);
+}
+
+Soulbound::Presentation::FDomainNameplateSpot Soulbound::Presentation::DomainNameplateSpot(const FBoardState& Board, const FBoardLayout& Layout,
+	const FBoardLayoutParams& LayoutParams, int32 DomainId, const FVector2D& Size, float ViewYawDegrees, const FDomainNameplateParams& Params)
+{
+	return FindNameplateSpot(MakeNameplateSearch(Board, Layout, LayoutParams, DomainId, ViewYawDegrees, Params), Size);
+}
+
+Soulbound::Presentation::FDomainNameplateLayout Soulbound::Presentation::ComputeDomainNameplates(const FBoardState& Board, const FBoardLayout& Layout,
+	const FBoardLayoutParams& LayoutParams, float ViewYawDegrees, const FDomainNameplateParams& Params)
+{
+	FDomainNameplateLayout Result;
+	const int32 DomainCount = Board.Domains.Num();
+	if (DomainCount == 0)
+	{
+		return Result;
+	}
+	TArray<FNameplateSearch> Searches;
+	for (int32 DomainId = 0; DomainId < DomainCount; ++DomainId)
+	{
+		Searches.Add(MakeNameplateSearch(Board, Layout, LayoutParams, DomainId, ViewYawDegrees, Params));
+	}
+	const float MaxLetter = FMath::Max(Params.MaxLetterSizeFraction, 0.f) * FMath::Max(LayoutParams.TableRadius - Layout.AltarApothem, 0.f);
+
+	// Las dos formas. En cada una, el rectángulo es el del nombre más largo (el mismo en las seis cuñas) y la letra, la mayor que cabe en todas.
+	float Common[2] = {0.f, 0.f};
+	FVector2D UnitSizes[2];
+	TArray<TArray<FString>> Lines[2];
+	for (int32 Form = 0; Form < 2; ++Form)
+	{
+		const bool bSplit = Form == 1;
+		FVector2D UnitSize = FVector2D::ZeroVector;
+		for (const FDomainState& Domain : Board.Domains)
+		{
+			Lines[Form].Add(bSplit ? SplitNameplateName(Domain.Name) : TArray<FString>({Domain.Name}));
+			UnitSize = FVector2D::Max(UnitSize, NameplateSize(Lines[Form].Last(), 1.f, Params));
+		}
+		UnitSizes[Form] = UnitSize;
+		TArray<float>& PerWedge = bSplit ? Result.MaxLetterSplit : Result.MaxLetterOneLine;
+		Common[Form] = MaxLetter;
+		for (int32 DomainId = 0; DomainId < DomainCount; ++DomainId)
+		{
+			PerWedge.Add(MaxNameplateLetter(Searches[DomainId], UnitSize, MaxLetter));
+			Common[Form] = FMath::Min(Common[Form], PerWedge.Last());
+		}
+	}
+	// Se queda la forma de letra mayor; a igualdad, en una línea.
+	const int32 Chosen = Common[1] > Common[0] ? 1 : 0;
+	Result.bSplit = Chosen == 1;
+	Result.LetterSize = Common[Chosen];
+	Result.NameLines = Lines[Chosen];
+
+	const float LineHeight = Result.LetterSize * Params.LineHeightFraction;
+	const float ForgottenLineHeight = LineHeight * Params.ForgottenScale;
+	int32 BoxLines = 0;
+	for (const TArray<FString>& NameLines : Result.NameLines)
+	{
+		BoxLines = FMath::Max(BoxLines, NameLines.Num());
+	}
+	for (int32 DomainId = 0; DomainId < DomainCount; ++DomainId)
+	{
+		FDomainNameplateSpot Spot = FindNameplateSpot(Searches[DomainId], UnitSizes[Chosen] * Result.LetterSize);
+		// De arriba abajo: el bloque del nombre (las líneas del más largo, con las de éste centradas en él) y, debajo, la línea de "Olvidado".
+		const FVector2D Top = Spot.Center + Spot.Up * Spot.HalfExtent.Y;
+		const int32 Count = Result.NameLines[DomainId].Num();
+		const float BlockOffset = (BoxLines - Count) * LineHeight / 2.f;
+		for (int32 Line = 0; Line < Count; ++Line)
+		{
+			Spot.NameLineCenters.Add(Top - Spot.Up * (BlockOffset + (Line + 0.5f) * LineHeight));
+		}
+		Spot.ForgottenLineCenter = Top - Spot.Up * (BoxLines * LineHeight + ForgottenLineHeight / 2.f);
+		Result.Spots.Add(Spot);
+	}
+	return Result;
+}

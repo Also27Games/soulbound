@@ -132,6 +132,18 @@ Soulbound::Presentation::FTileTexts Soulbound::Presentation::TileTexts(const FMa
 	return Texts;
 }
 
+Soulbound::Presentation::FDomainNameplateText Soulbound::Presentation::DomainNameplateText(const FMatchState& State, int32 DomainId, bool bForgottenShown)
+{
+	FDomainNameplateText Text;
+	if (State.Board.Domains.IsValidIndex(DomainId))
+	{
+		Text.Name = State.Board.Domains[DomainId].Name;
+		// R-VIS-27: las mismas condiciones que el suelo (ForgottenDomainsShown), así que en el prólogo llega con su frase de corrupción.
+		Text.ForgottenLine = bForgottenShown ? TEXT("Olvidado") : TEXT("");
+	}
+	return Text;
+}
+
 void Soulbound::Presentation::FTileLabelToggle::Toggle()
 {
 	bShown = !bShown;

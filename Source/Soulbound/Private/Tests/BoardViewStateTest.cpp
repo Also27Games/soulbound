@@ -620,4 +620,53 @@ bool FTileLabelToggleTest::RunTest(const FString& Parameters)
 	return true;
 }
 
+// CA-VIS-36 (R-VIS-34, texto): el rótulo de un Dominio es su nombre; enseñado como Olvidado, el nombre y, en otra línea, "Olvidado". En el prólogo,
+// antes de su frase de corrupción, un Dominio que va a ser Olvidado lleva solo el nombre.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDomainNameplateTextTest, "Soulbound.Game.Presentation.Vista.RotuloDelDominioDiceSuNombre", ViewStateTestFlags)
+bool FDomainNameplateTextTest::RunTest(const FString& Parameters)
+{
+	using Soulbound::Presentation::DomainNameplateText;
+	using Soulbound::Presentation::ForgottenDomainsShown;
+	FMatchState State;
+	if (!MakeState(*this, State))
+	{
+		return false;
+	}
+	State.Elects.Elects.SetNum(State.Board.Domains.Num());
+	State.Elects.Elects[1].Name = TEXT("Fenrir");
+	TestEqual(TEXT("Su nombre, el de la leyenda, sin el Elegido"), DomainNameplateText(State, 1, false).Name, FString(TEXT("El Fiordo Encadenado")));
+	TestEqual(TEXT("Con dueño, sin segunda línea"), DomainNameplateText(State, 1, false).ForgottenLine, FString());
+	TestEqual(TEXT("Olvidado: el nombre"), DomainNameplateText(State, 1, true).Name, FString(TEXT("El Fiordo Encadenado")));
+	TestEqual(TEXT("Olvidado: y \"Olvidado\" debajo"), DomainNameplateText(State, 1, true).ForgottenLine, FString(TEXT("Olvidado")));
+	TestEqual(TEXT("Dominio que no existe: nada"), DomainNameplateText(State, 9, true).Name, FString());
+
+	// El prólogo como en DominiosEnLaApertura: el Dominio 1 Olvidado, con su DomainForgotten antes de su frase de corrupción.
+	auto AddEntry = [&State](const FString& Key)
+	{
+		FWardenLineEntry& Entry = State.WardenLines.Entries.AddDefaulted_GetRef();
+		Entry.Id = Key;
+		Entry.Lines = {Key};
+		return State.WardenLines.Entries.Num() - 1;
+	};
+	auto AddEvent = [&State](EMatchEventType Type, int32 Value)
+	{
+		FMatchEvent& Event = State.EventLog.AddDefaulted_GetRef();
+		Event.Type = Type;
+		Event.Value = Value;
+		Event.Detail = 0;
+	};
+	const int32 Start = AddEntry(Soulbound::Warden::LineStart);
+	const int32 Corruption = AddEntry(Soulbound::Warden::LineCorruption);
+	State.Board.Domains[1].State = EDomainState::Forgotten;
+	AddEvent(EMatchEventType::WardenSpoke, Start);
+	AddEvent(EMatchEventType::DomainForgotten, 1);
+	AddEvent(EMatchEventType::WardenSpoke, Corruption);
+	const TArray<bool> BeforeLine = ForgottenDomainsShown(State, true, 1);
+	const TArray<bool> AfterLine = ForgottenDomainsShown(State, true, 2);
+	TestEqual(TEXT("Prólogo, antes de su frase: solo el nombre"), DomainNameplateText(State, 1, BeforeLine[1]).ForgottenLine, FString());
+	TestEqual(TEXT("Prólogo, antes de su frase: el nombre"), DomainNameplateText(State, 1, BeforeLine[1]).Name, FString(TEXT("El Fiordo Encadenado")));
+	TestEqual(TEXT("Prólogo, dicha su frase: \"Olvidado\""), DomainNameplateText(State, 1, AfterLine[1]).ForgottenLine, FString(TEXT("Olvidado")));
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS

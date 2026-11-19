@@ -242,4 +242,117 @@ namespace Soulbound::Presentation
 	 * @return El diámetro del halo.
 	 */
 	SOULBOUND_API float HaloDiameter(float TileDiameter, float HaloScale, float PieceSizeX, float PieceSizeY, float Margin);
+
+	/**
+	 * Parámetros del rótulo del Dominio (S-047, R-VIS-34, nombre propuesto `DomainNameplate`): sitio y tamaño, relativos a la cuña. Los valores
+	 * iniciales están en ABoardViewActor (DomainNameplate...), en Config. "Profundidad de la cuña" es TableRadius menos la apotema del Altar.
+	 */
+	struct FDomainNameplateParams
+	{
+		/** Sitio preferido, a lo largo del radio: 0 en el borde del Altar (su radio circunscrito), 1 en el borde de la mesa. Valor inicial 0,27. */
+		float RadiusFraction = 0.27f;
+		/** Sitio preferido, de lado: fracción de media cuña desde su eje (negativo, a un lado; positivo, al otro). Valor inicial -0,8. */
+		float AngleFraction = -0.8f;
+		/** Tope de la letra del nombre, en fracción de la profundidad de la cuña. Valor inicial 0,08 (7,7 cm con la mesa de 120). */
+		float MaxLetterSizeFraction = 0.08f;
+		/** Ancho medio de un carácter, en fracción de la letra (estimación del texto del motor, a confirmar en PIE). Valor inicial 0,6. */
+		float CharWidthFraction = 0.6f;
+		/** Alto de una línea, en fracción de su letra (a confirmar en PIE). Valor inicial 1,2. */
+		float LineHeightFraction = 1.2f;
+		/** Letra de "Olvidado", en fracción de la del nombre. Valor inicial 0,6. */
+		float ForgottenScale = 0.6f;
+		/** Holgura del rectángulo con losas, senderos, el Altar y los bordes de la cuña, en fracción de la profundidad de la cuña. Valor inicial 0,01. */
+		float MarginFraction = 0.01f;
+		/** Medio ancho de un sendero, en cm, para no taparlo (a confirmar en PIE). Valor inicial 1,6, la mitad de media losa. */
+		float PathHalfWidth = 1.6f;
+		/** Paso de la búsqueda del sitio libre, en fracción de la profundidad de la cuña. Valor inicial 0,01. */
+		float SearchStepFraction = 0.01f;
+	};
+
+	/**
+	 * Dónde va el rótulo de un Dominio (S-047, R-VIS-34, nombre propuesto): el rectángulo que ocupa el texto, tumbado sobre la mesa, con el mismo giro
+	 * en las seis cuñas (el de la vista sentada). En el espacio de la mesa, con el Altar en el origen.
+	 */
+	struct FDomainNameplateSpot
+	{
+		/** Si hay sitio en la cuña para el rectángulo. */
+		bool bFound = false;
+		/** Centro del rectángulo. */
+		FVector2D Center = FVector2D::ZeroVector;
+		/** Medio ancho (a lo largo de Right) y medio alto (a lo largo de Up) del rectángulo, sin la holgura. */
+		FVector2D HalfExtent = FVector2D::ZeroVector;
+		/** Dirección de lectura del texto (hacia la derecha de quien lo lee desde la vista sentada) y hacia arriba del texto (lo que se aleja de ella). */
+		FVector2D Right = FVector2D::ZeroVector;
+		FVector2D Up = FVector2D::ZeroVector;
+		/** Giro del texto en grados (yaw del UTextRenderComponent tumbado, pitch 90): el de la vista sentada. */
+		float Yaw = 0.f;
+		/** Centro de cada línea del nombre, de arriba abajo. */
+		TArray<FVector2D> NameLineCenters;
+		/** Centro de la línea de "Olvidado", debajo del nombre; reservada siempre, para que el nombre no se mueva cuando aparece. */
+		FVector2D ForgottenLineCenter = FVector2D::ZeroVector;
+	};
+
+	/** Los rótulos de los seis Dominios (S-047, R-VIS-34, nombre propuesto): la misma forma y la misma letra en todos. */
+	struct FDomainNameplateLayout
+	{
+		/** Si el nombre va partido en dos líneas (SplitNameplateName) en vez de en una. */
+		bool bSplit = false;
+		/** Letra del nombre, en cm: la mayor que cabe en las seis cuñas, con el tope de MaxLetterSizeFraction. 0 si en alguna no cabe ninguna. */
+		float LetterSize = 0.f;
+		/** Las líneas del nombre de cada Dominio, indexadas por su identificador. */
+		TArray<TArray<FString>> NameLines;
+		/** El sitio de cada Dominio, indexado por su identificador. */
+		TArray<FDomainNameplateSpot> Spots;
+		/** La letra mayor que cabe en cada cuña, por forma (para el informe): [0] en una línea, [1] partido. */
+		TArray<float> MaxLetterOneLine;
+		TArray<float> MaxLetterSplit;
+	};
+
+	/**
+	 * El nombre de un Dominio partido en dos líneas por el espacio más cercano a la mitad (S-047, R-VIS-34, nombre propuesto): el que deja las dos
+	 * líneas más parejas; a igual distancia, el primero. Sin espacio, una línea.
+	 * @param Name El nombre ("El Fiordo Encadenado").
+	 * @return Las líneas ("El Fiordo", "Encadenado"); una si no hay espacio; vacío si el nombre está vacío.
+	 */
+	SOULBOUND_API TArray<FString> SplitNameplateName(const FString& Name);
+
+	/**
+	 * El tamaño estimado del rectángulo de un rótulo (S-047, R-VIS-34): ancho, la línea más larga (del nombre, o "Olvidado" con su letra) por la letra
+	 * y por CharWidthFraction; alto, las líneas del nombre más la de "Olvidado", cada una por LineHeightFraction.
+	 * @param NameLines Las líneas del nombre.
+	 * @param LetterSize La letra del nombre, en cm.
+	 * @param Params Los parámetros del rótulo.
+	 * @return El ancho (X) y el alto (Y), en cm.
+	 */
+	SOULBOUND_API FVector2D NameplateSize(const TArray<FString>& NameLines, float LetterSize, const FDomainNameplateParams& Params);
+
+	/**
+	 * Dónde cabe un rectángulo de rótulo en la cuña de un Dominio (S-047, R-VIS-34, nombre propuesto): el sitio libre más cercano al preferido en el
+	 * que el rectángulo, con su holgura y con el giro de la vista sentada, queda entero dentro del sector de la cuña (su eje más y menos media cuña,
+	 * hasta el borde de la mesa) y no toca ninguna losa (de ningún Dominio), ningún sendero ni el Altar.
+	 * @param Board El tablero.
+	 * @param Layout Su colocación (ComputeBoardLayout).
+	 * @param LayoutParams Los parámetros con que se colocó (radio de mesa, media losa).
+	 * @param DomainId El Dominio.
+	 * @param Size El ancho y el alto del rectángulo (NameplateSize).
+	 * @param ViewYawDegrees El ángulo de la vista sentada alrededor de la mesa (SeatedViewYawDegrees, 180).
+	 * @param Params Los parámetros del rótulo.
+	 * @return El sitio; bFound falso si no cabe en ninguna parte.
+	 */
+	SOULBOUND_API FDomainNameplateSpot DomainNameplateSpot(const FBoardState& Board, const FBoardLayout& Layout, const FBoardLayoutParams& LayoutParams,
+		int32 DomainId, const FVector2D& Size, float ViewYawDegrees, const FDomainNameplateParams& Params);
+
+	/**
+	 * Los rótulos de los seis Dominios (S-047, R-VIS-34, nombre propuesto). Prueba las dos formas, el nombre en una línea y partido en dos
+	 * (SplitNameplateName); en cada una, el rectángulo es el del nombre más largo del tablero, el mismo en las seis cuñas, y la letra, la mayor que
+	 * cabe en las seis, con el tope. Se queda la forma de letra mayor (a igualdad, en una línea) y coloca cada rótulo con DomainNameplateSpot.
+	 * @param Board El tablero, con los nombres de sus Dominios.
+	 * @param Layout Su colocación.
+	 * @param LayoutParams Los parámetros con que se colocó.
+	 * @param ViewYawDegrees El ángulo de la vista sentada.
+	 * @param Params Los parámetros del rótulo.
+	 * @return La forma, la letra y el sitio de cada Dominio.
+	 */
+	SOULBOUND_API FDomainNameplateLayout ComputeDomainNameplates(const FBoardState& Board, const FBoardLayout& Layout, const FBoardLayoutParams& LayoutParams,
+		float ViewYawDegrees, const FDomainNameplateParams& Params);
 }

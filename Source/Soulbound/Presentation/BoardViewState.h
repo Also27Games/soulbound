@@ -82,6 +82,25 @@ namespace Soulbound::Presentation
 		SOULBOUND_API void Toggle();
 	};
 
+	/** El texto del rótulo de un Dominio (S-047, R-VIS-34, nombre propuesto). */
+	struct FDomainNameplateText
+	{
+		/** El nombre del Dominio ("El Banquete"), el de la leyenda, sin su Elegido. */
+		FString Name;
+		/** "Olvidado" con el Dominio enseñado como Olvidado; vacío si no. Va en su propia línea, debajo del nombre y con menor letra. */
+		FString ForgottenLine;
+	};
+
+	/**
+	 * Qué dice el rótulo de un Dominio (S-047, R-VIS-34, nombre propuesto): su nombre y, si se enseña como Olvidado (ForgottenDomainsShown, lo mismo que
+	 * su suelo: en el prólogo, desde su frase de corrupción), "Olvidado".
+	 * @param State Estado de la partida, en solo lectura.
+	 * @param DomainId El Dominio.
+	 * @param bForgottenShown Si se enseña como Olvidado (ForgottenDomainsShown).
+	 * @return El texto; vacío si el Dominio no existe.
+	 */
+	SOULBOUND_API FDomainNameplateText DomainNameplateText(const FMatchState& State, int32 DomainId, bool bForgottenShown);
+
 	/**
 	 * Las casillas que llevan la marca del Sello (S-037, R-VIS-24; nombre propuesto `SealMarkedTiles`): exactamente las de `FBoardState::SealedTiles`.
 	 * @param State Estado de la partida, en solo lectura.

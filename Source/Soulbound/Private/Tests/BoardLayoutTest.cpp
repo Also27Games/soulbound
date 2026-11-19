@@ -571,4 +571,211 @@ bool FBoardLayoutHaloTest::RunTest(const FString& Parameters)
 }
 
 
+namespace
+{
+	/** Carga Content/Data/Boards/<Name>.json; falso, con el fallo anotado, si no se puede. */
+	bool LoadNamedBoard(FAutomationTestBase& Test, const FString& Name, FBoardState& OutBoard)
+	{
+		const FBoardLoadResult Result = Soulbound::Rules::LoadBoardFromFile(FPaths::Combine(FPaths::ProjectContentDir(), TEXT("Data/Boards"), Name + TEXT(".json")));
+		if (!Test.TestTrue(FString::Printf(TEXT("%s.json se carga (%s)"), *Name, *Result.Message), Result.IsSuccess()))
+		{
+			return false;
+		}
+		OutBoard = Result.Board;
+		return true;
+	}
+
+	/** Los parámetros de colocación del juego (DefaultGame.ini): la mesa de 120 y el suelo del kit a 3,1. */
+	FBoardLayoutParams GameLayoutParams()
+	{
+		FBoardLayoutParams Params;
+		Params.TableRadius = 120.f;
+		Params.KitFloorHeight = 3.1f;
+		return Params;
+	}
+
+	/** Distancia de un punto a un segmento, en el plano. */
+	float DistanceToSegment(const FVector2D& Point, const FVector2D& A, const FVector2D& B)
+	{
+		const FVector2D AB = B - A;
+		const float Length2 = AB.SizeSquared();
+		const float T = Length2 > 0.f ? FMath::Clamp(FVector2D::DotProduct(Point - A, AB) / Length2, 0.f, 1.f) : 0.f;
+		return FVector2D::Distance(Point, A + AB * T);
+	}
+
+	/**
+	 * Comprobación independiente de la función de sitio (CA-VIS-37): recorre el rectángulo del rótulo punto a punto (cada 0,25 cm y sus bordes) y dice
+	 * el primer problema: fuera de la cuña (sector de su eje ±30° y radio de mesa), bajo el Altar (su radio circunscrito), sobre una losa (el cuadrado
+	 * girado de cualquier casilla) o sobre un sendero (a menos de su medio ancho de una conexión). Vacío si no hay ninguno.
+	 */
+	FString NameplateProblem(const FBoardState& Board, const FBoardLayout& Layout, const FBoardLayoutParams& LayoutParams, int32 DomainId,
+		const FVector2D& Center, const FVector2D& Right, const FVector2D& Up, const FVector2D& Size, float PathHalfWidth)
+	{
+		const float AltarRadius = Layout.AltarApothem * 2.f / FMath::Sqrt(3.f);
+		const float WedgeYaw = Layout.Wedges[DomainId].Yaw;
+		constexpr float Step = 0.25f;
+		const int32 StepsX = FMath::CeilToInt(Size.X / Step);
+		const int32 StepsY = FMath::CeilToInt(Size.Y / Step);
+		for (int32 IndexX = 0; IndexX <= StepsX; ++IndexX)
+		{
+			for (int32 IndexY = 0; IndexY <= StepsY; ++IndexY)
+			{
+				const float U = -Size.X / 2.f + Size.X * IndexX / FMath::Max(StepsX, 1);
+				const float V = -Size.Y / 2.f + Size.Y * IndexY / FMath::Max(StepsY, 1);
+				const FVector2D Point = Center + Right * U + Up * V;
+				if (Point.Size() > LayoutParams.TableRadius + KINDA_SMALL_NUMBER)
+				{
+					return FString::Printf(TEXT("fuera de la mesa en (%.1f, %.1f)"), Point.X, Point.Y);
+				}
+				if (FMath::Abs(AngleBetween(DirectionAngleOf(Point), WedgeYaw)) > 30.f + 0.01f)
+				{
+					return FString::Printf(TEXT("fuera de la cuña en (%.1f, %.1f)"), Point.X, Point.Y);
+				}
+				if (Point.Size() < AltarRadius)
+				{
+					return FString::Printf(TEXT("bajo el Altar en (%.1f, %.1f)"), Point.X, Point.Y);
+				}
+				for (const FTileState& Tile : Board.Tiles)
+				{
+					if (Board.IsAltar(Tile.TileId))
+					{
+						continue;
+					}
+					const FTileLayout& Slab = Layout.Tiles[Tile.TileId];
+					const FVector2D Local = (Point - FVector2D(Slab.Location)).GetRotated(-Slab.Yaw);
+					if (FMath::Abs(Local.X) <= LayoutParams.SlabHalfSize && FMath::Abs(Local.Y) <= LayoutParams.SlabHalfSize)
+					{
+						return FString::Printf(TEXT("sobre la losa %d en (%.1f, %.1f)"), Tile.TileId, Point.X, Point.Y);
+					}
+					for (const int32 Other : Tile.Neighbours)
+					{
+						if (DistanceToSegment(Point, FVector2D(Slab.Location), FVector2D(Layout.Tiles[Other].Location)) < PathHalfWidth)
+						{
+							return FString::Printf(TEXT("sobre el sendero %d-%d en (%.1f, %.1f)"), Tile.TileId, Other, Point.X, Point.Y);
+						}
+					}
+				}
+			}
+		}
+		return FString();
+	}
+}
+
+// R-VIS-34 (decisión del autor del 19/11/2026): el nombre partido en dos líneas por el espacio más cercano a la mitad; sin espacio, una línea.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNameplateSplitTest, "Soulbound.Game.Presentation.Tablero3D.RotuloPartidoPorElEspacioDelMedio", LayoutTestFlags)
+bool FNameplateSplitTest::RunTest(const FString& Parameters)
+{
+	using Soulbound::Presentation::SplitNameplateName;
+	TestEqual(TEXT("El Fiordo Encadenado"), SplitNameplateName(TEXT("El Fiordo Encadenado")), TArray<FString>({TEXT("El Fiordo"), TEXT("Encadenado")}));
+	TestEqual(TEXT("La Ruina Tormentosa"), SplitNameplateName(TEXT("La Ruina Tormentosa")), TArray<FString>({TEXT("La Ruina"), TEXT("Tormentosa")}));
+	TestEqual(TEXT("El Río de la Noche: el espacio justo en la mitad"), SplitNameplateName(TEXT("El Río de la Noche")), TArray<FString>({TEXT("El Río de"), TEXT("la Noche")}));
+	TestEqual(TEXT("El Bosque Negro"), SplitNameplateName(TEXT("El Bosque Negro")), TArray<FString>({TEXT("El Bosque"), TEXT("Negro")}));
+	TestEqual(TEXT("El Banquete: un solo espacio"), SplitNameplateName(TEXT("El Banquete")), TArray<FString>({TEXT("El"), TEXT("Banquete")}));
+	TestEqual(TEXT("Sin espacio: una línea"), SplitNameplateName(TEXT("Abismo")), TArray<FString>({TEXT("Abismo")}));
+	// "ab c de": partido por el primer espacio, "ab" y "c de"; por el segundo, "ab c" y "de": dos y cuatro letras en los dos casos.
+	TestEqual(TEXT("A igual distancia, el primero"), SplitNameplateName(TEXT("ab c de")), TArray<FString>({TEXT("ab"), TEXT("c de")}));
+	TestEqual(TEXT("Vacío: nada"), SplitNameplateName(FString()), TArray<FString>());
+	return true;
+}
+
+// CA-VIS-37 (R-VIS-34, sitio): con tablero_86 y tablero_35, el rectángulo del rótulo (el del nombre más largo del tablero, con la forma y la letra que
+// salen) queda entero dentro de la cuña de cada uno de los seis Dominios, sin tocar losas, senderos ni el Altar, y con el giro de la vista sentada. La
+// comprobación recorre el rectángulo punto a punto, sin usar la función de sitio. Imprime la tabla de formas y letras para el autor.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FNameplateSpotTest, "Soulbound.Game.Presentation.Tablero3D.RotuloDentroDeSuCunaSinTaparCasillas", LayoutTestFlags)
+bool FNameplateSpotTest::RunTest(const FString& Parameters)
+{
+	using namespace Soulbound::Presentation;
+	const FDomainNameplateParams Params;
+	const FBoardLayoutParams LayoutParams = GameLayoutParams();
+	constexpr float SeatedYaw = 180.f;
+	for (const TCHAR* BoardName : {TEXT("tablero_86"), TEXT("tablero_35")})
+	{
+		FBoardState Board;
+		if (!LoadNamedBoard(*this, BoardName, Board))
+		{
+			return false;
+		}
+		const FBoardLayout Layout = ComputeBoardLayout(Board, LayoutParams);
+		const FDomainNameplateLayout Nameplates = ComputeDomainNameplates(Board, Layout, LayoutParams, SeatedYaw, Params);
+		if (!TestEqual(FString::Printf(TEXT("%s: un sitio por Dominio"), BoardName), Nameplates.Spots.Num(), Board.Domains.Num())
+			|| !TestEqual(FString::Printf(TEXT("%s: una letra por Dominio y forma"), BoardName), Nameplates.MaxLetterOneLine.Num(), Board.Domains.Num())
+			|| !TestEqual(FString::Printf(TEXT("%s: una letra por Dominio y forma, partido"), BoardName), Nameplates.MaxLetterSplit.Num(), Board.Domains.Num()))
+		{
+			continue;
+		}
+		TestTrue(FString::Printf(TEXT("%s: cabe con alguna letra"), BoardName), Nameplates.LetterSize > 0.f);
+
+		// La tabla para el autor: cuña, forma y letra mayor que cabe.
+		for (int32 Domain = 0; Domain < Board.Domains.Num(); ++Domain)
+		{
+			AddInfo(FString::Printf(TEXT("%s | D%d %s | una línea %.2f cm | partido %.2f cm"), BoardName, Domain, *Board.Domains[Domain].Name,
+				Nameplates.MaxLetterOneLine[Domain], Nameplates.MaxLetterSplit[Domain]));
+		}
+		AddInfo(FString::Printf(TEXT("%s | forma: %s | letra común %.2f cm"), BoardName, Nameplates.bSplit ? TEXT("partido en dos") : TEXT("una línea"), Nameplates.LetterSize));
+
+		// El rectángulo del nombre más largo del tablero, con la forma que ha salido: el mayor ancho y el mayor alto de los seis nombres.
+		FVector2D Size = FVector2D::ZeroVector;
+		for (const FDomainState& Domain : Board.Domains)
+		{
+			const TArray<FString> Lines = Nameplates.bSplit ? SplitNameplateName(Domain.Name) : TArray<FString>({Domain.Name});
+			Size = FVector2D::Max(Size, NameplateSize(Lines, Nameplates.LetterSize, Params));
+		}
+		for (int32 Domain = 0; Domain < Board.Domains.Num(); ++Domain)
+		{
+			const FDomainNameplateSpot& Spot = Nameplates.Spots[Domain];
+			const FString What = FString::Printf(TEXT("%s, D%d"), BoardName, Domain);
+			if (!TestTrue(What + TEXT(": hay sitio"), Spot.bFound))
+			{
+				continue;
+			}
+			TestEqual(What + TEXT(": el giro de la vista sentada"), Spot.Yaw, SeatedYaw);
+			// Con la vista sentada en 180 (en -X, mirando a +X), el texto sube hacia +X y se lee hacia +Y, como las etiquetas de casilla.
+			TestTrue(What + TEXT(": arriba del texto, +X"), Spot.Up.Equals(FVector2D(1.f, 0.f), 1e-3f));
+			TestTrue(What + TEXT(": lectura hacia +Y"), Spot.Right.Equals(FVector2D(0.f, 1.f), 1e-3f));
+			TestTrue(What + TEXT(": reserva al menos el rectángulo del nombre más largo"), Spot.HalfExtent.X * 2.f >= Size.X - 1e-3f && Spot.HalfExtent.Y * 2.f >= Size.Y - 1e-3f);
+			const FString Problem = NameplateProblem(Board, Layout, LayoutParams, Domain, Spot.Center, FVector2D(0.f, 1.f), FVector2D(1.f, 0.f), Size, Params.PathHalfWidth);
+			TestTrue(FString::Printf(TEXT("%s: el rectángulo, libre (%s)"), *What, *Problem), Problem.IsEmpty());
+			const FVector2D Offset = Spot.Center;
+			AddInfo(FString::Printf(TEXT("%s | centro (%.1f, %.1f): a %.1f cm del centro, %.1f° del eje de la cuña | rectángulo %.1f x %.1f cm"), *What, Offset.X, Offset.Y,
+				Offset.Size(), AngleBetween(DirectionAngleOf(Offset), Layout.Wedges[Domain].Yaw), Size.X, Size.Y));
+		}
+	}
+
+	// El sitio preferido encima de una losa: la función busca otro, libre, en la misma cuña.
+	FBoardState Board;
+	if (!LoadNamedBoard(*this, TEXT("tablero_35"), Board))
+	{
+		return false;
+	}
+	const FBoardLayout Layout = ComputeBoardLayout(Board, LayoutParams);
+	const int32 Domain = 0;
+	int32 Target = INDEX_NONE;
+	for (const FTileState& Tile : Board.Tiles)
+	{
+		if (Tile.DomainId == Domain && Tile.Type == ETileType::Normal)
+		{
+			Target = Tile.TileId;
+			break;
+		}
+	}
+	if (!TestTrue(TEXT("Una casilla normal del Dominio 0"), Target != INDEX_NONE))
+	{
+		return false;
+	}
+	const FVector2D TargetLocation(Layout.Tiles[Target].Location);
+	const float Inner = Layout.AltarApothem * 2.f / FMath::Sqrt(3.f);
+	FDomainNameplateParams OnSlab = Params;
+	OnSlab.RadiusFraction = (TargetLocation.Size() - Inner) / (LayoutParams.TableRadius - Inner);
+	OnSlab.AngleFraction = AngleBetween(DirectionAngleOf(TargetLocation), Layout.Wedges[Domain].Yaw) / 30.f;
+	const FVector2D Size = NameplateSize({TEXT("El Banquete")}, 2.f, OnSlab);
+	const FDomainNameplateSpot Spot = DomainNameplateSpot(Board, Layout, LayoutParams, Domain, Size, SeatedYaw, OnSlab);
+	if (TestTrue(TEXT("Preferido sobre una losa: encuentra sitio"), Spot.bFound))
+	{
+		TestTrue(TEXT("Preferido sobre una losa: se aparta de ella"), !Spot.Center.Equals(TargetLocation, 0.5f));
+		const FString Problem = NameplateProblem(Board, Layout, LayoutParams, Domain, Spot.Center, Spot.Right, Spot.Up, Size, OnSlab.PathHalfWidth);
+		TestTrue(FString::Printf(TEXT("Preferido sobre una losa: el rectángulo, libre (%s)"), *Problem), Problem.IsEmpty());
+	}
+	return true;
+}
+
 #endif
