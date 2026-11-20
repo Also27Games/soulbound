@@ -1,10 +1,10 @@
 # Decisiones del proyecto
 
-Mapa de lectura para quien evalúa el TFM: las decisiones que definen Soulbound Core, dónde verlas y qué se dejó fuera a sabiendas. Cinco minutos. El detalle de cada una está en su ADR (`docs/adr/`), en `CLAUDE.md` o en la bitácora. Revisado el 5/11/2026, con 24 stories fusionadas, 384 tests y la build del test de usabilidad congelada.
+Mapa de lectura para quien evalúa el TFM: las decisiones que definen Soulbound Core, dónde verlas y qué se dejó fuera a sabiendas. Cinco minutos. El detalle de cada una está en su ADR (`docs/adr/`), en `CLAUDE.md` o en la bitácora; el diseño, en `docs/gdd/`. Revisado el 20/11/2026, con 48 stories fusionadas, 622 tests y la build `v0.3` de la entrega.
 
 ## Lo que define el proyecto
 
-1. **Motor de reglas sin mundo.** Todas las reglas del juego viven en `Source/SoulboundCore`, que solo depende de `Core`, `CoreUObject` y `Json`. Los actores y subsistemas de `Source/Soulbound` son adaptadores de entrada y presentación; nunca contienen reglas. Por eso 384 tests corren por consola en doce segundos sin abrir el editor. (ADR-001)
+1. **Motor de reglas sin mundo.** Todas las reglas del juego viven en `Source/SoulboundCore`, que solo depende de `Core`, `CoreUObject` y `Json`. Los actores y subsistemas de `Source/Soulbound` son adaptadores de entrada y presentación; nunca contienen reglas. Por eso 622 tests corren por consola en minuto y medio sin abrir el editor. (ADR-001)
 2. **Partidas enteras como tests.** La simulación recorre una partida completa con reloj virtual, determinista por semilla, y es la misma lógica que mueve la partida en el editor. (`Simulation/MatchSimulation.h`)
 3. **Un test por criterio de aceptación, escrito antes y visto fallar.** Cada regla del GDD tiene un criterio Dado/Cuando/Entonces y cada criterio al menos un test que lo cita. La bitácora dice en cada story si build y tests pasaron a la primera. (`CLAUDE.md`, `Source/*/Private/Tests`)
 4. **Todo lo ajustable sale de datos.** Tableros, eventos del Warden, frases, textos y parámetros de juego están en `Content/Data/` con su valor inicial documentado; en el código no hay números mágicos. Los tableros se generan y validan con el editor de `Scripts/board-editor/`.
