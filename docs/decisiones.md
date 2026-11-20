@@ -15,7 +15,7 @@ Mapa de lectura para quien evalúa el TFM: las decisiones que definen Soulbound 
 9. **Online como infraestructura, no como entrega.** La sesión por código sobre Epic Online Services funciona con un plugin propio anterior al máster (`Plugins/A27Online`), reutilizado tal cual. La partida en línea es Fase 2: en esta entrega se juega en local contra tres dummies. (ADR-003, README §5)
 10. **Probar con gente antes de pulir.** Cuatro probadores externos, guion con tareas observables, cuestionario y umbrales de problema fijados antes de la primera sesión; el informe decide las stories de la semana siguiente. (`docs/test-usabilidad/`)
 11. **Build de desarrollo a propósito.** La build entregada es Development, con consola y comandos `Sb*`, para reproducir lo que cuenten los probadores. El HUD de depuración es la interfaz de esta fase. Un parámetro de juego nunca se cambia desde ahí: se cambia en datos.
-12. **Lo que no entra se declara.** El README dice qué queda para la Fase 2 y qué existe ya de cada cosa (interfaz del GDD 07, voz y audio, bot básico, partida en línea, grabación, Steam Deck).
+12. **Lo que no entra se declara.** El README dice qué queda para la Fase 2 y qué existe ya de cada cosa (interfaz del GDD 07, voz y audio, bot básico, partida en línea, grabación, Steam Deck). Del audio solo entra en la Fase 1 el golpe del corte del Warden (S-050, decidido por el autor el 19/11/2026); la voz del Warden sigue en la Fase 2.
 
 ## Lo que se dejó fuera a sabiendas
 

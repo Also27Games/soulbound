@@ -335,7 +335,8 @@ namespace
 // CA-HUD-75 (R-HUD-22, ronda de correcciones del 19/11/2026): la vista y el libro del menú cargan por ruta, en tiempo de ejecución, lo que dicen sus
 // propiedades de Config; el cocinador no sigue esas rutas. Cada una con valor cae dentro de una carpeta de DirectoriesToAlwaysCook. Se recorren por
 // reflexión todas las propiedades de Config de la vista que son rutas de asset (FSoftObjectPath, TSoftObjectPtr y las cadenas que empiezan por
-// "/Game/", como la carpeta de las láminas), para que una ruta nueva no se escape.
+// "/Game/", como la carpeta de las láminas), para que una ruta nueva no se escape. Desde S-050, CA-VOZ-18 (R-VOZ-12, cocinado): el sonido del corte
+// (CutSound) es una de esas rutas.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FHowToPlayCookedDirectoriesTest, "Soulbound.Game.Presentation.ComoSeJuega.CarpetasQueSeCocinan", HbTestFlags)
 bool FHowToPlayCookedDirectoriesTest::RunTest(const FString& Parameters)
 {
@@ -346,6 +347,8 @@ bool FHowToPlayCookedDirectoriesTest::RunTest(const FString& Parameters)
 	}
 	const ABoardViewActor* View = GetDefault<ABoardViewActor>();
 	TSet<FString> Checked;
+	// Las rutas de asset de la Config, también las vacías: una ruta vacía no se comprueba hasta que se pone (S-050, CA-VOZ-18).
+	TSet<FString> AssetPaths;
 	for (TFieldIterator<FProperty> It(ABoardViewActor::StaticClass()); It; ++It)
 	{
 		const FProperty* Property = *It;
@@ -356,10 +359,12 @@ bool FHowToPlayCookedDirectoriesTest::RunTest(const FString& Parameters)
 		FString Path;
 		if (const FStructProperty* Struct = CastField<FStructProperty>(Property); Struct && Struct->Struct == TBaseStructure<FSoftObjectPath>::Get())
 		{
+			AssetPaths.Add(Property->GetName());
 			Path = Struct->ContainerPtrToValuePtr<FSoftObjectPath>(View)->GetLongPackageName();
 		}
 		else if (const FSoftObjectProperty* Soft = CastField<FSoftObjectProperty>(Property))
 		{
+			AssetPaths.Add(Property->GetName());
 			Path = Soft->GetPropertyValue_InContainer(View).ToSoftObjectPath().GetLongPackageName();
 		}
 		else if (const FStrProperty* String = CastField<FStrProperty>(Property))
@@ -379,6 +384,9 @@ bool FHowToPlayCookedDirectoriesTest::RunTest(const FString& Parameters)
 	{
 		TestTrue(FString::Printf(TEXT("Se mira %s"), Name), Checked.Contains(Name));
 	}
+	// CA-VOZ-18 (S-050, cocinado; R-VOZ-12): el sonido del corte es una ruta de asset de la Config, así que el recorrido la comprueba en cuanto el autor la
+	// pone (vacía de inicio). Su carpeta, /Game/Audio, ya está en DirectoriesToAlwaysCook.
+	TestTrue(TEXT("CutSound es una ruta de asset de la Config que se recorre"), AssetPaths.Contains(TEXT("CutSound")));
 
 	// Y las del libro del menú, que salen de esa misma Config.
 	const Soulbound::Presentation::FHowToPlayBookSettings Settings = UHowToPlayLibrary::ConfiguredBookSettings();

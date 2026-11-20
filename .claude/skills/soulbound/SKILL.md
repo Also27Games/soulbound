@@ -57,7 +57,7 @@ Incluye: sprints de Nodos del Poder, carrera por el vínculo y carrera hacia la 
 
 Excluye: VR, voz espacial, niveles de dificultad de los bots, arte propio final.
 
-Recortado durante el desarrollo y pasado a la Fase 2 (noviembre de 2026): partida en línea, el resto del minijuego de habilidad del GDD 09 (desenfunde, trampas del desafío final, duelo simultáneo y habilidad de los bots), bot básico, voz sintética y audio, interfaz del GDD 07, medición en Steam Deck e integración continua. El README dice qué existe ya de cada cosa.
+Recortado durante el desarrollo y pasado a la Fase 2 (noviembre de 2026): partida en línea, el resto del minijuego de habilidad del GDD 09 (desenfunde, trampas del desafío final, duelo simultáneo y habilidad de los bots), bot básico, voz sintética y audio (del audio, solo entra en la Fase 1 el golpe del corte del Warden, S-050), interfaz del GDD 07, medición en Steam Deck e integración continua. El README dice qué existe ya de cada cosa.
 
 El alcance era amplio para el tiempo disponible y la entrega se adelantó: es antes del 30/11/2026. Lo recortado está en el párrafo anterior; si hay que recortar más, se documenta ahí, nunca en silencio.
 
