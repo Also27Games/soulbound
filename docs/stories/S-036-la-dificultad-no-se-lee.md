@@ -38,7 +38,7 @@ Manuales, por el autor, en PIE, con captura:
 
 ## Segunda tanda: la instrucción del anillo se queda y cabe (corrección del autor del 13/11/2026)
 
-Probando el PR en PIE, el autor vio que la instrucción del anillo ("Haz clic cuando el aro toque la runa. En la franja verde cuenta; cuanto más cerca, mejor.") no se puede leer y se sale del panel. Las dos cosas tienen causa en el código: el panel la pinta en una sola línea, sin partirla (`DrawCenteredText`, `RingPanel.cpp`), y solo la enseña durante el anuncio (`RingAnnounceSeconds`, 1,5 s); después la sustituye "pulso k de N". El texto lo alargó el tutor el 12/11/2026 sin comprobar el ancho.
+Probando el PR en PIE, el autor vio que la instrucción del anillo ("Haz clic cuando el aro toque la runa. En la franja verde cuenta; cuanto más cerca, mejor.") no se puede leer y se sale del panel. Las dos cosas tienen causa en el código: el panel la pinta en una sola línea, sin partirla (`DrawCenteredText`, `RingPanel.cpp`), y solo la enseña durante el anuncio (`RingAnnounceSeconds`, 1,5 s); después la sustituye "pulso k de N". El texto se alargó el 12/11/2026 sin comprobar el ancho.
 
 Decidido por el autor: **la instrucción se queda durante todo el anillo, en dos líneas, y el contador "pulso k de N" desaparece** (las marcas de abajo ya dicen cuántos pulsos hay y cuántos van).
 
