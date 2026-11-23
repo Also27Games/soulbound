@@ -1,6 +1,6 @@
 # Decisiones del proyecto
 
-Mapa de lectura para quien evalúa el TFM: las decisiones que definen Soulbound Core, dónde verlas y qué se dejó fuera a sabiendas. Cinco minutos. El detalle de cada una está en su ADR (`docs/adr/`), en `CLAUDE.md` o en la bitácora; el diseño, en `docs/gdd/`. Revisado el 20/11/2026, con 48 stories fusionadas, 622 tests y la build `v0.3` de la entrega.
+Mapa de lectura para quien evalúa el TFM: las decisiones que definen Soulbound Core, dónde verlas y qué se dejó fuera a sabiendas. Cinco minutos. El detalle de cada una está en su ADR (`docs/adr/`), en `CLAUDE.md` o en la bitácora; el diseño, en `docs/gdd/`. Revisado el 20/11/2026, con 48 stories fusionadas, 622 tests y la build `v0.3.1` de la entrega.
 
 ## Lo que define el proyecto
 

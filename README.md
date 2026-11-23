@@ -21,7 +21,7 @@ Trabajo de Fin de Máster del Máster en Desarrollo con IA (BIG School, 3ª edic
 
 ### Jugar la build
 
-Requisitos: Windows 10 u 11 de 64 bits, tarjeta gráfica dedicada compatible con DirectX 12, 8 GB de memoria, ratón y teclado; 1 GB libre en disco. Probado con una NVIDIA GeForce MX550, de gama de entrada: entre 46 y 58 fotogramas por segundo según la calidad. No hace falta Steam, cuenta ni conexión. Descargar la build del enlace de despliegue (al final), descomprimir en una carpeta propia (no en `Archivos de programa`) y ejecutar `Soulbound.exe`. Windows avisa de que el programa no está firmado ("Windows protegió su PC"): *Más información* › *Ejecutar de todas formas*. Si avisa de que falta Microsoft Visual C++, el instalador viaja dentro de la build: `Engine\Extras\Redist\en-us\vc_redist.x64.exe`. Si la primera vez el juego arranca a baja resolución (1024x768, con la imagen ampliada o pixelada), se corrige en el menú de configuración de vídeo: elegir la resolución de la pantalla y pulsar *Aplicar Resolución*; queda guardado. En el menú, *Jugar* abre la pantalla "Cómo se juega": el libro de reglas, que se abre con un clic en la portada y se pasa de página con sus botones o con las flechas arriba y abajo, y desde ahí la partida contra tres jugadores automáticos. Teclas en partida: clic en una casilla que late para moverse; para cada decisión, los botones del panel de abajo o su número (también para votar y para el Oráculo), o clic en la ficha para votar; Esc para la pausa; C cambia la vista; G abre el Grimorio (la mesa, el libro de "Cómo se juega" y la crónica); L enseña los números de casilla; Intro vuelve al menú al acabar. De depuración: T, panel de estado, y D, panel de depuración. El juego tiene un solo sonido y no tiene ajustes de audio: se regula con el volumen de Windows. El log del motor queda en `Soulbound\Saved\Logs\` y el acta de cada partida (todo lo que pasó en la mesa, turno a turno, y cómo acabó), en `Soulbound\Saved\Partidas\`: es el archivo que se pide a los probadores.
+Requisitos: Windows 10 u 11 de 64 bits, tarjeta gráfica dedicada compatible con DirectX 12, 8 GB de memoria, ratón y teclado; 1 GB libre en disco. Probado con una NVIDIA GeForce MX550, de gama de entrada: entre 46 y 58 fotogramas por segundo según la calidad. No hace falta Steam, cuenta ni conexión. Descargar la build del enlace de despliegue (al final), descomprimir en una carpeta propia (no en `Archivos de programa`) y ejecutar `Soulbound.exe`. Windows avisa de que el programa no está firmado ("Windows protegió su PC"): *Más información* › *Ejecutar de todas formas*. Si avisa de que falta Microsoft Visual C++, el instalador viaja dentro de la build: `Engine\Extras\Redist\en-us\vc_redist.x64.exe`. Si la primera vez el juego arranca a baja resolución (1024x768, con la imagen ampliada o pixelada), se corrige en el menú de configuración de vídeo: elegir la resolución de la pantalla y pulsar *Aplicar Resolución*; queda guardado. En el menú, *Jugar* abre la pantalla "Cómo se juega": el libro de reglas, que se abre con el botón *Cómo jugar* o con un clic en la portada y se pasa de página con sus botones o con las flechas arriba y abajo, y desde ahí la partida contra tres jugadores automáticos. Teclas en partida: clic en una casilla que late para moverse; para cada decisión, los botones del panel de abajo o su número (también para votar y para el Oráculo), o clic en la ficha para votar; Esc para la pausa; C cambia la vista; G abre el Grimorio (la mesa, el libro de "Cómo se juega" y la crónica); L enseña los números de casilla; Intro vuelve al menú al acabar. De depuración: T, panel de estado, y D, panel de depuración. El juego tiene un solo sonido y no tiene ajustes de audio: se regula con el volumen de Windows. El log del motor queda en `Soulbound\Saved\Logs\` y el acta de cada partida (todo lo que pasó en la mesa, turno a turno, y cómo acabó), en `Soulbound\Saved\Partidas\`: es el archivo que se pide a los probadores.
 
 ### Desarrollo en Windows
 
@@ -56,7 +56,7 @@ Ramas: `main` contiene el proyecto estable; cada story se hace en una rama `stor
 
 ## 5. Funcionalidades principales
 
-Lo que hay en la versión de la entrega (`v0.3`, noviembre de 2026), tras 48 stories (`docs/stories/`) y 77 pull requests, con 622 tests de automatización por consola:
+Lo que hay en la versión de la entrega (`v0.3.1`, noviembre de 2026), tras 48 stories (`docs/stories/`) y 77 pull requests, con 622 tests de automatización por consola:
 
 **Una partida completa, de uno contra tres bots.**
 
@@ -89,7 +89,7 @@ Lo que hay en la versión de la entrega (`v0.3`, noviembre de 2026), tras 48 sto
 ## Entregables del TFM
 
 - Repositorio: este.
-- Despliegue o publicación: build `v0.3` para Windows, sin cuenta ni clave, como Release de este repositorio (etiqueta `v0.3`); el enlace se añade al publicarla.
+- Despliegue o publicación: build `v0.3.1` para Windows, sin cuenta ni clave, como Release de este repositorio (etiqueta `v0.3.1`); el enlace se añade al publicarla.
 - Test de usabilidad: guion en `docs/test-usabilidad/guion.md`; informe en `docs/test-usabilidad/informe.md` al acabar (noviembre de 2026).
 - Slides: pendiente (enlace o archivo en `docs/`).
 - Vídeo con explicación y captura de pantalla: pendiente.
