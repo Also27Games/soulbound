@@ -90,7 +90,7 @@ Lo que hay en la versión de la entrega (`v0.3.1`, noviembre de 2026), tras 48 s
 
 - Repositorio: este.
 - Despliegue o publicación: build `v0.3.1` para Windows, sin cuenta ni clave, como Release de este repositorio (etiqueta `v0.3.1`); el enlace se añade al publicarla.
-- Test de usabilidad: guion en `docs/test-usabilidad/guion.md`; informe en `docs/test-usabilidad/informe.md` al acabar (noviembre de 2026).
+- Test de usabilidad: guion en `docs/test-usabilidad/guion.md` e informe en `docs/test-usabilidad/informe.md`. Tres personas, en dos rondas. En la primera, las dos que jugaron dijeron que no sabían qué hacer ni qué estaba pasando. No era un problema de reglas sino de presentación, y de ahí salieron las stories S-039 a S-050. En la segunda, una probadora pasó de 11 clics a casillas imposibles de 27 a 1 de 25, otro probador escribió que el juego se entiende desde la primera partida y ganó al Warden por primera vez, y un tercero, que no vio que el libro de reglas se abría, dio lugar al botón *Cómo jugar* de la `v0.3.1`.
 - Slides: pendiente (enlace o archivo en `docs/`).
 - Vídeo con explicación y captura de pantalla: pendiente.
 
