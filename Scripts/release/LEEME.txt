@@ -1,0 +1,44 @@
+SOULBOUND v0.3.1
+Versión en desarrollo. Trabajo de Fin de Máster de Lluis Alonso (also27games.com).
+Un jugador contra tres jugadores automáticos. Las imágenes y el sonido son provisionales.
+
+
+PARA EMPEZAR
+
+1. Ejecuta Soulbound.exe.
+   Si Windows avisa de que "protegió su PC": Más información > Ejecutar de todas formas.
+   El aviso sale porque el programa no está firmado.
+
+2. Si avisa de que falta Microsoft Visual C++, instálalo desde esta misma carpeta:
+   Engine\Extras\Redist\en-us\vc_redist.x64.exe
+
+3. En el menú, pulsa Jugar. Antes de la partida verás un libro:
+   pulsa "Cómo jugar" para leer las reglas. Merece la pena la primera vez.
+
+
+SI NO SE VE BIEN
+
+Si la primera vez arranca a baja resolución (la imagen ampliada o pixelada), ve al menú
+de configuración de vídeo, elige la resolución de tu pantalla y pulsa "Aplicar Resolución".
+Queda guardado.
+
+
+TECLAS EN PARTIDA
+
+Clic en una casilla que late     Moverte
+Botones del panel o su número    Responder a cada decisión
+Clic en una ficha                Votar
+G                                Grimorio: la mesa, las reglas y la crónica
+C                                Cambiar de vista
+L                                Números de casilla
+Esc                              Menú. La partida no se detiene.
+Intro                            Volver al menú al acabar
+
+
+REQUISITOS
+
+Windows 10 u 11 de 64 bits, tarjeta gráfica dedicada compatible con DirectX 12,
+8 GB de memoria, ratón y teclado. No hace falta cuenta ni conexión.
+
+
+Código, documentación y vídeo: https://github.com/Also27Games/soulbound

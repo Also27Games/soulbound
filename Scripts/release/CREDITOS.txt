@@ -1,0 +1,39 @@
+SOULBOUND: CRÉDITOS
+
+Diseño, reglas, programación, textos y dirección
+    Lluis Alonso (also27games.com)
+
+Herramientas de IA
+    Claude Code, para programar con agentes. Cada cambio parte de un plan que el autor
+    aprueba y entra por un pull request que el autor fusiona.
+
+Piezas del tablero
+    Kit propio, low-poly, generado por código en Blender.
+
+Imágenes (láminas, portada y fondo del libro, sello, texturas)
+    Generadas con IA. Provisionales.
+
+Sonido
+    El golpe con que el Warden corta un turno, generado con IA (ElevenLabs). Provisional.
+
+Tipografía
+    EB Garamond, bajo la SIL Open Font License 1.1. El texto de la licencia va en OFL.txt,
+    junto a este archivo.
+
+Tecnología
+    Unreal Engine 5.8, Epic Online Services, Redpoint EOS Online Framework (Free Edition),
+    Ultra Game Template y Ultra Loading Screen.
+
+Pruebas
+    Gracias a quienes probaron el juego.
+
+
+AVISOS
+
+Soulbound uses Unreal® Engine. Unreal® is a trademark or registered trademark of
+Epic Games, Inc. in the United States of America and elsewhere.
+
+Unreal® Engine, Copyright 1998 – 2026, Epic Games, Inc. All rights reserved.
+
+
+© 2026 Lluis Alonso. Todos los derechos reservados.
